@@ -14,7 +14,7 @@ const courseCurriculum = [
     title: "第一章 變數、賦值與基本語法慣例",
     sections: [
       { id: "sec1-1", title: "1.1 變數命名規則與記憶體參照概念", available: true, url: "PythAPCS123_1-1_variable_naming_and_memory.html" },
-      { id: "sec1-2", title: "1.2 等號賦值與運算順序", available: false, url: "PythAPCS123_1-2_assignment_and_execution_order.html" },
+      { id: "sec1-2", title: "1.2 等號賦值與運算順序", available: true, url: "PythAPCS123_1-2_assignment_and_execution_order.html" },
       { id: "sec1-3", title: "1.3 多變數同時賦值與變數交換（Swap）", available: false, url: "PythAPCS123_1-3_multiple_assignment_and_swap.html" },
       { id: "sec1-4", title: "1.4 運算後賦值（複合賦值運算子）", available: false, url: "PythAPCS123_1-4_augmented_assignment_operators.html" },
       { id: "sec1-5", title: "1.5 單行多指令（分號）、註解（#）與長指令折行", available: false, url: "PythAPCS123_1-5_semicolon_and_comments.html" },
@@ -227,6 +227,7 @@ let isIdleTheme = false;
 let currentSectionId = "sec1-1";
 let activeSlidesData = [];
 let colabPracticeUrl = "";
+let isAnswerRevealed = true; // 追蹤當前頁主動預測答案是否已揭曉 (agytodo 3.2)
 
 /* ==========================================================================
    3. 引擎初始化主入口 (initSlideEngine)
@@ -454,10 +455,39 @@ function renderSlide(index) {
     }).join('');
   }
 
-  // 執行結果 (純結果輸出，無終端機提示符號)
+  // 頂部細緻進度線 (agytodo 5.2)
+  const topbarProgress = document.getElementById('topbarProgressLine');
+  if (topbarProgress) {
+    const pct = ((index + 1) / activeSlidesData.length) * 100;
+    topbarProgress.style.width = `${pct}%`;
+  }
+
+  // 執行結果 (純結果輸出，並支援主動預測遮罩 - agytodo 3.2)
   const outputViewport = document.getElementById('outputViewport');
+  const predictionOverlay = document.getElementById('predictionOverlay');
+  const hasPrediction = !!slide.predict || !!slide.maskOutput;
+
   if (outputViewport) {
     outputViewport.innerHTML = slide.output || '<span class="output-empty">（無終端輸出）</span>';
+    if (hasPrediction) {
+      isAnswerRevealed = false;
+      outputViewport.classList.add('blurred');
+      if (predictionOverlay) {
+        predictionOverlay.style.display = 'flex';
+        const badge = predictionOverlay.querySelector('.prediction-badge');
+        if (badge) {
+          if (typeof slide.predict === 'string' && slide.predict.trim() !== '') {
+            badge.textContent = `🧠 預測思考：${slide.predict}`;
+          } else {
+            badge.textContent = '🧠 點擊揭曉預測答案';
+          }
+        }
+      }
+    } else {
+      isAnswerRevealed = true;
+      outputViewport.classList.remove('blurred');
+      if (predictionOverlay) predictionOverlay.style.display = 'none';
+    }
   }
 
   // 重點說明 (支援滑鼠移入與手機點擊時，聯動高亮對應程式碼行)
@@ -484,6 +514,61 @@ function renderSlide(index) {
     }).join('');
   }
 
+  // 記憶體狀態盒 (Memory State Widget - agytodo 2.1, 2.2, 2.6)
+  const memoryStage = document.getElementById('memoryStage');
+  const memoryBoxesContainer = document.getElementById('memoryBoxesContainer');
+  if (memoryStage && memoryBoxesContainer) {
+    if (Array.isArray(slide.memoryState) && slide.memoryState.length > 0) {
+      memoryStage.style.display = 'block';
+      memoryBoxesContainer.innerHTML = slide.memoryState.map(box => {
+        const isDiff = box.diff ? 'diff-box' : '';
+        const hasOverwrite = (box.prevVal !== undefined && box.prevVal !== null);
+        return `
+          <div class="memory-box ${isDiff}">
+            <div class="memory-box-tag">${box.name}</div>
+            <div class="memory-box-content">
+              ${hasOverwrite ? `<span class="val-old">${box.prevVal}</span><span class="val-arrow">➔</span>` : ''}
+              <span class="val-current">${box.val}</span>
+            </div>
+            ${hasOverwrite ? '<span class="badge-overwrite">覆蓋 Overwrite</span>' : (box.diff ? '<span class="badge-new">新放入</span>' : '')}
+          </div>
+        `;
+      }).join('');
+    } else {
+      memoryStage.style.display = 'none';
+      memoryBoxesContainer.innerHTML = '';
+    }
+  }
+
+  // 單元通關徽章與 Colab 實戰卡片 (agytodo 5.3)
+  const isLast = (index === activeSlidesData.length - 1);
+  const completionCard = document.getElementById('completionCard');
+  if (completionCard) {
+    if (isLast) {
+      completionCard.style.display = 'block';
+      let colabTargetUrl = colabPracticeUrl;
+      if (colabTargetUrl && !colabTargetUrl.startsWith('http')) {
+        colabTargetUrl = `https://colab.research.google.com/github/johnnyy-lab/APCS1to3/blob/main/${colabTargetUrl.replace(/^\.\.\//, '')}`;
+      }
+      completionCard.innerHTML = `
+        <div class="completion-badge-title">
+          <span>🏆</span>
+          <span>單元挑戰達成！滿分通關徽章</span>
+        </div>
+        <div class="completion-badge-desc">
+          太棒了！您已全數完成本單元所有核心觀念與心智模型的微步進演練。<br>
+          現在正是將觀念化為肌肉記憶的最佳時刻！
+        </div>
+        <a class="btn-colab-launch" href="${colabTargetUrl || '#'}" target="_blank" rel="noopener noreferrer">
+          <span>🚀 前往 Google Colab 動手練（40/50 滿分題庫）</span>
+        </a>
+      `;
+    } else {
+      completionCard.style.display = 'none';
+      completionCard.innerHTML = '';
+    }
+  }
+
   // 頁碼 (桌面端與行動端同步更新)
   const pageStr = `${index + 1} / ${activeSlidesData.length}`;
   const pageInd = document.getElementById('pageIndicator');
@@ -491,9 +576,21 @@ function renderSlide(index) {
   const dockPage = document.getElementById('dockPageIndicator');
   if (dockPage) dockPage.textContent = pageStr;
 
+  // 微進度指示點 (Milestone Dots - agytodo 5.2)
+  const milestoneDots = document.getElementById('milestoneDots');
+  if (milestoneDots) {
+    milestoneDots.innerHTML = activeSlidesData.map((s, i) => {
+      let stateClass = 'pending';
+      if (i < index) stateClass = 'completed';
+      else if (i === index) stateClass = 'active';
+      return `<div class="milestone-dot ${stateClass}" 
+                   title="第 ${i + 1} 頁: ${s.titleZh || ''}" 
+                   onclick="goToSlide(${i})"></div>`;
+    }).join('');
+  }
+
   // 按鈕狀態 (桌面端與行動端同步更新)
   const isFirst = (index === 0);
-  const isLast = (index === activeSlidesData.length - 1);
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
   if (btnPrev) btnPrev.disabled = isFirst;
@@ -503,6 +600,15 @@ function renderSlide(index) {
   const dockNext = document.getElementById('dockBtnNext');
   if (dockPrev) dockPrev.disabled = isFirst;
   if (dockNext) dockNext.disabled = isLast;
+
+  // 動態更新「下一頁」按鈕標籤（未揭曉顯示揭曉按鈕）
+  if (!isAnswerRevealed) {
+    if (btnNext) btnNext.innerHTML = '<span>👁️ 揭曉答案</span> <span class="key-badge">▶</span>';
+    if (dockNext) dockNext.innerHTML = '<span>👁️ 揭曉</span><span>▶</span>';
+  } else {
+    if (btnNext) btnNext.innerHTML = '下一頁 <span class="key-badge">▶</span>';
+    if (dockNext) dockNext.innerHTML = '<span>下一頁</span><span>▶</span>';
+  }
 
   // 重置行解析條為預設狀態
   resetLineBar();
@@ -587,8 +693,22 @@ function onNoteClick(lineNums) {
 }
 
 /* ==========================================================================
-   8. 翻頁與全螢幕操作
+   8. 翻頁、主動預測揭曉與跳轉操作 (agytodo 3.2, 5.2)
    ========================================================================== */
+function revealPrediction() {
+  if (isAnswerRevealed) return;
+  isAnswerRevealed = true;
+  const overlay = document.getElementById('predictionOverlay');
+  if (overlay) overlay.style.display = 'none';
+  const outViewport = document.getElementById('outputViewport');
+  if (outViewport) outViewport.classList.remove('blurred');
+
+  const btnNext = document.getElementById('btnNext');
+  if (btnNext) btnNext.innerHTML = '下一頁 <span class="key-badge">▶</span>';
+  const dockNext = document.getElementById('dockBtnNext');
+  if (dockNext) dockNext.innerHTML = '<span>下一頁</span><span>▶</span>';
+}
+
 function prevSlide() {
   if (currentSlide > 0) {
     currentSlide--;
@@ -597,8 +717,22 @@ function prevSlide() {
 }
 
 function nextSlide() {
+  // 若當前頁有預測遮罩且尚未揭曉答案：第 1 下平滑揭曉答案 (agytodo 3.2)
+  if (!isAnswerRevealed) {
+    revealPrediction();
+    return;
+  }
+
+  // 第 2 下或無遮罩時：正常切換至下一頁
   if (currentSlide < activeSlidesData.length - 1) {
     currentSlide++;
+    renderSlide(currentSlide);
+  }
+}
+
+function goToSlide(targetIndex) {
+  if (targetIndex >= 0 && targetIndex < activeSlidesData.length) {
+    currentSlide = targetIndex;
     renderSlide(currentSlide);
   }
 }

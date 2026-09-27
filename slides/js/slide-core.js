@@ -523,6 +523,19 @@ function renderSlide(index) {
       memoryBoxesContainer.innerHTML = slide.memoryState.map(box => {
         const isDiff = box.diff ? 'diff-box' : '';
         const hasOverwrite = (box.prevVal !== undefined && box.prevVal !== null);
+        let badgeHtml = '';
+        if (box.badgeText) {
+          const badgeClass = box.badgeClass || (box.action === 'swap' ? 'badge-swap' : (box.action === 'temp' ? 'badge-temp' : (hasOverwrite ? 'badge-overwrite' : 'badge-new')));
+          badgeHtml = `<span class="${badgeClass}">${box.badgeText}</span>`;
+        } else if (box.action === 'swap') {
+          badgeHtml = '<span class="badge-swap">交換 Swap</span>';
+        } else if (box.action === 'temp') {
+          badgeHtml = '<span class="badge-temp">暫存 Temp</span>';
+        } else if (hasOverwrite) {
+          badgeHtml = '<span class="badge-overwrite">覆蓋 Overwrite</span>';
+        } else if (box.diff) {
+          badgeHtml = '<span class="badge-new">新放入</span>';
+        }
         return `
           <div class="memory-box ${isDiff}">
             <div class="memory-box-tag">${box.name}</div>
@@ -530,7 +543,7 @@ function renderSlide(index) {
               ${hasOverwrite ? `<span class="val-old">${box.prevVal}</span><span class="val-arrow">➔</span>` : ''}
               <span class="val-current">${box.val}</span>
             </div>
-            ${hasOverwrite ? '<span class="badge-overwrite">覆蓋 Overwrite</span>' : (box.diff ? '<span class="badge-new">新放入</span>' : '')}
+            ${badgeHtml}
           </div>
         `;
       }).join('');

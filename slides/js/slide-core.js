@@ -537,7 +537,12 @@ function renderSlide(index) {
           badgeHtml = '<span class="badge-new">新放入</span>';
         }
         return `
-          <div class="memory-box ${isDiff}">
+          <div class="memory-box ${isDiff}" 
+               data-var-name="${box.name}"
+               onmouseenter="onMemoryBoxHover('${box.name}')"
+               onmouseleave="onMemoryBoxLeave()"
+               onclick="onMemoryBoxHover('${box.name}')"
+               title="變數 ${box.name}：懸停或點擊以高亮程式碼參照行">
             <div class="memory-box-tag">${box.name}</div>
             <div class="memory-box-content">
               ${hasOverwrite ? `<span class="val-old">${box.prevVal}</span><span class="val-arrow">➔</span>` : ''}
@@ -582,22 +587,40 @@ function renderSlide(index) {
     }
   }
 
+  // 四階段學習路徑標記 (agytodo 5.1)
+  const stageInfo = getSlideStage(slide, index, activeSlidesData.length);
+
   // 頁碼 (桌面端與行動端同步更新)
   const pageStr = `${index + 1} / ${activeSlidesData.length}`;
   const pageInd = document.getElementById('pageIndicator');
   if (pageInd) pageInd.textContent = pageStr;
   const dockPage = document.getElementById('dockPageIndicator');
-  if (dockPage) dockPage.textContent = pageStr;
+  if (dockPage) {
+    dockPage.innerHTML = `<span class="dock-stage-tag ${stageInfo.class}">${stageInfo.text}</span><span>${pageStr}</span>`;
+  }
 
-  // 微進度指示點 (Milestone Dots - agytodo 5.2)
+  // 微進度指示點 (Milestone Dots - agytodo 5.2) 與四階段標籤 (agytodo 5.1)
   const milestoneDots = document.getElementById('milestoneDots');
   if (milestoneDots) {
+    let stageBadge = document.getElementById('stageBadge');
+    if (!stageBadge && milestoneDots.parentNode) {
+      stageBadge = document.createElement('span');
+      stageBadge.id = 'stageBadge';
+      milestoneDots.parentNode.insertBefore(stageBadge, milestoneDots);
+    }
+    if (stageBadge) {
+      stageBadge.className = `stage-badge ${stageInfo.class}`;
+      stageBadge.innerHTML = `<span class="stage-icon">${stageInfo.icon}</span> <span>${stageInfo.text}</span>`;
+      stageBadge.title = `當前學習階段：${stageInfo.text} (${stageInfo.desc})`;
+    }
+
     milestoneDots.innerHTML = activeSlidesData.map((s, i) => {
       let stateClass = 'pending';
       if (i < index) stateClass = 'completed';
       else if (i === index) stateClass = 'active';
+      const dotStage = getSlideStage(s, i, activeSlidesData.length);
       return `<div class="milestone-dot ${stateClass}" 
-                   title="第 ${i + 1} 頁: ${s.titleZh || ''}" 
+                   title="第 ${i + 1} 頁 [${dotStage.text}]: ${s.titleZh || ''}" 
                    onclick="goToSlide(${i})"></div>`;
     }).join('');
   }
@@ -628,7 +651,7 @@ function renderSlide(index) {
 }
 
 /* ==========================================================================
-   7. 程式碼連動高亮與三維解析列
+   7. 程式碼連動高亮、變數引用微高亮與三維解析列 (agytodo 6.3)
    ========================================================================== */
 function onLineHover(lineNum) {
   if (!activeSlidesData[currentSlide]) return;
@@ -637,10 +660,12 @@ function onLineHover(lineNum) {
   if (lineData) {
     updateLineBar(lineData.num, lineData.mean, lineData.why, lineData.alt);
   }
+  highlightMemoryBoxesForLines([lineNum]);
 }
 
 function onLineLeave() {
   resetLineBar();
+  clearHighlightedMemoryBoxes();
 }
 
 function highlightLines(lineNums) {
@@ -658,12 +683,14 @@ function highlightLines(lineNums) {
       updateLineBar(firstLine.num, firstLine.mean, firstLine.why, firstLine.alt);
     }
   }
+  highlightMemoryBoxesForLines(lineNums);
 }
 
 function clearHighlightedLines() {
   document.querySelectorAll('.code-line.linked-highlight').forEach(el => {
     el.classList.remove('linked-highlight');
   });
+  clearHighlightedMemoryBoxes();
   resetLineBar();
 }
 
@@ -703,6 +730,108 @@ function onLineClick(lineNum) {
 
 function onNoteClick(lineNums) {
   highlightLines(lineNums);
+}
+
+// 🔗 變數引用微高亮與連動呼應 (agytodo 6.3)
+function highlightMemoryBoxesForLines(lineNums) {
+  clearHighlightedMemoryBoxes();
+  if (!Array.isArray(lineNums) || lineNums.length === 0) return;
+  if (!activeSlidesData[currentSlide]) return;
+  const slide = activeSlidesData[currentSlide];
+  if (!Array.isArray(slide.memoryState) || slide.memoryState.length === 0) return;
+
+  const targetVars = new Set();
+  lineNums.forEach(num => {
+    const line = slide.codeLines.find(l => l.num === num);
+    if (!line) return;
+    if (Array.isArray(line.vars)) {
+      line.vars.forEach(v => targetVars.add(v));
+    } else {
+      slide.memoryState.forEach(box => {
+        const regex = new RegExp(`(^|[^a-zA-Z0-9_])${box.name}([^a-zA-Z0-9_]|$)`);
+        const plainText = (line.html || '').replace(/<[^>]+>/g, ' ');
+        if (regex.test(plainText)) {
+          targetVars.add(box.name);
+        }
+      });
+    }
+  });
+
+  targetVars.forEach(varName => {
+    const boxEls = document.querySelectorAll(`.memory-box[data-var-name="${varName}"]`);
+    boxEls.forEach(el => el.classList.add('var-referenced'));
+  });
+}
+
+function clearHighlightedMemoryBoxes() {
+  document.querySelectorAll('.memory-box.var-referenced').forEach(el => {
+    el.classList.remove('var-referenced');
+  });
+}
+
+function onMemoryBoxHover(varName) {
+  if (!activeSlidesData[currentSlide]) return;
+  const slide = activeSlidesData[currentSlide];
+  if (!Array.isArray(slide.codeLines)) return;
+  const regex = new RegExp(`(^|[^a-zA-Z0-9_])${varName}([^a-zA-Z0-9_]|$)`);
+  const matchedNums = [];
+  slide.codeLines.forEach(l => {
+    if (Array.isArray(l.vars) && l.vars.includes(varName)) {
+      matchedNums.push(l.num);
+    } else {
+      const plainText = (l.html || '').replace(/<[^>]+>/g, ' ');
+      if (regex.test(plainText)) {
+        matchedNums.push(l.num);
+      }
+    }
+  });
+  if (matchedNums.length > 0) {
+    highlightLines(matchedNums);
+    const boxEl = document.querySelector(`.memory-box[data-var-name="${varName}"]`);
+    if (boxEl) boxEl.classList.add('var-referenced');
+  }
+}
+
+function onMemoryBoxLeave() {
+  clearHighlightedLines();
+  clearHighlightedMemoryBoxes();
+}
+
+// 🪜 四階段學習路徑判定 (agytodo 5.1)
+function getSlideStage(slide, index, total) {
+  if (!slide) return { text: '① 觀念初探', icon: '💡', class: 'stage-concept', desc: '建立心智模型' };
+  if (slide.stage) {
+    const s = String(slide.stage).trim();
+    if (s.includes('1') || s.includes('①') || s === 'concept') {
+      return { text: '① 觀念初探', icon: '💡', class: 'stage-concept', desc: '建立心智模型' };
+    }
+    if (s.includes('2') || s.includes('②') || s === 'syntax') {
+      return { text: '② 語法鐵律', icon: '⚖️', class: 'stage-syntax', desc: '核心語法規範' };
+    }
+    if (s.includes('3') || s.includes('③') || s === 'trap') {
+      return { text: '③ 考場地雷', icon: '💥', class: 'stage-trap', desc: '避開爆零天坑' };
+    }
+    if (s.includes('4') || s.includes('④') || s === 'practice') {
+      return { text: '④ 綜合驗收', icon: '🏆', class: 'stage-practice', desc: '實戰驗收閉環' };
+    }
+    return { text: s, icon: '📌', class: 'stage-custom', desc: s };
+  }
+
+  // 自動依據投影片屬性智能判定
+  if (index === total - 1) {
+    return { text: '④ 綜合驗收', icon: '🏆', class: 'stage-practice', desc: '實戰驗收閉環' };
+  }
+  const hasError = Array.isArray(slide.codeLines) && slide.codeLines.some(l => l.error);
+  const hasTrapNote = Array.isArray(slide.notes) && slide.notes.some(n => n.type === 'wa' || n.type === 'error');
+  const isErrorOutput = typeof slide.output === 'string' && (slide.output.includes('Error') || slide.output.includes('Exception'));
+  if (hasError || hasTrapNote || isErrorOutput) {
+    return { text: '③ 考場地雷', icon: '💥', class: 'stage-trap', desc: '避開爆零天坑' };
+  }
+  const quarter = Math.max(2, Math.floor(total * 0.25));
+  if (index < quarter) {
+    return { text: '① 觀念初探', icon: '💡', class: 'stage-concept', desc: '建立心智模型' };
+  }
+  return { text: '② 語法鐵律', icon: '⚖️', class: 'stage-syntax', desc: '核心語法規範' };
 }
 
 /* ==========================================================================

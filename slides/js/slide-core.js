@@ -16,9 +16,9 @@ const courseCurriculum = [
       { id: "sec1-1", title: "1.1 變數命名規則與記憶體參照概念", available: true, url: "PythAPCS123_1-1_variable_naming_and_memory.html" },
       { id: "sec1-2", title: "1.2 等號賦值與運算順序", available: true, url: "PythAPCS123_1-2_assignment_and_execution_order.html" },
       { id: "sec1-3", title: "1.3 多變數同時賦值與變數交換（Swap）", available: true, url: "PythAPCS123_1-3_multiple_assignment_and_swap.html" },
-      { id: "sec1-4", title: "1.4 運算後賦值（複合賦值運算子）", available: false, url: "PythAPCS123_1-4_augmented_assignment_operators.html" },
-      { id: "sec1-5", title: "1.5 單行多指令（分號）、註解（#）與長指令折行", available: false, url: "PythAPCS123_1-5_semicolon_and_comments.html" },
-      { id: "sec1-6", title: "1.6 縮排規範與程式區塊", available: false, url: "PythAPCS123_1-6_indentation_and_code_blocks.html" }
+      { id: "sec1-4", title: "1.4 運算後賦值（複合賦值運算子）", available: true, url: "PythAPCS123_1-4_augmented_assignment_operators.html" },
+      { id: "sec1-5", title: "1.5 單行多指令（分號）、註解（#）與長指令折行", available: true, url: "PythAPCS123_1-5_semicolon_and_comments.html" },
+      { id: "sec1-6", title: "1.6 縮排規範與程式區塊", available: true, url: "PythAPCS123_1-6_indentation_and_code_blocks.html" }
     ]
   },
   {

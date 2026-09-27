@@ -15,7 +15,7 @@ const courseCurriculum = [
     sections: [
       { id: "sec1-1", title: "1.1 變數命名規則與記憶體參照概念", available: true, url: "PythAPCS123_1-1_variable_naming_and_memory.html" },
       { id: "sec1-2", title: "1.2 等號賦值與運算順序", available: true, url: "PythAPCS123_1-2_assignment_and_execution_order.html" },
-      { id: "sec1-3", title: "1.3 多變數同時賦值與變數交換（Swap）", available: false, url: "PythAPCS123_1-3_multiple_assignment_and_swap.html" },
+      { id: "sec1-3", title: "1.3 多變數同時賦值與變數交換（Swap）", available: true, url: "PythAPCS123_1-3_multiple_assignment_and_swap.html" },
       { id: "sec1-4", title: "1.4 運算後賦值（複合賦值運算子）", available: false, url: "PythAPCS123_1-4_augmented_assignment_operators.html" },
       { id: "sec1-5", title: "1.5 單行多指令（分號）、註解（#）與長指令折行", available: false, url: "PythAPCS123_1-5_semicolon_and_comments.html" },
       { id: "sec1-6", title: "1.6 縮排規範與程式區塊", available: false, url: "PythAPCS123_1-6_indentation_and_code_blocks.html" }
@@ -228,6 +228,8 @@ let currentSectionId = "sec1-1";
 let activeSlidesData = [];
 let colabPracticeUrl = "";
 let isAnswerRevealed = true; // 追蹤當前頁主動預測答案是否已揭曉 (agytodo 3.2)
+let currentSlideQuiz = null; // 當前頁二擇一預測題目 (agytodo 3.3)
+let isQuizAnswered = false; // 當前頁預測題是否已作答 (agytodo 3.3)
 
 /* ==========================================================================
    3. 引擎初始化主入口 (initSlideEngine)
@@ -462,10 +464,12 @@ function renderSlide(index) {
     topbarProgress.style.width = `${pct}%`;
   }
 
-  // 執行結果 (純結果輸出，並支援主動預測遮罩 - agytodo 3.2)
+  // 執行結果 (純結果輸出，並支援主動預測遮罩與二擇一預測卡 - agytodo 3.2, 3.3)
   const outputViewport = document.getElementById('outputViewport');
   const predictionOverlay = document.getElementById('predictionOverlay');
-  const hasPrediction = !!slide.predict || !!slide.maskOutput;
+  currentSlideQuiz = slide.predictQuiz || null;
+  isQuizAnswered = false;
+  const hasPrediction = !!slide.predict || !!slide.maskOutput || !!currentSlideQuiz;
 
   if (outputViewport) {
     outputViewport.innerHTML = slide.output || '<span class="output-empty">（無終端輸出）</span>';
@@ -474,13 +478,10 @@ function renderSlide(index) {
       outputViewport.classList.add('blurred');
       if (predictionOverlay) {
         predictionOverlay.style.display = 'flex';
-        const badge = predictionOverlay.querySelector('.prediction-badge');
-        if (badge) {
-          if (typeof slide.predict === 'string' && slide.predict.trim() !== '') {
-            badge.textContent = `🧠 預測思考：${slide.predict}`;
-          } else {
-            badge.textContent = '🧠 點擊揭曉預測答案';
-          }
+        if (currentSlideQuiz) {
+          renderQuizCard(predictionOverlay, currentSlideQuiz);
+        } else {
+          renderSimplePredictionMask(predictionOverlay, slide.predict);
         }
       }
     } else {
@@ -835,10 +836,228 @@ function getSlideStage(slide, index, total) {
 }
 
 /* ==========================================================================
-   8. 翻頁、主動預測揭曉與跳轉操作 (agytodo 3.2, 5.2)
+   8. 翻頁、主動預測揭曉與二擇一互動操作 (agytodo 3.2, 3.3, 5.2)
    ========================================================================== */
-function revealPrediction() {
-  if (isAnswerRevealed) return;
+function escapeHtml(str) {
+  if (typeof str !== 'string') return String(str ?? '');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function renderSimplePredictionMask(overlayEl, predictText) {
+  let badgeText = '🧠 點擊揭曉預測答案';
+  if (typeof predictText === 'string' && predictText.trim() !== '') {
+    badgeText = `🧠 預測思考：${predictText}`;
+  }
+  overlayEl.innerHTML = `
+    <div class="prediction-simple-wrap" onclick="revealPrediction(event)">
+      <div class="prediction-badge">${escapeHtml(badgeText)}</div>
+      <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+    </div>
+  `;
+}
+
+function renderQuizCard(overlayEl, quiz) {
+  const opt0 = quiz.options && quiz.options[0];
+  const opt1 = quiz.options && quiz.options[1];
+  const opt0Text = typeof opt0 === 'object' ? (opt0.text || '') : String(opt0 || '選項 A');
+  const opt1Text = typeof opt1 === 'object' ? (opt1.text || '') : String(opt1 || '選項 B');
+  const opt0Tag = (typeof opt0 === 'object' && opt0.label) ? opt0.label : 'A';
+  const opt1Tag = (typeof opt1 === 'object' && opt1.label) ? opt1.label : 'B';
+  const question = quiz.question || '預測思考：執行此處代碼後，終端機將產生何種結果？';
+
+  overlayEl.innerHTML = `
+    <div class="prediction-quiz-card" onclick="event.stopPropagation()">
+      <div class="quiz-card-header">
+        <span class="quiz-card-badge">🧠 APCS 考場秒問秒答（二擇一預測）</span>
+        <span class="quiz-card-hint">可按 <kbd>A</kbd> / <kbd>B</kbd> 或點選</span>
+      </div>
+      <div class="quiz-question">${escapeHtml(question)}</div>
+      <div class="quiz-options-grid">
+        <button type="button" class="quiz-option-btn" id="quizOpt0" onclick="handleQuizOption(0, event)">
+          <span class="quiz-opt-tag">${escapeHtml(opt0Tag)}</span>
+          <span class="quiz-opt-text">${escapeHtml(opt0Text)}</span>
+          <span class="quiz-opt-status-icon"></span>
+        </button>
+        <button type="button" class="quiz-option-btn" id="quizOpt1" onclick="handleQuizOption(1, event)">
+          <span class="quiz-opt-tag">${escapeHtml(opt1Tag)}</span>
+          <span class="quiz-opt-text">${escapeHtml(opt1Text)}</span>
+          <span class="quiz-opt-status-icon"></span>
+        </button>
+      </div>
+      <div class="quiz-feedback-box" id="quizFeedbackBox" style="display: none;">
+        <div class="quiz-feedback-status" id="quizFeedbackStatus"></div>
+        <div class="quiz-feedback-explanation" id="quizFeedbackExp"></div>
+        <div class="quiz-feedback-actions">
+          <button type="button" class="quiz-action-btn secondary" onclick="dismissPredictionOverlay(event)">
+            <span>查看原始輸出 ▾</span>
+          </button>
+          <button type="button" class="quiz-action-btn primary" onclick="nextSlide()">
+            <span>下一頁 ▶</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function handleQuizOption(choiceIndex, event) {
+  if (event) event.stopPropagation();
+  if (isQuizAnswered || !currentSlideQuiz) return;
+  isQuizAnswered = true;
+  isAnswerRevealed = true;
+
+  const btn0 = document.getElementById('quizOpt0');
+  const btn1 = document.getElementById('quizOpt1');
+  const feedbackBox = document.getElementById('quizFeedbackBox');
+  const feedbackStatus = document.getElementById('quizFeedbackStatus');
+  const feedbackExp = document.getElementById('quizFeedbackExp');
+  const outputViewport = document.getElementById('outputViewport');
+
+  const correctIndex = Number(currentSlideQuiz.correct || 0);
+  const isCorrect = (choiceIndex === correctIndex);
+
+  // 解除終端輸出模糊，方便對照
+  if (outputViewport) outputViewport.classList.remove('blurred');
+
+  // 更新導航與 Dock 按鈕為「下一頁」
+  const btnNext = document.getElementById('btnNext');
+  if (btnNext) btnNext.innerHTML = '下一頁 <span class="key-badge">▶</span>';
+  const dockNext = document.getElementById('dockBtnNext');
+  if (dockNext) dockNext.innerHTML = '<span>下一頁</span><span>▶</span>';
+
+  // 設置選項按鈕動態樣式
+  if (choiceIndex === 0) {
+    if (isCorrect) {
+      if (btn0) {
+        btn0.classList.add('quiz-opt-correct');
+        const icon = btn0.querySelector('.quiz-opt-status-icon');
+        if (icon) icon.innerHTML = '✓ 正確';
+      }
+      if (btn1) btn1.classList.add('quiz-opt-dimmed');
+    } else {
+      if (btn0) {
+        btn0.classList.add('quiz-opt-wrong');
+        const icon = btn0.querySelector('.quiz-opt-status-icon');
+        if (icon) icon.innerHTML = '✗ 踩雷';
+      }
+      if (btn1) {
+        btn1.classList.add('quiz-opt-correct');
+        const icon = btn1.querySelector('.quiz-opt-status-icon');
+        if (icon) icon.innerHTML = '✓ 正解';
+      }
+    }
+  } else {
+    if (isCorrect) {
+      if (btn1) {
+        btn1.classList.add('quiz-opt-correct');
+        const icon = btn1.querySelector('.quiz-opt-status-icon');
+        if (icon) icon.innerHTML = '✓ 正確';
+      }
+      if (btn0) btn0.classList.add('quiz-opt-dimmed');
+    } else {
+      if (btn1) {
+        btn1.classList.add('quiz-opt-wrong');
+        const icon = btn1.querySelector('.quiz-opt-status-icon');
+        if (icon) icon.innerHTML = '✗ 踩雷';
+      }
+      if (btn0) {
+        btn0.classList.add('quiz-opt-correct');
+        const icon = btn0.querySelector('.quiz-opt-status-icon');
+        if (icon) icon.innerHTML = '✓ 正解';
+      }
+    }
+  }
+
+  // 鎖定選項避免重複點選
+  if (btn0) btn0.setAttribute('disabled', 'true');
+  if (btn1) btn1.setAttribute('disabled', 'true');
+
+  // 展開考場解析與反饋
+  if (feedbackBox) {
+    feedbackBox.style.display = 'block';
+    if (feedbackStatus) {
+      if (isCorrect) {
+        feedbackStatus.className = 'quiz-feedback-status correct';
+        feedbackStatus.innerHTML = '🎉 預測命中！觀念完全正確！';
+      } else {
+        feedbackStatus.className = 'quiz-feedback-status wrong';
+        feedbackStatus.innerHTML = '⚠️ 考場常見盲點！踩到陷阱囉！';
+      }
+    }
+    if (feedbackExp) {
+      const exp = currentSlideQuiz.explanation || (isCorrect ? '太棒了，邏輯思維非常清晰！' : '請參考上述正解與下方終端機輸出。');
+      feedbackExp.innerHTML = `<span class="quiz-exp-label">【考場解析】</span>${escapeHtml(exp)}`;
+    }
+  }
+}
+
+function dismissPredictionOverlay(event) {
+  if (event) event.stopPropagation();
+  const overlay = document.getElementById('predictionOverlay');
+  if (overlay) overlay.style.display = 'none';
+  const outViewport = document.getElementById('outputViewport');
+  if (outViewport) outViewport.classList.remove('blurred');
+  isAnswerRevealed = true;
+}
+
+function revealPrediction(event) {
+  if (event && event.target && event.target.closest && (event.target.closest('.quiz-option-btn') || event.target.closest('.quiz-action-btn'))) {
+    return;
+  }
+
+  // 若當前有未作答的二擇一預測卡：第一下自動標示正解並展開解析 (agytodo 3.2, 3.3)
+  if (currentSlideQuiz && !isQuizAnswered) {
+    isQuizAnswered = true;
+    isAnswerRevealed = true;
+
+    const correctIndex = Number(currentSlideQuiz.correct || 0);
+    const btn0 = document.getElementById('quizOpt0');
+    const btn1 = document.getElementById('quizOpt1');
+    const feedbackBox = document.getElementById('quizFeedbackBox');
+    const feedbackStatus = document.getElementById('quizFeedbackStatus');
+    const feedbackExp = document.getElementById('quizFeedbackExp');
+    const outputViewport = document.getElementById('outputViewport');
+
+    if (outputViewport) outputViewport.classList.remove('blurred');
+
+    const correctBtn = correctIndex === 0 ? btn0 : btn1;
+    const otherBtn = correctIndex === 0 ? btn1 : btn0;
+
+    if (correctBtn) {
+      correctBtn.classList.add('quiz-opt-correct');
+      const icon = correctBtn.querySelector('.quiz-opt-status-icon');
+      if (icon) icon.innerHTML = '✓ 正解';
+    }
+    if (otherBtn) otherBtn.classList.add('quiz-opt-dimmed');
+
+    if (btn0) btn0.setAttribute('disabled', 'true');
+    if (btn1) btn1.setAttribute('disabled', 'true');
+
+    if (feedbackBox) {
+      feedbackBox.style.display = 'block';
+      if (feedbackStatus) {
+        feedbackStatus.className = 'quiz-feedback-status revealed';
+        feedbackStatus.innerHTML = '💡 考場正解與觀念揭曉：';
+      }
+      if (feedbackExp) {
+        const exp = currentSlideQuiz.explanation || '請參考上述正解與下方終端機輸出。';
+        feedbackExp.innerHTML = `<span class="quiz-exp-label">【考場解析】</span>${escapeHtml(exp)}`;
+      }
+    }
+
+    const btnNext = document.getElementById('btnNext');
+    if (btnNext) btnNext.innerHTML = '下一頁 <span class="key-badge">▶</span>';
+    const dockNext = document.getElementById('dockBtnNext');
+    if (dockNext) dockNext.innerHTML = '<span>下一頁</span><span>▶</span>';
+    return;
+  }
+
+  // 若已作答或為單純遮罩：直接隱藏 overlay 顯示原始終端機輸出
   isAnswerRevealed = true;
   const overlay = document.getElementById('predictionOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -943,6 +1162,18 @@ function setupEventListeners() {
   window.addEventListener('keydown', (e) => {
     const secSelect = document.getElementById('sectionSelect');
     if (secSelect && secSelect.value !== currentSectionId) return;
+
+    // 二擇一預測卡快捷鍵 (A / B 或 1 / 2) - agytodo 3.3
+    if (currentSlideQuiz && !isQuizAnswered) {
+      if (e.key === 'a' || e.key === 'A' || e.key === '1') {
+        handleQuizOption(0, e);
+        return;
+      }
+      if (e.key === 'b' || e.key === 'B' || e.key === '2') {
+        handleQuizOption(1, e);
+        return;
+      }
+    }
 
     if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
       nextSlide();

@@ -26,19 +26,19 @@ const courseCurriculum = [
     title: "第二章 資料型態與數值 / 位元運算",
     sections: [
       { id: "sec2-1", title: "2.1 數值型態分類（整數與浮點數）", available: true, url: "PythAPCS123_2-1_numeric_types_int_and_float.html" },
-      { id: "sec2-2", title: "2.2 整數基本算術運算與優先級", available: false },
-      { id: "sec2-3", title: "2.3 整數除法商數（//）與取餘數（%）", available: false },
-      { id: "sec2-4", title: "2.4 次方與開根號運算（**）", available: false },
-      { id: "sec2-5", title: "2.5 浮點數除法（/）與精度限制", available: false },
-      { id: "sec2-6", title: "2.6 進位制常數表示法（0b, 0x）", available: false },
-      { id: "sec2-7", title: "2.7 位元運算子與解題加速", available: false }
+      { id: "sec2-2", title: "2.2 整數基本算術運算與優先級", available: true, url: "PythAPCS123_2-2_integer_arithmetic_and_precedence.html" },
+      { id: "sec2-3", title: "2.3 整數除法商數（//）與取餘數（%）", available: true, url: "PythAPCS123_2-3_integer_division_and_modulus.html" },
+      { id: "sec2-4", title: "2.4 次方與開根號運算（**）", available: true, url: "PythAPCS123_2-4_power_and_square_root.html" },
+      { id: "sec2-5", title: "2.5 浮點數除法（/）與精度限制", available: true, url: "PythAPCS123_2-5_float_division_and_precision_limits.html" },
+      { id: "sec2-6", title: "2.6 進位制常數表示法（0b, 0x）", available: true, url: "PythAPCS123_2-6_number_bases_binary_and_hexadecimal.html" },
+      { id: "sec2-7", title: "2.7 位元運算子與解題加速", available: true, url: "PythAPCS123_2-7_bitwise_operators_and_speedup.html" }
     ]
   },
   {
     id: "ch3",
     title: "第三章 型態轉換與內建數學函數",
     sections: [
-      { id: "sec3-1", title: "3.1 數值與文字強制轉型（int, float, str）", available: false },
+      { id: "sec3-1", title: "3.1 數值與文字強制轉型（int, float, str）", available: true, url: "PythAPCS123_3-1_type_conversion_int_float_str.html" },
       { id: "sec3-2", title: "3.2 字元與 ASCII 互轉（ord, chr）", available: false },
       { id: "sec3-3", title: "3.3 極值比較函數（max, min）", available: false },
       { id: "sec3-4", title: "3.4 絕對值計算（abs）", available: false }

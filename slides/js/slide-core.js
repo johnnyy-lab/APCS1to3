@@ -458,7 +458,7 @@ function renderSlide(index) {
             <div class="tt-header">📌 第 ${line.num} 行代碼解析</div>
             <div class="tt-row"><span class="tt-tag">【白話含義】</span><span>${line.mean}</span></div>
             <div class="tt-row"><span class="tt-tag">【為何這樣寫】</span><span>${line.why}</span></div>
-            <div class="tt-row"><span class="tt-tag">【還可以怎麼寫】</span><span>${line.alt}</span></div>
+            ${line.alt && line.alt !== '此行無第二種寫法' && !line.alt.match(/^行 \d+。$/) ? `<div class="tt-row"><span class="tt-tag">【還可以怎麼寫】</span><span>${line.alt}</span></div>` : ''}
           </div>
         </div>
       `;
@@ -740,8 +740,7 @@ function updateLineBar(num, mean, why, alt) {
     <div class="bar-row">
       <span class="bar-badge badge-why">為何這樣寫</span>
       <span>${why}</span>
-      <span class="bar-badge badge-alt" style="margin-left:8px;">還可怎麼寫</span>
-      <span>${alt}</span>
+      ${alt && alt !== '此行無第二種寫法' && !alt.match(/^行 \d+。$/) ? `<span class="bar-badge badge-alt" style="margin-left:8px;">還可怎麼寫</span><span>${alt}</span>` : ''}
     </div>
   `;
 }

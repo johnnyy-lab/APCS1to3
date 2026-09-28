@@ -242,7 +242,20 @@ function initSlideEngine(config) {
     return;
   }
 
-  currentSectionId = config.sectionId || "sec1-1";
+  
+  // 自動從網址推導目前的章節 (統一更新，杜絕複製貼上忘記改 ID 的問題)
+  const currentFilename = window.location.pathname.split('/').pop();
+  let detectedSectionId = null;
+  for (const ch of courseCurriculum) {
+    const sec = ch.sections.find(s => s.url === currentFilename);
+    if (sec) {
+      detectedSectionId = sec.id;
+      break;
+    }
+  }
+  
+  currentSectionId = detectedSectionId || config.sectionId || "sec1-1";
+
   activeSlidesData = config.slidesData;
   colabPracticeUrl = config.colabUrl || "";
 

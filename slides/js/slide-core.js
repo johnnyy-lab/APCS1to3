@@ -230,6 +230,8 @@ let colabPracticeUrl = "";
 let isAnswerRevealed = true; // 追蹤當前頁主動預測答案是否已揭曉 (agytodo 3.2)
 let currentSlideQuiz = null; // 當前頁二擇一預測題目 (agytodo 3.3)
 let isQuizAnswered = false; // 當前頁預測題是否已作答 (agytodo 3.3)
+let pinnedLineNum = null; // 鎖定釘選的程式碼行 (支援點選固定導引線與高亮 - agytodo 6.1, 6.2)
+let animFrameId = null; // 導引線光斑流動 requestAnimationFrame ID
 
 /* ==========================================================================
    3. 引擎初始化主入口 (initSlideEngine)
@@ -290,6 +292,7 @@ function setTheme(toIdle) {
     if (dockIcon) dockIcon.textContent = "🏛️ 考場";
     sessionStorage.setItem('apcs_slide_theme', 'colab');
   }
+  updateFlowGuideTheme();
 }
 
 function toggleTheme() {
@@ -422,6 +425,10 @@ function renderSlide(index) {
   const slide = activeSlidesData[index];
   if (!slide) return;
 
+  currentSlide = index;
+  pinnedLineNum = null;
+  clearDataFlowSync();
+
   // Header 雙行
   const titleZh = document.getElementById('titleChinese');
   const titleEn = document.getElementById('titleEnglish');
@@ -446,6 +453,7 @@ function renderSlide(index) {
              onclick="onLineClick(${line.num})">
           <span class="line-num">${line.num}</span>
           <span class="line-content">${line.html}</span>
+          <span class="dataflow-badge badge-code-out" id="code-badge-${line.num}" style="display:none;"></span>
           <div class="line-tooltip ${tooltipPositionClass}">
             <div class="tt-header">📌 第 ${line.num} 行代碼解析</div>
             <div class="tt-row"><span class="tt-tag">【白話含義】</span><span>${line.mean}</span></div>
@@ -472,7 +480,7 @@ function renderSlide(index) {
   const hasPrediction = !!slide.predict || !!slide.maskOutput || !!currentSlideQuiz;
 
   if (outputViewport) {
-    outputViewport.innerHTML = slide.output || '<span class="output-empty">（無終端輸出）</span>';
+    outputViewport.innerHTML = formatOutputViewportContent(slide.output, slide);
     if (hasPrediction) {
       isAnswerRevealed = false;
       outputViewport.classList.add('blurred');
@@ -652,7 +660,7 @@ function renderSlide(index) {
 }
 
 /* ==========================================================================
-   7. 程式碼連動高亮、變數引用微高亮與三維解析列 (agytodo 6.3)
+   7. 程式碼連動高亮、跨卡片數據流向導引與三維解析列 (agytodo 6.1, 6.2, 6.3)
    ========================================================================== */
 function onLineHover(lineNum) {
   if (!activeSlidesData[currentSlide]) return;
@@ -662,11 +670,22 @@ function onLineHover(lineNum) {
     updateLineBar(lineData.num, lineData.mean, lineData.why, lineData.alt);
   }
   highlightMemoryBoxesForLines([lineNum]);
+
+  // 🔗 跨卡片數據流向導引 (agytodo 6.1, 6.2)
+  const mapping = getSlideOutputMapping(slide);
+  const outIndices = mapping.codeToOutput[lineNum];
+  if (outIndices && outIndices.length > 0) {
+    triggerDataFlowSync(lineNum, outIndices[0], mapping.isErrorMap[lineNum]);
+  } else if (pinnedLineNum === null) {
+    clearDataFlowSync();
+  }
 }
 
 function onLineLeave() {
+  if (pinnedLineNum !== null) return; // 鎖定狀態下保留導引與高亮
   resetLineBar();
   clearHighlightedMemoryBoxes();
+  clearDataFlowSync();
 }
 
 function highlightLines(lineNums) {
@@ -683,15 +702,26 @@ function highlightLines(lineNums) {
     if (firstLine) {
       updateLineBar(firstLine.num, firstLine.mean, firstLine.why, firstLine.alt);
     }
+    // 檢查是否有輸出映射行
+    const mapping = getSlideOutputMapping(slide);
+    for (const num of lineNums) {
+      const outIndices = mapping.codeToOutput[num];
+      if (outIndices && outIndices.length > 0) {
+        triggerDataFlowSync(num, outIndices[0], mapping.isErrorMap[num]);
+        break;
+      }
+    }
   }
   highlightMemoryBoxesForLines(lineNums);
 }
 
 function clearHighlightedLines() {
+  if (pinnedLineNum !== null) return;
   document.querySelectorAll('.code-line.linked-highlight').forEach(el => {
     el.classList.remove('linked-highlight');
   });
   clearHighlightedMemoryBoxes();
+  clearDataFlowSync();
   resetLineBar();
 }
 
@@ -723,7 +753,15 @@ function resetLineBar() {
 }
 
 function onLineClick(lineNum) {
-  clearHighlightedLines();
+  if (pinnedLineNum === lineNum) {
+    pinnedLineNum = null;
+    clearHighlightedLines();
+    clearDataFlowSync();
+    resetLineBar();
+    return;
+  }
+  pinnedLineNum = lineNum;
+  document.querySelectorAll('.code-line.linked-highlight').forEach(el => el.classList.remove('linked-highlight'));
   const el = document.getElementById(`code-line-${lineNum}`);
   if (el) el.classList.add('linked-highlight');
   onLineHover(lineNum);
@@ -794,9 +832,422 @@ function onMemoryBoxHover(varName) {
 }
 
 function onMemoryBoxLeave() {
+  if (pinnedLineNum !== null) return;
   clearHighlightedLines();
   clearHighlightedMemoryBoxes();
 }
+
+/* ==========================================================================
+   7.5 數據流向同步引擎（Data Flow Sync Engine - agytodo 6.1, 6.2）
+   ========================================================================== */
+
+/**
+ * 智慧推導程式碼行與終端機輸出行之間的因果對映
+ */
+function getSlideOutputMapping(slide) {
+  if (!slide || !Array.isArray(slide.codeLines)) {
+    return { codeToOutput: {}, outputToCode: {}, isErrorMap: {} };
+  }
+
+  // 1. 若 slide 顯式指定 outputMapping，以顯式設定優先
+  if (slide.outputMapping) {
+    const codeToOutput = {};
+    const outputToCode = {};
+    const isErrorMap = {};
+    Object.keys(slide.outputMapping).forEach(cKey => {
+      const cNum = Number(cKey);
+      const o = slide.outputMapping[cKey];
+      const oArr = Array.isArray(o) ? o : [o];
+      codeToOutput[cNum] = oArr;
+      oArr.forEach(outIdx => {
+        if (!outputToCode[outIdx]) outputToCode[outIdx] = [];
+        outputToCode[outIdx].push(cNum);
+      });
+    });
+    return { codeToOutput, outputToCode, isErrorMap };
+  }
+
+  const codeToOutput = {};
+  const outputToCode = {};
+  const isErrorMap = {};
+
+  if (!slide.output || String(slide.output).includes('output-empty')) {
+    return { codeToOutput, outputToCode, isErrorMap };
+  }
+
+  const outputStr = String(slide.output);
+  const isErrorOutput = outputStr.includes('output-error') || /Error:|Exception:/.test(outputStr);
+
+  if (isErrorOutput) {
+    const errLine = slide.codeLines.find(l => l.error === true) || slide.codeLines[slide.codeLines.length - 1];
+    if (errLine) {
+      codeToOutput[errLine.num] = [1];
+      outputToCode[1] = [errLine.num];
+      isErrorMap[errLine.num] = true;
+    }
+    return { codeToOutput, outputToCode, isErrorMap };
+  }
+
+  // 正常輸出：找出所有包含 print() 函式呼叫的行
+  const printLines = [];
+  slide.codeLines.forEach(l => {
+    const hasPrint = /\bprint\s*\(/.test(l.html || '') ||
+                     (l.html && l.html.includes('token-func') && /print/.test(l.html)) ||
+                     (l.mean && l.mean.includes('print('));
+    if (hasPrint) {
+      printLines.push(l.num);
+    }
+  });
+
+  const outputLineCount = outputStr.split('\n').length;
+
+  if (printLines.length === 0) {
+    const diffLine = slide.codeLines.find(l => l.diff) || slide.codeLines[slide.codeLines.length - 1];
+    if (diffLine) {
+      codeToOutput[diffLine.num] = [1];
+      outputToCode[1] = [diffLine.num];
+    }
+  } else if (printLines.length === 1) {
+    const allOuts = [];
+    for (let i = 1; i <= outputLineCount; i++) allOuts.push(i);
+    codeToOutput[printLines[0]] = allOuts;
+    allOuts.forEach(idx => {
+      outputToCode[idx] = [printLines[0]];
+    });
+  } else if (printLines.length === outputLineCount) {
+    printLines.forEach((cNum, idx) => {
+      const outIdx = idx + 1;
+      codeToOutput[cNum] = [outIdx];
+      outputToCode[outIdx] = [cNum];
+    });
+  } else {
+    printLines.forEach((cNum, idx) => {
+      const outIdx = Math.min(idx + 1, outputLineCount);
+      if (!codeToOutput[cNum]) codeToOutput[cNum] = [];
+      codeToOutput[cNum].push(outIdx);
+      if (!outputToCode[outIdx]) outputToCode[outIdx] = [];
+      outputToCode[outIdx].push(cNum);
+    });
+  }
+
+  return { codeToOutput, outputToCode, isErrorMap };
+}
+
+/**
+ * 格式化終端機輸出內容，自動將多行文字包裹為支援雙向互動之 output-line
+ */
+function formatOutputViewportContent(rawOutput, slide) {
+  if (!rawOutput) {
+    return '<span class="output-empty">（無終端輸出）</span>';
+  }
+  const str = String(rawOutput);
+  if (str.includes('output-empty')) {
+    return str;
+  }
+  if (str.includes('output-error')) {
+    return `
+      <div class="output-line output-line-error" id="output-line-1" data-out-idx="1"
+           onmouseenter="onOutputLineHover(1)"
+           onmouseleave="onOutputLineLeave()"
+           onclick="onOutputLineClick(1)">
+        <span class="output-line-text">${str}</span>
+        <span class="dataflow-badge badge-output-src badge-err" id="output-badge-1" style="display: none;"></span>
+      </div>
+    `;
+  }
+
+  const lines = str.split('\n');
+  return lines.map((lineContent, i) => {
+    const idx = i + 1;
+    return `
+      <div class="output-line" id="output-line-${idx}" data-out-idx="${idx}"
+           onmouseenter="onOutputLineHover(${idx})"
+           onmouseleave="onOutputLineLeave()"
+           onclick="onOutputLineClick(${idx})">
+        <span class="output-line-text">${lineContent || '&nbsp;'}</span>
+        <span class="dataflow-badge badge-output-src" id="output-badge-${idx}" style="display: none;"></span>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * 終端機輸出行懸停互動（反向連動程式碼與導引線）
+ */
+function onOutputLineHover(outIdx) {
+  if (!activeSlidesData[currentSlide]) return;
+  const slide = activeSlidesData[currentSlide];
+  const mapping = getSlideOutputMapping(slide);
+  const codeNums = mapping.outputToCode[outIdx];
+  if (codeNums && codeNums.length > 0) {
+    const cNum = codeNums[0];
+    highlightLines(codeNums);
+    triggerDataFlowSync(cNum, outIdx, mapping.isErrorMap[cNum]);
+  } else {
+    const outEl = document.getElementById(`output-line-${outIdx}`);
+    if (outEl) outEl.classList.add('output-focused');
+  }
+}
+
+function onOutputLineLeave() {
+  if (pinnedLineNum !== null) return;
+  clearHighlightedLines();
+  clearDataFlowSync();
+}
+
+function onOutputLineClick(outIdx) {
+  if (!activeSlidesData[currentSlide]) return;
+  const slide = activeSlidesData[currentSlide];
+  const mapping = getSlideOutputMapping(slide);
+  const codeNums = mapping.outputToCode[outIdx];
+  if (codeNums && codeNums.length > 0) {
+    onLineClick(codeNums[0]);
+  }
+}
+
+/**
+ * 確保畫布中具備 SVG 導引線 DOM 容器
+ */
+function ensureFlowGuideSvg() {
+  let svg = document.getElementById('flowGuideSvg');
+  if (!svg) {
+    const stage = document.getElementById('slideStage');
+    if (!stage) return null;
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'flow-guide-svg');
+    svg.setAttribute('id', 'flowGuideSvg');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    `;
+    stage.appendChild(svg);
+  }
+  return svg;
+}
+
+/**
+ * 6.1 桌機版：計算並繪製跨卡片平滑貝茲導引線與流動光斑
+ */
+function drawFlowGuide(codeLineNum, outputLineIdx, isError) {
+  if (window.innerWidth <= 1024) return;
+
+  const stage = document.getElementById('slideStage');
+  const codeLineEl = document.getElementById(`code-line-${codeLineNum}`);
+  let outputEl = document.getElementById(`output-line-${outputLineIdx}`);
+  if (!outputEl) {
+    outputEl = document.getElementById('outputViewport');
+  }
+
+  ensureFlowGuideSvg();
+  const path = document.getElementById('flowGuidePath');
+  const startDot = document.getElementById('flowGuideStartDot');
+  const pulseDot = document.getElementById('flowGuideDot');
+
+  if (!stage || !codeLineEl || !outputEl || !path) return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const codeRect = codeLineEl.getBoundingClientRect();
+  const outRect = outputEl.getBoundingClientRect();
+
+  if (codeRect.width === 0 || outRect.width === 0 || stageRect.width === 0) return;
+
+  // 起點 (程式碼行右側偏內)
+  const x1 = (codeRect.right - stageRect.left) - 16;
+  const y1 = (codeRect.top - stageRect.top) + (codeRect.height / 2);
+
+  // 終點 (終端機輸出列右側偏內)
+  const x2 = (outRect.right - stageRect.left) - 16;
+  const y2 = (outRect.top - stageRect.top) + (outRect.height / 2);
+
+  // 弧度控制：向右外弧凸出至卡片與筆記區的間隙 (gap)
+  const dy = Math.abs(y2 - y1);
+  const bulge = Math.max(32, Math.min(65, dy * 0.35));
+
+  const cp1x = x1 + bulge;
+  const cp1y = y1;
+  const cp2x = x2 + bulge;
+  const cp2y = y2;
+
+  const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+  path.setAttribute('d', d);
+
+  const isIdle = document.body.classList.contains('idle-theme');
+  if (isError) {
+    path.classList.add('error-guide');
+    path.setAttribute('marker-end', isIdle ? 'url(#flowArrowIdle)' : 'url(#flowArrowErr)');
+  } else {
+    path.classList.remove('error-guide');
+    path.setAttribute('marker-end', isIdle ? 'url(#flowArrowIdle)' : 'url(#flowArrow)');
+  }
+  path.classList.add('active');
+
+  if (startDot) {
+    startDot.setAttribute('cx', x1);
+    startDot.setAttribute('cy', y1);
+    startDot.classList.add('active');
+    if (isError) startDot.classList.add('error-dot');
+    else startDot.classList.remove('error-dot');
+  }
+
+  animatePulseDot(path, pulseDot, isError);
+}
+
+/**
+ * 沿著 SVG 貝茲曲線流動的光斑動畫
+ */
+function animatePulseDot(pathEl, dotEl, isError) {
+  if (!pathEl || !dotEl) return;
+  if (animFrameId) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+
+  let totalLen = 0;
+  try {
+    totalLen = pathEl.getTotalLength();
+  } catch (err) {
+    return;
+  }
+  if (totalLen <= 0) return;
+
+  dotEl.classList.add('active');
+  if (isError) dotEl.classList.add('error-dot');
+  else dotEl.classList.remove('error-dot');
+
+  const duration = 1200; // 1.2 秒循環一次
+  let startTime = null;
+
+  function step(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = (timestamp - startTime) % duration;
+    const progress = elapsed / duration;
+    try {
+      const pt = pathEl.getPointAtLength(progress * totalLen);
+      dotEl.setAttribute('cx', pt.x);
+      dotEl.setAttribute('cy', pt.y);
+    } catch (e) {}
+
+    if (pathEl.classList.contains('active')) {
+      animFrameId = requestAnimationFrame(step);
+    }
+  }
+  animFrameId = requestAnimationFrame(step);
+}
+
+function clearFlowGuide() {
+  if (animFrameId) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+  const path = document.getElementById('flowGuidePath');
+  if (path) {
+    path.classList.remove('active');
+    path.setAttribute('d', '');
+  }
+  const startDot = document.getElementById('flowGuideStartDot');
+  if (startDot) startDot.classList.remove('active');
+  const pulseDot = document.getElementById('flowGuideDot');
+  if (pulseDot) {
+    pulseDot.classList.remove('active');
+    pulseDot.setAttribute('cx', -999);
+    pulseDot.setAttribute('cy', -999);
+  }
+}
+
+/**
+ * 觸發數據流向同步（桌機導引線 + 行動端同色呼吸脈衝）
+ */
+function triggerDataFlowSync(codeLineNum, outputLineIdx, isError) {
+  const isMobile = (window.innerWidth <= 1024);
+
+  const codeEl = document.getElementById(`code-line-${codeLineNum}`);
+  const outEl = document.getElementById(`output-line-${outputLineIdx}`) || document.getElementById('outputViewport');
+  const codeBadge = document.getElementById(`code-badge-${codeLineNum}`);
+  const outBadge = document.getElementById(`output-badge-${outputLineIdx}`);
+
+  // 聚焦終端輸出文字行
+  if (outEl) {
+    outEl.classList.add('output-focused');
+  }
+
+  if (isMobile) {
+    // 6.2 行動端同色呼吸外框與索引標籤
+    if (codeEl) {
+      codeEl.classList.add('pulse-active-code');
+      if (codeBadge) {
+        codeBadge.textContent = isError ? '💥 報錯來源' : `➔ 輸出 #${outputLineIdx}`;
+        codeBadge.style.display = 'inline-flex';
+        codeBadge.className = `dataflow-badge badge-code-out ${isError ? 'badge-err' : ''}`;
+      }
+    }
+    if (outEl) {
+      outEl.classList.add('pulse-active-output');
+      if (outBadge) {
+        outBadge.textContent = isError ? `行 ${codeLineNum} 觸發` : `來自 行 ${codeLineNum}`;
+        outBadge.style.display = 'inline-flex';
+        outBadge.className = `dataflow-badge badge-output-src ${isError ? 'badge-err' : ''}`;
+      }
+    }
+  } else {
+    // 6.1 桌機版跨卡片 SVG 導引線
+    drawFlowGuide(codeLineNum, outputLineIdx, isError);
+  }
+}
+
+function clearDataFlowSync() {
+  clearFlowGuide();
+  document.querySelectorAll('.pulse-active-code').forEach(el => el.classList.remove('pulse-active-code'));
+  document.querySelectorAll('.pulse-active-output').forEach(el => el.classList.remove('pulse-active-output'));
+  document.querySelectorAll('.output-focused').forEach(el => el.classList.remove('output-focused'));
+  document.querySelectorAll('.dataflow-badge').forEach(el => {
+    el.style.display = 'none';
+    el.textContent = '';
+  });
+}
+
+function updateFlowGuideTheme() {
+  const path = document.getElementById('flowGuidePath');
+  if (!path || !path.classList.contains('active')) return;
+  const isIdle = document.body.classList.contains('idle-theme');
+  const isError = path.classList.contains('error-guide');
+  if (isError) {
+    path.setAttribute('marker-end', isIdle ? 'url(#flowArrowIdle)' : 'url(#flowArrowErr)');
+  } else {
+    path.setAttribute('marker-end', isIdle ? 'url(#flowArrowIdle)' : 'url(#flowArrow)');
+  }
+}
+
+function updateActiveFlowGuide() {
+  if (pinnedLineNum === null || !activeSlidesData[currentSlide]) return;
+  const slide = activeSlidesData[currentSlide];
+  const mapping = getSlideOutputMapping(slide);
+  const outIndices = mapping.codeToOutput[pinnedLineNum];
+  if (outIndices && outIndices.length > 0) {
+    drawFlowGuide(pinnedLineNum, outIndices[0], mapping.isErrorMap[pinnedLineNum]);
+  }
+}
+
 
 // 🪜 四階段學習路徑判定 (agytodo 5.1)
 function getSlideStage(slide, index, total) {
@@ -1126,6 +1577,9 @@ function toggleFullscreen() {
    9. 手勢與鍵盤監聽設定
    ========================================================================== */
 function setupEventListeners() {
+  // 初始化 SVG 跨卡片導引線畫布 (agytodo 6.1)
+  ensureFlowGuideSvg();
+
   // 手機與平板觸控左右滑動 (Swipe Left / Swipe Right)
   let touchStartX = 0;
   let touchStartY = 0;
@@ -1158,6 +1612,37 @@ function setupEventListeners() {
     }, { passive: true });
   }
 
+  // 點擊空白處解除程式碼行釘選鎖定 (agytodo 6.1, 6.2)
+  window.addEventListener('click', (e) => {
+    if (pinnedLineNum !== null) {
+      if (!e.target.closest('.code-line') && !e.target.closest('.output-line') && !e.target.closest('.note-item')) {
+        pinnedLineNum = null;
+        clearHighlightedLines();
+        clearDataFlowSync();
+        resetLineBar();
+      }
+    }
+  });
+
+  // 視窗尺寸改變時重置或重算導引線座標
+  window.addEventListener('resize', () => {
+    if (window.innerWidth <= 1024) {
+      clearFlowGuide();
+    } else if (pinnedLineNum !== null) {
+      updateActiveFlowGuide();
+    }
+  });
+
+  // 程式碼視窗滾動時連動重算導引線
+  const codeVp = document.getElementById('codeViewport');
+  if (codeVp) {
+    codeVp.addEventListener('scroll', () => {
+      if (pinnedLineNum !== null && window.innerWidth > 1024) {
+        updateActiveFlowGuide();
+      }
+    }, { passive: true });
+  }
+
   // 鍵盤切換支援
   window.addEventListener('keydown', (e) => {
     const secSelect = document.getElementById('sectionSelect');
@@ -1175,7 +1660,14 @@ function setupEventListeners() {
       }
     }
 
-    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+    if (e.key === 'Escape') {
+      if (pinnedLineNum !== null) {
+        pinnedLineNum = null;
+        clearHighlightedLines();
+        clearDataFlowSync();
+        resetLineBar();
+      }
+    } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
       nextSlide();
     } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
       prevSlide();
@@ -1186,3 +1678,4 @@ function setupEventListeners() {
     }
   });
 }
+

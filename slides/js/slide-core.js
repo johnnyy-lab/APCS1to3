@@ -25,7 +25,7 @@ const courseCurriculum = [
     id: "ch2",
     title: "第二章 資料型態與數值 / 位元運算",
     sections: [
-      { id: "sec2-1", title: "2.1 數值型態分類（整數與浮點數）", available: false },
+      { id: "sec2-1", title: "2.1 數值型態分類（整數與浮點數）", available: true, url: "PythAPCS123_2-1_numeric_types_int_and_float.html" },
       { id: "sec2-2", title: "2.2 整數基本算術運算與優先級", available: false },
       { id: "sec2-3", title: "2.3 整數除法商數（//）與取餘數（%）", available: false },
       { id: "sec2-4", title: "2.4 次方與開根號運算（**）", available: false },

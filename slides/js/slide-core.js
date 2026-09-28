@@ -577,18 +577,22 @@ function renderSlide(index) {
       if (colabTargetUrl && !colabTargetUrl.startsWith('http')) {
         colabTargetUrl = `https://colab.research.google.com/github/johnnyy-lab/APCS1to3/blob/main/${colabTargetUrl.replace(/^\.\.\//, '')}`;
       }
+      const customCard = slide.completionCard;
+      const rawTitle = (customCard && customCard.badge) ? customCard.badge : '🏆 單元挑戰達成！滿分通關徽章';
+      const badgeDesc = (customCard && customCard.summary) ? customCard.summary : `太棒了！您已全數完成本單元所有核心觀念與心智模型的微步進演練。<br>現在正是將觀念化為肌肉記憶的最佳時刻！`;
+      const nextUnitHtml = (customCard && customCard.nextUnit) ? `<div class="completion-next-unit"><strong>👉 下一關預告</strong>：${customCard.nextUnit}</div>` : '';
+
       completionCard.innerHTML = `
         <div class="completion-badge-title">
-          <span>🏆</span>
-          <span>單元挑戰達成！滿分通關徽章</span>
+          <span>${rawTitle}</span>
         </div>
         <div class="completion-badge-desc">
-          太棒了！您已全數完成本單元所有核心觀念與心智模型的微步進演練。<br>
-          現在正是將觀念化為肌肉記憶的最佳時刻！
+          ${badgeDesc}
         </div>
         <a class="btn-colab-launch" href="${colabTargetUrl || '#'}" target="_blank" rel="noopener noreferrer">
           <span>🚀 前往 Google Colab 動手練（40/50 滿分題庫）</span>
         </a>
+        ${nextUnitHtml}
       `;
     } else {
       completionCard.style.display = 'none';
@@ -892,7 +896,7 @@ function getSlideOutputMapping(slide) {
   const printLines = [];
   slide.codeLines.forEach(l => {
     const hasPrint = /\bprint\s*\(/.test(l.html || '') ||
-                     (l.html && l.html.includes('token-func') && /print/.test(l.html)) ||
+                     (l.html && (l.html.includes('token-func') || l.html.includes('token-builtin')) && /print/.test(l.html)) ||
                      (l.mean && l.mean.includes('print('));
     if (hasPrint) {
       printLines.push(l.num);

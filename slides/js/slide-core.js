@@ -603,7 +603,7 @@ function renderSlide(index) {
           ${badgeDesc}
         </div>
         <a class="btn-colab-launch" href="${colabTargetUrl || '#'}" target="_blank" rel="noopener noreferrer">
-          <span>🚀 前往 Google Colab 動手練（40/50 滿分題庫）</span>
+          <span>🚀 前往 Colab 動手練</span>
         </a>
         ${nextUnitHtml}
       `;

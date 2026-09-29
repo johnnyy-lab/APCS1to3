@@ -40,8 +40,8 @@ const courseCurriculum = [
     sections: [
       { id: "sec3-1", title: "3.1 數值與文字強制轉型（int, float, str）", available: true, url: "PythAPCS123_3-1_type_conversion_int_float_str.html" },
       { id: "sec3-2", title: "3.2 字元與 ASCII 互轉（ord, chr）", available: true, url: "PythAPCS123_3-2_character_and_ascii_ord_chr.html" },
-      \g<1>true, url: "PythAPCS123_3-3_extremum_functions_max_min.html"\g<2>,
-      \g<1>true, url: "PythAPCS123_3-4_absolute_value_abs.html"\g<2>
+      { id: "sec3-3", title: "3.3 極值比較函數（max, min）", available: true, url: "PythAPCS123_3-3_extremum_functions_max_min.html" },
+      { id: "sec3-4", title: "3.4 絕對值計算（abs）", available: true, url: "PythAPCS123_3-4_absolute_value_abs.html" }
     ]
   },
   {

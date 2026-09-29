@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "認識 abs() 絕對值",
+    "titleEn": "Basic Absolute Value with abs()",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.1 認識 abs() 絕對值函數——數線上的無向距離守護者",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：整數與負數絕對值</span>",
+        "diff": false,
+        "mean": "直接將數值放入 abs() 函式中。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-number\">15</span>))",
+        "diff": true,
+        "mean": "正數不變，印出 15。",
+        "why": "在數線上距離 0 的距離就是 15。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-number\">-42</span>))",
+        "diff": true,
+        "mean": "負數拔除負號，印出正數 42。",
+        "why": "距離沒有負的，所以將負號消去。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-number\">0</span>))",
+        "diff": true,
+        "mean": "0 的距離依然是 0。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "15
+42
+0",
+    "notes": [
+      { "lines": [2, 3, 4], "lineText": "觀念", "type": "concept", "text": "<code class=\"code-inline\">abs()</code> 函式會回傳該數值在數線上距離原點（0）的**無向距離**。" }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "浮點數的絕對值",
+    "titleEn": "Absolute Value of Floats",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.1 認識 abs() 絕對值函數——數線上的無向距離守護者",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">temp_drift</span> <span class=\"token-op\">=</span> <span class=\"token-number\">-3.75</span>",
+        "diff": false,
+        "mean": "給定一個帶有小數的負數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">temp_drift</span>))",
+        "diff": true,
+        "mean": "印出 3.75。",
+        "why": "成功將負號拔除，且保留原本的小數部分。",
+        "alt": ""
+      }
+    ],
+    "output": "3.75",
+    "notes": [
+      { "lines": [2], "lineText": "型態", "type": "concept", "text": "<code class=\"code-inline\">abs()</code> 同樣支援 <code class=\"code-inline\">float</code>，回傳結果的型態會與原本一致。" }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "搭配算術運算",
+    "titleEn": "Combined with Arithmetic",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.1 認識 abs() 絕對值函數——數線上的無向距離守護者",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">-8</span> <span class=\"token-op\">*</span> <span class=\"token-number\">5</span>",
+        "diff": false,
+        "mean": "先執行數學運算，此時 val = -40。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">val</span>))",
+        "diff": true,
+        "mean": "將變數傳入，-40 的絕對值為 40。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "40",
+    "notes": []
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "直接相減的負數困境",
+    "titleEn": "The Negative Difference Dilemma",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.2 兩數無向差值計算——一行求得差距，取代正負號手動調整",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">weight_a</span> <span class=\"token-op\">=</span> <span class=\"token-number\">52</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">weight_b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">65</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">raw_diff</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">weight_a</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">weight_b</span>",
+        "diff": true,
+        "mean": "直接將小減大。",
+        "why": "在不知道誰大誰小的情況下直接減，可能會產生負數。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">raw_diff</span>)",
+        "diff": true,
+        "mean": "印出 -13。",
+        "why": "但如果我們只想知道「兩人差幾公斤」，負號就會變成阻礙。",
+        "alt": ""
+      }
+    ],
+    "output": "-13",
+    "notes": [
+      { "lines": [3, 4], "lineText": "陷阱", "type": "concept", "text": "如果題目要求輸出「差距」，直接相減可能因為順序不對而導致測資輸出負數被判定 WA（答案錯誤）。" }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "無向差值：一行求得差距",
+    "titleEn": "Undirected Difference in One Line",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.2 兩數無向差值計算——一行求得差距，取代正負號手動調整",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">weight_a</span> <span class=\"token-op\">=</span> <span class=\"token-number\">52</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">weight_b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">65</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">diff</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">weight_a</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">weight_b</span>)",
+        "diff": true,
+        "mean": "外面套上一層 abs() 保護。",
+        "why": "無論裡面算出來是正是負，出來一定只剩下「純距離」。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">diff</span>)",
+        "diff": true,
+        "mean": "印出乾淨的正數 13。",
+        "why": "成功取代了繁瑣的 if a > b 判斷式！",
+        "alt": ""
+      }
+    ],
+    "output": "13",
+    "notes": [
+      { "lines": [3], "lineText": "技巧", "type": "concept", "text": "利用 <code class=\"code-inline\">abs(a - b)</code> 可以**免除比較大小**，直接寫成一行，是極有效率的數學寫法！" }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "對稱性：相減順序不影響距離",
+    "titleEn": "Symmetry: Order of Subtraction Doesn't Matter",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.2 兩數無向差值計算——一行求得差距，取代正負號手動調整",
+    "predictQuiz": {
+      "question": "預測思考：如果將 abs(weight_a - weight_b) 的相減順序顛倒成 abs(weight_b - weight_a)，得到的結果會不一樣嗎？",
+      "options": [
+        "會不一樣，因為相減會差一個負號",
+        "完全一樣，因為外層的絕對值會把負號消掉"
+      ],
+      "correct": 1,
+      "explanation": "這就是數學上的「對稱性」，|A - B| 永遠等於 |B - A|，所以你完全不用擔心誰減誰！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">weight_a</span> <span class=\"token-op\">=</span> <span class=\"token-number\">52</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">weight_b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">65</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">weight_b</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">weight_a</span>))",
+        "diff": true,
+        "mean": "將大減小套入 abs()，依然印出 13。",
+        "why": "65 - 52 = 13，絕對值後還是 13。",
+        "alt": ""
+      }
+    ],
+    "output": "13",
+    "notes": [
+      { "lines": [3], "lineText": "原理", "type": "concept", "text": "這就是絕對值的魔力：<code class=\"code-inline\">abs(a - b) == abs(b - a)</code>，你完全可以「閉著眼睛隨便減」！" }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "曼哈頓距離（網格尋路基礎）",
+    "titleEn": "Manhattan Distance (Grid Pathfinding)",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.3 曼哈頓距離（兩點網格距離）計算——abs(x1 - x2) + abs(y1 - y2)",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x1</span>, <span class=\"token-ident\">y1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>  <span class=\"token-comment\"># 起點座標</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x2</span>, <span class=\"token-ident\">y2</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>, <span class=\"token-number\">6</span>  <span class=\"token-comment\"># 終點座標</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">dist</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">x1</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x2</span>) <span class=\"token-op\">+</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">y1</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">y2</span>)",
+        "diff": true,
+        "mean": "水平距離（x差距）加上垂直距離（y差距）。",
+        "why": "因為在城市的街道網格中，你只能走直角（上下左右），不能走斜線。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">"曼哈頓距離:"</span>, <span class=\"token-ident\">dist</span>)",
+        "diff": true,
+        "mean": "|1-4| + |2-6| = 3 + 4 = 7。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "曼哈頓距離: 7",
+    "notes": [
+      { "lines": [3], "lineText": "必考", "type": "radar", "text": "<span class=\"tag-radar\">🎯 觀念題必考</span> APCS 二維陣列走訪非常愛考「**曼哈頓距離**」，公式就是 <code class=\"code-inline\">abs(x1-x2) + abs(y1-y2)</code>！" }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "曼哈頓距離：倒過來算也一樣",
+    "titleEn": "Symmetry of Manhattan Distance",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.3 曼哈頓距離（兩點網格距離）計算——abs(x1 - x2) + abs(y1 - y2)",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x1</span>, <span class=\"token-ident\">y1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x2</span>, <span class=\"token-ident\">y2</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>, <span class=\"token-number\">6</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">dist</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">x1</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x2</span>) <span class=\"token-op\">+</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">y1</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">y2</span>)",
+        "diff": false,
+        "mean": "原本的 A 走到 B 的距離（7）。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">reverse_dist</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">x2</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>) <span class=\"token-op\">+</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">y2</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">y1</span>)",
+        "diff": true,
+        "mean": "從 B 走回 A 的距離，將內部座標顛倒。",
+        "why": "測試距離的對稱性。",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">dist</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">reverse_dist</span>)",
+        "diff": true,
+        "mean": "印出 True，兩者完全相等。",
+        "why": "這意味著你在迴圈走訪時，順序怎麼寫都不會錯！",
+        "alt": ""
+      }
+    ],
+    "output": "True",
+    "notes": []
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "兩組總和差距計算",
+    "titleEn": "Absolute Difference Between Sums",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.4 兩組總和差距計算實務——abs(odd_sum - even_sum) 的純數學化身",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">odd_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">15</span>",
+        "diff": false,
+        "mean": "代表奇數項加總結果。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">even_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">22</span>",
+        "diff": false,
+        "mean": "代表偶數項加總結果。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">diff</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">odd_sum</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">even_sum</span>",
+        "diff": true,
+        "mean": "相減後，diff 此時為 -7。",
+        "why": "我們刻意用小減大來製造負數。",
+        "alt": ""
+      }
+    ],
+    "output": "<span class=\"output-empty\">（無終端輸出）</span>",
+    "notes": []
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "直接對差值變數取絕對值",
+    "titleEn": "Taking Absolute Value of a Difference Variable",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4.4 兩組總和差距計算實務——abs(odd_sum - even_sum) 的純數學化身",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">odd_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">15</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">even_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">22</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">diff</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">odd_sum</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">even_sum</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">diff</span>))",
+        "diff": true,
+        "mean": "成功印出正整數 7！",
+        "why": "直接在外層對變數施放 abs() 魔法，確保最終輸出符合題目要求。",
+        "alt": ""
+      }
+    ],
+    "output": "7",
+    "notes": [
+      { "lines": [4], "lineText": "技巧", "type": "concept", "text": "有時候計算過程很複雜（變數一大包），我們可以先將「含有負數的結果」存入變數，最後要輸出時再包一層 <code class=\"code-inline\">abs()</code> 即可。" }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 3.4 綜合驗收",
+    "titleEn": "Section 3.4 Completion",
+    "chapter": "第三章 核心內建函式與型態轉換",
+    "section": "3.4 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 恭喜通關！</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "<span class=\"output-empty\">（無終端輸出）</span>",
+    "completionCard": {
+      "badge": "🏆 單元 3.4 通關：無向距離守護者！",
+      "summary": "太棒了！你已學會利用 abs() 計算變數差值，徹底擺脫 if 大小判斷，更掌握了 APCS 二維陣列必備的「曼哈頓距離」公式！",
+      "nextUnit": "4.1 標準輸出 print() 基本語法"
+    },
+    "notes": [
+      { "lines": [1], "lineText": "實戰", "type": "concept", "text": "🚀 前往 Colab 動手練！" }
+    ]
+  }
+];
+
+    // 啟動引擎
+    initSlideEngine({
+      sectionId: "sec3-4",
+      slidesData: slidesData,
+      colabUrl: "../ipynb/PythAPCS123_3-4_absolute_value_abs.ipynb"
+    });
+  </script>
+</body>
+</html>

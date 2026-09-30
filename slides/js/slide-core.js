@@ -524,13 +524,14 @@ function renderSlide(index) {
       else if (n.type === 'wa') badgeClass = 'wa-badge';
       else if (n.type) badgeClass = `${n.type}-badge`;
       const linesJson = JSON.stringify(n.lines || []);
+      const formattedText = (n.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       return `
         <li class="note-item" 
             onmouseenter='highlightLines(${linesJson})'
             onmouseleave='clearHighlightedLines()'
             onclick='onNoteClick(${linesJson})'>
           <span class="line-badge ${badgeClass}">${n.lineText || ''}</span>
-          <div>${n.text}</div>
+          <div>${formattedText}</div>
         </li>
       `;
     }).join('');

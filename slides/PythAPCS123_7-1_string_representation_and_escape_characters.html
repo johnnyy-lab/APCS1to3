@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 7.1 字串表示法與跳脫字元 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.8 APCS 考場迴圈輸入實戰模式 (PythAPCS123_6-8_eof_and_input_streaming_patterns.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.1 單引號與雙引號表示法",
+    "titleZh": "認識字串（String）——文字的世界與引號外衣",
+    "titleEn": "Introduction to Strings: Quotes & Text Representation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 使用單引號建立字串",
+        "html": "<span class=\"token-comment\"># 使用單引號建立字串</span>",
+        "alt": "註解：使用單引號建立字串",
+        "why": "註解說明單引號語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "hero_name = 'Shadow'",
+        "html": "<span class=\"token-ident\">hero_name</span> = <span class=\"token-string\">'Shadow'</span>",
+        "alt": "將單引號字串 Shadow 存入變數 hero_name",
+        "diff": true,
+        "why": "單引號是 Python 定義文字最直觀的方式",
+        "mean": "建立名為 hero_name 的變數並存入字串 Shadow"
+      },
+      {
+        "num": 3,
+        "code": "# 使用雙引號建立字串",
+        "html": "<span class=\"token-comment\"># 使用雙引號建立字串</span>",
+        "alt": "註解：使用雙引號建立字串",
+        "why": "註解說明雙引號語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "guild_title = \"Dragon Slayer\"",
+        "html": "<span class=\"token-ident\">guild_title</span> = <span class=\"token-string\">\"Dragon Slayer\"</span>",
+        "alt": "將雙引號字串 Dragon Slayer 存入變數 guild_title",
+        "diff": true,
+        "why": "雙引號功能與單引號完全相同",
+        "mean": "建立變數 guild_title 並存入文字 Dragon Slayer"
+      },
+      {
+        "num": 5,
+        "code": "print(hero_name, guild_title)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">hero_name</span>, <span class=\"token-ident\">guild_title</span>)",
+        "alt": "印出 hero_name 與 guild_title 的內容",
+        "why": "終端機印出字串時不會顯示引號外衣",
+        "mean": "終端機輸出文字內容"
+      }
+    ],
+    "output": "Shadow Dragon Slayer",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字串的定義</strong>：在 Python 中，被成對的單引號 <code>' '</code> 或雙引號 <code>\" \"</code> 包裹起來的連續文字，就稱為<strong>字串（str）</strong>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>引號是防護衣</strong>：引號的作用是告訴直譯器「這是純文字資料，不要當成變數名稱或程式碼關鍵字」！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：單雙皆可用，成對莫混搭"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.1 單引號與雙引號表示法",
+    "titleZh": "單引號 vs 雙引號——地位平等無優劣",
+    "titleEn": "Single vs Double Quotes: Equal in Every Way",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s1 = 'Python'",
+        "html": "<span class=\"token-ident\">s1</span> = <span class=\"token-string\">'Python'</span>",
+        "alt": "使用單引號建立字串 Python",
+        "why": "單引號寫法簡潔",
+        "mean": "s1 盛裝字串 Python"
+      },
+      {
+        "num": 2,
+        "code": "s2 = \"Python\"",
+        "html": "<span class=\"token-ident\">s2</span> = <span class=\"token-string\">\"Python\"</span>",
+        "alt": "使用雙引號建立字串 Python",
+        "why": "雙引號寫法直觀",
+        "mean": "s2 盛裝字串 Python"
+      },
+      {
+        "num": 3,
+        "code": "print(s1 == s2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">s1</span> == <span class=\"token-ident\">s2</span>)",
+        "alt": "比較 s1 與 s2 的內容是否相等",
+        "why": "比較兩變數的值是否相同",
+        "mean": "印出比較結果 True"
+      },
+      {
+        "num": 4,
+        "code": "print(type(s1), type(s2))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">type</span>(<span class=\"token-ident\">s1</span>), <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">s2</span>))",
+        "alt": "檢查 s1 與 s2 的型態",
+        "why": "檢驗底層資料結構型別",
+        "mean": "兩者型態皆為 str"
+      }
+    ],
+    "output": "True\n&lt;class 'str'&gt; &lt;class 'str'&gt;",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>完全等價</strong>：單引號與雙引號在底層沒有任何效能差異或型別差別，兩者建立出來的都是同等純淨的 <code>str</code> 物件！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：<code>s1 == s2</code> 為 <code>True</code>！引號只是包裝邊界，不會成為字串內容的一部分。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：地位皆平等，底層皆字串"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.2 引號巢狀包夾技巧",
+    "titleZh": "引號巢狀包夾——外雙內單與外單內雙",
+    "titleEn": "Quote Nesting: Mixing Quotes Without Escaping",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 外雙內單：外層雙引號，安全包含英文單引號 (縮寫撇號)",
+        "html": "<span class=\"token-comment\"># 外雙內單：安全包含英文縮寫撇號</span>",
+        "alt": "註解：外雙內單應用",
+        "why": "說明外雙內單技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "status = \"It's a wonderful day!\"",
+        "html": "<span class=\"token-ident\">status</span> = <span class=\"token-string\">\"It's a wonderful day!\"</span>",
+        "alt": "外層雙引號包裹含有撇號的句子",
+        "diff": true,
+        "why": "外層是雙引號，中間的單引號不會被誤認成結尾",
+        "mean": "變數安全包含 It's"
+      },
+      {
+        "num": 3,
+        "code": "# 外單內雙：外層單引號，安全包含對話台詞的雙引號",
+        "html": "<span class=\"token-comment\"># 外單內雙：安全包含台詞雙引號</span>",
+        "alt": "註解：外單內雙應用",
+        "why": "說明外單內雙技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "dialogue = 'Teacher: \"Keep going!\"'",
+        "html": "<span class=\"token-ident\">dialogue</span> = <span class=\"token-string\">'Teacher: \"Keep going!\"'</span>",
+        "alt": "外層單引號包裹含有對話雙引號的文字",
+        "diff": true,
+        "why": "外層是單引號，中間的雙引號保持為純文字",
+        "mean": "變數安全包含雙引號台詞"
+      },
+      {
+        "num": 5,
+        "code": "print(status)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">status</span>)",
+        "alt": "印出 status 變數",
+        "why": "輸出結果",
+        "mean": "印出英文縮寫句子"
+      },
+      {
+        "num": 6,
+        "code": "print(dialogue)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">dialogue</span>)",
+        "alt": "印出 dialogue 變數",
+        "why": "輸出結果",
+        "mean": "印出對話台詞"
+      }
+    ],
+    "output": "It's a wonderful day!\nTeacher: \"Keep going!\"",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>天然相容法</strong>：如果字串內容需要出現單引號（如英文 <code>It's</code>），最聰明的寫法是外層直接套用雙引號！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>對話引述法</strong>：如果內容需要印出帶有雙引號的引述台詞，外層直接套用單引號，完全不需要額外符號修飾。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：外雙包內單，外單包內雙"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.3 跳脫字元概念與功能",
+    "titleZh": "跳脫字元的超能力——反斜線 \\ 魔法開關",
+    "titleEn": "Escape Characters: The Magic Backslash",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 普通字元：字母 n 就是字母 n",
+        "html": "<span class=\"token-comment\"># 普通字元：字母 n 就是字母 n</span>",
+        "alt": "註解：一般字元",
+        "why": "對比一般字母",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"Good morning\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Good morning\"</span>)",
+        "alt": "印出一般英文字串",
+        "why": "無跳脫符號的普通輸出",
+        "mean": "印出 Good morning"
+      },
+      {
+        "num": 3,
+        "code": "# 跳脫字元：加上反斜線 \\，賦予全新控制指令",
+        "html": "<span class=\"token-comment\"># 跳脫字元：加上反斜線，賦予全新功能</span>",
+        "alt": "註解：跳脫字元功能",
+        "why": "引入跳脫概念",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "print(\"Good\\nmorning\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Good\\nmorning\"</span>)",
+        "alt": "字串中使用反斜線 n 控制換行",
+        "diff": true,
+        "why": "反斜線與 n 結合變成換行指令",
+        "mean": "在 Good 與 morning 之間換行"
+      }
+    ],
+    "output": "Good morning\nGood\nmorning",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>跳脫（Escape）的意涵</strong>：跳脫是指「跳脫出原本普通字元的含義，轉變為特殊控制代碼」。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>引導者反斜線 <code>\\</code></strong>：在 Python 字串中，反斜線 <code>\\</code> 就像一個魔法開關，緊接在後面的字元將被直譯器特殊解讀！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：反斜引跳脫，賦予新超能"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.3 換行字元 \\n",
+    "titleZh": "換行字元 \\n——單一字串分行印出",
+    "titleEn": "Newline Character \\n: Multi-line in One String",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "poem = \"春眠不覺曉，\\n處處聞啼鳥。\"",
+        "html": "<span class=\"token-ident\">poem</span> = <span class=\"token-string\">\"春眠不覺曉，\\n處處聞啼鳥。\"</span>",
+        "alt": "建立包含換行字元的詩句字串",
+        "diff": true,
+        "why": "在逗號後放置換行符號",
+        "mean": "建立帶有換行符號的字串"
+      },
+      {
+        "num": 2,
+        "code": "print(poem)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">poem</span>)",
+        "alt": "印出詩句變數",
+        "why": "輸出換行後的文字",
+        "mean": "終端機依換行符分成兩行印出"
+      }
+    ],
+    "output": "春眠不覺曉，\n處處聞啼鳥。",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong><code>\\n</code> 的運作</strong>：<code>\\n</code> 代表 Newline（換行）。印表頭或終端機讀到它時，游標會立即移至下一行的開頭。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>省下多個 print</strong>：不需要寫兩次 <code>print()</code>，只要在文字中插入 <code>\\n</code>，即可輕鬆實現單行程式多行輸出！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：反斜加上 n，立刻換新行"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.3 水平跳格 \\t",
+    "titleZh": "水平跳格 \\t——欄位對齊神器",
+    "titleEn": "Horizontal Tab \\t: Effortless Table Alignment",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "header = \"科目\\t成績\\t等級\"",
+        "html": "<span class=\"token-ident\">header</span> = <span class=\"token-string\">\"科目\\t成績\\t等級\"</span>",
+        "alt": "使用反斜線 t 分隔欄位標題",
+        "diff": true,
+        "why": "反斜線 t 提供欄位定位",
+        "mean": "以 Tab 分隔三欄標題"
+      },
+      {
+        "num": 2,
+        "code": "row1 = \"數學\\t100\\tA+\"",
+        "html": "<span class=\"token-ident\">row1</span> = <span class=\"token-string\">\"數學\\t100\\tA+\"</span>",
+        "alt": "第一列資料以反斜線 t 分隔",
+        "why": "對齊上方標題欄",
+        "mean": "數學成績列"
+      },
+      {
+        "num": 3,
+        "code": "row2 = \"英文\\t95\\tA\"",
+        "html": "<span class=\"token-ident\">row2</span> = <span class=\"token-string\">\"英文\\t95\\tA\"</span>",
+        "alt": "第二列資料以反斜線 t 分隔",
+        "why": "對齊上方標題欄",
+        "mean": "英文成績列"
+      },
+      {
+        "num": 4,
+        "code": "print(header)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">header</span>)",
+        "alt": "印出欄位標題",
+        "why": "印出標題",
+        "mean": "輸出標題"
+      },
+      {
+        "num": 5,
+        "code": "print(row1)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">row1</span>)",
+        "alt": "印出第一列成績",
+        "why": "印出成績列",
+        "mean": "輸出第一列"
+      },
+      {
+        "num": 6,
+        "code": "print(row2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">row2</span>)",
+        "alt": "印出第二列成績",
+        "why": "印出成績列",
+        "mean": "輸出第二列"
+      }
+    ],
+    "output": "科目\t成績\t等級\n數學\t100\tA+\n英文\t95\tA",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong><code>\\t</code> 的機制</strong>：<code>\\t</code> 代表 Tab（水平跳格），將文字游標推進到下一個制表定位點（Tab Stop，通常每 4 或 8 個字元一格）。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>對齊免手動數空格</strong>：在終端機輸出表格或對齊兩欄資料時，使用 <code>\\t</code> 可以大幅減少手動計算空白鍵的負擔。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：反斜加上 t，表格排整齊"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.4 跳脫自身與引號",
+    "titleZh": "跳脫自身與同型引號——\\\\、\\' 與 \\\"",
+    "titleEn": "Escaping Backslash & Quotes: \\\\, \\', \\\"",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 1：印出真正的反斜線 \\",
+        "html": "<span class=\"token-comment\"># 範例 1：印出真正的反斜線</span>",
+        "alt": "註解：印出反斜線",
+        "why": "說明印出反斜線技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "file_path = \"C:\\\\Python313\\\\bin\"",
+        "html": "<span class=\"token-ident\">file_path</span> = <span class=\"token-string\">\"C:\\\\Python313\\\\bin\"</span>",
+        "alt": "使用雙反斜線表示一個真實反斜線",
+        "diff": true,
+        "why": "第一個反斜線跳脫第二個反斜線",
+        "mean": "檔案路徑字串"
+      },
+      {
+        "num": 3,
+        "code": "# 範例 2：在單引號中出現單引號 \\'",
+        "html": "<span class=\"token-comment\"># 範例 2：在單引號中出現單引號</span>",
+        "alt": "註解：跳脫單引號",
+        "why": "說明跳脫引號技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "msg = 'It\\'s a secret.'",
+        "html": "<span class=\"token-ident\">msg</span> = <span class=\"token-string\">'It\\'s a secret.'</span>",
+        "alt": "在單引號字串中使用反斜線單引號",
+        "diff": true,
+        "why": "反斜線讓引號不被視為結束邊界",
+        "mean": "安全儲存英文縮寫單引號"
+      },
+      {
+        "num": 5,
+        "code": "print(file_path)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">file_path</span>)",
+        "alt": "印出路徑變數",
+        "why": "輸出路徑",
+        "mean": "印出路徑文字"
+      },
+      {
+        "num": 6,
+        "code": "print(msg)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">msg</span>)",
+        "alt": "印出訊息變數",
+        "why": "輸出訊息",
+        "mean": "印出包含單引號的句子"
+      }
+    ],
+    "output": "C:\\Python313\\bin\nIt's a secret.",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>自我跳脫 <code>\\\\</code></strong>：因為單一反斜線已被保留作為魔法開關，若要印出真實的物理符號 <code>\\</code>，必須鍵入連續兩個反斜線 <code>\\\\</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>引號保護 <code>\\'</code> / <code>\\\"</code></strong>：當外層與內層引號被迫使用同一種類型時，在內部引號前面加上反斜線即可化解衝突。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：雙重反斜線，印出單斜線"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.5 三引號多行文字",
+    "titleZh": "三引號多行字串——所見即所得的大段排版",
+    "titleEn": "Triple Quotes: Preserving WYSIWYG Formats",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "banner = \"\"\"",
+        "html": "<span class=\"token-ident\">banner</span> = <span class=\"token-string\">\"\"\"</span>",
+        "alt": "開啟三引號多行字串",
+        "why": "三個連續雙引號開啟多行模式",
+        "mean": "多行字串起點"
+      },
+      {
+        "num": 2,
+        "code": "=== PYTHON DUNGEON ===",
+        "html": "<span class=\"token-string\">=== PYTHON DUNGEON ===</span>",
+        "alt": "第一行遊戲標題",
+        "why": "直接按 Enter 換行",
+        "mean": "文字內容"
+      },
+      {
+        "num": 3,
+        "code": "1. 探索地下城",
+        "html": "<span class=\"token-string\">1. 探索地下城</span>",
+        "alt": "第二行選項一",
+        "why": "所見即所得保留排版",
+        "mean": "文字內容"
+      },
+      {
+        "num": 4,
+        "code": "2. 離開遊戲\"\"\"",
+        "html": "<span class=\"token-string\">2. 離開遊戲\"\"\"</span>",
+        "alt": "第三行選項二並關閉三引號",
+        "why": "三個雙引號標誌字串結束",
+        "mean": "多行字串終點"
+      },
+      {
+        "num": 5,
+        "code": "print(banner)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">banner</span>)",
+        "alt": "印出整個多行字串",
+        "why": "印出多行文字",
+        "mean": "原樣呈現包含換行的排版"
+      }
+    ],
+    "output": "\n=== PYTHON DUNGEON ===\n1. 探索地下城\n2. 離開遊戲",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>多行所見即所得</strong>：連續三個單引號 <code>'''</code> 或雙引號 <code>\"\"\"</code>，可以在程式碼中直接按 Enter 鍵折行，所有換行與縮排空格全被忠實保留！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>遊戲選單神器</strong>：APCS 專題實作中若需印出大段 ASCII Art 圖形、遊戲歡迎選單或多行說明，三引號是最優雅的選擇。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：三重雙引號，排版全保留"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1 考場常見陷阱",
+    "titleZh": "考場致命地雷一：首尾引號混搭引發語法崩潰",
+    "titleEn": "Pitfall 1: Mismatched Quotes Causing SyntaxError",
+    "predictQuiz": {
+      "question": "預測思考：若程式碼寫成 s = 'APCS 2026\"（開頭單引號、結尾雙引號），提交後 Python 直譯器會？",
+      "options": [
+        "噴出 SyntaxError: unterminated string literal（字串未閉合錯誤）",
+        "自動寬容補齊，視為合法字串 'APCS 2026'"
+      ],
+      "answer": 0,
+      "correct": 0,
+      "explanation": "Python 語法極度嚴謹！開頭與結尾引號必須『嚴格成對』。開頭用單引號，直譯器只會承認下一個單引號為閉合符號，雙引號會被當成普通字元持續找下去，直到行尾噴出未閉合 SyntaxError！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 錯誤範例：開頭單引號，結尾誤打雙引號",
+        "html": "<span class=\"token-comment\"># 錯誤範例：引號前後混搭</span>",
+        "alt": "註解：前後混搭引號錯誤",
+        "why": "標記錯誤寫法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "s = 'APCS 2026\"",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-string\">'APCS 2026\"</span>",
+        "alt": "引號前後未成對配對引發語法錯誤",
+        "error": true,
+        "why": "開頭單引號無法被結尾雙引號閉合",
+        "mean": "直譯器報錯中斷"
+      }
+    ],
+    "output": "SyntaxError: unterminated string literal (detected at line 2)",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 爆零紅線</strong>：<code>SyntaxError: unterminated string literal</code> 代表字串未閉合！在各線上評判系統（OJ）提交會直接獲得 Compile Error 慘遭 0 分！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>解法鐵律</strong>：單引號開頭必單引號收尾，雙引號開頭必雙引號收尾，兩者絕對不可跨界雜交混搭。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：首尾必同型，混搭噴語法"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1 考場常見陷阱",
+    "titleZh": "考場致命地雷二：同型引號忘記跳脫引發提前閉合",
+    "titleEn": "Pitfall 2: Forgetting to Escape Same-Type Quote",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 踩雷寫法：單引號內部出現撇號，引發提前閉合",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：內部單引號未跳脫</span>",
+        "alt": "註解：單引號未跳脫錯誤",
+        "why": "標示踩雷示範",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# sentence = 'It's dangerous'  # 引發 SyntaxError: invalid syntax",
+        "html": "<span class=\"token-comment\"># sentence = 'It's dangerous'  # 提前閉合語法錯誤</span>",
+        "alt": "註解：踩雷程式碼",
+        "why": "展示錯誤代碼",
+        "mean": "It 後面的引號被當成結尾"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 安全解法一：外雙內單",
+        "html": "<span class=\"token-comment\"># ✅ 安全解法一：外雙內單</span>",
+        "alt": "註解：推薦解法外雙內單",
+        "why": "推薦最佳實踐",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "ans1 = \"It's dangerous\"",
+        "html": "<span class=\"token-ident\">ans1</span> = <span class=\"token-string\">\"It's dangerous\"</span>",
+        "alt": "外雙內單安全寫法",
+        "diff": true,
+        "why": "外層雙引號保障內部單引號不衝突",
+        "mean": "安全賦值"
+      },
+      {
+        "num": 5,
+        "code": "# ✅ 安全解法二：反斜線跳脫 \\'",
+        "html": "<span class=\"token-comment\"># ✅ 安全解法二：反斜線跳脫</span>",
+        "alt": "註解：反斜線跳脫解法",
+        "why": "展示跳脫解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "ans2 = 'It\\'s dangerous'",
+        "html": "<span class=\"token-ident\">ans2</span> = <span class=\"token-string\">'It\\'s dangerous'</span>",
+        "alt": "使用反斜線跳脫內部單引號",
+        "diff": true,
+        "why": "手動跳脫保護內部單引號",
+        "mean": "安全賦值"
+      },
+      {
+        "num": 7,
+        "code": "print(ans1 == ans2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">ans1</span> == <span class=\"token-ident\">ans2</span>)",
+        "alt": "比對兩者結果完全相同",
+        "why": "驗證兩解法產出字串完全一致",
+        "mean": "印出 True"
+      }
+    ],
+    "output": "True",
+    "notes": [
+      {
+        "type": "bad",
+        "text": "<strong>❌ 踩雷原因</strong>：寫 <code>'It's dangerous'</code> 時，Python 會將 <code>'It'</code> 視為完整字串，後面的 <code>s dangerous'</code> 變成了無家可歸的語法殘渣！"
+      },
+      {
+        "type": "good",
+        "text": "<strong>✅ 考場安全牌</strong>：英文句子首選<strong>外層雙引號</strong>；若一定要用單引號，務必加反斜線 <code>\\'</code> 進行防護。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：同型未跳脫，字串早早斷"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1 考場常見陷阱",
+    "titleZh": "考場致命地雷三：路徑單反斜線誤觸跳脫字元",
+    "titleEn": "Pitfall 3: Path Backslashes Accidentally Escaping",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 踩雷寫法：單反斜線 \\t 被當成 Tab、\\n 被當成換行！",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：\\t 變成水平跳格，排版完全失控</span>",
+        "alt": "註解：路徑誤觸跳脫陷阱",
+        "why": "指出路徑中反斜線隱患",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "wrong_path = \"C:\\test\\notes\"",
+        "html": "<span class=\"token-ident\">wrong_path</span> = <span class=\"token-string\">\"C:\\test\\notes\"</span>",
+        "alt": "字串中誤寫包含 test 與 notes 的單反斜線",
+        "error": true,
+        "why": "反斜線 t 與反斜線 n 自動被轉譯成控制字元",
+        "mean": "錯誤解析路徑"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 終極解法：原始字串（Raw String）在引號前加 r",
+        "html": "<span class=\"token-comment\"># ✅ 終極解法：原始字串 r\"...\"，取消所有跳脫</span>",
+        "alt": "註解：使用原始字串 r 解題",
+        "why": "推薦專業路徑寫法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "safe_path = r\"C:\\test\\notes\"",
+        "html": "<span class=\"token-ident\">safe_path</span> = <span class=\"token-string\">r\"C:\\test\\notes\"</span>",
+        "alt": "加上前綴 r 保持反斜線純粹字面意義",
+        "diff": true,
+        "why": "r 讓反斜線失去魔法，回歸普通字元",
+        "mean": "安全原樣保存路徑"
+      },
+      {
+        "num": 5,
+        "code": "print(wrong_path)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">wrong_path</span>)",
+        "alt": "印出錯誤路徑呈現走樣結果",
+        "why": "觀察錯誤輸出",
+        "mean": "印出帶有跳格與換行的破版文字"
+      },
+      {
+        "num": 6,
+        "code": "print(safe_path)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">safe_path</span>)",
+        "alt": "印出安全路徑完整呈現原樣",
+        "why": "觀察正確輸出",
+        "mean": "印出原汁原味的路徑"
+      }
+    ],
+    "output": "C:\test\notes\nC:\\test\\notes",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 隱藏殺手</strong>：在 Windows 路徑中，<code>\\test</code> 的 <code>\\t</code> 會被視為 Tab 跳格，<code>\\notes</code> 的 <code>\\n</code> 會變成換行，讀檔程式將立刻報錯崩潰！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>原始字串前綴 <code>r</code></strong>：在引號前加上小寫字母 <code>r</code>（Raw），告訴 Python「這段文字不要做任何跳脫處理，全部照字面原樣呈現」！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：路徑帶反斜，加r保平安"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1 考場常見陷阱",
+    "titleZh": "考場致命地雷四：反斜線置於字串末尾吞噬結尾引號",
+    "titleEn": "Pitfall 4: Trailing Backslash Swallowing Ending Quote",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 致命錯誤：字串結尾是單一反斜線 \\",
+        "html": "<span class=\"token-comment\"># ❌ 結尾單反斜線會將結尾雙引號跳脫</span>",
+        "alt": "註解：字尾反斜線語法陷阱",
+        "why": "警告特殊致命死穴",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# folder = \"C:\\users\\\"  # 引發 SyntaxError！",
+        "html": "<span class=\"token-comment\"># folder = \"C:\\users\\\"  # 雙引號被吞噬，字串無法閉合！</span>",
+        "alt": "註解：示範末尾反斜線無法閉合錯誤",
+        "why": "展示反斜線吞噬結尾引號",
+        "mean": "語法錯誤代碼"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 正確寫法：結尾使用雙反斜線 \\\\",
+        "html": "<span class=\"token-comment\"># ✅ 正確寫法：結尾寫雙反斜線</span>",
+        "alt": "註解：正確結尾寫法",
+        "why": "給出正確修復指南",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "safe_folder = \"C:\\\\users\\\\\"",
+        "html": "<span class=\"token-ident\">safe_folder</span> = <span class=\"token-string\">\"C:\\\\users\\\\\"</span>",
+        "alt": "末尾使用雙反斜線安全閉合字串",
+        "diff": true,
+        "why": "第一個反斜線跳脫第二個，結束引號安全閉合",
+        "mean": "成功儲存結尾帶有斜線的路徑"
+      },
+      {
+        "num": 5,
+        "code": "print(safe_folder)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">safe_folder</span>)",
+        "alt": "印出安全資料夾路徑",
+        "why": "輸出結果",
+        "mean": "印出結尾為單反斜線的路徑"
+      }
+    ],
+    "output": "C:\\users\\",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題超級地雷</strong>：即使在 <code>r\"C:\\users\\\"</code> 原始字串中，<strong>結尾也絕對不能是奇數個反斜線</strong>！因為直譯器底層解析器仍會將 <code>\\\"</code> 視為跳脫引號，導致字串未閉合！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>安全解法</strong>：結尾路徑若需要反斜線，請一律寫成雙反斜線 <code>\\\\</code>，或直接改用跨平台的正斜線 <code>C:/users/</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字尾莫單斜，結束引號消"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.4 跳脫字元長度速查",
+    "titleZh": "跳脫字元長度本質——看似兩個符號實為一字元",
+    "titleEn": "Length of Escape Characters: Two Chars Count as One",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s_newline = \"\\n\"",
+        "html": "<span class=\"token-ident\">s_newline</span> = <span class=\"token-string\">\"\\n\"</span>",
+        "alt": "建立純換行字元字串",
+        "why": "測試換行字元長度",
+        "mean": "字串僅包含換行符號"
+      },
+      {
+        "num": 2,
+        "code": "s_tab = \"\\t\"",
+        "html": "<span class=\"token-ident\">s_tab</span> = <span class=\"token-string\">\"\\t\"</span>",
+        "alt": "建立純跳格字元字串",
+        "why": "測試跳格字元長度",
+        "mean": "字串僅包含跳格符號"
+      },
+      {
+        "num": 3,
+        "code": "s_slash = \"\\\\\"",
+        "html": "<span class=\"token-ident\">s_slash</span> = <span class=\"token-string\">\"\\\\\"</span>",
+        "alt": "建立雙反斜線字串",
+        "why": "測試反斜線字元長度",
+        "mean": "字串代表一個反斜線"
+      },
+      {
+        "num": 4,
+        "code": "print(len(s_newline), len(s_tab), len(s_slash))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">s_newline</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">s_tab</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">s_slash</span>))",
+        "alt": "印出三個跳脫字串的長度",
+        "why": "揭示長度皆為 1 的本質",
+        "mean": "輸出 1 1 1"
+      },
+      {
+        "num": 5,
+        "code": "msg = \"A\\nB\"",
+        "html": "<span class=\"token-ident\">msg</span> = <span class=\"token-string\">\"A\\nB\"</span>",
+        "alt": "建立字串 A 換行 B",
+        "why": "測試含有文字與跳脫的複合長度",
+        "mean": "總共 3 個字元"
+      },
+      {
+        "num": 6,
+        "code": "print(\"msg 長度 =\", len(msg))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"msg 長度 =\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">msg</span>))",
+        "alt": "印出 msg 的長度",
+        "why": "輸出計算結果",
+        "mean": "印出 msg 長度 = 3"
+      }
+    ],
+    "output": "1 1 1\nmsg 長度 = 3",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>記憶體本質</strong>：跳脫序列（如 <code>\\n</code>、<code>\\t</code>、<code>\\\\</code>）在螢幕原始碼中雖然由兩個鍵盤符號組成，但直譯器轉譯後在記憶體中<strong>只佔用一個位元組（長度為 1）</strong>！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 觀念題常客</strong>：問 <code>len(\"A\\nB\")</code> 的值是多少？考生常誤數為 4（A, \\, n, B），正確答案是 <strong>3</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：跳脫算一字，長度不加倍"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1.5 APCS 競技格式化排版實戰",
+    "titleZh": "APCS 實戰專題——對稱邊框與跳脫字元整合應用",
+    "titleEn": "APCS Capstone: Formatted Output with Escapes",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 整合換行、跳格與跳脫引號製作考場英雄榜",
+        "html": "<span class=\"token-comment\"># 整合換行、跳格與引號印出英雄榜</span>",
+        "alt": "註解：英雄榜整合實戰",
+        "why": "整合本節核心知識點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "divider = \"=\" * 25",
+        "html": "<span class=\"token-ident\">divider</span> = <span class=\"token-string\">\"=\"</span> * <span class=\"token-number\">25</span>",
+        "alt": "使用乘號產生連續 25 個等號分隔線",
+        "why": "製作對稱裝飾邊框",
+        "mean": "產生分隔線"
+      },
+      {
+        "num": 3,
+        "code": "title = \"\\t\\\"APCS CHAMPION\\\"\"",
+        "html": "<span class=\"token-ident\">title</span> = <span class=\"token-string\">\"\\t\\\"APCS CHAMPION\\\"\"</span>",
+        "alt": "結合水平跳格與跳脫雙引號",
+        "diff": true,
+        "why": "置中並帶有雙引號字樣",
+        "mean": "製作品牌標題"
+      },
+      {
+        "num": 4,
+        "code": "row = \"Rank\\tName\\tScore\\n1\\tAlice\\t100\"",
+        "html": "<span class=\"token-ident\">row</span> = <span class=\"token-string\">\"Rank\\tName\\tScore\\n1\\tAlice\\t100\"</span>",
+        "alt": "一行內同時運用跳格與換行排版表格",
+        "diff": true,
+        "why": "極簡緊湊的高效排版",
+        "mean": "表格標題與數據列"
+      },
+      {
+        "num": 5,
+        "code": "print(divider + \"\\n\" + title + \"\\n\" + divider)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">divider</span> + <span class=\"token-string\">\"\\n\"</span> + <span class=\"token-ident\">title</span> + <span class=\"token-string\">\"\\n\"</span> + <span class=\"token-ident\">divider</span>)",
+        "alt": "串接並印出頂部與標題區塊",
+        "why": "輸出裝飾框",
+        "mean": "輸出標題區塊"
+      },
+      {
+        "num": 6,
+        "code": "print(row)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">row</span>)",
+        "alt": "印出表格內容列",
+        "why": "輸出數據表格",
+        "mean": "輸出成績榜單"
+      }
+    ],
+    "output": "=========================\n\t\"APCS CHAMPION\"\n=========================\nRank\tName\tScore\n1\tAlice\t100",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>技巧大融通</strong>：本題融合了字串重複（<code>\"=\"*25</code>）、水平跳格（<code>\\t</code>）、跳脫雙引號（<code>\\\"</code>）與換行（<code>\\n</code>），完美展示字串基本操縱技法。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>掌握字串即掌握分數</strong>：文字輸出是 APCS 實作題最基本的評判門檻，熟悉跳脫字元能徹底消滅 Presentation Error 與格式錯誤！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：組合跳脫技，版面美如畫"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.1 綜合驗收",
+    "titleZh": "單元 7.1 綜合驗收：字串表示法與跳脫字元全心法",
+    "titleEn": "Unit 7.1 Comprehensive Review & Mastery",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 恭喜完成單元 7.1！字串世界的大門已正式為你敞開！",
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 7.1！字串世界大門已敞開！</span>",
+        "alt": "註解：單元 7.1 完結慶祝",
+        "why": "里程碑慶賀",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"Congratulations on Mastering Strings & Escapes!\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Congratulations on Mastering Strings & Escapes!\"</span>)",
+        "alt": "印出通關恭賀英文文字",
+        "why": "輸出完封慶祝字串",
+        "mean": "印出恭賀通關文字"
+      }
+    ],
+    "output": "Congratulations on Mastering Strings & Escapes!",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>單元核心盤點</strong>：1. 單雙引號等價且成對；2. 外雙內單/外單內雙免跳脫；3. <code>\\n</code> 換行與 <code>\\t</code> 排版；4. <code>\\\\</code> 印出斜線；5. <code>r\"...\"</code> 原始字串保平安；6. 跳脫字元長度皆算 1。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>下一步挑戰</strong>：在單元 7.2 中，我們將解鎖字串的運算子魔術——字串串接（<code>+</code>）與字串乘法重複（<code>*</code>），邁向更進階的序列操控！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字串跳脫通，文字操縱王"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 7.1 通關：字串與跳脫字元掌握大師！",
+      "summary": "你已精準掌握單雙引號、嵌套包夾、\\n 與 \\t 跳脫超能力、原始字串 r\"...\" 與跳脫字元長度本質，徹底封殺了所有引號閉合與路徑破版地雷！",
+      "nextUnit": "前往 7.2 字串序列操作（串接與重複）"
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec7-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_7-1_string_representation_and_escape_characters.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

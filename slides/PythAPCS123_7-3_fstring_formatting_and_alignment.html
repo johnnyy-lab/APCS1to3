@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 7.3 格式化字串（f-string）與數值對齊 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.8 APCS 考場迴圈輸入實戰模式 (PythAPCS123_6-8_eof_and_input_streaming_patterns.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.1 f-string 前綴語法",
+    "titleZh": "格式化字串 f-string——告別繁瑣加號的現代魔法",
+    "titleEn": "Introduction to f-strings: Modern String Formatting",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "name = \"小明\"",
+        "html": "<span class=\"token-ident\">name</span> = <span class=\"token-string\">\"小明\"</span>",
+        "alt": "定義姓名變數小明",
+        "why": "學生姓名",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "score = 90",
+        "html": "<span class=\"token-ident\">score</span> = <span class=\"token-number\">90</span>",
+        "alt": "定義成績整數 90",
+        "why": "考試分數",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 3,
+        "code": "# 引號前加上 f，大括號 {} 內填入變數名稱",
+        "html": "<span class=\"token-comment\"># 引號前加上 f，大括號內直接嵌入變數</span>",
+        "alt": "註解：f-string 核心語法",
+        "why": "說明 f-string 結構",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "notice = f\"同學 {name} 考了 {score} 分。\"",
+        "html": "<span class=\"token-ident\">notice</span> = <span class=\"token-string\">f\"同學 {<span class=\"token-ident\">name</span>} 考了 {<span class=\"token-ident\">score</span>} 分。\"</span>",
+        "alt": "使用 f 字串嵌入 name 與 score",
+        "diff": true,
+        "why": "引號前加 f 啟動格式化插槽",
+        "mean": "自動將變數替換入字串"
+      },
+      {
+        "num": 5,
+        "code": "print(notice)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">notice</span>)",
+        "alt": "印出 notice 變數",
+        "why": "輸出結果",
+        "mean": "印出格式化完整通知"
+      }
+    ],
+    "output": "同學 小明 考了 90 分。",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>f-string 革命</strong>：自 Python 3.6 起引入的 <strong>f-string</strong>（格式化字串字面量），徹底終結了以往需要不斷寫 <code>+</code>、逗號與 <code>str()</code> 的痛苦時代！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>語法黃金公式</strong>：只要在字串引號開頭前加上字母 <code>f</code>（或大寫 <code>F</code>），字串內部的 <code>{變數}</code> 就會被自動求值並無縫融入句子！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：引號前帶 f，變數嵌字串"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.1 f-string 前綴語法",
+    "titleZh": "大括號 {} 插槽機制——自動轉型與直覺嵌入",
+    "titleEn": "The {} Slot Mechanism: Intuitive Embedding",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "user = \"Alice\"",
+        "html": "<span class=\"token-ident\">user</span> = <span class=\"token-string\">\"Alice\"</span>",
+        "alt": "使用者名稱 Alice",
+        "why": "使用者變數",
+        "mean": "文字賦值"
+      },
+      {
+        "num": 2,
+        "code": "rank = 1",
+        "html": "<span class=\"token-ident\">rank</span> = <span class=\"token-number\">1</span>",
+        "alt": "名次第 1 名整數",
+        "why": "名次變數",
+        "mean": "整數賦值"
+      },
+      {
+        "num": 3,
+        "code": "rate = 99.8",
+        "html": "<span class=\"token-ident\">rate</span> = <span class=\"token-number\">99.8</span>",
+        "alt": "勝率浮點數 99.8",
+        "why": "勝率變數",
+        "mean": "浮點數賦值"
+      },
+      {
+        "num": 4,
+        "code": "# 各種型態皆能無痛自動轉型塞進字串！",
+        "html": "<span class=\"token-comment\"># 任何型態無痛自動轉型嵌入</span>",
+        "alt": "註解：型態無痛轉換",
+        "why": "強調免 str() 優勢",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"[No.{rank}] {user}: 勝率 {rate}%\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"[No.{<span class=\"token-ident\">rank</span>}] {<span class=\"token-ident\">user</span>}: 勝率 {<span class=\"token-ident\">rate</span>}%\"</span>)",
+        "alt": "一次嵌入整數、字串與浮點數",
+        "diff": true,
+        "why": "直接在 print 內呼叫 f-string",
+        "mean": "印出多型態嵌合結果"
+      }
+    ],
+    "output": "[No.1] Alice: 勝率 99.8%",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>天然自動轉型</strong>：大括號 <code>{}</code> 內部如果是整數（<code>int</code>）、浮點數（<code>float</code>）或布林值（<code>bool</code>），Python 都會<strong>自動幫你呼叫 <code>str()</code></strong>，完全不會引發 TypeError！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>不必先存變數</strong>：你可以直接在 <code>print(f\"...\")</code> 中使用，既乾淨又直觀。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：大括號插槽，求值自動填"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.2 大括號運算式計算",
+    "titleZh": "大括號內的運算力——算完再填進句子",
+    "titleEn": "Expressions in {}: Evaluate and Embed Instantly",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = 8",
+        "html": "<span class=\"token-ident\">a</span> = <span class=\"token-number\">8</span>",
+        "alt": "變數 a 為 8",
+        "why": "運算元 a",
+        "mean": "數值賦值"
+      },
+      {
+        "num": 2,
+        "code": "b = 5",
+        "html": "<span class=\"token-ident\">b</span> = <span class=\"token-number\">5</span>",
+        "alt": "變數 b 為 5",
+        "why": "運算元 b",
+        "mean": "數值賦值"
+      },
+      {
+        "num": 3,
+        "code": "# 大括號內可直接放置任意運算式！",
+        "html": "<span class=\"token-comment\"># 大括號內直接算加法</span>",
+        "alt": "註解：大括號內放運算式",
+        "why": "展現動態求值能力",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"{a} + {b} = {a + b}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">a</span>} + {<span class=\"token-ident\">b</span>} = {<span class=\"token-ident\">a</span> + <span class=\"token-ident\">b</span>}\"</span>)",
+        "alt": "印出 8 加 5 等於運算結果",
+        "diff": true,
+        "why": "直接計算 a + b 後填入",
+        "mean": "印出算式與答案"
+      },
+      {
+        "num": 5,
+        "code": "price = 20",
+        "html": "<span class=\"token-ident\">price</span> = <span class=\"token-number\">20</span>",
+        "alt": "單價 20 元",
+        "why": "商品單價",
+        "mean": "數值賦值"
+      },
+      {
+        "num": 6,
+        "code": "qty = 4",
+        "html": "<span class=\"token-ident\">qty</span> = <span class=\"token-number\">4</span>",
+        "alt": "數量 4 件",
+        "why": "商品數量",
+        "mean": "數值賦值"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"總價為: {price * qty} 元\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"總價為: {<span class=\"token-ident\">price</span> * <span class=\"token-ident\">qty</span>} 元\"</span>)",
+        "alt": "印出相乘後的總價",
+        "diff": true,
+        "why": "直接計算乘法後填入",
+        "mean": "印出總價"
+      }
+    ],
+    "output": "8 + 5 = 13\n總價為: 80 元",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>大括號是迷你執行區</strong>：<code>{}</code> 內部不僅能放變數名稱，更可以放任何合法的 Python 運算式（包括算術運算、函式呼叫、三元運算子）！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>程式碼極致瘦身</strong>：再也不用為了輸出結果而額外宣告 <code>total = price * qty</code> 暫存變數了！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：括號算運算，算完秒嵌入"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.3 格式化說明符概念",
+    "titleZh": "格式化規格說明符——冒號 : 魔法開關",
+    "titleEn": "Format Specifier: The Colon Magic Switch",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 語法結構：{變數或運算式 : 格式化規格}",
+        "html": "<span class=\"token-comment\"># 語法：{變數 : 格式化規格}</span>",
+        "alt": "註解：規格說明符語法",
+        "why": "語法結構解說",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "val = 3.1415926",
+        "html": "<span class=\"token-ident\">val</span> = <span class=\"token-number\">3.1415926</span>",
+        "alt": "圓周率浮點數",
+        "why": "測試小數值",
+        "mean": "長小數賦值"
+      },
+      {
+        "num": 3,
+        "code": "# :.2f 代表保留小數點後 2 位",
+        "html": "<span class=\"token-comment\"># :.2f 控制小數位數</span>",
+        "alt": "註解：保留兩位小數說明",
+        "why": "解釋規格代碼",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"未格式化: {val}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"未格式化: {<span class=\"token-ident\">val</span>}\"</span>)",
+        "alt": "印出完整未修剪小數",
+        "why": "對照組",
+        "mean": "印出所有位數"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"格式化後: {val:.2f}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"格式化後: {<span class=\"token-ident\">val</span>:<span class=\"token-op\">.2f</span>}\"</span>)",
+        "alt": "印出精準修剪後小數",
+        "diff": true,
+        "why": "展示冒號後規格修剪效果",
+        "mean": "四捨五入保留兩位"
+      }
+    ],
+    "output": "未格式化: 3.1415926\n格式化後: 3.14",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>冒號 <code>:</code> 的定位</strong>：在大括號中，冒號左邊是『要展示的資料』，冒號右邊則是『如何展示它的規格指令』。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>格式控制四大天王</strong>：小數精度（<code>.2f</code>）、欄位寬度（<code>4d</code>）、對齊方向（<code><</code>/<code>></code>/<code>^</code>）與補零（<code>04d</code>）！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：冒號開規格，排版掌乾坤"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.3 小數固定位數（{:.Nf}）",
+    "titleZh": "小數固定位數 {:.Nf}——四捨五入與自動補零",
+    "titleEn": "Float Precision {:.Nf}: Rounding & Auto-Padding",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 1：超過位數自動四捨五入",
+        "html": "<span class=\"token-comment\"># 範例 1：四捨五入至兩位</span>",
+        "alt": "註解：四捨五入展示",
+        "why": "說明四捨五入機制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(f\"{3.14159:.2f}\")  # 輸出 3.14",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">3.14159</span>:<span class=\"token-op\">.2f</span>}\"</span>)",
+        "alt": "3.14159 保留兩位得 3.14",
+        "diff": true,
+        "why": "第三位 1 被捨去",
+        "mean": "輸出 3.14"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"{3.14159:.4f}\")  # 輸出 3.1416",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">3.14159</span>:<span class=\"token-op\">.4f</span>}\"</span>)",
+        "alt": "3.14159 保留四位得 3.1416",
+        "diff": true,
+        "why": "第五位 9 被進位",
+        "mean": "輸出 3.1416"
+      },
+      {
+        "num": 4,
+        "code": "# 範例 2：位數不足自動於尾端補零！",
+        "html": "<span class=\"token-comment\"># 範例 2：尾端自動補零</span>",
+        "alt": "註解：自動補零展示",
+        "why": "強調會補足位數",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"{7.5:.2f}\")    # 輸出 7.50",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">7.5</span>:<span class=\"token-op\">.2f</span>}\"</span>)",
+        "alt": "7.5 保留兩位自動補零得 7.50",
+        "diff": true,
+        "why": "小數後補一個 0 滿兩位",
+        "mean": "輸出 7.50"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"{10 / 3:.2f}\")  # 輸出 3.33",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">10</span> / <span class=\"token-number\">3</span>:<span class=\"token-op\">.2f</span>}\"</span>)",
+        "alt": "無窮循環小數修剪為 3.33",
+        "diff": true,
+        "why": "除法算完立即修剪",
+        "mean": "輸出 3.33"
+      }
+    ],
+    "output": "3.14\n3.1416\n7.50\n3.33",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong><code>{:.Nf}</code> 的殺手級功能</strong>：它不只會精確進行<strong>四捨五入</strong>，更重要的是當小數位數不足時，會<strong>強制於尾端補齊 <code>0</code></strong>（如 <code>7.5</code> 變成 <code>7.50</code>）！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 必考題型</strong>：題目要求「輸出至小數點後兩位，不足補零」，使用 <code>{:.2f}</code> 即可 100% 滿分通關，徹底取代不穩定且不補零的 <code>round()</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：點二f小數，補零捨入整"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.4 整數欄位寬度（{:Nd}）",
+    "titleZh": "整數欄位寬度 {:Nd}——矩陣對齊的定海神針",
+    "titleEn": "Integer Width {:Nd}: Clean Tabular Alignment",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# {:4d} 保留 4 格寬度，預設靠右對齊",
+        "html": "<span class=\"token-comment\"># {:4d} 預留 4 格寬度，向右對齊</span>",
+        "alt": "註解：寬度設定說明",
+        "why": "設定整數位寬",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(f\"{7:4d}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">7</span>:<span class=\"token-op\">4d</span>}\"</span>)",
+        "alt": "印出寬度 4 的數字 7",
+        "why": "前補 3 個空白",
+        "mean": "輸出 [   7]"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"{42:4d}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">42</span>:<span class=\"token-op\">4d</span>}\"</span>)",
+        "alt": "印出寬度 4 的數字 42",
+        "why": "前補 2 個空白",
+        "mean": "輸出 [  42]"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"{100:4d}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-number\">100</span>:<span class=\"token-op\">4d</span>}\"</span>)",
+        "alt": "印出寬度 4 的數字 100",
+        "why": "前補 1 個空白",
+        "mean": "輸出 [ 100]"
+      },
+      {
+        "num": 5,
+        "code": "# 負號也算佔用 1 格！",
+        "html": "<span class=\"token-comment\"># 負號也佔用一格空間</span>",
+        "alt": "註解：負號佔位提示",
+        "why": "強調負號佔位",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"{-7:4d}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{-<span class=\"token-number\">7</span>:<span class=\"token-op\">4d</span>}\"</span>)",
+        "alt": "印出寬度 4 的負數 -7",
+        "diff": true,
+        "why": "前補 2 個空白加負號",
+        "mean": "輸出 [  -7]"
+      }
+    ],
+    "output": "   7\n  42\n 100\n  -7",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong><code>{:Nd}</code> 的排版魔法</strong>：數字 <code>N</code> 代表整個欄位的<strong>最小字元寬度</strong>，代號 <code>d</code> 代表整數（Decimal）。當實際數字長度不足 N 位時，系統會自動在左側以空白填滿！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>字元寬度包山包海</strong>：請牢記<strong>負號 <code>-</code> 也算佔用 1 格空間</strong>，因此 <code>-7</code> 本身已佔 2 格，前方補 2 個空格。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：數字配個 d，向右排整齊"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.4 對齊方向與補零",
+    "titleZh": "方向對齊與前綴補零——<、>、^ 與 0",
+    "titleEn": "Alignment & Zero-Padding: <, >, ^ and 0",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 靠左 <、置中 ^、靠右 >",
+        "html": "<span class=\"token-comment\"># 靠左、置中、靠右對齊</span>",
+        "alt": "註解：方向對齊符號",
+        "why": "介紹對齊符號",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(f\"|{'Left':<8}|\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"|{'Left':<span class=\"token-op\"><8</span>}|\"</span>)",
+        "alt": "靠左對齊預留 8 格",
+        "diff": true,
+        "why": "尖角向左靠左對齊",
+        "mean": "輸出 |Left    |"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"|{'Mid':^8}|\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"|{'Mid':<span class=\"token-op\">^8</span>}|\"</span>)",
+        "alt": "置中對齊預留 8 格",
+        "diff": true,
+        "why": "脫字號置中對齊",
+        "mean": "輸出 |  Mid   |"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"|{'Right':>8}|\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"|{'Right':<span class=\"token-op\">>8</span>}|\"</span>)",
+        "alt": "靠右對齊預留 8 格",
+        "diff": true,
+        "why": "尖角向右靠右對齊",
+        "mean": "輸出 |   Right|"
+      },
+      {
+        "num": 5,
+        "code": "# 前綴補零：常考於時間或學號編號",
+        "html": "<span class=\"token-comment\"># 前綴補零：04d</span>",
+        "alt": "註解：補零展示",
+        "why": "展示學號時間補零",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "id_num = 7",
+        "html": "<span class=\"token-ident\">id_num</span> = <span class=\"token-number\">7</span>",
+        "alt": "編號數字 7",
+        "why": "測試補零",
+        "mean": "數值賦值"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"學號: {id_num:04d}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"學號: {<span class=\"token-ident\">id_num</span>:<span class=\"token-op\">04d</span>}\"</span>)",
+        "alt": "格式化為 4 位前綴補零學號",
+        "diff": true,
+        "why": "不足 4 位前方自動補 0",
+        "mean": "輸出學號: 0007"
+      }
+    ],
+    "output": "|Left    |\n|  Mid   |\n|   Right|\n學號: 0007",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>尖角方向記憶法</strong>：<code><</code> 箭頭向左代表<strong>靠左對齊</strong>；<code>></code> 箭頭向右代表<strong>靠右對齊</strong>；<code>^</code> 指向天頂代表<strong>正中居中</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>數字前綴補零 <code>:0Nd</code></strong>：在寬度前加 <code>0</code>（如 <code>:02d</code> 印出分鐘秒數 <code>09</code> 秒、<code>:04d</code> 印出 <code>0007</code>），是考場處理時間日期的制勝法寶！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：尖角向左中，前補零排版"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.3 百分比格式化（{:.N%}）",
+    "titleZh": "百分比格式化 {:.N%}——自動自乘 100 帶 %",
+    "titleEn": "Percentage Formatting {:.N%}: Auto Multiply by 100",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "accuracy = 0.87654",
+        "html": "<span class=\"token-ident\">accuracy</span> = <span class=\"token-number\">0.87654</span>",
+        "alt": "答對率浮點數 0.87654",
+        "why": "原始小數比率",
+        "mean": "比率賦值"
+      },
+      {
+        "num": 2,
+        "code": "# :.1% 會自動乘以 100，保留小數點後 1 位並加上 %",
+        "html": "<span class=\"token-comment\"># :.1% 自動乘百加百分號</span>",
+        "alt": "註解：百分比格式化說明",
+        "why": "解釋百分比符號特性",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"勝率: {accuracy:.1%}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"勝率: {<span class=\"token-ident\">accuracy</span>:<span class=\"token-op\">.1%</span>}\"</span>)",
+        "alt": "格式化保留一位百分比",
+        "diff": true,
+        "why": "轉化為 87.7%",
+        "mean": "輸出勝率: 87.7%"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"精準度: {accuracy:.2%}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"精準度: {<span class=\"token-ident\">accuracy</span>:<span class=\"token-op\">.2%</span>}\"</span>)",
+        "alt": "格式化保留兩位百分比",
+        "diff": true,
+        "why": "轉化為 87.65%",
+        "mean": "輸出精準度: 87.65%"
+      }
+    ],
+    "output": "勝率: 87.7%\n精準度: 87.65%",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>省去手動換算</strong>：<code>{:.1%}</code> 是 Python 為數據統計量身打造的專屬格式。它會<strong>自動把小數乘以 100</strong>，進行指定位數四捨五入，最後優雅地掛上 <code>%</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>再也不必手動寫 <code>* 100</code></strong>：直接將比率交給 <code>%</code> 規格化，精簡且杜絕計算錯誤。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：百分比符號，自乘百加趴"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3 考場常見陷阱",
+    "titleZh": "考場致命地雷一：引號前漏寫 f 導致原樣輸出",
+    "titleEn": "Pitfall 1: Forgetting the 'f' Prefix",
+    "predictQuiz": {
+      "question": "預測思考：若寫 name = \"Alice\"; print(\"Hello, {name}\")（注意字串開頭漏寫了 f），終端機會？",
+      "options": [
+        "印出原汁原味文字 \"Hello, {name}\"（完全未替換！）",
+        "Python 直譯器會聰明發現有大括號，自動補齊 f 印出 \"Hello, Alice\""
+      ],
+      "answer": 0,
+      "correct": 0,
+      "explanation": "沒有 f 前綴時，字串就是普通字串！直譯器只會將 {name} 當成普通的 6 個文字字元（左大括號、n、a、m、e、右大括號），完全不會把它當成變數求值！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "score = 80",
+        "html": "<span class=\"token-ident\">score</span> = <span class=\"token-number\">80</span>",
+        "alt": "成績整數 80",
+        "why": "設定分數",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# ❌ 致命粗心：字串前面漏掉了小寫字母 f！",
+        "html": "<span class=\"token-comment\"># ❌ 粗心漏打 f，大括號直接變成普通文字</span>",
+        "alt": "註解：漏打 f 錯誤",
+        "why": "標記常見低級失分",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "bad = \"分數是 {score}\"",
+        "html": "<span class=\"token-ident\">bad</span> = <span class=\"token-string\">\"分數是 {score}\"</span>",
+        "alt": "字串未加 f 前綴",
+        "error": true,
+        "why": "缺少 f 標記",
+        "mean": "大括號未被解析"
+      },
+      {
+        "num": 4,
+        "code": "# ✅ 正確修復：引號前嚴格加上 f",
+        "html": "<span class=\"token-comment\"># ✅ 補上 f 前綴，順利啟動變數插槽</span>",
+        "alt": "註解：正確補上 f",
+        "why": "推薦正確寫法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "good = f\"分數是 {score}\"",
+        "html": "<span class=\"token-ident\">good</span> = <span class=\"token-string\">f\"分數是 {<span class=\"token-ident\">score</span>}\"</span>",
+        "alt": "引號前加上 f 前綴",
+        "diff": true,
+        "why": "加上 f 啟動格式化",
+        "mean": "score 被替換為 80"
+      },
+      {
+        "num": 6,
+        "code": "print(\"漏寫 f 輸出:\", bad)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"漏寫 f 輸出:\"</span>, <span class=\"token-ident\">bad</span>)",
+        "alt": "印出漏寫 f 的結果",
+        "why": "觀察錯誤輸出",
+        "mean": "印出文字包含大括號"
+      },
+      {
+        "num": 7,
+        "code": "print(\"正確 f 輸出:\", good)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正確 f 輸出:\"</span>, <span class=\"token-ident\">good</span>)",
+        "alt": "印出正確 f 的結果",
+        "why": "觀察正確輸出",
+        "mean": "印出替換後的分數"
+      }
+    ],
+    "output": "漏寫 f 輸出: 分數是 {score}\n正確 f 輸出: 分數是 80",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 考場隱形殺手</strong>：漏打 <code>f</code> <strong>完全不會引發報錯</strong>！程式會順利執行到底，但提交給線上題庫時會因為滿畫面的 <code>{name}</code> 而慘遭 <strong>WA（Wrong Answer）</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>上場自檢反射動作</strong>：只要字串裡面有寫 <code>{}</code>，眼睛第一眼請務必看向引號前方是否有 <code>f</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：引號莫漏 f，否則原樣印"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3 考場常見陷阱",
+    "titleZh": "考場致命地雷二：大括號內部引號撞車引發語法錯誤",
+    "titleEn": "Pitfall 2: Quote Collision Inside {}",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "hero = {\"name\": \"Knight\", \"hp\": 100}",
+        "html": "<span class=\"token-ident\">hero</span> = {<span class=\"token-string\">\"name\"</span>: <span class=\"token-string\">\"Knight\"</span>, <span class=\"token-string\">\"hp\"</span>: <span class=\"token-number\">100</span>}",
+        "alt": "建立英雄字典資料",
+        "why": "字典資料結構",
+        "mean": "賦值字典"
+      },
+      {
+        "num": 2,
+        "code": "# ❌ 踩雷寫法：外層與大括號內都使用雙引號，引發提前閉合！",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：內外層引號同型，引發 SyntaxError</span>",
+        "alt": "註解：引號撞車說明",
+        "why": "展示引號撞車",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# msg = f\"Name: {hero[\"name\"]}\"  # 引發語法錯誤！",
+        "html": "<span class=\"token-comment\"># msg = f\"Name: {hero[\"name\"]}\"  # SyntaxError！</span>",
+        "alt": "註解：引號撞車錯誤代碼",
+        "why": "展示非法撞車代碼",
+        "mean": "引號提前閉合"
+      },
+      {
+        "num": 4,
+        "code": "# ✅ 安全解法：外雙內單！外層用雙引號，大括號內鍵名改用單引號",
+        "html": "<span class=\"token-comment\"># ✅ 安全牌：外雙內單，完美避開衝突</span>",
+        "alt": "註解：外雙內單解法",
+        "why": "推薦最佳解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "safe_msg = f\"Name: {hero['name']}\"",
+        "html": "<span class=\"token-ident\">safe_msg</span> = <span class=\"token-string\">f\"Name: {<span class=\"token-ident\">hero</span>[<span class=\"token-string\">'name'</span>]}\"</span>",
+        "alt": "外層雙引號內層單引號安全讀取字典",
+        "diff": true,
+        "why": "外層雙引號內層單引號無衝突",
+        "mean": "成功讀取 Knight"
+      },
+      {
+        "num": 6,
+        "code": "print(safe_msg)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">safe_msg</span>)",
+        "alt": "印出安全訊息",
+        "why": "輸出結果",
+        "mean": "印出 Name: Knight"
+      }
+    ],
+    "output": "Name: Knight",
+    "notes": [
+      {
+        "type": "bad",
+        "text": "<strong>❌ 踩雷原因</strong>：當外層是雙引號 <code>f\"...\"</code>，而大括號內又寫 <code>hero[\"name\"]</code> 時，第一個 <code>\"</code> 會直接被當成 f-string 的結束引號！"
+      },
+      {
+        "type": "good",
+        "text": "<strong>✅ 外雙內單黃金原則</strong>：在 f-string 中讀取字典鍵值時，<strong>外層一律用雙引號 <code>f\"...\"</code>，大括號內部鍵值一律用單引號 <code>['key']</code></strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：外雙內單引，大括號免撞"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3 考場常見陷阱",
+    "titleZh": "考場致命地雷三：要印出真實大括號必須雙寫 {{ 與 }}",
+    "titleEn": "Pitfall 3: Escaping Braces: Use {{ and }}",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "total = 10",
+        "html": "<span class=\"token-ident\">total</span> = <span class=\"token-number\">10</span>",
+        "alt": "變數 total 賦值 10",
+        "why": "定義數值",
+        "mean": "數值賦值"
+      },
+      {
+        "num": 2,
+        "code": "# 欲印出包含真實大括號的文字：\"變數 {total} 的值為 10\"",
+        "html": "<span class=\"token-comment\"># 欲印出含有大括號的字元</span>",
+        "alt": "註解：題目目標展示",
+        "why": "明確輸出需求",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 連寫兩個大括號 {{ 與 }}，代表轉義為文字大括號！",
+        "html": "<span class=\"token-comment\"># 連寫兩個大括號轉義為文字</span>",
+        "alt": "註解：雙寫大括號技巧",
+        "why": "傳授雙括號技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "msg = f\"變數 {{total}} 的值為 {total}\"",
+        "html": "<span class=\"token-ident\">msg</span> = <span class=\"token-string\">f\"變數 {{total}} 的值為 {<span class=\"token-ident\">total</span>}\"</span>",
+        "alt": "雙大括號印出字符單大括號替換變數",
+        "diff": true,
+        "why": "{{}} 被轉義為文字，單獨 {} 被替換為值",
+        "mean": "完美融合轉義與插槽"
+      },
+      {
+        "num": 5,
+        "code": "print(msg)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">msg</span>)",
+        "alt": "印出輸出結果",
+        "why": "輸出結果",
+        "mean": "印出包含大括號的句子"
+      }
+    ],
+    "output": "變數 {total} 的值為 10",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>大括號的轉義法規</strong>：在 f-string 中，反斜線 <code>\\{</code> 是不合法的！要印出純文字的 <code>{</code>，必須<strong>連續寫兩個 <code>{{</code></strong>；要印出 <code>}</code>，必須寫成 <code>}}</code>！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 經典觀念題</strong>：題目給出 <code>f\"{{5}}\"</code>，問輸出結果是什麼？答案是純文字 <code>{5}</code>，而不是 <code>5</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：雙寫大括號，印出真括號"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3 考場常見陷阱",
+    "titleZh": "考場致命地雷四：格式化代碼與資料型態嚴重打架",
+    "titleEn": "Pitfall 4: Type Mismatch with Format Codes",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 荒謬錯誤：對字串變數套用整數規格說明符 d",
+        "html": "<span class=\"token-comment\"># ❌ 荒謬錯誤：字串硬套 d 規格</span>",
+        "alt": "註解：字串套整數規格錯誤",
+        "why": "警告型態衝突死穴",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# word = \"APCS\"; print(f\"{word:d}\")  # ValueError！",
+        "html": "<span class=\"token-comment\"># word = \"APCS\"; print(f\"{word:d}\")  # 拋出 ValueError</span>",
+        "alt": "註解：錯誤程式碼示範",
+        "why": "展示錯誤代碼",
+        "mean": "規格不相容"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 安全修正：文字靠右對齊直接使用 > 寬度，不加 d",
+        "html": "<span class=\"token-comment\"># ✅ 安全修正：字串對齊只要 {:>8} 即可</span>",
+        "alt": "註解：字串對齊修正",
+        "why": "給出正確字串排版指南",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "word = \"APCS\"",
+        "html": "<span class=\"token-ident\">word</span> = <span class=\"token-string\">\"APCS\"</span>",
+        "alt": "文字變數 APCS",
+        "why": "定義文字",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"{word:>8}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">word</span>:<span class=\"token-op\">>8</span>}\"</span>)",
+        "alt": "將字串靠右對齊 8 格",
+        "diff": true,
+        "why": "字串使用寬度即可排版",
+        "mean": "印出前補 4 空格的 APCS"
+      }
+    ],
+    "output": "    APCS",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 崩潰警報</strong>：若對非整數物件指定 <code>d</code>（如 <code>f\"{12.34:d}\"</code> 或 <code>f\"{'test':d}\"</code>），Python 會直接噴出 <code>ValueError: Unknown format code 'd'</code> 讓程式當場暴斃！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>規格代號各司其職</strong>：<code>d</code>（Decimal）專屬整數；<code>f</code>（Float）專屬浮點數；純文字排版只需指定<strong>寬度與對齊方向</strong>（如 <code>:>8</code>），切勿多打 <code>d</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：整數才用 d，字串莫亂套"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.5 APCS 競技報表實戰",
+    "titleZh": "APCS 實戰專題——三欄式整齊競技成績報表",
+    "titleEn": "APCS Capstone: Three-Column Aligned Leaderboard",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 考生榜單資料：(姓名, 分數, 答對率)",
+        "html": "<span class=\"token-comment\"># 競技榜單資料列表</span>",
+        "alt": "註解：考生榜單資料",
+        "why": "定義資料源",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "students = [(\"Alice\", 98.5, 0.95), (\"Bob\", 72.0, 0.8), (\"Charlie\", 100.0, 1.0)]",
+        "html": "<span class=\"token-ident\">students</span> = [(<span class=\"token-string\">\"Alice\"</span>, <span class=\"token-number\">98.5</span>, <span class=\"token-number\">0.95</span>), (<span class=\"token-string\">\"Bob\"</span>, <span class=\"token-number\">72.0</span>, <span class=\"token-number\">0.8</span>), (<span class=\"token-string\">\"Charlie\"</span>, <span class=\"token-number\">100.0</span>, <span class=\"token-number\">1.0</span>)]",
+        "alt": "三個學生的成績資料元組列表",
+        "why": "多元型態測試資料",
+        "mean": "資料集"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"{'姓名':<8}{'分數':>6}  {'勝率':>7}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{'姓名':<span class=\"token-op\"><8</span>}{'分數':<span class=\"token-op\">>6</span>}  {'勝率':<span class=\"token-op\">>7</span>}\"</span>)",
+        "alt": "印出格式化欄位標題",
+        "diff": true,
+        "why": "精準規範每欄寬度與方向",
+        "mean": "輸出標題列"
+      },
+      {
+        "num": 4,
+        "code": "for name, score, rate in students:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, <span class=\"token-ident\">score</span>, <span class=\"token-ident\">rate</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">students</span>:",
+        "alt": "走訪每位學生資料",
+        "why": "迴圈逐筆處理",
+        "mean": "依序解包三欄數據"
+      },
+      {
+        "num": 5,
+        "code": "    print(f\"{name:<8}{score:>6.1f}  {rate:>7.1%}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">name</span>:<span class=\"token-op\"><8</span>}{<span class=\"token-ident\">score</span>:<span class=\"token-op\">>6.1f</span>}  {<span class=\"token-ident\">rate</span>:<span class=\"token-op\">>7.1%</span>}\"</span>)",
+        "alt": "印出結合靠左、小數與百分比的一列資料",
+        "diff": true,
+        "why": "集大成的 f-string 完美排版",
+        "mean": "精準輸出每位學生成績列"
+      }
+    ],
+    "output": "姓名          分數       勝率\nAlice     98.5    95.0%\nBob       72.0    80.0%\nCharlie  100.0   100.0%",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>專業排版三部曲</strong>：1. 姓名靠左（<code>:<8</code>）；2. 分數靠右且固定 1 位小數（<code>:>6.1f</code>）；3. 勝率靠右且帶百分比（<code>:>7.1%</code>）。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>線上評判 Presentation Error 克星</strong>：題目要求欄位垂直對齊時，只要標題與資料行的格式規格完全對應，就能達到像素級精確對齊！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：寬度加小數，報表最整齊"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3.5 九九乘法表排版升級",
+    "titleZh": "九九乘法表——f-string 工整排版降維打擊",
+    "titleEn": "Multiplication Table: Precision Alignment with f-strings",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 運用 {:2d} 讓單位數與雙位數乘積完美對齊",
+        "html": "<span class=\"token-comment\"># 運用 {:2d} 讓乘積垂直對齊</span>",
+        "alt": "註解：乘法表對齊說明",
+        "why": "經典問題現代化解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "for i in range(1, 4):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):",
+        "alt": "外層走訪被乘數 1 到 3",
+        "why": "控制列數",
+        "mean": "推進每一列"
+      },
+      {
+        "num": 3,
+        "code": "    for j in range(1, 4):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):",
+        "alt": "內層走訪乘數 1 到 3",
+        "why": "控制行數",
+        "mean": "推進每一欄"
+      },
+      {
+        "num": 4,
+        "code": "        print(f\"{i}*{j}={i*j:2d}\", end=\"  \")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">i</span>}*{<span class=\"token-ident\">j</span>}={<span class=\"token-ident\">i</span>*<span class=\"token-ident\">j</span>:<span class=\"token-op\">2d</span>}\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\"  \"</span>)",
+        "alt": "印出乘法算式且積預留 2 位空間",
+        "diff": true,
+        "why": "i*j:2d 確保乘積 1 位數與 2 位數等寬",
+        "mean": "橫向印出一格算式"
+      },
+      {
+        "num": 5,
+        "code": "    print()",
+        "html": "    <span class=\"token-builtin\">print</span>()",
+        "alt": "每列印完換行",
+        "why": "換行推進",
+        "mean": "印出換行"
+      }
+    ],
+    "output": "1*1= 1  1*2= 2  1*3= 3  \n2*1= 2  2*2= 4  2*3= 6  \n3*1= 3  3*2= 6  3*3= 9  ",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>等寬排版的優雅</strong>：過去 <code>1*1=1</code> 與 <code>2*5=10</code> 容易因長度差 1 個字元導致右方整排欄位歪斜；透過 <code>{i*j:2d}</code> 強制預留 2 位空間，整個矩陣排列得方方正正！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>f-string 與 end 完美合體</strong>：格式化字串負責算式單元內的對齊，<code>end=\"  \"</code> 負責算式之間的間隔，二者配合天衣無縫。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：乘法搭規格，九九矩陣成"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.3 綜合驗收",
+    "titleZh": "單元 7.3 綜合驗收：f-string 格式化排版登峰造極",
+    "titleEn": "Unit 7.3 Comprehensive Review & Mastery",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 恭喜完成單元 7.3！f-string 格式化大師誕生！",
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 7.3！f-string 格式化大師誕生！</span>",
+        "alt": "註解：單元 7.3 完結慶賀",
+        "why": "里程碑總結",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"Mastered Python f-strings & Format Specifiers!\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Mastered Python f-strings & Format Specifiers!\"</span>)",
+        "alt": "印出通關慶賀宣言",
+        "why": "輸出完封宣言",
+        "mean": "印出通關宣言"
+      }
+    ],
+    "output": "Mastered Python f-strings & Format Specifiers!",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>全章核心回顧</strong>：1. <code>f\"...\"</code> 啟動變數插槽；2. 大括號內能算任意運算式；3. <code>:.2f</code> 小數四捨五入補零；4. <code>:4d</code> 整數預留寬度；5. <code><</code>、<code>></code>、<code>^</code> 與 <code>:04d</code> 補零；6. 雙寫 <code>{{</code> 印出真括號；7. 引號前絕不能漏寫 <code>f</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>邁向下一個里程碑</strong>：在單元 7.4 中，我們將深入字串的微觀世界——<strong>字串索引（Indexing）、長度測量與走訪遍歷</strong>，探索字串不可變性的記憶體本質！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：格式化精熟，文字掌控尊"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 7.3 通關：f-string 格式化排版至尊！",
+      "summary": "你已完全通透 f-string 變數嵌入、大括號動態運算、小數補零修剪（.2f）、整數寬度（4d）、方向補零對齊與引號防撞心法，徹底消滅了排版失分陷阱！",
+      "nextUnit": "前往 7.4 字串索引、長度與走訪（Immutable 特性）"
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec7-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_7-3_fstring_formatting_and_alignment.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

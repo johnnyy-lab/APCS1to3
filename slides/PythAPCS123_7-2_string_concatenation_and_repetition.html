@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 7.2 字串序列操作（串接與重複） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.8 APCS 考場迴圈輸入實戰模式 (PythAPCS123_6-8_eof_and_input_streaming_patterns.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.1 字串加法運算子（+）",
+    "titleZh": "字串序列操作——文字世界的拼裝與複製",
+    "titleEn": "String Sequence Operations: Concatenation & Repetition",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 字串加法：文字焊接拼接",
+        "html": "<span class=\"token-comment\"># 字串加法：文字焊接拼接</span>",
+        "alt": "註解：字串加法說明",
+        "why": "引導加法觀念",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "part1 = \"Code\"",
+        "html": "<span class=\"token-ident\">part1</span> = <span class=\"token-string\">\"Code\"</span>",
+        "alt": "建立字串變數 part1",
+        "why": "定義字串一",
+        "mean": "變數 part1 賦值 Code"
+      },
+      {
+        "num": 3,
+        "code": "part2 = \"Master\"",
+        "html": "<span class=\"token-ident\">part2</span> = <span class=\"token-string\">\"Master\"</span>",
+        "alt": "建立字串變數 part2",
+        "why": "定義字串二",
+        "mean": "變數 part2 賦值 Master"
+      },
+      {
+        "num": 4,
+        "code": "title = part1 + part2",
+        "html": "<span class=\"token-ident\">title</span> = <span class=\"token-ident\">part1</span> + <span class=\"token-ident\">part2</span>",
+        "alt": "使用加號將兩個字串相接",
+        "diff": true,
+        "why": "加號在字串中表示串接",
+        "mean": "title 盛裝拼接後的 CodeMaster"
+      },
+      {
+        "num": 5,
+        "code": "print(title)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">title</span>)",
+        "alt": "印出 title 變數",
+        "why": "輸出結果",
+        "mean": "印出 CodeMaster"
+      }
+    ],
+    "output": "CodeMaster",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>序列運算子的雙重面貌</strong>：在數值運算中，<code>+</code> 是加法、<code>*</code> 是乘法；但當對象是<strong>字串（str）</strong>時，它們化身為強大的<strong>字串序列操作符</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>字串串接（Concatenation）</strong>：<code>+</code> 將兩段字串首尾相連，合成一個嶄新的大字串，宛如文字樂高積木！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：加法做串接，乘法造重複"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.1 字串加法運算子（+）",
+    "titleZh": "字串加法（+）——無縫銜接多個字串",
+    "titleEn": "String Concatenation: Seamlessly Joining Text",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "first = \"Magic\"",
+        "html": "<span class=\"token-ident\">first</span> = <span class=\"token-string\">\"Magic\"</span>",
+        "alt": "字串一 Magic",
+        "why": "定義第一單字",
+        "mean": "賦值 Magic"
+      },
+      {
+        "num": 2,
+        "code": "second = \"Stone\"",
+        "html": "<span class=\"token-ident\">second</span> = <span class=\"token-string\">\"Stone\"</span>",
+        "alt": "字串二 Stone",
+        "why": "定義第二單字",
+        "mean": "賦值 Stone"
+      },
+      {
+        "num": 3,
+        "code": "# 中間手動插入空格字串 \" \"",
+        "html": "<span class=\"token-comment\"># 中間手動插入空格字串</span>",
+        "alt": "註解：插入空格字串",
+        "why": "提醒手動補空格",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "phrase = first + \" \" + second",
+        "html": "<span class=\"token-ident\">phrase</span> = <span class=\"token-ident\">first</span> + <span class=\"token-string\">\" \"</span> + <span class=\"token-ident\">second</span>",
+        "alt": "將三個字串以加號串接",
+        "diff": true,
+        "why": "三個字串連續相加",
+        "mean": "串接為 Magic Stone"
+      },
+      {
+        "num": 5,
+        "code": "print(phrase)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">phrase</span>)",
+        "alt": "印出串接後詞彙",
+        "why": "輸出結果",
+        "mean": "輸出 Magic Stone"
+      }
+    ],
+    "output": "Magic Stone",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>加號是無縫焊接</strong>：使用 <code>+</code> 串接時，Python 不會自動在文字中間替你補充空格！如果需要空格，必須自己加上 <code>+ \" \" +</code>。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題常客</strong>：若寫 <code>first + second</code>，輸出會是緊貼的 <code>MagicStone</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：加號接兩端，生成新字串"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.2 連續串接與複合賦值（+=）",
+    "titleZh": "字串累加器（+=）——分段組裝長故事",
+    "titleEn": "String Accumulator (+=): Building Text Step-by-Step",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "story = \"\"",
+        "html": "<span class=\"token-ident\">story</span> = <span class=\"token-string\">\"\"</span>",
+        "alt": "初始化為空字串累加器",
+        "diff": true,
+        "why": "初始累加器起點為空字串",
+        "mean": "story 賦值空字串"
+      },
+      {
+        "num": 2,
+        "code": "story += \"Once upon a time, \"",
+        "html": "<span class=\"token-ident\">story</span> += <span class=\"token-string\">\"Once upon a time, \"</span>",
+        "alt": "累加第一段句子",
+        "why": "追加文字",
+        "mean": "故事增加第一句"
+      },
+      {
+        "num": 3,
+        "code": "story += \"a brave coder \"",
+        "html": "<span class=\"token-ident\">story</span> += <span class=\"token-string\">\"a brave coder \"</span>",
+        "alt": "累加第二段句子",
+        "why": "追加文字",
+        "mean": "故事增加第二句"
+      },
+      {
+        "num": 4,
+        "code": "story += \"solved APCS!\"",
+        "html": "<span class=\"token-ident\">story</span> += <span class=\"token-string\">\"solved APCS!\"</span>",
+        "alt": "累加第三段句子",
+        "why": "追加文字",
+        "mean": "故事增加結尾"
+      },
+      {
+        "num": 5,
+        "code": "print(story)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">story</span>)",
+        "alt": "印出組裝後的完整故事",
+        "why": "輸出累加結果",
+        "mean": "印出完整一句長故事"
+      }
+    ],
+    "output": "Once upon a time, a brave coder solved APCS!",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字串累加器心智模型</strong>：從空字串 <code>\"\"</code> 出發，每次利用 <code>story += fragment</code> 將新片段焊接在後方，是動態生成長報告與解題輸出的經典手法。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>等價語意</strong>：<code>story += text</code> 完全等價於 <code>story = story + text</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：加等號累加，文字步步疊"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.3 字串乘法運算子（*）",
+    "titleZh": "字串乘法（*）——整數倍快速造字",
+    "titleEn": "String Repetition (*): Multiplying Text Instantly",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 1：一秒產生 20 個等號的分隔線",
+        "html": "<span class=\"token-comment\"># 範例 1：產生連續分隔線</span>",
+        "alt": "註解：字串乘法產生分隔線",
+        "why": "展示乘號威力",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "divider = \"=\" * 20",
+        "html": "<span class=\"token-ident\">divider</span> = <span class=\"token-string\">\"=\"</span> * <span class=\"token-number\">20</span>",
+        "alt": "等號字串乘以整數 20",
+        "diff": true,
+        "why": "乘法重複 20 次",
+        "mean": "生成 20 個連續等號"
+      },
+      {
+        "num": 3,
+        "code": "# 範例 2：加油口號重複 3 次",
+        "html": "<span class=\"token-comment\"># 範例 2：口號重複三次</span>",
+        "alt": "註解：字串重複多次",
+        "why": "展示單詞重複",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "cheer = \"Go! \" * 3",
+        "html": "<span class=\"token-ident\">cheer</span> = <span class=\"token-string\">\"Go! \"</span> * <span class=\"token-number\">3</span>",
+        "alt": "口號字串乘以 3",
+        "diff": true,
+        "why": "重複三次",
+        "mean": "生成 Go! Go! Go! "
+      },
+      {
+        "num": 5,
+        "code": "print(divider)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">divider</span>)",
+        "alt": "印出分隔線",
+        "why": "輸出結果",
+        "mean": "印出線條"
+      },
+      {
+        "num": 6,
+        "code": "print(cheer)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">cheer</span>)",
+        "alt": "印出加油口號",
+        "why": "輸出結果",
+        "mean": "印出重複口號"
+      }
+    ],
+    "output": "====================\nGo! Go! Go! ",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字串乘法定義</strong>：<code>字串 * 整數 N</code> 會將該字串複製並連續串接 <strong>N 次</strong>，產生一個包含 N 個重複片段的全新字串。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>告別迴圈造字</strong>：在 C/C++ 中要印出 50 顆星號必須寫迴圈，在 Python 中只要輕描淡寫寫下 <code>\"*\" * 50</code>，優雅而高效！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字串乘整數，倍數造新詞"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.3 乘法的邊界特例",
+    "titleZh": "乘法的邊界特例——乘 0 或負數產出空字串",
+    "titleEn": "Boundary Cases: Multiplying by Zero or Negative",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s1 = \"Ghost\" * 0",
+        "html": "<span class=\"token-ident\">s1</span> = <span class=\"token-string\">\"Ghost\"</span> * <span class=\"token-number\">0</span>",
+        "alt": "字串乘以 0",
+        "diff": true,
+        "why": "乘 0 特例",
+        "mean": "生成長度為 0 的空字串"
+      },
+      {
+        "num": 2,
+        "code": "s2 = \"Ghost\" * -5",
+        "html": "<span class=\"token-ident\">s2</span> = <span class=\"token-string\">\"Ghost\"</span> * -<span class=\"token-number\">5</span>",
+        "alt": "字串乘以負整數",
+        "diff": true,
+        "why": "乘負數特例",
+        "mean": "生成長度為 0 的空字串"
+      },
+      {
+        "num": 3,
+        "code": "print(\"s1 長度 =\", len(s1), \", 內容:\", repr(s1))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"s1 長度 =\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">s1</span>), <span class=\"token-string\">\", 內容:\"</span>, <span class=\"token-builtin\">repr</span>(<span class=\"token-ident\">s1</span>))",
+        "alt": "印出 s1 的長度與真實內容",
+        "why": "驗證長度與字串值",
+        "mean": "輸出長度 0 與空引號"
+      },
+      {
+        "num": 4,
+        "code": "print(\"s2 長度 =\", len(s2), \", 內容:\", repr(s2))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"s2 長度 =\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">s2</span>), <span class=\"token-string\">\", 內容:\"</span>, <span class=\"token-builtin\">repr</span>(<span class=\"token-ident\">s2</span>))",
+        "alt": "印出 s2 的長度與真實內容",
+        "why": "驗證長度與字串值",
+        "mean": "輸出長度 0 與空引號"
+      }
+    ],
+    "output": "s1 長度 = 0 , 內容: ''\ns2 長度 = 0 , 內容: ''",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>零次重複即消失</strong>：任何非空字串乘以 <code>0</code>，代表出現 0 次，結果一律為長度為 0 的<strong>空字串 <code>\"\"</code></strong>！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題地雷</strong>：乘以負整數（如 <code>-1</code>、<code>-5</code>）<strong>不會報錯，也不會反轉字串</strong>！Python 規範規定小於等於 0 的乘法一律回傳空字串 <code>\"\"</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：乘零或負數，回傳空字串"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.4 運算子優先級",
+    "titleZh": "運算子優先級——乘法 * 高於加法 +",
+    "titleEn": "Operator Precedence: Multiplication Before Addition",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 先乘後加：\"B\" * 3 先算出 \"BBB\"，再與 \"A\" 相接",
+        "html": "<span class=\"token-comment\"># 先乘後加：B 先乘以 3 變成 BBB</span>",
+        "alt": "註解：先乘後加規則",
+        "why": "說明字串優先級",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "res = \"A\" + \"B\" * 3",
+        "html": "<span class=\"token-ident\">res</span> = <span class=\"token-string\">\"A\"</span> + <span class=\"token-string\">\"B\"</span> * <span class=\"token-number\">3</span>",
+        "alt": "字串相加與相乘混用",
+        "diff": true,
+        "why": "乘號優先權高於加號",
+        "mean": "先算 B*3 得 BBB，再接 A"
+      },
+      {
+        "num": 3,
+        "code": "print(res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">res</span>)",
+        "alt": "印出運算結果",
+        "why": "輸出結果",
+        "mean": "印出 ABBB"
+      },
+      {
+        "num": 4,
+        "code": "# 括號外框：[\"-----\"]",
+        "html": "<span class=\"token-comment\"># 括號外框製作</span>",
+        "alt": "註解：外框應用",
+        "why": "實用案例展示",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "box = \"[\" + \"-\" * 5 + \"]\"",
+        "html": "<span class=\"token-ident\">box</span> = <span class=\"token-string\">\"[\"</span> + <span class=\"token-string\">\"-\"</span> * <span class=\"token-number\">5</span> + <span class=\"token-string\">\"]\"</span>",
+        "alt": "兩側括號夾住中間五個橫線",
+        "diff": true,
+        "why": "中間橫線優先連續重複五次",
+        "mean": "生成 [-----]"
+      },
+      {
+        "num": 6,
+        "code": "print(box)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">box</span>)",
+        "alt": "印出方框",
+        "why": "輸出結果",
+        "mean": "印出 [-----]"
+      }
+    ],
+    "output": "ABBB\n[-----]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>優先級守恆法則</strong>：字串的 <code>*</code> 與 <code>+</code> 嚴格遵循數學的「先乘除後加減」原則！在沒有括號的情況下，乘法一定先執行！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>心算避坑</strong>：<code>\"A\" + \"B\" * 3</code> 絕對不是 <code>\"ABABAB\"</code>，而是先算出 3 個 B 之後才接上前面的 A。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：先乘法後加，牢記優先級"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.4 小括號強制優先",
+    "titleZh": "小括號主導權——強制改變文字運算順序",
+    "titleEn": "Parentheses Power: Overriding Precedence Rules",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 無括號：先乘後加",
+        "html": "<span class=\"token-comment\"># 無括號：先乘後加</span>",
+        "alt": "註解：無括號運算",
+        "why": "對比無括號結果",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "without_paren = \"A\" + \"B\" * 3",
+        "html": "<span class=\"token-ident\">without_paren</span> = <span class=\"token-string\">\"A\"</span> + <span class=\"token-string\">\"B\"</span> * <span class=\"token-number\">3</span>",
+        "alt": "無括號字串算式",
+        "why": "無括號先算乘法",
+        "mean": "算出 ABBB"
+      },
+      {
+        "num": 3,
+        "code": "# 有括號：先加後乘！",
+        "html": "<span class=\"token-comment\"># 有括號：先加後乘！</span>",
+        "alt": "註解：有括號運算",
+        "why": "強調整體重複效果",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "with_paren = (\"A\" + \"B\") * 3",
+        "html": "<span class=\"token-ident\">with_paren</span> = (<span class=\"token-string\">\"A\"</span> + <span class=\"token-string\">\"B\"</span>) * <span class=\"token-number\">3</span>",
+        "alt": "小括號將 A 加 B 包裹起來再乘以 3",
+        "diff": true,
+        "why": "括號內優先算出 AB，再重複 3 次",
+        "mean": "算出 ABABAB"
+      },
+      {
+        "num": 5,
+        "code": "print(\"無括號:\", without_paren)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"無括號:\"</span>, <span class=\"token-ident\">without_paren</span>)",
+        "alt": "印出無括號結果",
+        "why": "輸出對比",
+        "mean": "印出無括號: ABBB"
+      },
+      {
+        "num": 6,
+        "code": "print(\"有括號:\", with_paren)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"有括號:\"</span>, <span class=\"token-ident\">with_paren</span>)",
+        "alt": "印出有括號結果",
+        "why": "輸出對比",
+        "mean": "印出有括號: ABABAB"
+      }
+    ],
+    "output": "無括號: ABBB\n有括號: ABABAB",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>小括號的最高控制權</strong>：小括號 <code>( )</code> 能強制直譯器優先計算內部算式。<code>(\"A\" + \"B\")</code> 形成整體 <code>\"AB\"</code>，再重複 3 次即為 <code>\"ABABAB\"</code>！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 經典陷阱題</strong>：觀念題極度喜愛考查 <code>\"X\" + \"Y\" * 2</code> 與 <code>(\"X\" + \"Y\") * 2</code> 的輸出差異。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：括號包起來，先加後再乘"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.2 字串不可變性初探",
+    "titleZh": "字串不可變性（Immutable）——運算皆生新字串",
+    "titleEn": "Immutability Concept: Operations Always Create New",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = \"Hello\"",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-string\">\"Hello\"</span>",
+        "alt": "建立字串變數 s 盛裝 Hello",
+        "why": "原始字串",
+        "mean": "s 盛裝 Hello"
+      },
+      {
+        "num": 2,
+        "code": "original_id = id(s)",
+        "html": "<span class=\"token-ident\">original_id</span> = <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">s</span>)",
+        "alt": "取得原始字串記憶體位址",
+        "why": "記錄記憶體位置",
+        "mean": "記錄身分識別碼"
+      },
+      {
+        "num": 3,
+        "code": "s += \" World\"",
+        "html": "<span class=\"token-ident\">s</span> += <span class=\"token-string\">\" World\"</span>",
+        "alt": "累加 World 字串",
+        "diff": true,
+        "why": "看似修改原字串，實則生成新物件",
+        "mean": "s 重新指向全新記憶體位址"
+      },
+      {
+        "num": 4,
+        "code": "new_id = id(s)",
+        "html": "<span class=\"token-ident\">new_id</span> = <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">s</span>)",
+        "alt": "取得新字串記憶體位址",
+        "why": "再次檢查記憶體位置",
+        "mean": "記錄新身分識別碼"
+      },
+      {
+        "num": 5,
+        "code": "print(s)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">s</span>)",
+        "alt": "印出新字串內容",
+        "why": "輸出結果",
+        "mean": "印出 Hello World"
+      },
+      {
+        "num": 6,
+        "code": "print(\"記憶體位址是否改變:\", original_id != new_id)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"記憶體位址是否改變:\"</span>, <span class=\"token-ident\">original_id</span> != <span class=\"token-ident\">new_id</span>)",
+        "alt": "檢查記憶體位址是否發生改變",
+        "why": "證明不是就地修改",
+        "mean": "印出 True"
+      }
+    ],
+    "output": "Hello World\n記憶體位址是否改變: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字串是不可變的（Immutable）</strong>：一旦建立，原本的字串內容就<strong>永遠無法被更改</strong>！任何 <code>+</code>、<code>*</code> 或 <code>+=</code> 操作，都是在記憶體中『全新打造』一個新物件！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>心智模型</strong>：變數名牌 <code>s</code> 只是撕下原本貼在 <code>\"Hello\"</code> 上的名牌，重新貼到剛生出來的 <code>\"Hello World\"</code> 新容器上！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字串不可變，運算生新件"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2 考場常見陷阱",
+    "titleZh": "考場致命地雷一：字串與數字直接相加引發 TypeError",
+    "titleEn": "Pitfall 1: Adding String and Integer (TypeError)",
+    "predictQuiz": {
+      "question": "預測思考：若寫 score = \"得分: \" + 100（試圖將字串與整數相加），Python 直譯器會？",
+      "options": [
+        "拋出 TypeError: can only concatenate str (not \"int\") to str",
+        "自動將 100 轉為字串，成功輸出 \"得分: 100\""
+      ],
+      "answer": 0,
+      "correct": 0,
+      "explanation": "Python 是強型態語言！加號『不會』自動將數字轉換為字串。兩邊型別不同時會直接拋出 TypeError 崩潰！必須寫 \"得分: \" + str(100) 顯式轉型才能順利串接。"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 致命踩雷：試圖將字串與整數直接用 + 相加",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：字串與數值直接加，直接噴型態錯誤</span>",
+        "alt": "註解：型態不匹配踩雷",
+        "why": "展示最常犯低級失分錯誤",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# result = \"Score: \" + 100  # 引發 TypeError",
+        "html": "<span class=\"token-comment\"># result = \"Score: \" + 100  # TypeError 崩潰</span>",
+        "alt": "註解：引發 TypeError 語句",
+        "why": "展示報錯程式碼",
+        "mean": "型態不支援直接串接"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 安全修正：使用 str() 函數進行顯式型態轉換",
+        "html": "<span class=\"token-comment\"># ✅ 安全修正：顯式轉型 str()</span>",
+        "alt": "註解：使用 str 轉型解法",
+        "why": "推薦正確解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "safe_result = \"Score: \" + str(100)",
+        "html": "<span class=\"token-ident\">safe_result</span> = <span class=\"token-string\">\"Score: \"</span> + <span class=\"token-builtin\">str</span>(<span class=\"token-number\">100</span>)",
+        "alt": "將數字 100 用 str 包裹後相加",
+        "diff": true,
+        "why": "轉型後兩端皆為 str，完全合法",
+        "mean": "得到合法字串 Score: 100"
+      },
+      {
+        "num": 5,
+        "code": "print(safe_result)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">safe_result</span>)",
+        "alt": "印出正確結果",
+        "why": "輸出結果",
+        "mean": "印出 Score: 100"
+      }
+    ],
+    "output": "Score: 100",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 考場頭號死穴</strong>：初學者極常將 JavaScript 的隱式轉型習慣帶進 Python！在 Python 中，<code>\"Age: \" + 18</code> 會直接造成 Run Time Error（RE）慘遭 0 分！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>救命神丹 <code>str()</code></strong>：數值變數必須先穿上 <code>str()</code> 衣服，才能跟其他字串握手相加！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字串加整數，噴型態錯誤"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2 考場常見陷阱",
+    "titleZh": "考場致命地雷二：字串乘以浮點數引發 TypeError",
+    "titleEn": "Pitfall 2: Multiplying String by Float (TypeError)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 踩雷寫法：雖然數值是 3.0，但型態是 float！",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：字串不能乘小數，即使是 3.0 也不行！</span>",
+        "alt": "註解：字串乘浮點數陷阱",
+        "why": "展示小數乘法陷阱",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# pattern = \"*\" * 3.0  # TypeError: can't multiply sequence by non-int of type 'float'",
+        "html": "<span class=\"token-comment\"># pattern = \"*\" * 3.0  # 噴 TypeError 崩潰</span>",
+        "alt": "註解：乘小數引發錯誤",
+        "why": "展示報錯訊息",
+        "mean": "浮點數不能作為字串倍數"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 安全修正：必須使用 int() 轉為純整數",
+        "html": "<span class=\"token-comment\"># ✅ 安全修正：強制轉為純整數 int()</span>",
+        "alt": "註解：整數轉型修正",
+        "why": "推薦正確解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "safe_pattern = \"*\" * int(3.0)",
+        "html": "<span class=\"token-ident\">safe_pattern</span> = <span class=\"token-string\">\"*\"</span> * <span class=\"token-builtin\">int</span>(<span class=\"token-number\">3.0</span>)",
+        "alt": "將浮點數轉型為 int 後相乘",
+        "diff": true,
+        "why": "int(3.0) 變成整數 3",
+        "mean": "安全生成三個星號"
+      },
+      {
+        "num": 5,
+        "code": "print(safe_pattern)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">safe_pattern</span>)",
+        "alt": "印出星號圖案",
+        "why": "輸出結果",
+        "mean": "印出 ***"
+      }
+    ],
+    "output": "***",
+    "notes": [
+      {
+        "type": "bad",
+        "text": "<strong>❌ 認知陷阱</strong>：初學者常以為「3.0 不就是 3 嗎？」，但在 Python 嚴格的型別檢查中，<code>float</code> 絕對不能用來作為序列的重複計數器！"
+      },
+      {
+        "type": "good",
+        "text": "<strong>✅ 考場防禦</strong>：乘號右側如果來自除法運算（例如 <code>n / 2</code>），請務必改用<strong>整數除法 <code>n // 2</code></strong> 或包裹 <code>int()</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字串乘小數，型態大崩潰"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2 考場常見陷阱",
+    "titleZh": "考場致命地雷三：字串絕無減法與除法運算",
+    "titleEn": "Pitfall 3: Strings Do NOT Support Subtraction or Division",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 荒謬踩雷：妄想用減法刪除文字字元",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：字串減法引發 TypeError！</span>",
+        "alt": "註解：字串不支援減法說明",
+        "why": "破除數學減法直覺",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# text = \"Hello World\" - \"World\"  # 引發 TypeError",
+        "html": "<span class=\"token-comment\"># text = \"Hello World\" - \"World\"  # 語法不支援！</span>",
+        "alt": "註解：示範錯誤減法代碼",
+        "why": "展示非法減法操作",
+        "mean": "減法在字串未定義"
+      },
+      {
+        "num": 3,
+        "code": "# ✅ 正確替換法：使用 .replace() 方法去除文字",
+        "html": "<span class=\"token-comment\"># ✅ 正確解法：使用 .replace() 替換為空字串</span>",
+        "alt": "註解：正確去除字元方法",
+        "why": "傳授正確字串刪除手法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "raw = \"Hello World\"",
+        "html": "<span class=\"token-ident\">raw</span> = <span class=\"token-string\">\"Hello World\"</span>",
+        "alt": "原始字串",
+        "why": "定義來源",
+        "mean": "原始文字"
+      },
+      {
+        "num": 5,
+        "code": "clean = raw.replace(\" World\", \"\")",
+        "html": "<span class=\"token-ident\">clean</span> = <span class=\"token-ident\">raw</span>.<span class=\"token-ident\">replace</span>(<span class=\"token-string\">\" World\"</span>, <span class=\"token-string\">\"\"</span>)",
+        "alt": "將 World 替換成空字串",
+        "diff": true,
+        "why": "將指定字串替換為空達到刪除效果",
+        "mean": "安全刪除文字"
+      },
+      {
+        "num": 6,
+        "code": "print(clean)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">clean</span>)",
+        "alt": "印出清理後字串",
+        "why": "輸出結果",
+        "mean": "輸出 Hello"
+      }
+    ],
+    "output": "Hello",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 嚴禁亂用符號</strong>：Python 字串<strong>只支援 <code>+</code>（串接）與 <code>*</code>（重複）</strong>！字串『絕對沒有』<code>-</code>（減法）或 <code>/</code>（除法）！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>文字移除的最佳利器</strong>：想從字串中移除特定片段，請使用第 7.6 節將深入介紹的 <code>s.replace(\"target\", \"\")</code> 方法！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：字串無減除，莫把減號當"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2 考場常見陷阱",
+    "titleZh": "考場致命地雷四：字串連續相加忘記手動補空格",
+    "titleEn": "Pitfall 4: Forgetting Spaces in String Concatenation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "name = \"Alice\"",
+        "html": "<span class=\"token-ident\">name</span> = <span class=\"token-string\">\"Alice\"</span>",
+        "alt": "姓名變數 Alice",
+        "why": "定義名字",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "verb = \"passed\"",
+        "html": "<span class=\"token-ident\">verb</span> = <span class=\"token-string\">\"passed\"</span>",
+        "alt": "動詞變數 passed",
+        "why": "定義動作",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 3,
+        "code": "exam = \"APCS\"",
+        "html": "<span class=\"token-ident\">exam</span> = <span class=\"token-string\">\"APCS\"</span>",
+        "alt": "考試變數 APCS",
+        "why": "定義名詞",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 4,
+        "code": "# ❌ 緊貼無間隙：直接相加變成 AlicepassedAPCS",
+        "html": "<span class=\"token-comment\"># ❌ 漏補空格：單字全黏在一起</span>",
+        "alt": "註解：漏補空格陷阱",
+        "why": "展示輸出缺陷",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "bad_str = name + verb + exam",
+        "html": "<span class=\"token-ident\">bad_str</span> = <span class=\"token-ident\">name</span> + <span class=\"token-ident\">verb</span> + <span class=\"token-ident\">exam</span>",
+        "alt": "直接相加導致文字黏連",
+        "error": true,
+        "why": "缺少單字間的空格分隔",
+        "mean": "黏貼為單一難辨字串"
+      },
+      {
+        "num": 6,
+        "code": "# ✅ 標準修正：主動加入空格分隔符號 \" \"",
+        "html": "<span class=\"token-comment\"># ✅ 補上空格：清晰易讀</span>",
+        "alt": "註解：補齊空格寫法",
+        "why": "展示正確寫法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "good_str = name + \" \" + verb + \" \" + exam",
+        "html": "<span class=\"token-ident\">good_str</span> = <span class=\"token-ident\">name</span> + <span class=\"token-string\">\" \"</span> + <span class=\"token-ident\">verb</span> + <span class=\"token-string\">\" \"</span> + <span class=\"token-ident\">exam</span>",
+        "alt": "相鄰單字之間加上空格字串",
+        "diff": true,
+        "why": "標準字串格式化拼接",
+        "mean": "輸出格式正確的句子"
+      },
+      {
+        "num": 8,
+        "code": "print(bad_str)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">bad_str</span>)",
+        "alt": "印出黏連字串",
+        "why": "輸出對照",
+        "mean": "印出 AlicepassedAPCS"
+      },
+      {
+        "num": 9,
+        "code": "print(good_str)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">good_str</span>)",
+        "alt": "印出完美句子",
+        "why": "輸出對照",
+        "mean": "印出 Alice passed APCS"
+      }
+    ],
+    "output": "AlicepassedAPCS\nAlice passed APCS",
+    "notes": [
+      {
+        "type": "bad",
+        "text": "<strong>❌ 比對慘劇</strong>：<code>print(a, b)</code> 預設會自動補空格，但 <code>a + b</code> <strong>絕對不會補空格</strong>！初學者常因此被題目判定格式錯誤（PE/WA）。"
+      },
+      {
+        "type": "good",
+        "text": "<strong>✅ 習慣定錨</strong>：拼裝英文句子或帶有標點的文字時，務必養成手動加上 <code>\" \"</code> 或使用第 7.3 節將學習的 <code>f-string</code> 的好習慣！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：加號不自帶，空格自己補"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.5 迴圈與字串幾何排版",
+    "titleZh": "迴圈與字串乘法——動態生成靠右直角三角形",
+    "titleEn": "Loop & String Multiplication: Right-Aligned Triangle",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "height = 3",
+        "html": "<span class=\"token-ident\">height</span> = <span class=\"token-number\">3</span>",
+        "alt": "設定圖形高度為 3",
+        "why": "高度常數",
+        "mean": "三角形層數"
+      },
+      {
+        "num": 2,
+        "code": "for i in range(1, height + 1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">height</span> + <span class=\"token-number\">1</span>):",
+        "alt": "走訪第 1 列到第 3 列",
+        "why": "外層控制列號",
+        "mean": "每一列依序推進"
+      },
+      {
+        "num": 3,
+        "code": "    spaces = \" \" * (height - i)",
+        "html": "    <span class=\"token-ident\">spaces</span> = <span class=\"token-string\">\" \"</span> * (<span class=\"token-ident\">height</span> - <span class=\"token-ident\">i</span>)",
+        "alt": "使用乘號算出該列前方需要的空白字串",
+        "diff": true,
+        "why": "動態計算空白數",
+        "mean": "生成前綴空格"
+      },
+      {
+        "num": 4,
+        "code": "    stars = \"*\" * i",
+        "html": "    <span class=\"token-ident\">stars</span> = <span class=\"token-string\">\"*\"</span> * <span class=\"token-ident\">i</span>",
+        "alt": "使用乘號算出該列需要的星號字串",
+        "diff": true,
+        "why": "動態計算星號數",
+        "mean": "生成該列星號"
+      },
+      {
+        "num": 5,
+        "code": "    print(spaces + stars)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">spaces</span> + <span class=\"token-ident\">stars</span>)",
+        "alt": "將空白與星號串接後印出",
+        "why": "字串相加拼裝一行並輸出",
+        "mean": "輸出該列圖形"
+      }
+    ],
+    "output": "  *\n **\n***",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>告別雙重迴圈的極簡降維</strong>：在第 6.6 節中我們需要雙重迴圈才能排印圖形；現在有了字串乘法 <code>*</code>，<strong>單層迴圈一行串接即可搞定</strong>！程式碼簡潔又高效！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>幾何代數守恆</strong>：第 <code>i</code> 列永遠維持 <code>(height - i) 個空格 + i 個星號</code>，字串相加瞬間完成精準右對齊。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：乘法代空格，幾何形立現"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2.5 實戰進度條構建",
+    "titleZh": "APCS 實戰專題——動態構建下載進度條",
+    "titleEn": "APCS Capstone: Building Dynamic Progress Bars",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬百分比進度條生成 (寬度 10 格)",
+        "html": "<span class=\"token-comment\"># 模擬進度條生成：總長度 10 格</span>",
+        "alt": "註解：進度條實戰說明",
+        "why": "專題實戰情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "total_width = 10",
+        "html": "<span class=\"token-ident\">total_width</span> = <span class=\"token-number\">10</span>",
+        "alt": "進度條總寬度 10 格",
+        "why": "寬度設定",
+        "mean": "總格數"
+      },
+      {
+        "num": 3,
+        "code": "percent = 60",
+        "html": "<span class=\"token-ident\">percent</span> = <span class=\"token-number\">60</span>",
+        "alt": "當前進度 60 百分比",
+        "why": "進度百分比",
+        "mean": "當前比例"
+      },
+      {
+        "num": 4,
+        "code": "fill = int(total_width * (percent / 100))",
+        "html": "<span class=\"token-ident\">fill</span> = <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">total_width</span> * (<span class=\"token-ident\">percent</span> / <span class=\"token-number\">100</span>))",
+        "alt": "計算填充格數",
+        "why": "換算已完成格數",
+        "mean": "算出 6 格"
+      },
+      {
+        "num": 5,
+        "code": "empty = total_width - fill",
+        "html": "<span class=\"token-ident\">empty</span> = <span class=\"token-ident\">total_width</span> - <span class=\"token-ident\">fill</span>",
+        "alt": "計算未填充格數",
+        "why": "換算未完成格數",
+        "mean": "算出 4 格"
+      },
+      {
+        "num": 6,
+        "code": "bar = \"[\" + (\"=\" * fill) + (\".\" * empty) + \"] \" + str(percent) + \"%\"",
+        "html": "<span class=\"token-ident\">bar</span> = <span class=\"token-string\">\"[\"</span> + (<span class=\"token-string\">\"=\"</span> * <span class=\"token-ident\">fill</span>) + (<span class=\"token-string\">\".\"</span> * <span class=\"token-ident\">empty</span>) + <span class=\"token-string\">\"] \"</span> + <span class=\"token-builtin\">str</span>(<span class=\"token-ident\">percent</span>) + <span class=\"token-string\">\"%\"</span>",
+        "alt": "拼裝進度條字串",
+        "diff": true,
+        "why": "極致融合加法、乘法與轉型",
+        "mean": "組裝完整進度條"
+      },
+      {
+        "num": 7,
+        "code": "print(bar)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">bar</span>)",
+        "alt": "印出進度條",
+        "why": "輸出結果",
+        "mean": "印出 [======....] 60%"
+      }
+    ],
+    "output": "[======....] 60%",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>工業級應用思維</strong>：此題完美綜合了字串乘法（<code>\"=\"*fill</code>、<code>\".\"*empty</code>）、字串加法拼接與數值轉型 <code>str(percent)</code>，是終端機介面設計的核心底層技能！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>長度嚴格守恆</strong>：<code>fill + empty == total_width</code>，保證整個進度條外框尺寸永遠精確對齊。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：符號乘倍數，進度條速成"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.2 綜合驗收",
+    "titleZh": "單元 7.2 綜合驗收：字串序列操作拼裝大滿貫",
+    "titleEn": "Unit 7.2 Comprehensive Review & Mastery",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 恭喜完成單元 7.2！文字積木拼接功力已臻化境！",
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 7.2！文字積木拼裝已臻化境！</span>",
+        "alt": "註解：單元 7.2 完結慶賀",
+        "why": "里程碑總結",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"Mastered String Concatenation and Repetition!\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Mastered String Concatenation and Repetition!\"</span>)",
+        "alt": "印出通關恭賀字串",
+        "why": "輸出通關宣言",
+        "mean": "印出完封宣言"
+      }
+    ],
+    "output": "Mastered String Concatenation and Repetition!",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>全章核心回顧</strong>：1. <code>+</code> 是串接焊接，不帶預設空格；2. <code>+=</code> 是累加器；3. <code>*</code> 是整數倍造字；4. 乘 0 或負數得空字串 <code>\"\"</code>；5. 乘法優先於加法，括號主導一切；6. 絕對不能字串加數字或乘小數。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>邁向現代化文字格式化</strong>：在下一節 7.3 中，我們將告別滿地 <code>+</code> 與 <code>str()</code> 的雜亂拼接，迎向 Python 最優雅強大的格式化黑魔法——<strong>f-string</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：序列乘加精，字串拼裝王"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 7.2 通關：字串序列拼裝大師！",
+      "summary": "你已精通字串加法拼接、乘法快速造字、運算優先級與累加器心法，並徹底消滅了字串加整數與乘浮點數的致命型態地雷！",
+      "nextUnit": "前往 7.3 格式化字串（f-string）與數值對齊"
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec7-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_7-2_string_concatenation_and_repetition.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

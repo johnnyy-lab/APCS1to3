@@ -88,9 +88,9 @@ const courseCurriculum = [
     id: "ch7",
     title: "第七章 字串（String）特性與序列操作",
     sections: [
-      { id: "sec7-1", title: "7.1 字串表示法與跳脫字元", available: false },
-      { id: "sec7-2", title: "7.2 字串序列操作（串接與重複）", available: false },
-      { id: "sec7-3", title: "7.3 格式化字串（f-string）與數值對齊", available: false },
+      { id: "sec7-1", title: "7.1 字串表示法與跳脫字元", available: true, url: "PythAPCS123_7-1_string_representation_and_escape_characters.html" },
+      { id: "sec7-2", title: "7.2 字串序列操作（串接與重複）", available: true, url: "PythAPCS123_7-2_string_concatenation_and_repetition.html" },
+      { id: "sec7-3", title: "7.3 格式化字串（f-string）與數值對齊", available: true, url: "PythAPCS123_7-3_fstring_formatting_and_alignment.html" },
       { id: "sec7-4", title: "7.4 字串索引、長度與走訪", available: false },
       { id: "sec7-5", title: "7.5 字串切片與反轉技巧（[::-1]）", available: false },
       { id: "sec7-6", title: "7.6 字串常用方法（split, count, in）", available: false }
@@ -452,6 +452,13 @@ function renderSlide(index) {
   if (titleEn) titleEn.textContent = slide.titleEn;
   if (breadcrumbCh) breadcrumbCh.textContent = slide.chapter;
   if (breadcrumbSec) breadcrumbSec.textContent = slide.section;
+
+  // 瀏覽器分頁標題防禦：若 document.title 含有 {{ 或為空，自動依據課程單元資料修復
+  if (!document.title || document.title.includes('{{')) {
+    const curSec = courseCurriculum.flatMap(c => c.sections).find(s => s.id === currentSectionId);
+    const unitTitle = curSec ? curSec.title : (slide.section || '單元教學');
+    document.title = `${unitTitle} | APCS 教學投影片`;
+  }
 
   // 教學程式碼與懸停提示（行號 <= 2 向下展開避免切邊，支援手機/平板點選）
   const codeViewport = document.getElementById('codeViewport');

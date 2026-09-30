@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.2 二維陣列動態輸入讀取與解包輸出 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.2 二維陣列動態輸入讀取與解包輸出
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.1 APCS 題目典型格式：多行數值測資輸入流程剖析",
+    "titleZh": "讀取測資第一步——先收下網格尺寸 R 與 C！",
+    "titleEn": "First Step: Reading Dimensions R and C",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "header = \"3 4\"",
+        "html": "<span class=\"token-ident\">header</span> = <span class=\"token-string\">\"3 4\"</span>",
+        "alt": "模擬測資第一行的尺寸字串",
+        "why": "測資首行輸入",
+        "mean": "尺寸字串"
+      },
+      {
+        "num": 2,
+        "code": "R, C = [int(x) for x in header.split()]",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">header</span>.<span class=\"token-builtin\">split</span>()]",
+        "alt": "以列表生成式解包拆解成整數 R 與 C",
+        "diff": true,
+        "why": "解包賦值列數與行數",
+        "mean": "讀入 R 與 C"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"網格規格: {R} 列 x {C} 行\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"網格規格: {<span class=\"token-ident\">R</span>} 列 x {<span class=\"token-ident\">C</span>} 行\"</span>)",
+        "alt": "輸出規格確認",
+        "diff": true,
+        "why": "驗證讀取成果",
+        "mean": "輸出 3 列 x 4 行"
+      }
+    ],
+    "output": "網格規格: 3 列 x 4 行",
+    "memoryState": [
+      {
+        "name": "R (列數)",
+        "val": "3",
+        "diff": true
+      },
+      {
+        "name": "C (行數)",
+        "val": "4",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 經典題型輸入規格</strong>：題目開頭幾乎永遠是「第一行給予兩個正整數 R 與 C，代表接下來網格的高度與寬度」。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>解包賦值</strong>：利用 <code>R, C = [int(x) for x in input().split()]</code> 可以一行完成字串切割、型態轉型與雙變數賦值。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先讀RC定尺寸，網格大小明"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.2 傳統逐步讀取法：迴圈搭配 .append() 逐列拼裝網格",
+    "titleZh": "傳統迴圈讀取法——for 迴圈逐步 append 堆疊積木！",
+    "titleEn": "Traditional Read: Assembling Rows with for Loop & append",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_lines = [\"10 20 30\", \"40 50 60\", \"70 80 90\"]",
+        "html": "<span class=\"token-ident\">raw_lines</span> = [<span class=\"token-string\">\"10 20 30\"</span>, <span class=\"token-string\">\"40 50 60\"</span>, <span class=\"token-string\">\"70 80 90\"</span>]",
+        "alt": "模擬三行讀入的純文字測資",
+        "why": "模擬輸入資料來源",
+        "mean": "字串清單"
+      },
+      {
+        "num": 2,
+        "code": "grid = []",
+        "html": "<span class=\"token-ident\">grid</span> = []",
+        "alt": "初始化空白的二維容器 grid",
+        "why": "建立二維容器",
+        "mean": "空串列"
+      },
+      {
+        "num": 3,
+        "code": "for line in raw_lines:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">line</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_lines</span>:",
+        "alt": "逐行走訪每一行文字輸入",
+        "why": "遍歷各行",
+        "mean": "逐行處理"
+      },
+      {
+        "num": 4,
+        "code": "    row = [int(x) for x in line.split()]",
+        "html": "    <span class=\"token-ident\">row</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">line</span>.<span class=\"token-builtin\">split</span>()]",
+        "alt": "將該行切割並轉為純整數的一維串列 row",
+        "why": "單列資料轉型",
+        "mean": "整數串列"
+      },
+      {
+        "num": 5,
+        "code": "    grid.append(row)",
+        "html": "    <span class=\"token-ident\">grid</span>.<span class=\"token-builtin\">append</span>(<span class=\"token-ident\">row</span>)",
+        "alt": "將整列整數加入二維容器中",
+        "diff": true,
+        "why": "逐列裝箱",
+        "mean": "裝入網格"
+      },
+      {
+        "num": 6,
+        "code": "print(\"拼裝完成二維陣列:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"拼裝完成二維陣列:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "印出完整拼裝後的二維陣列",
+        "diff": true,
+        "why": "輸出檢驗",
+        "mean": "輸出完整矩陣"
+      }
+    ],
+    "output": "拼裝完成二維陣列: [[10, 20, 30], [40, 50, 60], [70, 80, 90]]",
+    "memoryState": [
+      {
+        "name": "grid (完成後)",
+        "val": "[[10, 20, 30], [40, 50, 60], [70, 80, 90]]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>逐步拼裝核心流程</strong>：宣告空箱 <code>grid = []</code> ➔ 走訪各行 ➔ 轉為一維整數列 ➔ <code>append(row)</code> 塞入大箱。這是最直觀扎實的二維建構法。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 實體輸入</strong>：實體解題時，將 <code>for line in raw_lines:</code> 換成 <code>for _ in range(R):</code> 搭配 <code>row = [int(x) for x in input().split()]</code> 即可。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：逐列切開轉整數，append拼成網"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.3 巢狀列表生成式動態讀取神技：一行取代 4 行的高效寫法",
+    "titleZh": "巢狀生成式神技——一行指令搞定整個二維矩陣！",
+    "titleEn": "Nested List Comprehension: One-Line Matrix Ingestion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_lines = [\"1 2 3\", \"4 5 6\", \"7 8 9\"]",
+        "html": "<span class=\"token-ident\">raw_lines</span> = [<span class=\"token-string\">\"1 2 3\"</span>, <span class=\"token-string\">\"4 5 6\"</span>, <span class=\"token-string\">\"7 8 9\"</span>]",
+        "alt": "模擬 3 行測資資料",
+        "why": "輸入測資",
+        "mean": "測資字串"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[int(x) for x in line.split()] for line in raw_lines]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">line</span>.<span class=\"token-builtin\">split</span>()] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">line</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_lines</span>]",
+        "alt": "使用巢狀列表生成式一行完成整列轉型與矩陣封裝",
+        "diff": true,
+        "why": "巢狀生成式核心語法",
+        "mean": "一行矩陣生成"
+      },
+      {
+        "num": 3,
+        "code": "print(\"一行生成二維矩陣:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"一行生成二維矩陣:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "印出生成結果",
+        "diff": true,
+        "why": "印出結果",
+        "mean": "輸出矩陣"
+      }
+    ],
+    "output": "一行生成二維矩陣: [[1, 2, 3], [4, 5, 6], [7, 8, 9]]",
+    "memoryState": [
+      {
+        "name": "grid",
+        "val": "[[1, 2, 3], [4, 5, 6], [7, 8, 9]]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>由內而外的雙層運作</strong>：內層 <code>[int(x) for x in line.split()]</code> 負責將單行字串轉成整數列；外層 <code>[... for line in raw_lines]</code> 負責走訪每一行並封裝成大矩陣！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 萬能神咒</strong>：實戰題目中直接寫：<code>grid = [[int(x) for x in input().split()] for _ in range(R)]</code>，乾淨利落、毫無冗餘！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內層轉整數，外層造矩陣"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.4 二維解包優雅輸出：for row in grid: print(*row)",
+    "titleZh": "星號解包優雅輸出——脫掉中括號，乾淨呈現矩陣！",
+    "titleEn": "Unpacking Output: Clean Matrix Printing with *row",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "matrix = [",
+        "html": "<span class=\"token-ident\">matrix</span> = [",
+        "alt": "宣告 3x3 矩陣 matrix",
+        "why": "解包示範矩陣",
+        "mean": "矩陣開始"
+      },
+      {
+        "num": 2,
+        "code": "    [1, 2, 3],",
+        "html": "    [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "第 0 列",
+        "why": "第 0 列",
+        "mean": "列 0"
+      },
+      {
+        "num": 3,
+        "code": "    [4, 5, 6],",
+        "html": "    [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>],",
+        "alt": "第 1 列",
+        "why": "第 1 列",
+        "mean": "列 1"
+      },
+      {
+        "num": 4,
+        "code": "    [7, 8, 9]",
+        "html": "    [<span class=\"token-number\">7</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">9</span>]",
+        "alt": "第 2 列",
+        "why": "第 2 列",
+        "mean": "列 2"
+      },
+      {
+        "num": 5,
+        "code": "]",
+        "html": "]",
+        "alt": "矩陣結束",
+        "why": "矩陣閉合",
+        "mean": "結束"
+      },
+      {
+        "num": 6,
+        "code": "for row in matrix:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">matrix</span>:",
+        "alt": "逐行走訪矩陣的每一列",
+        "why": "遍歷橫列",
+        "mean": "逐列走訪"
+      },
+      {
+        "num": 7,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "使用星號 * 將 row 解包為以空白隔開的數值印出",
+        "diff": true,
+        "why": "星號解包核心語法",
+        "mean": "解包輸出"
+      }
+    ],
+    "output": "1 2 3\n4 5 6\n7 8 9",
+    "memoryState": [
+      {
+        "name": "row (最後一圈)",
+        "val": "[7, 8, 9]",
+        "diff": false
+      },
+      {
+        "name": "解包印出",
+        "val": "7 8 9 (純數字無括號)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>星號解包運算子（Unpacking）</strong>：<code>print(*row)</code> 相當於 <code>print(row[0], row[1], row[2])</code>。它會自動拿掉中括號與逗號，以標準單一空格輸出各元素！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS / OJ 評分標準</strong>：線上評判系統要求矩陣輸出必須是「同行以空白隔開、各列分行」。<code>for row in grid: print(*row)</code> 是全宇宙最簡潔的滿分正解。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：星號解包去括號，走訪列印最乾淨"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.4 二維解包優雅輸出：for row in grid: print(*row)",
+    "titleZh": "自訂分隔符——sep 引數讓棋盤與表格美化立現！",
+    "titleEn": "Custom Separator: Beautifying Output with sep Argument",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "board = [",
+        "html": "<span class=\"token-ident\">board</span> = [",
+        "alt": "宣告井字棋局盤面",
+        "why": "棋盤範例資料",
+        "mean": "棋盤開始"
+      },
+      {
+        "num": 2,
+        "code": "    [\"X\", \"O\", \"X\"],",
+        "html": "    [<span class=\"token-string\">\"X\"</span>, <span class=\"token-string\">\"O\"</span>, <span class=\"token-string\">\"X\"</span>],",
+        "alt": "第 0 列",
+        "why": "第 0 列",
+        "mean": "列 0"
+      },
+      {
+        "num": 3,
+        "code": "    [\"O\", \"X\", \".\"],",
+        "html": "    [<span class=\"token-string\">\"O\"</span>, <span class=\"token-string\">\"X\"</span>, <span class=\"token-string\">\".\"</span>],",
+        "alt": "第 1 列",
+        "why": "第 1 列",
+        "mean": "列 1"
+      },
+      {
+        "num": 4,
+        "code": "    [\".\", \"O\", \"X\"]",
+        "html": "    [<span class=\"token-string\">\".\"</span>, <span class=\"token-string\">\"O\"</span>, <span class=\"token-string\">\"X\"</span>]",
+        "alt": "第 2 列",
+        "why": "第 2 列",
+        "mean": "列 2"
+      },
+      {
+        "num": 5,
+        "code": "]",
+        "html": "]",
+        "alt": "棋盤結束",
+        "why": "棋盤閉合",
+        "mean": "結束"
+      },
+      {
+        "num": 6,
+        "code": "for row in board:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">board</span>:",
+        "alt": "遍歷棋盤各列",
+        "why": "逐列輸出",
+        "mean": "逐列處理"
+      },
+      {
+        "num": 7,
+        "code": "    print(*row, sep=\" | \")",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>, <span class=\"token-keyword\">sep</span>=<span class=\"token-string\">\" | \"</span>)",
+        "alt": "以豎線加空格作為間隔符解包印出",
+        "diff": true,
+        "why": "搭配自訂 sep",
+        "mean": "以豎線隔開"
+      }
+    ],
+    "output": "X | O | X\nO | X | .\n. | O | X",
+    "memoryState": [
+      {
+        "name": "sep 引數",
+        "val": "' | ' (豎線分隔)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>sep 引數的靈活搭配</strong>：星號解包 <code>*row</code> 與 <code>print(..., sep=...)</code> 完美聯手！可隨意更換為逗號 <code>sep=\", \"</code>、直線 <code>sep=\" | \"</code> 或跳格 <code>sep=\"\\t\"</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>緊密無縫輸出</strong>：若要輸出純字元迷宮或壓縮字串，可指定 <code>sep=\"\"</code>，元素將緊密黏合相連。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：星號解包配sep，自訂分隔好清晰"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.5 整齊對齊格式化輸出：f\"{val:4d}\" 打造視覺化工整矩陣",
+    "titleZh": "數字長短不一——格式化寬度打造超工整矩陣！",
+    "titleEn": "Formatted Alignment: Producing Neat Matrices with f\"{val:4d}\"",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [",
+        "html": "<span class=\"token-ident\">grid</span> = [",
+        "alt": "宣告位數長短落差大的矩陣",
+        "why": "對齊示範資料",
+        "mean": "矩陣開始"
+      },
+      {
+        "num": 2,
+        "code": "    [5, 120, 8],",
+        "html": "    [<span class=\"token-number\">5</span>, <span class=\"token-number\">120</span>, <span class=\"token-number\">8</span>],",
+        "alt": "第 0 列含有 1 位數與 3 位數",
+        "why": "長短不齊列 0",
+        "mean": "列 0"
+      },
+      {
+        "num": 3,
+        "code": "    [1000, 3, 42]",
+        "html": "    [<span class=\"token-number\">1000</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">42</span>]",
+        "alt": "第 1 列含有 4 位數與 1 位數",
+        "why": "長短不齊列 1",
+        "mean": "列 1"
+      },
+      {
+        "num": 4,
+        "code": "]",
+        "html": "]",
+        "alt": "矩陣結束",
+        "why": "矩陣閉合",
+        "mean": "結束"
+      },
+      {
+        "num": 5,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "逐行走訪矩陣",
+        "why": "逐列格式化",
+        "mean": "逐列處理"
+      },
+      {
+        "num": 6,
+        "code": "    line_str = \" \".join(f\"{val:4d}\" for val in row)",
+        "html": "    <span class=\"token-ident\">line_str</span> = <span class=\"token-string\">\" \"</span>.<span class=\"token-builtin\">join</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">val</span>:4d}\"</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span>)",
+        "alt": "將每個數值格式化為靠右對齊 4 格寬度並用空白串接",
+        "diff": true,
+        "why": "格式化寬度對齊",
+        "mean": "對齊字串"
+      },
+      {
+        "num": 7,
+        "code": "    print(line_str)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">line_str</span>)",
+        "alt": "印出工整對齊後的行字串",
+        "diff": true,
+        "why": "印出工整排版",
+        "mean": "輸出工整列"
+      }
+    ],
+    "output": "   5  120    8\n1000    3   42",
+    "memoryState": [
+      {
+        "name": "f\"{val:4d}\"",
+        "val": "靠右對齊固定寬度 4 格",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>靠右對齊神器 <code>f\"{val:4d}\"</code></strong>：當數值位數落差很大時（如個位數與千位數並存），單用空白隔開會參差不齊。指定寬度 <code>:4d</code> 能保證每個數字在視覺垂直線上嚴格對齊！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>Debug 視覺化首選</strong>：在複雜矩陣動態規劃或路徑走訪時，工整排版能讓解題除錯直觀百倍。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：格式化指定寬度，長短數值排整齊"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.6 字元網格字串輸入：[list(input().strip()) for _ in range(R)]（迷宮地圖讀入）",
+    "titleZh": "字元迷宮讀取神咒——無空白字串強制 list() 拆解！",
+    "titleEn": "Character Grid Ingestion: Decomposing Strings with list()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "maze_lines = [\"S...\", \".##.\", \"...G\"]",
+        "html": "<span class=\"token-ident\">maze_lines</span> = [<span class=\"token-string\">\"S...\"</span>, <span class=\"token-string\">\".##.\"</span>, <span class=\"token-string\">\"...G\"</span>]",
+        "alt": "模擬無空白分隔的迷宮測資",
+        "why": "迷宮地圖測資",
+        "mean": "地圖字串"
+      },
+      {
+        "num": 2,
+        "code": "maze = [list(line.strip()) for line in maze_lines]",
+        "html": "<span class=\"token-ident\">maze</span> = [<span class=\"token-builtin\">list</span>(<span class=\"token-ident\">line</span>.<span class=\"token-builtin\">strip</span>()) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">line</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">maze_lines</span>]",
+        "alt": "對每一行使用 list() 強制拆成個別字元子串列",
+        "diff": true,
+        "why": "字元強制轉型拆解",
+        "mean": "拆解字元矩陣"
+      },
+      {
+        "num": 3,
+        "code": "print(\"迷宮起點與終點:\", maze[0][0], maze[2][3])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迷宮起點與終點:\"</span>, <span class=\"token-ident\">maze</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>], <span class=\"token-ident\">maze</span>[<span class=\"token-number\">2</span>][<span class=\"token-number\">3</span>])",
+        "alt": "輸出起點 S 與終點 G",
+        "diff": true,
+        "why": "驗證座標存取",
+        "mean": "輸出 S G"
+      },
+      {
+        "num": 4,
+        "code": "print(\"第 1 列障礙物:\", maze[1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 1 列障礙物:\"</span>, <span class=\"token-ident\">maze</span>[<span class=\"token-number\">1</span>])",
+        "alt": "印出第 1 列字元串列",
+        "diff": true,
+        "why": "檢視子串列內容",
+        "mean": "輸出 ['.', '#', '#', '.']"
+      }
+    ],
+    "output": "迷宮起點與終點: S G\n第 1 列障礙物: ['.', '#', '#', '.']",
+    "memoryState": [
+      {
+        "name": "maze[0]",
+        "val": "['S', '.', '.', '.']",
+        "diff": true
+      },
+      {
+        "name": "maze[1]",
+        "val": "['.', '#', '#', '.']",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼不能用 split()？</strong>：迷宮測資如 <code>\"S...\"</code> 中間<strong>完全沒有空白</strong>！若用 <code>split()</code>，只會得到長度為 1 的串列 <code>['S...']</code>。必須使用 <code>list(line)</code> 才能強制把每個字元拆解獨立！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>字串不可變 vs 串列可變</strong>：原始字串不可修改（如 <code>line[1] = '#'</code> 會報錯）；拆成 <code>list</code> 後才能原地修改角色走動位置！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：無空字元用list，拆解精確成列"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.6 字元網格字串輸入：[list(input().strip()) for _ in range(R)]（迷宮地圖讀入）",
+    "titleZh": "字元地圖就地修改——以 join 還原字串乾淨列印！",
+    "titleEn": "Character In-Place Modification & Rejoining with join()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "maze = [list(\"S...\"), list(\".##.\"), list(\"...G\")]",
+        "html": "<span class=\"token-ident\">maze</span> = [<span class=\"token-builtin\">list</span>(<span class=\"token-string\">\"S...\"</span>), <span class=\"token-builtin\">list</span>(<span class=\"token-string\">\".##.\"</span>), <span class=\"token-builtin\">list</span>(<span class=\"token-string\">\"...G\"</span>)]",
+        "alt": "建立可變動的字元二維串列",
+        "why": "地圖資料來源",
+        "mean": "初始化迷宮"
+      },
+      {
+        "num": 2,
+        "code": "maze[0][1] = \"*\"",
+        "html": "<span class=\"token-ident\">maze</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">1</span>] = <span class=\"token-string\">\"*\"</span>",
+        "alt": "玩家踏入座標 (0, 1) 原地標註為星號 *",
+        "diff": true,
+        "why": "原地更新角色位置",
+        "mean": "修改單格"
+      },
+      {
+        "num": 3,
+        "code": "for row in maze:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">maze</span>:",
+        "alt": "逐行走訪地圖",
+        "why": "逐列處理",
+        "mean": "遍歷各列"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"\".join(row))",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"\"</span>.<span class=\"token-builtin\">join</span>(<span class=\"token-ident\">row</span>))",
+        "alt": "以空字串為黏著劑將字元串列重新組裝成字串印出",
+        "diff": true,
+        "why": "還原完整字串輸出",
+        "mean": "輸出無縫字串"
+      }
+    ],
+    "output": "S*..\n.##.\n...G",
+    "memoryState": [
+      {
+        "name": "maze[0][1]",
+        "val": "'*' (原為 '.')",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>輸入 ➔ 修改 ➔ 輸出完美閉環</strong>：用 <code>list(line)</code> 讀入拆解 ➔ 演算法中自由透過 <code>maze[r][c] = ...</code> 原地修改 ➔ 最終以 <code>\"\".join(row)</code> 重新黏回字串輸出，行雲流水！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>效率優勢</strong>：在 Python 中字串頻繁拼接極慢，但透過 list 原地修改最後一次性 <code>join()</code>，效能達到 O(N) 極致。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：list拆開放手改，join拼回原字串"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.6 字元網格字串輸入：[list(input().strip()) for _ in range(R)]（迷宮地圖讀入）",
+    "titleZh": "考場地雷 1——無空白地圖誤用 split()，長度只剩 1 噴越界！",
+    "titleEn": "Pitfall 1: split() on Non-spaced String Yields Length 1",
+    "predictQuiz": {
+      "question": "若讀取迷宮測資 \"S...\"，誤寫成 row = \"S...\".split()，此時 row 的長度為何？",
+      "options": [
+        "長度僅為 1，內容為 ['S...']，後續存取 row[1] 必噴 IndexError",
+        "長度為 4，Python 會自動依字元切開為 ['S', '.', '.', '.']"
+      ],
+      "correct": 0,
+      "answer": 0,
+      "explanation": "split() 預設以空白切分。字串 \"S...\" 內部毫無空白，因此會被整體視為單一項目，產出長度只有 1 的清單！若要單字元拆解必須使用 list(\"S...\")。"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "line = \"S...\"",
+        "html": "<span class=\"token-ident\">line</span> = <span class=\"token-string\">\"S...\"</span>",
+        "alt": "無空白迷宮行測資",
+        "why": "地雷示範字串",
+        "mean": "無空白字串"
+      },
+      {
+        "num": 2,
+        "code": "wrong_row = line.split()",
+        "html": "<span class=\"token-ident\">wrong_row</span> = <span class=\"token-ident\">line</span>.<span class=\"token-builtin\">split</span>()",
+        "alt": "誤用 split() 導致字串未被拆分",
+        "diff": true,
+        "why": "踩雷操作",
+        "mean": "結果為 ['S...']"
+      },
+      {
+        "num": 3,
+        "code": "val = wrong_row[1]",
+        "html": "<span class=\"token-ident\">val</span> = <span class=\"token-ident\"><span class=\"token-wavy-err\">wrong_row[1]</span></span>",
+        "alt": "試圖存取索引 1 引爆 IndexError",
+        "diff": true,
+        "error": true,
+        "why": "長度僅為 1 存取索引 1 越界",
+        "mean": "越界崩潰"
+      }
+    ],
+    "output": "IndexError: list index out of range",
+    "memoryState": [
+      {
+        "name": "wrong_row",
+        "val": "['S...'] (長度僅 1)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>致命觀念盲點</strong>：很多考生習慣 <code>input().split()</code>，遇到字元地圖照樣寫 <code>split()</code>！結果拿到的不是 4 個字元，而是只有 1 個單元的 <code>['S...']</code>，一存取列內座標立即 RE 爆零！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：有空白用 <code>split()</code>，無空白連字地圖一律強制 <code>list()</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：無空莫用split，list拆字才安全"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.1 APCS 題目典型格式：多行數值測資輸入流程剖析",
+    "titleZh": "考場地雷 2——讀取行數超額越界！嚴防少行少資料！",
+    "titleEn": "Pitfall 2: Premature EOF or Reading Beyond Available Rows",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "lines = [\"10 20\", \"30 40\"]",
+        "html": "<span class=\"token-ident\">lines</span> = [<span class=\"token-string\">\"10 20\"</span>, <span class=\"token-string\">\"30 40\"</span>]",
+        "alt": "測資實際僅給予 2 列資料",
+        "why": "不足測資來源",
+        "mean": "2 行資料"
+      },
+      {
+        "num": 2,
+        "code": "R = 3",
+        "html": "<span class=\"token-ident\">R</span> = <span class=\"token-number\">3</span>",
+        "alt": "程式預期讀取 R=3 列",
+        "why": "預期列數",
+        "mean": "R = 3"
+      },
+      {
+        "num": 3,
+        "code": "grid = [lines[i] for i in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [<span class=\"token-ident\"><span class=\"token-wavy-err\">lines[i]</span></span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "走訪到 i=2 時超出 lines 範圍噴出 IndexError",
+        "diff": true,
+        "error": true,
+        "why": "索引越界引爆崩潰",
+        "mean": "越界錯誤"
+      }
+    ],
+    "output": "IndexError: list index out of range",
+    "memoryState": [
+      {
+        "name": "lines 長度",
+        "val": "2",
+        "diff": false
+      },
+      {
+        "name": "range(R)",
+        "val": "[0, 1, 2] (在 i=2 越界崩潰)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>行數缺失地雷</strong>：當測資提前結束、含有不可見隱藏空行、或題目行數規格有誤時，無防護的循環讀取會直接引發 <code>IndexError</code> 或 <code>EOFError</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：在 OJ 撰寫多筆測資輸入時，可搭配 <code>sys.stdin</code> 走訪或 <code>try ... except EOFError: break</code> 雙重防禦。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：預期行數查長度，嚴防少行越界崩"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.4 二維解包優雅輸出：for row in grid: print(*row)",
+    "titleZh": "考場地雷 3——直接印出 grid 帶中括號被 OJ 評判 WA！",
+    "titleEn": "Pitfall 3: Printing Raw Grid with Brackets Fails Online Judges",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "宣告 2x2 矩陣",
+        "why": "示範矩陣",
+        "mean": "矩陣資料"
+      },
+      {
+        "num": 2,
+        "code": "print(\"帶中括號(OJ零分):\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"帶中括號(OJ零分):\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "直接 print(grid) 包含中括號與逗號",
+        "diff": true,
+        "why": "錯誤輸出示範",
+        "mean": "帶中括號輸出"
+      },
+      {
+        "num": 3,
+        "code": "print(\"解包輸出(OJ得分):\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"解包輸出(OJ得分):\"</span>)",
+        "alt": "正解標記提示",
+        "why": "標題輸出",
+        "mean": "正解前綴"
+      },
+      {
+        "num": 4,
+        "code": "for row in grid: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>: <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "一行迴圈解包標準格式輸出",
+        "diff": true,
+        "why": "正確解包輸出",
+        "mean": "標準滿分輸出"
+      }
+    ],
+    "output": "帶中括號(OJ零分): [[1, 2], [3, 4]]\n解包輸出(OJ得分):\n1 2\n3 4",
+    "memoryState": [
+      {
+        "name": "未解包",
+        "val": "[[1, 2], [3, 4]] (慘遭 Presentation Error)",
+        "diff": true
+      },
+      {
+        "name": "解包後",
+        "val": "純純的 1 2 和 3 4",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>初學者常見死穴</strong>：初學者以為算完答案 <code>print(grid)</code> 就能交卷，結果線上評判系統判定全盤皆錯（WA）或格式錯誤（PE）！因為 OJ 無法接受 <code>[</code> 與 <code>,</code> 符號。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>解題最後一步</strong>：交卷前養成反射動作：一律用 <code>for row in grid: print(*row)</code> 逐列輸出！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：直印帶括號零分，解包輸出才拿分"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.3 巢狀列表生成式動態讀取神技：一行取代 4 行的高效寫法",
+    "titleZh": "考場地雷 4——非數值字元混入整數列引爆 ValueError！",
+    "titleEn": "Pitfall 4: Dirty Non-numeric Token Triggers ValueError in int()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_lines = [\"10 20\", \"30 abc\"]",
+        "html": "<span class=\"token-ident\">raw_lines</span> = [<span class=\"token-string\">\"10 20\"</span>, <span class=\"token-string\">\"30 abc\"</span>]",
+        "alt": "包含非數字文字 abc 的測資清單",
+        "why": "髒資料範例",
+        "mean": "非純數字字串"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[int(x) for x in line.split()] for line in raw_lines]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-builtin\"><span class=\"token-wavy-err\">int</span></span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">line</span>.<span class=\"token-builtin\">split</span>()] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">line</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_lines</span>]",
+        "alt": "當遍歷到 abc 時 int('abc') 引爆 ValueError",
+        "diff": true,
+        "error": true,
+        "why": "無法轉型非數字字串",
+        "mean": "型態值錯誤報錯"
+      }
+    ],
+    "output": "ValueError: invalid literal for int() with base 10: 'abc'",
+    "memoryState": [
+      {
+        "name": "grid",
+        "val": "中斷 (在 int('abc') 處拋出 ValueError)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>轉型前的資料純淨度</strong>：如果題目測資末端帶有字串標籤（如 <code>N/A</code> 或備註說明），直接套用 <code>int(x)</code> 會拋出 <code>ValueError</code> 導致整份程式碼瞬間崩潰！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：若測資包含混合型態，應先以純字串讀入，或在內層加上判斷過濾 <code>int(x) if x.lstrip('-').isdigit() else x</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：轉整數前要純淨，遇文字報值錯誤"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.3 巢狀列表生成式動態讀取神技：一行取代 4 行的高效寫法",
+    "titleZh": "實戰驗收 1——模擬 APCS 矩陣測資讀取與全矩陣求和！",
+    "titleEn": "Challenge 1: APCS Matrix Ingestion & Total Sum Calculation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_data = [\"3 3\", \"1 2 3\", \"4 5 6\", \"7 8 9\"]",
+        "html": "<span class=\"token-ident\">raw_data</span> = [<span class=\"token-string\">\"3 3\"</span>, <span class=\"token-string\">\"1 2 3\"</span>, <span class=\"token-string\">\"4 5 6\"</span>, <span class=\"token-string\">\"7 8 9\"</span>]",
+        "alt": "模擬包含首行規格的完整測資資料串列",
+        "why": "模擬 APCS 輸入",
+        "mean": "完整測資串列"
+      },
+      {
+        "num": 2,
+        "code": "R, C = [int(x) for x in raw_data[0].split()]",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_data</span>[<span class=\"token-number\">0</span>].<span class=\"token-builtin\">split</span>()]",
+        "alt": "解析首行取得 R=3, C=3",
+        "why": "讀取規格",
+        "mean": "取得尺寸"
+      },
+      {
+        "num": 3,
+        "code": "grid = [[int(x) for x in raw_data[i+1].split()] for i in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_data</span>[<span class=\"token-ident\">i</span>+<span class=\"token-number\">1</span>].<span class=\"token-builtin\">split</span>()] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "以生成式將接下來的 R 行拼裝成二維矩陣",
+        "diff": true,
+        "why": "二維動態生成",
+        "mean": "組裝矩陣"
+      },
+      {
+        "num": 4,
+        "code": "total = sum(sum(row) for row in grid)",
+        "html": "<span class=\"token-ident\">total</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">row</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>)",
+        "alt": "以雙層 sum 簡潔算出全矩陣 9 個元素總和",
+        "diff": true,
+        "why": "全矩陣求和",
+        "mean": "計算總和 45"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"全矩陣總和: {total}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"全矩陣總和: {<span class=\"token-ident\">total</span>}\"</span>)",
+        "alt": "輸出全矩陣總和為 45",
+        "diff": true,
+        "why": "輸出最後統計",
+        "mean": "輸出 45"
+      }
+    ],
+    "output": "全矩陣總和: 45",
+    "memoryState": [
+      {
+        "name": "R, C",
+        "val": "3, 3",
+        "diff": false
+      },
+      {
+        "name": "total",
+        "val": "45",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>標準 APCS 解題流程全景</strong>：1. 解析規格 <code>R, C</code> ➔ 2. 巢狀生成式讀入矩陣 ➔ 3. <code>sum(sum(row) for row in grid)</code> 高效統計。三步搞定二維基礎題！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>雙層 sum 秘技</strong>：內層 <code>sum(row)</code> 算出每一列的總和，外層 <code>sum(...)</code> 將各列總和加總，免寫任何多重迴圈累加變數。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：雙重生成式速讀，全矩陣加總輕鬆"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2.6 字元網格字串輸入：[list(input().strip()) for _ in range(R)]（迷宮地圖讀入）",
+    "titleZh": "實戰驗收 2——迷宮地圖讀入、障礙物計數與字串還原！",
+    "titleEn": "Challenge 2: Maze Parsing, Obstacle Count & Map Display",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "maze_input = [\"S..#\", \".#.#\", \"#..G\"]",
+        "html": "<span class=\"token-ident\">maze_input</span> = [<span class=\"token-string\">\"S..#\"</span>, <span class=\"token-string\">\".#.#\"</span>, <span class=\"token-string\">\"#..G\"</span>]",
+        "alt": "原始迷宮文字字串",
+        "why": "迷宮資料來源",
+        "mean": "地圖字串"
+      },
+      {
+        "num": 2,
+        "code": "maze = [list(line) for line in maze_input]",
+        "html": "<span class=\"token-ident\">maze</span> = [<span class=\"token-builtin\">list</span>(<span class=\"token-ident\">line</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">line</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">maze_input</span>]",
+        "alt": "使用 list() 拆解成字元二維陣列",
+        "diff": true,
+        "why": "字元陣列建構",
+        "mean": "字元網格"
+      },
+      {
+        "num": 3,
+        "code": "wall_count = sum(row.count(\"#\") for row in maze)",
+        "html": "<span class=\"token-ident\">wall_count</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">row</span>.<span class=\"token-builtin\">count</span>(<span class=\"token-string\">\"#\"</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">maze</span>)",
+        "alt": "結合串列 count 方法統計全地圖牆壁 # 個數",
+        "diff": true,
+        "why": "統計障礙物",
+        "mean": "計算 # 總數"
+      },
+      {
+        "num": 4,
+        "code": "print(\"迷宮牆壁總數:\", wall_count)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迷宮牆壁總數:\"</span>, <span class=\"token-ident\">wall_count</span>)",
+        "alt": "輸出牆壁總數為 4",
+        "diff": true,
+        "why": "輸出統計",
+        "mean": "輸出 4"
+      },
+      {
+        "num": 5,
+        "code": "for row in maze: print(\"\".join(row))",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">maze</span>: <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"\"</span>.<span class=\"token-builtin\">join</span>(<span class=\"token-ident\">row</span>))",
+        "alt": "逐行使用 join 還原迷宮輸出",
+        "diff": true,
+        "why": "地圖列印",
+        "mean": "還原印製"
+      }
+    ],
+    "output": "迷宮牆壁總數: 4\nS..#\n.#.#\n#..G",
+    "memoryState": [
+      {
+        "name": "wall_count",
+        "val": "4",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字元計數一氣呵成</strong>：透過 <code>sum(row.count(\"#\") for row in maze)</code>，直接跨列累加目標符號個數，兼具高雅性與強大效能。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>還原地圖</strong>：在 BFS/DFS 搜尋完路徑後，透過 <code>\"\".join(row)</code> 即可完美將標註好走訪軌跡的地圖端正呈現給 OJ 評判。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：字元拆解算障礙，join還原好檢視"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.2 綜合驗收：二維陣列動態輸入讀取與解包輸出大滿貫",
+    "titleZh": "第 9.2 單元大圓滿——二維輸入輸出通關認證！",
+    "titleEn": "Milestone: 2D Input & Unpacked Output Mastered",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mock_input = [\"2 3\", \"10 20 30\", \"40 50 60\"]",
+        "html": "<span class=\"token-ident\">mock_input</span> = [<span class=\"token-string\">\"2 3\"</span>, <span class=\"token-string\">\"10 20 30\"</span>, <span class=\"token-string\">\"40 50 60\"</span>]",
+        "alt": "宣告綜合驗收模擬測資",
+        "why": "驗收測資來源",
+        "mean": "測資資料"
+      },
+      {
+        "num": 2,
+        "code": "R, C = [int(x) for x in mock_input[0].split()]",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mock_input</span>[<span class=\"token-number\">0</span>].<span class=\"token-builtin\">split</span>()]",
+        "alt": "解析首行 R=2, C=3",
+        "why": "讀取網格尺寸",
+        "mean": "尺寸解析"
+      },
+      {
+        "num": 3,
+        "code": "grid = [[int(x) for x in mock_input[1 + i].split()] for i in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mock_input</span>[<span class=\"token-number\">1</span> + <span class=\"token-ident\">i</span>].<span class=\"token-builtin\">split</span>()] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "列表生成式一行完成矩陣組裝",
+        "diff": true,
+        "why": "動態矩陣讀入",
+        "mean": "矩陣生成"
+      },
+      {
+        "num": 4,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "走訪矩陣各列",
+        "why": "遍歷輸出",
+        "mean": "逐列輸出"
+      },
+      {
+        "num": 5,
+        "code": "    print(*row, sep=\"\\t\")",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>, <span class=\"token-keyword\">sep</span>=<span class=\"token-string\">\"\\t\"</span>)",
+        "alt": "以跳格鍵 tab 作為分隔符解包輸出工整矩陣",
+        "diff": true,
+        "why": "Tab 分隔解包輸出",
+        "mean": "跳格解包印出"
+      }
+    ],
+    "output": "10\t20\t30\n40\t50\t60",
+    "memoryState": [
+      {
+        "name": "grid 結構",
+        "val": "[[10, 20, 30], [40, 50, 60]]",
+        "diff": true
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 9.2 通關：二維輸入輸出特技大師！",
+      "summary": "太厲害了！你已徹底掌握 APCS 矩陣測資讀取全套心法：從 R/C 尺寸讀入、一行流巢狀生成式、星號 * 解包輸出、工整格式化排版，到無空格字元地圖 list() 拆解，輸入輸出無懈可擊！",
+      "nextUnit": "9.3 二維陣列初始化與參照共用致命陷阱"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 展開二維輸入實戰！</strong>：單元 9.2 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 40/50 儲存格的動態輸入與解包排版實機挑戰！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>輸入輸出基本功</strong>：掌握好二維測資讀入與格式化輸出，APCS 實作題就已穩拿 30% 基本分！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：輸入解包全通透，矩陣實戰任我行"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-2_2d_array_dynamic_input_and_unpacking_output.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

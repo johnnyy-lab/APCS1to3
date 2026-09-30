@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.3 二維陣列初始化與參照共用致命陷阱 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.3 二維陣列初始化與參照共用致命陷阱
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.1 致命陷阱重現：[[0] * C] * R 淺拷貝參照共用慘劇",
+    "titleZh": "乘法複製慘劇重現——改一格，整直行跟著連環變動！",
+    "titleEn": "The Multiplication Trap: Modifying One Mutates the Entire Column",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "bad_grid = [[0] * 3] * 3",
+        "html": "<span class=\"token-ident\">bad_grid</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-number\">3</span>] * <span class=\"token-number\">3</span>",
+        "alt": "以乘法宣告 3x3 矩陣（踩入共用參照地雷）",
+        "why": "錯誤初始化宣告",
+        "mean": "乘法共用矩陣"
+      },
+      {
+        "num": 2,
+        "code": "bad_grid[0][1] = 99",
+        "html": "<span class=\"token-ident\">bad_grid</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">1</span>] = <span class=\"token-number\">99</span>",
+        "alt": "單純修改第 0 列第 1 行",
+        "diff": true,
+        "why": "單點修改嘗試",
+        "mean": "改 [0][1]"
+      },
+      {
+        "num": 3,
+        "code": "print(\"改第 0 列第 1 行後:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"改第 0 列第 1 行後:\"</span>)",
+        "alt": "印出提示訊息",
+        "why": "輸出標題",
+        "mean": "輸出提示"
+      },
+      {
+        "num": 4,
+        "code": "for row in bad_grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">bad_grid</span>:",
+        "alt": "遍歷每一列",
+        "why": "逐列印出",
+        "mean": "走訪矩陣"
+      },
+      {
+        "num": 5,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列發現三列全部變成 99",
+        "diff": true,
+        "why": "揭露連帶變動慘劇",
+        "mean": "輸出三列皆 99"
+      }
+    ],
+    "output": "改第 0 列第 1 行後:\n0 99 0\n0 99 0\n0 99 0",
+    "memoryState": [
+      {
+        "name": "bad_grid[0]",
+        "val": "[0, 99, 0]",
+        "diff": true
+      },
+      {
+        "name": "bad_grid[1]",
+        "val": "[0, 99, 0] (同受牽連)",
+        "diff": true
+      },
+      {
+        "name": "bad_grid[2]",
+        "val": "[0, 99, 0] (同受牽連)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>連環車禍現場</strong>：明明程式碼只寫了 <code>bad_grid[0][1] = 99</code>，但印出來時第 1 列與第 2 列的第 1 行竟然全被改成了 99！這就是 APCS 考生失分率最高的地雷。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>乘法的本質</strong>：內層 <code>[0] * 3</code> 建立了 1 個子串列；外層的 <code>* 3</code> 只是把這個子串列的名牌<strong>複製了 3 次</strong>，三列根本是同一棟房子！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：外層乘法共用箱，改一動全全覆沒"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.1 致命陷阱重現：[[0] * C] * R 淺拷貝參照共用慘劇",
+    "titleZh": "記憶體真相解密——is 比對證實三列其實是同一個物件！",
+    "titleEn": "Memory Proof: is Operator Confirms Shared Reference",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "bad_grid = [[0] * 3] * 3",
+        "html": "<span class=\"token-ident\">bad_grid</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-number\">3</span>] * <span class=\"token-number\">3</span>",
+        "alt": "宣告乘法複製矩陣",
+        "why": "檢驗目標",
+        "mean": "乘法矩陣"
+      },
+      {
+        "num": 2,
+        "code": "is_same = (bad_grid[0] is bad_grid[1])",
+        "html": "<span class=\"token-ident\">is_same</span> = (<span class=\"token-ident\">bad_grid</span>[<span class=\"token-number\">0</span>] <span class=\"token-keyword\">is</span> <span class=\"token-ident\">bad_grid</span>[<span class=\"token-number\">1</span>])",
+        "alt": "以 is 比對第 0 列與第 1 列的記憶體門牌號碼",
+        "diff": true,
+        "why": "記憶體指針比對",
+        "mean": "比對指針"
+      },
+      {
+        "num": 3,
+        "code": "print(\"第 0 列與第 1 列是否同指針:\", is_same)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 0 列與第 1 列是否同指針:\"</span>, <span class=\"token-ident\">is_same</span>)",
+        "alt": "輸出比對結果 True",
+        "diff": true,
+        "why": "印出比對真相",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 4,
+        "code": "print(\"第 0 列與第 2 列是否同指針:\", bad_grid[0] is bad_grid[2])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 0 列與第 2 列是否同指針:\"</span>, <span class=\"token-ident\">bad_grid</span>[<span class=\"token-number\">0</span>] <span class=\"token-keyword\">is</span> <span class=\"token-ident\">bad_grid</span>[<span class=\"token-number\">2</span>])",
+        "alt": "第 0 列與第 2 列同樣是 True",
+        "diff": true,
+        "why": "印出第三列比對真相",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "第 0 列與第 1 列是否同指針: True\n第 0 列與第 2 列是否同指針: True",
+    "memoryState": [
+      {
+        "name": "bad_grid[0] is bad_grid[1]",
+        "val": "True (同一門牌)",
+        "diff": true
+      },
+      {
+        "name": "bad_grid[0] is bad_grid[2]",
+        "val": "True (同一門牌)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>科學實驗證偽</strong>：透過 <code>is</code> 運算子比對，結果皆為 <code>True</code>！這鐵證如山地說明了：三個列在記憶體中根本不是獨立的三個陣列，而是指向同一個物理物件！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>id() 門牌號碼</strong>：若呼叫 <code>id(bad_grid[0])</code> 與 <code>id(bad_grid[1])</code>，你會看到印出的記憶體整數門牌一模一樣。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：is比對揭真相，三列同址同門牌"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.2 正確初始化黃金法則：[[0] * C for _ in range(R)]",
+    "titleZh": "唯一正解黃金法則——列表生成式每次迴圈造新箱！",
+    "titleEn": "The Golden Rule: List Comprehension Creates Independent Rows",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "good_grid = [[0] * 3 for _ in range(3)]",
+        "html": "<span class=\"token-ident\">good_grid</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>)]",
+        "alt": "以列表生成式宣告真正的獨立 3x3 矩陣",
+        "why": "安全宣告法",
+        "mean": "安全生成矩陣"
+      },
+      {
+        "num": 2,
+        "code": "good_grid[0][1] = 99",
+        "html": "<span class=\"token-ident\">good_grid</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">1</span>] = <span class=\"token-number\">99</span>",
+        "alt": "修改第 0 列第 1 行",
+        "diff": true,
+        "why": "單點修改",
+        "mean": "改 [0][1]"
+      },
+      {
+        "num": 3,
+        "code": "print(\"正解生成式修改後:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正解生成式修改後:\"</span>)",
+        "alt": "輸出提示文字",
+        "why": "標題輸出",
+        "mean": "提示輸出"
+      },
+      {
+        "num": 4,
+        "code": "for row in good_grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">good_grid</span>:",
+        "alt": "遍歷每一列",
+        "why": "走訪矩陣",
+        "mean": "逐列處理"
+      },
+      {
+        "num": 5,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列確認僅第 0 列被改動",
+        "diff": true,
+        "why": "驗證獨立修改成功",
+        "mean": "僅一格為 99"
+      }
+    ],
+    "output": "正解生成式修改後:\n0 99 0\n0 0 0\n0 0 0",
+    "memoryState": [
+      {
+        "name": "good_grid[0]",
+        "val": "[0, 99, 0]",
+        "diff": true
+      },
+      {
+        "name": "good_grid[1]",
+        "val": "[0, 0, 0] (安全獨立)",
+        "diff": false
+      },
+      {
+        "name": "good_grid[2]",
+        "val": "[0, 0, 0] (安全獨立)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼生成式是安全的？</strong>：在 <code>[[0] * 3 for _ in range(3)]</code> 中，外層迴圈執行了 3 次，<strong>每一次迴圈都重新評估一次 <code>[0] * 3</code></strong>，因此在記憶體中實體建造了 3 個不同門牌的全新子串列！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>底線 _ 的慣例</strong>：當迴圈變數在內部不會被使用時，Python 社群習慣以 <code>_</code> 命名，簡潔且具可讀性。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：列表生成造新列，各自獨立不干擾"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.2 正確初始化黃金法則：[[0] * C for _ in range(R)]",
+    "titleZh": "矩形尺寸安全初始化——內乘 C 定寬度，外 range 跑 R 列！",
+    "titleEn": "Rectangular Initialization: Inner C for Cols, Outer R for Rows",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 2, 4",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">4</span>",
+        "alt": "指定列數 R=2，行數 C=4",
+        "why": "網格規格參數",
+        "mean": "R=2, C=4"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[0] * C for _ in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "標準二維矩陣初始化公式",
+        "diff": true,
+        "why": "通用動態尺寸宣告",
+        "mean": "初始化 2x4 網格"
+      },
+      {
+        "num": 3,
+        "code": "grid[1][3] = 88",
+        "html": "<span class=\"token-ident\">grid</span>[<span class=\"token-number\">1</span>][<span class=\"token-number\">3</span>] = <span class=\"token-number\">88</span>",
+        "alt": "右下角修改為 88",
+        "diff": true,
+        "why": "修改單點驗證",
+        "mean": "改 [1][3]"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"建立 {R} 列 x {C} 行網格:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"建立 {<span class=\"token-ident\">R</span>} 列 x {<span class=\"token-ident\">C</span>} 行網格:\"</span>)",
+        "alt": "印出網格說明標題",
+        "why": "標題輸出",
+        "mean": "標題提示"
+      },
+      {
+        "num": 5,
+        "code": "for row in grid: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>: <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列",
+        "diff": true,
+        "why": "解包印出",
+        "mean": "印出矩陣"
+      }
+    ],
+    "output": "建立 2 列 x 4 行網格:\n0 0 0 0\n0 0 0 88",
+    "memoryState": [
+      {
+        "name": "grid[0]",
+        "val": "[0, 0, 0, 0]",
+        "diff": false
+      },
+      {
+        "name": "grid[1]",
+        "val": "[0, 0, 0, 88]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>通用矩形網格公式</strong>：<code>[[預設值] * C for _ in range(R)]</code>。內層的 <code>* C</code> 決定每列橫向有幾格；外層的 <code>range(R)</code> 決定縱向有幾列。請永遠背牢這個口訣！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>不可寫反</strong>：若寫成 <code>[[0] * R for _ in range(C)]</code>，會造出 C 列 R 行的顛倒矩陣，在非正方形網格中存取立即引爆越界！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內乘C定行寬，外range跑R列"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.4 布林標記地圖與字元地圖初始化：False 拜訪矩陣與符號地圖",
+    "titleZh": "布林拜訪矩陣——DFS 與 BFS 尋路演算法絕對必備！",
+    "titleEn": "Boolean Visited Matrix: The Backbone of DFS/BFS Graph Traversal",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "指定網格尺寸 3x3",
+        "why": "尺寸設定",
+        "mean": "3x3 尺寸"
+      },
+      {
+        "num": 2,
+        "code": "visited = [[False] * C for _ in range(R)]",
+        "html": "<span class=\"token-ident\">visited</span> = [[<span class=\"token-builtin\">False</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "初始化全為 False 的拜訪狀態矩陣",
+        "diff": true,
+        "why": "布林標記陣列宣告",
+        "mean": "全 False 矩陣"
+      },
+      {
+        "num": 3,
+        "code": "visited[0][0] = True",
+        "html": "<span class=\"token-ident\">visited</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-builtin\">True</span>",
+        "alt": "標記起點座標 (0, 0) 為已拜訪 True",
+        "diff": true,
+        "why": "起點標記",
+        "mean": "起點設 True"
+      },
+      {
+        "num": 4,
+        "code": "print(\"起點標記拜訪:\", visited[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"起點標記拜訪:\"</span>, <span class=\"token-ident\">visited</span>[<span class=\"token-number\">0</span>])",
+        "alt": "輸出第 0 列拜訪狀態",
+        "diff": true,
+        "why": "驗證起點更新",
+        "mean": "輸出 [True, False, False]"
+      },
+      {
+        "num": 5,
+        "code": "print(\"其餘列保持未拜訪:\", visited[1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"其餘列保持未拜訪:\"</span>, <span class=\"token-ident\">visited</span>[<span class=\"token-number\">1</span>])",
+        "alt": "輸出第 1 列確認全為 False",
+        "diff": true,
+        "why": "驗證其餘列未被牽連",
+        "mean": "輸出 [False, False, False]"
+      }
+    ],
+    "output": "起點標記拜訪: [True, False, False]\n其餘列保持未拜訪: [False, False, False]",
+    "memoryState": [
+      {
+        "name": "visited[0][0]",
+        "val": "True",
+        "prevVal": "False",
+        "diff": true
+      },
+      {
+        "name": "visited[1][0]",
+        "val": "False (不受牽連)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>走迷宮的核心靈魂</strong>：在廣度優先搜尋（BFS）或深度優先搜尋（DFS）中，我們必須防止走回頭路死循環。建立一個與地圖同尺寸的全 <code>False</code> 拜訪矩陣，走過一格就標記 <code>True</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>獨立性至關重要</strong>：如果 <code>visited</code> 誤用乘法建立，標記一個格子會導致每一列同一直行全部變成 <code>True</code>，演算法瞬間廢掉！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：初始全填False，起點先標已拜訪"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.4 布林標記地圖與字元地圖初始化：False 拜訪矩陣與符號地圖",
+    "titleZh": "符號畫布初始化——點號與符號鋪滿幾何棋盤！",
+    "titleEn": "Character Board Initialization: Laying Tiles with Symbols",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "board = [[\".\"] * 3 for _ in range(3)]",
+        "html": "<span class=\"token-ident\">board</span> = [[<span class=\"token-string\">\".\"</span>] * <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>)]",
+        "alt": "以點號 . 初始化 3x3 棋盤畫布",
+        "why": "字元棋盤宣告",
+        "mean": "初始化點號棋盤"
+      },
+      {
+        "num": 2,
+        "code": "board[1][1] = \"O\"",
+        "html": "<span class=\"token-ident\">board</span>[<span class=\"token-number\">1</span>][<span class=\"token-number\">1</span>] = <span class=\"token-string\">\"O\"</span>",
+        "alt": "中心落子 O",
+        "diff": true,
+        "why": "中心點落子",
+        "mean": "落子 O"
+      },
+      {
+        "num": 3,
+        "code": "board[2][2] = \"X\"",
+        "html": "<span class=\"token-ident\">board</span>[<span class=\"token-number\">2</span>][<span class=\"token-number\">2</span>] = <span class=\"token-string\">\"X\"</span>",
+        "alt": "右下角落子 X",
+        "diff": true,
+        "why": "右下角落子",
+        "mean": "落子 X"
+      },
+      {
+        "num": 4,
+        "code": "for row in board:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">board</span>:",
+        "alt": "逐行走訪棋盤",
+        "why": "走訪矩陣",
+        "mean": "遍歷各列"
+      },
+      {
+        "num": 5,
+        "code": "    print(\" \".join(row))",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\" \"</span>.<span class=\"token-builtin\">join</span>(<span class=\"token-ident\">row</span>))",
+        "alt": "以空白串接字元印出",
+        "diff": true,
+        "why": "印出棋盤排版",
+        "mean": "印出盤面"
+      }
+    ],
+    "output": ". . .\n. O .\n. . X",
+    "memoryState": [
+      {
+        "name": "board[1][1]",
+        "val": "'O'",
+        "diff": true
+      },
+      {
+        "name": "board[2][2]",
+        "val": "'X'",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字元畫布模式</strong>：在 APCS 的圖形打印與棋盤模擬題中，先用 <code>[['.'] * C for _ in range(R)]</code> 鋪設空白底布，後續只要依題目要求更新指定座標即可。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>靈活替換預設符號</strong>：除了點號 <code>'.'</code>，也常用 <code>' '</code>（空白畫布）、<code>'#'</code>（整片障礙物）或 <code>0</code>（數值網格）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：點號初始成棋盤，符號落子顯神威"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.5 動態網格生成：依座標規律填入初始數值（如 r * C + c + 1）",
+    "titleZh": "規律動態矩陣——座標公式 r * C + c + 1 連續編號展開！",
+    "titleEn": "Dynamic Arithmetic Grid: Serial Number Mapping via r * C + c + 1",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 4",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>",
+        "alt": "指定 3 列 4 行規格",
+        "why": "矩陣尺寸",
+        "mean": "3x4 規格"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[r * C + c + 1 for c in range(C)] for r in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-ident\">r</span> * <span class=\"token-ident\">C</span> + <span class=\"token-ident\">c</span> + <span class=\"token-number\">1</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "利用二維座標公式連續填入 1 到 12",
+        "diff": true,
+        "why": "座標映射公式",
+        "mean": "動態填入序號"
+      },
+      {
+        "num": 3,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "逐行走訪矩陣",
+        "why": "遍歷輸出",
+        "mean": "走訪矩陣"
+      },
+      {
+        "num": 4,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列連續數值",
+        "diff": true,
+        "why": "印出連續矩陣",
+        "mean": "印出 1 到 12"
+      }
+    ],
+    "output": "1 2 3 4\n5 6 7 8\n9 10 11 12",
+    "memoryState": [
+      {
+        "name": "grid[0]",
+        "val": "[1, 2, 3, 4]",
+        "diff": true
+      },
+      {
+        "name": "grid[1]",
+        "val": "[5, 6, 7, 8]",
+        "diff": true
+      },
+      {
+        "name": "grid[2]",
+        "val": "[9, 10, 11, 12]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>一維與二維座標互換神公式</strong>：若將二維網格攤平為一維陣列，座標 <code>(r, c)</code> 對應的一維索引就是 <code>r * C + c</code>！加上 1 即可生成 1 到 R*C 的自然數矩陣。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>反向解碼</strong>：若已知一維索引 <code>idx</code>，反推其二維座標為：<code>r = idx // C</code>，<code>c = idx % C</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：r乘C加c加一，二維序號秒展開"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.5 動態網格生成：依座標規律填入初始數值（如 r * C + c + 1）",
+    "titleZh": "黑白棋盤格動態生成——(r + c) % 2 奇偶交錯紋理！",
+    "titleEn": "Checkerboard Generation: Parity Pattern via (r + c) % 2",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "N = 3",
+        "html": "<span class=\"token-ident\">N</span> = <span class=\"token-number\">3</span>",
+        "alt": "設定 3x3 棋盤尺寸",
+        "why": "方陣邊長",
+        "mean": "邊長 N=3"
+      },
+      {
+        "num": 2,
+        "code": "checker = [[(r + c) % 2 for c in range(N)] for r in range(N)]",
+        "html": "<span class=\"token-ident\">checker</span> = [[(<span class=\"token-ident\">r</span> + <span class=\"token-ident\">c</span>) % <span class=\"token-number\">2</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">N</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">N</span>)]",
+        "alt": "以 (r+c)%2 奇偶交替生成 0 與 1 棋盤格",
+        "diff": true,
+        "why": "棋盤紋理公式",
+        "mean": "交替填入 0 與 1"
+      },
+      {
+        "num": 3,
+        "code": "for row in checker:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">checker</span>:",
+        "alt": "遍歷每一列",
+        "why": "走訪矩陣",
+        "mean": "逐列處理"
+      },
+      {
+        "num": 4,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出黑白相間棋盤格",
+        "diff": true,
+        "why": "輸出檢驗成果",
+        "mean": "輸出 0 1 0..."
+      }
+    ],
+    "output": "0 1 0\n1 0 1\n0 1 0",
+    "memoryState": [
+      {
+        "name": "checker[0]",
+        "val": "[0, 1, 0]",
+        "diff": true
+      },
+      {
+        "name": "checker[1]",
+        "val": "[1, 0, 1]",
+        "diff": true
+      },
+      {
+        "name": "checker[2]",
+        "val": "[0, 1, 0]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>黑白棋盤奇偶特性</strong>：相鄰兩格的 <code>r + c</code> 奇偶性必然相反！因此 <code>(r + c) % 2</code> 會完美呈現 0 與 1 交錯的黑白西洋棋盤花紋。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>二維染色應用</strong>：在二分圖染色（Bipartite Coloring）與曼哈頓距離奇偶性分析中，這個數學特性極為強大。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：行列相加取餘二，黑白相間棋盤格"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.6 二維陣列的獨立深拷貝：[row[:] for row in grid]",
+    "titleZh": "考場地雷 1——二維複製誤用 copy()！子串列依然共享同一門牌！",
+    "titleEn": "Pitfall 1: grid.copy() is Only Shallow Copy in 2D",
+    "predictQuiz": {
+      "question": "執行 original = [[1, 2], [3, 4]] 後執行 backup = original.copy()，並修改 backup[0][0] = 999，original[0][0] 的數值為何？",
+      "options": [
+        "變成 999，因為 copy() 只複製外層，子串列依然共享參照",
+        "維持 1，因為 copy() 會將整個二維矩陣全部複製一份"
+      ],
+      "correct": 0,
+      "answer": 0,
+      "explanation": "一維 copy() 只能複製第一層外殼！二維陣列的外層裝的是子串列指針，copy() 複製出的新外層依然指向相同的子串列。修改子串列內容會直接連累原矩陣！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "original = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">original</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "宣告原始二維矩陣",
+        "why": "原始資料",
+        "mean": "原矩陣"
+      },
+      {
+        "num": 2,
+        "code": "shallow = original.copy()",
+        "html": "<span class=\"token-ident\">shallow</span> = <span class=\"token-ident\">original</span>.<span class=\"token-builtin\">copy</span>()",
+        "alt": "以 copy() 進行淺拷貝",
+        "why": "淺拷貝陷阱",
+        "mean": "淺拷貝"
+      },
+      {
+        "num": 3,
+        "code": "shallow[0][0] = 999",
+        "html": "<span class=\"token-ident\">shallow</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">999</span>",
+        "alt": "透過 shallow 修改子元素",
+        "diff": true,
+        "why": "修改單點",
+        "mean": "改 shallow[0][0]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"原陣列慘遭修改:\", original[0][0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原陣列慘遭修改:\"</span>, <span class=\"token-ident\">original</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>])",
+        "alt": "印出 original[0][0] 發現也被改成了 999",
+        "diff": true,
+        "why": "揭露牽連真相",
+        "mean": "輸出 999"
+      },
+      {
+        "num": 5,
+        "code": "print(\"是否同一子串列:\", original[0] is shallow[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"是否同一子串列:\"</span>, <span class=\"token-ident\">original</span>[<span class=\"token-number\">0</span>] <span class=\"token-keyword\">is</span> <span class=\"token-ident\">shallow</span>[<span class=\"token-number\">0</span>])",
+        "alt": "以 is 驗證兩者子串列指向同一記憶體門牌",
+        "diff": true,
+        "why": "驗證子串列同指針",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "原陣列慘遭修改: 999\n是否同一子串列: True",
+    "memoryState": [
+      {
+        "name": "original[0][0]",
+        "val": "999 (慘遭連動修改)",
+        "diff": true
+      },
+      {
+        "name": "original[0] is shallow[0]",
+        "val": "True",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>淺拷貝只做半套</strong>：<code>grid.copy()</code> 只是換了外層大箱子，但大箱子裡裝的依然是原本那些小箱子的鑰匙！修改 <code>shallow[0][0]</code>，原本的 <code>original[0][0]</code> 同步陣亡！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：二維陣列要真正獨立複製，必須深入每一個子串列複製新物件。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：二維copy只拷外，子列依然共用箱"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.6 二維陣列的獨立深拷貝：[row[:] for row in grid]",
+    "titleZh": "考場地雷 2——純語法二維深拷貝正解：[row[:] for row in grid]！",
+    "titleEn": "Pitfall 2: Safe 2D Deep Copy via [row[:] for row in grid]",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "original = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">original</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "宣告原始矩陣",
+        "why": "測試資料",
+        "mean": "原矩陣"
+      },
+      {
+        "num": 2,
+        "code": "deep = [row[:] for row in original]",
+        "html": "<span class=\"token-ident\">deep</span> = [<span class=\"token-ident\">row</span>[:] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">original</span>]",
+        "alt": "利用列表生成式搭配切片拷貝每一列",
+        "diff": true,
+        "why": "純語法二維深拷貝",
+        "mean": "獨立深拷貝"
+      },
+      {
+        "num": 3,
+        "code": "deep[0][0] = 999",
+        "html": "<span class=\"token-ident\">deep</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">999</span>",
+        "alt": "修改新陣列的單格數值",
+        "diff": true,
+        "why": "修改新陣列單點",
+        "mean": "改 deep[0][0]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"深拷貝新陣列:\", deep[0][0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"深拷貝新陣列:\"</span>, <span class=\"token-ident\">deep</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>])",
+        "alt": "印出 deep[0][0] 變為 999",
+        "diff": true,
+        "why": "輸出新矩陣",
+        "mean": "輸出 999"
+      },
+      {
+        "num": 5,
+        "code": "print(\"原陣列安全無恙:\", original[0][0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原陣列安全無恙:\"</span>, <span class=\"token-ident\">original</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>])",
+        "alt": "印出 original[0][0] 依然保持為 1",
+        "diff": true,
+        "why": "驗證本體安全",
+        "mean": "輸出 1"
+      },
+      {
+        "num": 6,
+        "code": "print(\"是否同指針:\", original[0] is deep[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"是否同指針:\"</span>, <span class=\"token-ident\">original</span>[<span class=\"token-number\">0</span>] <span class=\"token-keyword\">is</span> <span class=\"token-ident\">deep</span>[<span class=\"token-number\">0</span>])",
+        "alt": "印出 False 證實門牌完全獨立",
+        "diff": true,
+        "why": "驗證記憶體獨立",
+        "mean": "輸出 False"
+      }
+    ],
+    "output": "深拷貝新陣列: 999\n原陣列安全無恙: 1\n是否同指針: False",
+    "memoryState": [
+      {
+        "name": "original[0][0]",
+        "val": "1 (安全無恙)",
+        "diff": false
+      },
+      {
+        "name": "deep[0][0]",
+        "val": "999",
+        "diff": true
+      },
+      {
+        "name": "original[0] is deep[0]",
+        "val": "False",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>標準二維深拷貝神招</strong>：<code>[row[:] for row in grid]</code>！利用切片 <code>row[:]</code> 為每一列獨立複製新空間，不需要 <code>import copy</code>，執行速度比 <code>copy.deepcopy()</code> 快上 5 倍！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 考場最速解</strong>：在考場上若要保存網格快照，直接寫這行生成式，輕巧且絕對無依賴。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：每列切片造新箱，內外獨立深拷貝"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.2 正確初始化黃金法則：[[0] * C for _ in range(R)]",
+    "titleZh": "考場地雷 3——R 與 C 順序顛倒，非正方矩陣形狀全跑偏！",
+    "titleEn": "Pitfall 3: Inverting R and C Flips Rectangular Shape",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 2, 5",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">5</span>",
+        "alt": "題目要求 2 列 5 行的長方形網格",
+        "why": "規格要求",
+        "mean": "2 列 5 行"
+      },
+      {
+        "num": 2,
+        "code": "wrong_grid = [[0] * R for _ in range(C)]",
+        "html": "<span class=\"token-ident\">wrong_grid</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-ident\"><span class=\"token-wavy-err\">R</span></span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\"><span class=\"token-wavy-err\">C</span></span>)]",
+        "alt": "筆誤將內外層 R 與 C 順序寫反",
+        "diff": true,
+        "why": "參數放反地雷",
+        "mean": "顛倒矩陣"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"誤產生的尺寸為: {len(wrong_grid)} 列 x {len(wrong_grid[0])} 行\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"誤產生的尺寸為: {<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">wrong_grid</span>)} 列 x {<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">wrong_grid</span>[<span class=\"token-number\">0</span>])} 行\"</span>)",
+        "alt": "輸出發現產成了 5 列 2 行",
+        "diff": true,
+        "why": "揭露尺寸錯誤",
+        "mean": "輸出 5 列 x 2 行"
+      }
+    ],
+    "output": "誤產生的尺寸為: 5 列 x 2 行",
+    "memoryState": [
+      {
+        "name": "預期尺寸",
+        "val": "2 列 x 5 行",
+        "diff": false
+      },
+      {
+        "name": "實際產生",
+        "val": "5 列 x 2 行 (嚴重形狀倒置)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>非正方矩陣的隱形殺手</strong>：在正方形網格（如 3x3）中放反看不出錯誤；但一旦進入長方形網格（如 2x5），寫反會讓矩陣縱橫顛倒，後續迴圈存取直接噴 <code>IndexError</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>記憶口訣強化</strong>：內層是單一列的長度（行數 C），外層是總共要跑幾列（列數 R）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內C外R莫顛倒，非方矩陣形狀跑"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.1 致命陷阱重現：[[0] * C] * R 淺拷貝參照共用慘劇",
+    "titleZh": "考場地雷 4——未初始化直接指定座標賦值引爆 IndexError！",
+    "titleEn": "Pitfall 4: Modifying Empty Grid Without Initialization",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = []",
+        "html": "<span class=\"token-ident\">grid</span> = []",
+        "alt": "宣告空白串列 grid",
+        "why": "未初始化容器",
+        "mean": "空串列"
+      },
+      {
+        "num": 2,
+        "code": "grid[0][0] = 10",
+        "html": "<span class=\"token-ident\"><span class=\"token-wavy-err\">grid[0]</span></span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">10</span>",
+        "alt": "在空箱中試圖存取第 0 列引爆 IndexError",
+        "diff": true,
+        "error": true,
+        "why": "箱內尚無元素直接索引賦值崩潰",
+        "mean": "越界報錯"
+      }
+    ],
+    "output": "IndexError: list index out of range",
+    "memoryState": [
+      {
+        "name": "grid",
+        "val": "[] (長度 0)",
+        "diff": false
+      },
+      {
+        "name": "grid[0]",
+        "val": "中斷 (根本不存在第 0 列)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>二維動態賦值的禁忌</strong>：Python 串列不像某些語言會自動擴展空間。如果尚未初始化大小，就直接 <code>grid[0][0] = ...</code>，第一步存取 <code>grid[0]</code> 就會瞬間噴出 <code>IndexError</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：必須先以列表生成式建立全 0 網格，或者以 <code>grid.append([])</code> 逐步填充。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：未初始化先賦值，空箱索引必越界"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.4 布林標記地圖與字元地圖初始化：False 拜訪矩陣與符號地圖",
+    "titleZh": "實戰驗收 1——九宮格布林標記探測與動態走訪更新！",
+    "titleEn": "Challenge 1: 3x3 Boolean Grid Tracking & Diagonal Visits",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "N = 3",
+        "html": "<span class=\"token-ident\">N</span> = <span class=\"token-number\">3</span>",
+        "alt": "邊長 N=3",
+        "why": "方陣規格",
+        "mean": "N = 3"
+      },
+      {
+        "num": 2,
+        "code": "visited = [[False] * N for _ in range(N)]",
+        "html": "<span class=\"token-ident\">visited</span> = [[<span class=\"token-builtin\">False</span>] * <span class=\"token-ident\">N</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">N</span>)]",
+        "alt": "安全建立全 False 標記矩陣",
+        "diff": true,
+        "why": "初始化標記矩陣",
+        "mean": "初始化布林網格"
+      },
+      {
+        "num": 3,
+        "code": "path = [(0, 0), (1, 1), (2, 2)]",
+        "html": "<span class=\"token-ident\">path</span> = [(<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>)]",
+        "alt": "給定主對角線三點路徑",
+        "why": "路徑座標串列",
+        "mean": "對角線路徑"
+      },
+      {
+        "num": 4,
+        "code": "for r, c in path: visited[r][c] = True",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">path</span>: <span class=\"token-ident\">visited</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] = <span class=\"token-builtin\">True</span>",
+        "alt": "逐一將對角線點標記為 True",
+        "diff": true,
+        "why": "動態更新走訪標記",
+        "mean": "標記為 True"
+      },
+      {
+        "num": 5,
+        "code": "print(\"對角線走訪標記結果:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"對角線走訪標記結果:\"</span>)",
+        "alt": "印出提示標題",
+        "why": "標題輸出",
+        "mean": "標題輸出"
+      },
+      {
+        "num": 6,
+        "code": "for row in visited: print(*[1 if v else 0 for v in row])",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">visited</span>: <span class=\"token-builtin\">print</span>(*[<span class=\"token-number\">1</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">else</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span>])",
+        "alt": "將 True 轉為 1、False 轉為 0 解包印出",
+        "diff": true,
+        "why": "轉換印出二元矩陣",
+        "mean": "輸出 0 與 1"
+      }
+    ],
+    "output": "對角線走訪標記結果:\n1 0 0\n0 1 0\n0 0 1",
+    "memoryState": [
+      {
+        "name": "visited[0][0]",
+        "val": "True",
+        "diff": true
+      },
+      {
+        "name": "visited[1][1]",
+        "val": "True",
+        "diff": true
+      },
+      {
+        "name": "visited[2][2]",
+        "val": "True",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>路徑模擬標記模式</strong>：將走訪路徑串列 <code>[(r, c), ...]</code> 依序代入 <code>visited[r][c] = True</code>，再將布林轉為 0/1 輸出，是 APCS 棋盤標記題的必備基本功。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>獨立性驗證</strong>：印出結果呈現乾淨的主對角線 1，確認其餘非對角線格子均保持為 0，未受參照共用干擾。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：座標路徑逐點走，布林標記清清楚"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3.6 二維陣列的獨立深拷貝：[row[:] for row in grid]",
+    "titleZh": "實戰驗收 2——矩陣狀態快照保存（備份與回滾）！",
+    "titleEn": "Challenge 2: Matrix Snapshot Backup & State Rollback",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "game_state = [[10, 20], [30, 40]]",
+        "html": "<span class=\"token-ident\">game_state</span> = [[<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>], [<span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>]]",
+        "alt": "宣告初始遊戲局勢狀態",
+        "why": "初始遊戲狀態",
+        "mean": "初始局勢"
+      },
+      {
+        "num": 2,
+        "code": "backup = [row[:] for row in game_state]",
+        "html": "<span class=\"token-ident\">backup</span> = [<span class=\"token-ident\">row</span>[:] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">game_state</span>]",
+        "alt": "切片深拷貝保存當前完整狀態快照",
+        "diff": true,
+        "why": "建立獨立備份快照",
+        "mean": "快照備份"
+      },
+      {
+        "num": 3,
+        "code": "game_state[0][0] = 999",
+        "html": "<span class=\"token-ident\">game_state</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">999</span>",
+        "alt": "模擬玩家走棋修改當前狀態",
+        "diff": true,
+        "why": "修改局勢",
+        "mean": "改當前局勢"
+      },
+      {
+        "num": 4,
+        "code": "print(\"修改後現狀:\", game_state[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"修改後現狀:\"</span>, <span class=\"token-ident\">game_state</span>[<span class=\"token-number\">0</span>])",
+        "alt": "輸出修改後的現狀",
+        "diff": true,
+        "why": "輸出當前狀態",
+        "mean": "輸出 [999, 20]"
+      },
+      {
+        "num": 5,
+        "code": "print(\"快照備份還原:\", backup[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"快照備份還原:\"</span>, <span class=\"token-ident\">backup</span>[<span class=\"token-number\">0</span>])",
+        "alt": "驗證備份依然保有原本的 [10, 20]",
+        "diff": true,
+        "why": "驗證備份純淨",
+        "mean": "輸出 [10, 20]"
+      }
+    ],
+    "output": "修改後現狀: [999, 20]\n快照備份還原: [10, 20]",
+    "memoryState": [
+      {
+        "name": "game_state[0]",
+        "val": "[999, 20]",
+        "diff": true
+      },
+      {
+        "name": "backup[0]",
+        "val": "[10, 20] (不受干擾)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>遊戲存檔與回溯機制</strong>：在回溯演算法（Backtracking）或回合制遊戲中，試探下一步之前必須先保存當前盤面。深拷貝確保隨時可退回原點！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>時間與空間代價</strong>：二維深拷貝需要額外 O(R*C) 記憶體與時間，因此只在關鍵狀態點進行備份。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：切片快照存備份，原地修改隨時退"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.3 綜合驗收：二維陣列初始化與參照共用致命陷阱大滿貫",
+    "titleZh": "第 9.3 單元大圓滿——矩陣架構防禦大師認證！",
+    "titleEn": "Milestone: Matrix Architecture Defense Mastered",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "指定矩陣尺寸 3x3",
+        "why": "矩陣尺寸",
+        "mean": "3x3 規格"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[r * C + c + 1 for c in range(C)] for r in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-ident\">r</span> * <span class=\"token-ident\">C</span> + <span class=\"token-ident\">c</span> + <span class=\"token-number\">1</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "列表生成式初始化 1 到 9 矩陣",
+        "why": "安全動態建構",
+        "mean": "初始化矩陣"
+      },
+      {
+        "num": 3,
+        "code": "backup = [row[:] for row in grid]",
+        "html": "<span class=\"token-ident\">backup</span> = [<span class=\"token-ident\">row</span>[:] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>]",
+        "alt": "建立獨立切片深拷貝快照",
+        "diff": true,
+        "why": "深拷貝備份",
+        "mean": "備份快照"
+      },
+      {
+        "num": 4,
+        "code": "grid[1][1] = 0",
+        "html": "<span class=\"token-ident\">grid</span>[<span class=\"token-number\">1</span>][<span class=\"token-number\">1</span>] = <span class=\"token-number\">0</span>",
+        "alt": "修改原矩陣中心點為 0",
+        "diff": true,
+        "why": "修改原陣列中心",
+        "mean": "原矩陣中心設 0"
+      },
+      {
+        "num": 5,
+        "code": "print(\"修改中心點:\", grid[1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"修改中心點:\"</span>, <span class=\"token-ident\">grid</span>[<span class=\"token-number\">1</span>])",
+        "alt": "輸出原矩陣第 1 列",
+        "diff": true,
+        "why": "輸出原矩陣",
+        "mean": "輸出 [4, 0, 6]"
+      },
+      {
+        "num": 6,
+        "code": "print(\"備份保持完整:\", backup[1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"備份保持完整:\"</span>, <span class=\"token-ident\">backup</span>[<span class=\"token-number\">1</span>])",
+        "alt": "輸出備份矩陣確認中心點仍為 5",
+        "diff": true,
+        "why": "輸出備份矩陣",
+        "mean": "輸出 [4, 5, 6]"
+      }
+    ],
+    "output": "修改中心點: [4, 0, 6]\n備份保持完整: [4, 5, 6]",
+    "memoryState": [
+      {
+        "name": "grid[1]",
+        "val": "[4, 0, 6]",
+        "diff": true
+      },
+      {
+        "name": "backup[1]",
+        "val": "[4, 5, 6] (安然無損)",
+        "diff": false
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 9.3 通關：矩陣架構防禦專家！",
+      "summary": "太震撼了！你已徹底消滅二維陣列最可怕的乘法參照共用慘劇，精通列表生成式安全初始化、id() 指標透視、visited 布林地圖、規律座標展開，以及切片深拷貝 [row[:] for row in grid]，矩陣地基固若金湯！",
+      "nextUnit": "9.4 二維網格雙重走訪與行列統計"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 展開初始化防禦實戰！</strong>：單元 9.3 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 40/50 儲存格的參照避雷與矩陣生成深度演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>二維陣列鐵律總結</strong>：宣告用 <code>[[0]*C for _ in range(R)]</code>，複製用 <code>[row[:] for row in grid]</code>，從此告別詭異連帶修改 Bug！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：生成造列不共用，矩陣穩如泰山峰"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-3_2d_array_initialization_and_reference_pitfall.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

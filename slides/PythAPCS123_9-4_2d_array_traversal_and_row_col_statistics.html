@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.4 二維網格雙重走訪與行列統計 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.4 二維網格雙重走訪與行列統計
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.1 雙重迴圈時鐘模型：外層列 r 與內層行 c 的時序與座標對生成",
+    "titleZh": "雙重迴圈時鐘模型——外列如時針、內行如分針！",
+    "titleEn": "Clock Model: Outer Loop for Row, Inner Loop for Column",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 2, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>",
+        "alt": "設定網格為 2 列 3 行",
+        "why": "尺寸常數定義",
+        "mean": "定義 2 列 3 行"
+      },
+      {
+        "num": 2,
+        "code": "for r in range(R):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>):",
+        "alt": "外層迴圈控制列下標 r（時針）",
+        "why": "列層走訪",
+        "mean": "外層走訪列"
+      },
+      {
+        "num": 3,
+        "code": "    for c in range(C):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>):",
+        "alt": "內層迴圈控制行下標 c（分針）",
+        "why": "行層走訪",
+        "mean": "內層走訪行"
+      },
+      {
+        "num": 4,
+        "code": "        print(f\"({r},{c})\", end=\" \")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"({r},{c})\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "alt": "印出目前格子的 (r, c) 座標對",
+        "diff": true,
+        "why": "印出座標",
+        "mean": "印出 (r, c)"
+      },
+      {
+        "num": 5,
+        "code": "    print()",
+        "html": "    <span class=\"token-builtin\">print</span>()",
+        "alt": "一列印完後換行",
+        "why": "換行格式化",
+        "mean": "一列換行"
+      }
+    ],
+    "output": "(0,0) (0,1) (0,2) \n(1,0) (1,1) (1,2) ",
+    "memoryState": [
+      {
+        "name": "r (外層列)",
+        "val": "1 (第 1 列)",
+        "diff": true
+      },
+      {
+        "name": "c (內層行)",
+        "val": "2 (第 2 行)",
+        "diff": true
+      },
+      {
+        "name": "目前座標",
+        "val": "(1, 2)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "外列時針內行分針"
+      },
+      {
+        "type": "point",
+        "text": "時針動一格（r+1），分針必須轉滿一整圈（c 從 0 跑到 C-1），這就是標準的二維橫向遍歷時序。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.2 橫列直接走訪：for row in grid: 搭配 sum(row) 極速列統計",
+    "titleZh": "橫列直接走訪風格——整列直接取出，優雅求和",
+    "titleEn": "Direct Row Traversal: Elegant Iteration with sum(row)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[10, 20, 30],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>],",
+        "alt": "定義 2D 數值網格第 0 列",
+        "why": "矩陣第 0 列",
+        "mean": "定義第 0 列"
+      },
+      {
+        "num": 2,
+        "code": "        [40, 50, 60]]",
+        "html": "        [<span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>, <span class=\"token-number\">60</span>]]",
+        "alt": "定義 2D 數值網格第 1 列",
+        "why": "矩陣第 1 列",
+        "mean": "定義第 1 列"
+      },
+      {
+        "num": 3,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "直接取出 grid 的每一個子列表 row",
+        "why": "直接列迭代",
+        "mean": "走訪每一列"
+      },
+      {
+        "num": 4,
+        "code": "    total = sum(row)",
+        "html": "    <span class=\"token-ident\">total</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">row</span>)",
+        "alt": "利用 sum() 內建函式直接計算整列總和",
+        "diff": true,
+        "why": "極速列統計",
+        "mean": "計算整列和"
+      },
+      {
+        "num": 5,
+        "code": "    print(f\"列內容: {row}, 列和: {total}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"列內容: {row}, 列和: {total}\"</span>)",
+        "alt": "印出目前整列內容與統計結果",
+        "why": "報表列印",
+        "mean": "輸出列資訊"
+      }
+    ],
+    "output": "列內容: [10, 20, 30], 列和: 60\n列內容: [40, 50, 60], 列和: 150",
+    "memoryState": [
+      {
+        "name": "row",
+        "val": "[40, 50, 60]",
+        "diff": true
+      },
+      {
+        "name": "total",
+        "val": "150",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "整列取出優雅求和"
+      },
+      {
+        "type": "point",
+        "text": "若不需要使用列號下標 r，直接走訪 row 語法最簡潔、可讀性最高，且不會有索引越界風險。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.3 橫列索引走訪：for r in range(R): 帶編號列統計與報表產出",
+    "titleZh": "橫列索引走訪風格——掌控行號列標，精準追蹤序號",
+    "titleEn": "Indexed Row Traversal: Tracking Row Index for Reporting",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [[85, 90],",
+        "html": "<span class=\"token-ident\">scores</span> = [[<span class=\"token-number\">85</span>, <span class=\"token-number\">90</span>],",
+        "alt": "第 0 號學生兩科成績",
+        "why": "學生 0 成績",
+        "mean": "學生 0 分數"
+      },
+      {
+        "num": 2,
+        "code": "          [78, 92]]",
+        "html": "          [<span class=\"token-number\">78</span>, <span class=\"token-number\">92</span>]]",
+        "alt": "第 1 號學生兩科成績",
+        "why": "學生 1 成績",
+        "mean": "學生 1 分數"
+      },
+      {
+        "num": 3,
+        "code": "R = len(scores)",
+        "html": "<span class=\"token-ident\">R</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">scores</span>)",
+        "alt": "取得列數 R",
+        "why": "計算總列數",
+        "mean": "學生總數 R"
+      },
+      {
+        "num": 4,
+        "code": "for r in range(R):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>):",
+        "alt": "用下標 r 遍歷每一列",
+        "why": "帶下標走訪",
+        "mean": "遍歷學生下標"
+      },
+      {
+        "num": 5,
+        "code": "    avg = sum(scores[r]) / len(scores[r])",
+        "html": "    <span class=\"token-ident\">avg</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">scores</span>[<span class=\"token-ident\">r</span>]) / <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">scores</span>[<span class=\"token-ident\">r</span>])",
+        "alt": "計算第 r 號學生的平均分數",
+        "diff": true,
+        "why": "計算平均",
+        "mean": "算第 r 列平均"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"學生第 {r} 號 平均: {avg:.1f}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"學生第 {r} 號 平均: {avg:.1f}\"</span>)",
+        "alt": "格式化印出帶序號的平均值",
+        "why": "印出報表",
+        "mean": "輸出學生平均"
+      }
+    ],
+    "output": "學生第 0 號 平均: 87.5\n學生第 1 號 平均: 85.0",
+    "memoryState": [
+      {
+        "name": "r",
+        "val": "1",
+        "diff": true
+      },
+      {
+        "name": "avg",
+        "val": "85.0",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "掌握序號報表清晰"
+      },
+      {
+        "type": "point",
+        "text": "當統計結果需要與編號（如學號、工號、第幾天）關聯，或者需要修改原陣列時，必須使用 range(R) 索引走訪。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.4 直行維度翻轉統計：外層 c 內層 r 的縱向走訪累加",
+    "titleZh": "直欄翻轉統計鐵律——外層固定行號 c，內層遍歷列號 r！",
+    "titleEn": "Column Traversal: Outer Loop on Col c, Inner Loop on Row r",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "定義 2x3 網格第 0 列",
+        "why": "設定網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "定義 2x3 網格第 1 列",
+        "why": "設定網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "取得列數 R=2 與行數 C=3",
+        "why": "計算邊界",
+        "mean": "取得 R 與 C"
+      },
+      {
+        "num": 4,
+        "code": "for c in range(C):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>):",
+        "alt": "關鍵翻轉：外層固定直欄行號 c",
+        "diff": true,
+        "why": "外層走訪直行",
+        "mean": "外層走訪行 c"
+      },
+      {
+        "num": 5,
+        "code": "    col_sum = sum(grid[r][c] for r in range(R))",
+        "html": "    <span class=\"token-ident\">col_sum</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>))",
+        "alt": "內層生成式向下貫穿所有列，累加第 c 行數值",
+        "diff": true,
+        "why": "縱向貫穿累加",
+        "mean": "縱向累加一欄"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"第 {c} 行總和: {col_sum}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"第 {c} 行總和: {col_sum}\"</span>)",
+        "alt": "印出目前直行的總和統計",
+        "why": "輸出直欄和",
+        "mean": "印出直欄統計"
+      }
+    ],
+    "output": "第 0 行總和: 5\n第 1 行總和: 7\n第 2 行總和: 9",
+    "memoryState": [
+      {
+        "name": "c",
+        "val": "2",
+        "diff": true
+      },
+      {
+        "name": "col_sum",
+        "val": "9 (3 + 6)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "外行內列直欄累加"
+      },
+      {
+        "type": "point",
+        "text": "直欄統計的靈魂在於維度翻轉：外層先選定直欄 c，內層用 r 走過每一列，下標永遠寫 grid[r][c] 而非反過來。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.5 全網格全域極值搜尋與座標定位鎖定",
+    "titleZh": "全網格極值與座標定位——更新數值時同步釘選 (r, c)",
+    "titleEn": "Global Min/Max Search: Simultaneously Pinpointing (r, c)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[12, 45, 23],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">12</span>, <span class=\"token-number\">45</span>, <span class=\"token-number\">23</span>],",
+        "alt": "2D 數值矩陣第 0 列",
+        "why": "矩陣列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [67, 89, 34]]",
+        "html": "        [<span class=\"token-number\">67</span>, <span class=\"token-number\">89</span>, <span class=\"token-number\">34</span>]]",
+        "alt": "2D 數值矩陣第 1 列",
+        "why": "矩陣列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "max_val = grid[0][0]",
+        "html": "<span class=\"token-ident\">max_val</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>]",
+        "alt": "極值初值務必設為網格第一個真實元素",
+        "why": "初始化極值",
+        "mean": "初值設首格"
+      },
+      {
+        "num": 4,
+        "code": "best_r, best_c = 0, 0",
+        "html": "<span class=\"token-ident\">best_r</span>, <span class=\"token-ident\">best_c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>",
+        "alt": "極值對應的列與行座標初值",
+        "why": "初始化座標",
+        "mean": "初值座標 (0,0)"
+      },
+      {
+        "num": 5,
+        "code": "for r in range(len(grid)):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>)):",
+        "alt": "外層走訪列",
+        "why": "外層列遍歷",
+        "mean": "走訪列下標"
+      },
+      {
+        "num": 6,
+        "code": "    for c in range(len(grid[0])):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])):",
+        "alt": "內層走訪行",
+        "why": "內層行遍歷",
+        "mean": "走訪行下標"
+      },
+      {
+        "num": 7,
+        "code": "        if grid[r][c] > max_val:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] > <span class=\"token-ident\">max_val</span>:",
+        "alt": "發現更大值時觸發更新",
+        "why": "極值比較條件",
+        "mean": "判斷是否更大"
+      },
+      {
+        "num": 8,
+        "code": "            max_val = grid[r][c]",
+        "html": "            <span class=\"token-ident\">max_val</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>]",
+        "alt": "更新目前最大值",
+        "diff": true,
+        "why": "更新數值",
+        "mean": "更新最大數值"
+      },
+      {
+        "num": 9,
+        "code": "            best_r, best_c = r, c",
+        "html": "            <span class=\"token-ident\">best_r</span>, <span class=\"token-ident\">best_c</span> = <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>",
+        "alt": "同步釘選目前最大值所在的 (r, c) 座標",
+        "diff": true,
+        "why": "同步鎖定座標",
+        "mean": "釘選座標位置"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"最大值 {max_val} 位於 ({best_r}, {best_c})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最大值 {max_val} 位於 ({best_r}, {best_c})\"</span>)",
+        "alt": "印出最大數值與確切座標",
+        "why": "輸出搜尋結果",
+        "mean": "輸出極值與座標"
+      }
+    ],
+    "output": "最大值 89 位於 (1, 1)",
+    "memoryState": [
+      {
+        "name": "max_val",
+        "val": "89",
+        "diff": true
+      },
+      {
+        "name": "(best_r, best_c)",
+        "val": "(1, 1)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "極值更新座標同步"
+      },
+      {
+        "type": "point",
+        "text": "在 APCS 二維矩陣題目中，找到極值後往往要求輸出其座標，切記更新數值的當下必須同時儲存 r 與 c。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.6 網格條件計數與布林走訪過濾",
+    "titleZh": "條件過濾與計數累加——走訪中即時判定符合門檻之格子",
+    "titleEn": "Conditional Filtering and Counting in Grid Traversal",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[5, 12, 8],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">5</span>, <span class=\"token-number\">12</span>, <span class=\"token-number\">8</span>],",
+        "alt": "數值矩陣第 0 列",
+        "why": "設定第 0 列",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [15, 3, 20]]",
+        "html": "        [<span class=\"token-number\">15</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">20</span>]]",
+        "alt": "數值矩陣第 1 列",
+        "why": "設定第 1 列",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "pass_count = 0",
+        "html": "<span class=\"token-ident\">pass_count</span> = <span class=\"token-number\">0</span>",
+        "alt": "計數累加器初始化為 0",
+        "why": "初始化計數器",
+        "mean": "計數歸零"
+      },
+      {
+        "num": 4,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "外層走訪每一列",
+        "why": "走訪每一列",
+        "mean": "逐列迭代"
+      },
+      {
+        "num": 5,
+        "code": "    for val in row:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span>:",
+        "alt": "內層走訪列中的每個元素 val",
+        "why": "走訪列內元素",
+        "mean": "逐格檢查"
+      },
+      {
+        "num": 6,
+        "code": "        if val >= 10:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">val</span> >= <span class=\"token-number\">10</span>:",
+        "alt": "過濾門檻：數值是否大於等於 10",
+        "why": "條件過濾",
+        "mean": "檢查及格標準"
+      },
+      {
+        "num": 7,
+        "code": "            pass_count += 1",
+        "html": "            <span class=\"token-ident\">pass_count</span> += <span class=\"token-number\">1</span>",
+        "alt": "符合條件則計數器加 1",
+        "diff": true,
+        "why": "計數遞增",
+        "mean": "符合則計數加一"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"及格（>=10）格子數: {pass_count}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"及格（>=10）格子數: {pass_count}\"</span>)",
+        "alt": "印出符合門檻的格子總數",
+        "why": "輸出計數結果",
+        "mean": "印出總計數"
+      }
+    ],
+    "output": "及格（>=10）格子數: 3",
+    "memoryState": [
+      {
+        "name": "pass_count",
+        "val": "3",
+        "diff": true
+      },
+      {
+        "name": "符合元素",
+        "val": "12, 15, 20",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "雙層走訪條件計數"
+      },
+      {
+        "type": "point",
+        "text": "若只需計算符合條件個數，此雙重走訪搭配計數器的寫法非常清晰直觀，也可以精簡寫為 sum(1 for row in grid for x in row if x >= 10)。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.7 行列統計結果列表推導式打包",
+    "titleZh": "行列統計結果打包封裝——一網打盡各列與各行特徵向量",
+    "titleEn": "Packaging Row and Column Statistics with List Comprehensions",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "定義 2x3 網格列 0",
+        "why": "矩陣列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "定義 2x3 網格列 1",
+        "why": "矩陣列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "取得網格邊界尺寸",
+        "why": "計算網格長寬",
+        "mean": "取得列數與行數"
+      },
+      {
+        "num": 4,
+        "code": "row_sums = [sum(row) for row in grid]",
+        "html": "<span class=\"token-ident\">row_sums</span> = [<span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">row</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>]",
+        "alt": "一行列表推導式打包所有列總和",
+        "diff": true,
+        "why": "推導列總和",
+        "mean": "打包各列和"
+      },
+      {
+        "num": 5,
+        "code": "col_sums = [sum(grid[r][c] for r in range(R)) for c in range(C)]",
+        "html": "<span class=\"token-ident\">col_sums</span> = [<span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "巢狀推導式打包所有行總和",
+        "diff": true,
+        "why": "推導行總和",
+        "mean": "打包各行和"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"列總和向量: {row_sums}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"列總和向量: {row_sums}\"</span>)",
+        "alt": "印出各列統計列表",
+        "why": "輸出列結果",
+        "mean": "印出列向量"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"行總和向量: {col_sums}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"行總和向量: {col_sums}\"</span>)",
+        "alt": "印出各行統計列表",
+        "why": "輸出行結果",
+        "mean": "印出行向量"
+      }
+    ],
+    "output": "列總和向量: [6, 15]\n行總和向量: [5, 7, 9]",
+    "memoryState": [
+      {
+        "name": "row_sums",
+        "val": "[6, 15]",
+        "diff": true
+      },
+      {
+        "name": "col_sums",
+        "val": "[5, 7, 9]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "推導封裝特徵向量"
+      },
+      {
+        "type": "point",
+        "text": "將統計結果打包成一維列表，方便後續直接使用 max(row_sums) 找出最佳列或求出全域總體平均。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.8 動態非方陣尺寸邊界萃取法則",
+    "titleZh": "網格邊界鎖定鐵律——R = len(grid), C = len(grid[0])",
+    "titleEn": "Grid Boundary Extraction: Safe Length Retrieval for Non-Square",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3, 4],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>],",
+        "alt": "3 列 4 行網格列 0",
+        "why": "非方陣列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [5, 6, 7, 8],",
+        "html": "        [<span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">8</span>],",
+        "alt": "3 列 4 行網格列 1",
+        "why": "非方陣列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "        [9, 10, 11, 12]]",
+        "html": "        [<span class=\"token-number\">9</span>, <span class=\"token-number\">10</span>, <span class=\"token-number\">11</span>, <span class=\"token-number\">12</span>]]",
+        "alt": "3 列 4 行網格列 2",
+        "why": "非方陣列 2",
+        "mean": "定義列 2"
+      },
+      {
+        "num": 4,
+        "code": "R = len(grid)",
+        "html": "<span class=\"token-ident\">R</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>)",
+        "alt": "列數等於最外層清單的長度",
+        "why": "萃取外層列數",
+        "mean": "取得列數 R"
+      },
+      {
+        "num": 5,
+        "code": "C = len(grid[0]) if R > 0 else 0",
+        "html": "<span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>]) <span class=\"token-keyword\">if</span> <span class=\"token-ident\">R</span> > <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-number\">0</span>",
+        "alt": "行數等於第 0 列子清單的長度（防禦空格）",
+        "diff": true,
+        "why": "安全萃取行數",
+        "mean": "取得行數 C"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"列數 R={R}, 行數 C={C}, 總格數={R * C}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"列數 R={R}, 行數 C={C}, 總格數={R * C}\"</span>)",
+        "alt": "印出尺寸與格子總數",
+        "why": "驗證邊界尺寸",
+        "mean": "輸出網格規格"
+      }
+    ],
+    "output": "列數 R=3, 行數 C=4, 總格數=12",
+    "memoryState": [
+      {
+        "name": "R",
+        "val": "3",
+        "diff": true
+      },
+      {
+        "name": "C",
+        "val": "4",
+        "diff": true
+      },
+      {
+        "name": "R * C",
+        "val": "12",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "先求外列再取內行"
+      },
+      {
+        "type": "point",
+        "text": "非方陣中 R 與 C 往往不同（如 3x4），切勿假設長寬相等，進入走訪迴圈前先明確算出 R 與 C 是最穩健的習慣。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.9 行列索引顛倒引發 IndexError 災難",
+    "titleZh": "【即時預測】行列顛倒災難——grid[c][r] 踩爆非方陣索引邊界！",
+    "titleEn": "Exam Pitfall: Swapping r and c Causes Lethal IndexError",
+    "predictQuiz": {
+      "question": "下列程式碼中矩陣尺寸為 2 列 4 行 (R=2, C=4)，嘗試存取 grid[2][0] 會發生何種結果？",
+      "options": [
+        "A: 正常印出數值 5",
+        "B: 引發 IndexError 索引超出範圍",
+        "C: 正常印出數值 2",
+        "D: 引發 TypeError 語法錯誤"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "grid 只有 2 列（合法列下標為 0 和 1），第 0 維度最大只能到 1。若將第 2 行的下標 2 誤當作列下標寫成 grid[2][0]，立刻觸發 IndexError！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3, 4],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>],",
+        "alt": "2 列 4 行網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [5, 6, 7, 8]]",
+        "html": "        [<span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">8</span>]]",
+        "alt": "2 列 4 行網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "R=2 列, C=4 行",
+        "why": "標註尺寸",
+        "mean": "尺寸 R=2, C=4"
+      },
+      {
+        "num": 4,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "測試危險下標存取",
+        "why": "異常捕捉",
+        "mean": "嘗試執行"
+      },
+      {
+        "num": 5,
+        "code": "    val = grid[2][0]",
+        "html": "    <span class=\"token-ident\">val</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-number\">2</span>][<span class=\"token-number\">0</span>]",
+        "alt": "錯誤下標：列下標寫了 2 超出邊界 [0..1]",
+        "diff": true,
+        "why": "致命越界存取",
+        "mean": "存取超界列"
+      },
+      {
+        "num": 6,
+        "code": "    print(\"數值:\", val)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"數值:\"</span>, <span class=\"token-ident\">val</span>)",
+        "alt": "印出數值",
+        "why": "正常輸出",
+        "mean": "輸出數值"
+      },
+      {
+        "num": 7,
+        "code": "except IndexError as e:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-builtin\">IndexError</span> <span class=\"token-keyword\">as</span> <span class=\"token-ident\">e</span>:",
+        "alt": "捕獲列越界例外",
+        "why": "捕捉異常",
+        "mean": "捕捉越界例外"
+      },
+      {
+        "num": 8,
+        "code": "    print(\"捕獲異常: IndexError\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"捕獲異常: IndexError\"</span>)",
+        "alt": "印出 IndexError 警告",
+        "diff": true,
+        "why": "印出錯誤類型",
+        "mean": "印出越界提醒"
+      }
+    ],
+    "output": "捕獲異常: IndexError",
+    "memoryState": [
+      {
+        "name": "合法列下標範圍",
+        "val": "0 ~ 1",
+        "diff": false
+      },
+      {
+        "name": "嘗試列下標",
+        "val": "2 (超出邊界！)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "先列後行切勿顛倒"
+      },
+      {
+        "type": "point",
+        "text": "在長方形非方陣中，縱向走訪時外層是 c、內層是 r，但存取元素永遠是 grid[r][c]，千萬不能手滑寫成 grid[c][r]。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.10 直行統計累加器忘記在迴圈內重置",
+    "titleZh": "累加器放置位置地雷——放在外層迴圈外導致數據雪崩式連鎖疊加！",
+    "titleEn": "Accumulator Scope Trap: Forgetting to Reset col_sum Inside Loop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>],",
+        "alt": "定義 2x2 矩陣列 0",
+        "why": "矩陣列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [3, 4]]",
+        "html": "        [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "定義 2x2 矩陣列 1",
+        "why": "矩陣列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "buggy_sum = 0",
+        "html": "<span class=\"token-ident\">buggy_sum</span> = <span class=\"token-number\">0</span>",
+        "alt": "致命錯誤：累加器宣告在外層迴圈外面",
+        "diff": true,
+        "why": "累加器作用域錯誤",
+        "mean": "外層錯誤累加器"
+      },
+      {
+        "num": 4,
+        "code": "for c in range(2):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):",
+        "alt": "外層遍歷各行",
+        "why": "遍歷各行",
+        "mean": "外層走訪行"
+      },
+      {
+        "num": 5,
+        "code": "    for r in range(2):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):",
+        "alt": "內層遍歷各列",
+        "why": "遍歷各列",
+        "mean": "內層走訪列"
+      },
+      {
+        "num": 6,
+        "code": "        buggy_sum += grid[r][c]",
+        "html": "        <span class=\"token-ident\">buggy_sum</span> += <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>]",
+        "alt": "累加數值到 buggy_sum",
+        "why": "累加運算",
+        "mean": "數值累加"
+      },
+      {
+        "num": 7,
+        "code": "    print(f\"錯誤累計 第 {c} 行: {buggy_sum}\", end=\" | \")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"錯誤累計 第 {c} 行: {buggy_sum}\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" | \"</span>)",
+        "alt": "第 1 行結果受到第 0 行殘留數值污染",
+        "diff": true,
+        "why": "印出受污染累計",
+        "mean": "印出錯誤統計"
+      },
+      {
+        "num": 8,
+        "code": "print()",
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "alt": "最後換行",
+        "why": "換行",
+        "mean": "換行結束"
+      }
+    ],
+    "output": "錯誤累計 第 0 行: 4 | 錯誤累計 第 1 行: 10 | ",
+    "memoryState": [
+      {
+        "name": "第 0 行真實和",
+        "val": "1 + 3 = 4",
+        "diff": false
+      },
+      {
+        "name": "第 1 行真實和",
+        "val": "2 + 4 = 6 (但印出 10！)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "逐行累加每輪歸零"
+      },
+      {
+        "type": "point",
+        "text": "統計每一行或每一列的總和時，累加變數必須寫在外層迴圈內部第一行（每次換行/換列時歸零），否則前一輪結果會滾雪球帶到下一輪。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.11 全負數網格極值初值設為 0 的全盲陷阱",
+    "titleZh": "極值初值設定地雷——設為 0 在全負數網格直接全盲！",
+    "titleEn": "Initial Value Pitfall: Setting max_val to 0 Fails on Negative Grids",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[-15, -20],",
+        "html": "<span class=\"token-ident\">grid</span> = [[-<span class=\"token-number\">15</span>, -<span class=\"token-number\">20</span>],",
+        "alt": "全負數矩陣列 0",
+        "why": "全負數列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [-30, -5]]",
+        "html": "        [-<span class=\"token-number\">30</span>, -<span class=\"token-number\">5</span>]]",
+        "alt": "全負數矩陣列 1",
+        "why": "全負數列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "safe_max = grid[0][0]",
+        "html": "<span class=\"token-ident\">safe_max</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>]",
+        "alt": "以真實元素 grid[0][0] 作為極值初值基準",
+        "diff": true,
+        "why": "安全初值指派",
+        "mean": "以首格為初值"
+      },
+      {
+        "num": 4,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "走訪每一列",
+        "why": "列迭代",
+        "mean": "遍歷各列"
+      },
+      {
+        "num": 5,
+        "code": "    for x in row:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span>:",
+        "alt": "走訪列內各元素",
+        "why": "元素迭代",
+        "mean": "遍歷各元素"
+      },
+      {
+        "num": 6,
+        "code": "        if x > safe_max:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> > <span class=\"token-ident\">safe_max</span>:",
+        "alt": "若當前元素大於 safe_max 則更新",
+        "why": "極值比較",
+        "mean": "比對最大值"
+      },
+      {
+        "num": 7,
+        "code": "            safe_max = x",
+        "html": "            <span class=\"token-ident\">safe_max</span> = <span class=\"token-ident\">x</span>",
+        "alt": "更新 safe_max",
+        "diff": true,
+        "why": "更新數值",
+        "mean": "更新極值"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"安全負數最大值: {safe_max}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"安全負數最大值: {safe_max}\"</span>)",
+        "alt": "正確印出全負數中的最大值 -5",
+        "why": "印出正確結果",
+        "mean": "輸出正確極值"
+      }
+    ],
+    "output": "安全負數最大值: -5",
+    "memoryState": [
+      {
+        "name": "若誤設 max_val=0",
+        "val": "0 (全盲！陣列中根本沒有 0)",
+        "diff": true
+      },
+      {
+        "name": "正確 safe_max",
+        "val": "-5",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "極值初值首格優先"
+      },
+      {
+        "type": "point",
+        "text": "求極大值絕不要想當然爾地設為 0，求極小值也不要隨意設為 9999；最安全牢靠的做法永遠是直接取 grid[0][0] 作為基準。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.12 走訪中修改原網格形狀破壞走訪契約",
+    "titleZh": "走訪結構修改地雷——走訪途中 append 或 pop 導致跳格或死循環！",
+    "titleEn": "Mutation Hazard: Modifying Grid Dimensions While Iterating",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "定義原始 2x2 矩陣",
+        "why": "定義原矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "new_grid = [[x * 2 for x in row] for row in grid]",
+        "html": "<span class=\"token-ident\">new_grid</span> = [[<span class=\"token-ident\">x</span> * <span class=\"token-number\">2</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>]",
+        "alt": "安全標準做法：以推導式生成全新網格，不破壞原陣列結構",
+        "diff": true,
+        "why": "無副作用衍生矩陣",
+        "mean": "生成全新矩陣"
+      },
+      {
+        "num": 3,
+        "code": "print(\"安全衍生新矩陣:\", new_grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"安全衍生新矩陣:\"</span>, <span class=\"token-ident\">new_grid</span>)",
+        "alt": "印出變換後的新矩陣",
+        "why": "輸出新網格",
+        "mean": "印出新矩陣"
+      },
+      {
+        "num": 4,
+        "code": "print(\"原矩陣保持完好:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原矩陣保持完好:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "確認原矩陣結構完全不受任何破壞",
+        "why": "驗證原始完整性",
+        "mean": "印出原矩陣"
+      }
+    ],
+    "output": "安全衍生新矩陣: [[2, 4], [6, 8]]\n原矩陣保持完好: [[1, 2], [3, 4]]",
+    "memoryState": [
+      {
+        "name": "new_grid",
+        "val": "[[2, 4], [6, 8]]",
+        "diff": true
+      },
+      {
+        "name": "grid (未受破壞)",
+        "val": "[[1, 2], [3, 4]]",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "走訪不變網格尺寸"
+      },
+      {
+        "type": "point",
+        "text": "若在走訪二維網格的迴圈中直接呼叫 grid.append() 或 grid.pop()，會導致走訪指標混亂引發跳格或無窮迴圈，應採用衍生新矩陣策略。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.13 綜合實戰一：全班多學科成績彙整儀表板",
+    "titleZh": "綜合實戰一——全班多學科成績彙整：每人總分與每科平均雙向分析",
+    "titleEn": "Capstone 1: Dual-Direction Classroom Grade Dashboard",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [[80, 90, 85],",
+        "html": "<span class=\"token-ident\">scores</span> = [[<span class=\"token-number\">80</span>, <span class=\"token-number\">90</span>, <span class=\"token-number\">85</span>],",
+        "alt": "學生 0 的三科成績",
+        "why": "學生 0 分數",
+        "mean": "定義學生 0"
+      },
+      {
+        "num": 2,
+        "code": "          [70, 60, 75],",
+        "html": "          [<span class=\"token-number\">70</span>, <span class=\"token-number\">60</span>, <span class=\"token-number\">75</span>],",
+        "alt": "學生 1 的三科成績",
+        "why": "學生 1 分數",
+        "mean": "定義學生 1"
+      },
+      {
+        "num": 3,
+        "code": "          [90, 95, 100]]",
+        "html": "          [<span class=\"token-number\">90</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">100</span>]]",
+        "alt": "學生 2 的三科成績",
+        "why": "學生 2 分數",
+        "mean": "定義學生 2"
+      },
+      {
+        "num": 4,
+        "code": "R, C = len(scores), len(scores[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">scores</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">scores</span>[<span class=\"token-number\">0</span>])",
+        "alt": "取得班級人數 R=3 與科目數 C=3",
+        "why": "萃取行列長度",
+        "mean": "學生數與科目數"
+      },
+      {
+        "num": 5,
+        "code": "for r, student in enumerate(scores):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span>, <span class=\"token-ident\">student</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">scores</span>):",
+        "alt": "橫向走訪：計算每位學生的總分與平均",
+        "diff": true,
+        "why": "橫向個人統計",
+        "mean": "走訪每位學生"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"學生{r} 總分={sum(student)} 平均={sum(student)/C:.1f}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"學生{r} 總分={sum(student)} 平均={sum(student)/C:.1f}\"</span>)",
+        "alt": "印出學生個人成績報告",
+        "why": "印出個人分析",
+        "mean": "輸出個人總分平均"
+      },
+      {
+        "num": 7,
+        "code": "for c in range(C):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>):",
+        "alt": "縱向走訪：外層固定科目行號 c",
+        "diff": true,
+        "why": "縱向學科統計",
+        "mean": "外層走訪各科目"
+      },
+      {
+        "num": 8,
+        "code": "    col_avg = sum(scores[r][c] for r in range(R)) / R",
+        "html": "    <span class=\"token-ident\">col_avg</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">scores</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)) / <span class=\"token-ident\">R</span>",
+        "alt": "計算科目 c 的全班平均分數",
+        "diff": true,
+        "why": "計算學科平均",
+        "mean": "計算直行平均"
+      },
+      {
+        "num": 9,
+        "code": "    print(f\"科目{c} 平均={col_avg:.1f}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"科目{c} 平均={col_avg:.1f}\"</span>)",
+        "alt": "印出學科平均分數報告",
+        "why": "印出學科分析",
+        "mean": "輸出學科平均"
+      }
+    ],
+    "output": "學生0 總分=255 平均=85.0\n學生1 總分=205 平均=68.3\n學生2 總分=285 平均=95.0\n科目0 平均=80.0\n科目1 平均=81.7\n科目2 平均=86.7",
+    "memoryState": [
+      {
+        "name": "學生 2 (個人最佳)",
+        "val": "總分 285",
+        "diff": false
+      },
+      {
+        "name": "科目 2 (全班最佳)",
+        "val": "平均 86.7",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "雙向統計學生科目"
+      },
+      {
+        "type": "point",
+        "text": "成績表雙向統計是 APCS 與各大考試最經典的題型，橫向算個人統計、縱向算科目指標，掌握外列與外行的切換便能得心應手。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4.14 綜合實戰二：地形高程圖最高峰搜尋與座標定位鎖定",
+    "titleZh": "綜合實戰二——地形高程最高峰掃描：全域極值與座標釘選",
+    "titleEn": "Capstone 2: Mountain Peak Coordinate Scanning and Pinpointing",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "elevation = [[120, 150, 130],",
+        "html": "<span class=\"token-ident\">elevation</span> = [[<span class=\"token-number\">120</span>, <span class=\"token-number\">150</span>, <span class=\"token-number\">130</span>],",
+        "alt": "地形網格第 0 列高程",
+        "why": "高程列 0",
+        "mean": "定義高程列 0"
+      },
+      {
+        "num": 2,
+        "code": "             [140, 280, 190],",
+        "html": "             [<span class=\"token-number\">140</span>, <span class=\"token-number\">280</span>, <span class=\"token-number\">190</span>],",
+        "alt": "地形網格第 1 列高程",
+        "why": "高程列 1",
+        "mean": "定義高程列 1"
+      },
+      {
+        "num": 3,
+        "code": "             [110, 160, 175]]",
+        "html": "             [<span class=\"token-number\">110</span>, <span class=\"token-number\">160</span>, <span class=\"token-number\">175</span>]]",
+        "alt": "地形網格第 2 列高程",
+        "why": "高程列 2",
+        "mean": "定義高程列 2"
+      },
+      {
+        "num": 4,
+        "code": "peak, pr, pc = elevation[0][0], 0, 0",
+        "html": "<span class=\"token-ident\">peak</span>, <span class=\"token-ident\">pr</span>, <span class=\"token-ident\">pc</span> = <span class=\"token-ident\">elevation</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>], <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>",
+        "alt": "以第一個山頭作為初始最高峰",
+        "why": "初值設定",
+        "mean": "初始巔峰 (0,0)"
+      },
+      {
+        "num": 5,
+        "code": "for r in range(len(elevation)):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">elevation</span>)):",
+        "alt": "逐列掃描地形",
+        "why": "遍歷列",
+        "mean": "掃描列"
+      },
+      {
+        "num": 6,
+        "code": "    for c in range(len(elevation[0])):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">elevation</span>[<span class=\"token-number\">0</span>])):",
+        "alt": "逐行掃描地形",
+        "why": "遍歷行",
+        "mean": "掃描行"
+      },
+      {
+        "num": 7,
+        "code": "        if elevation[r][c] > peak:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">elevation</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] > <span class=\"token-ident\">peak</span>:",
+        "alt": "發現更高山峰",
+        "why": "高度比對",
+        "mean": "比對更高峰"
+      },
+      {
+        "num": 8,
+        "code": "            peak, pr, pc = elevation[r][c], r, c",
+        "html": "            <span class=\"token-ident\">peak</span>, <span class=\"token-ident\">pr</span>, <span class=\"token-ident\">pc</span> = <span class=\"token-ident\">elevation</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>], <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>",
+        "alt": "同步更新最高峰高度與座標",
+        "diff": true,
+        "why": "多變數同步指派",
+        "mean": "同步更新巔峰座標"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"最高峰高度: {peak}, 座標: ({pr}, {pc})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最高峰高度: {peak}, 座標: ({pr}, {pc})\"</span>)",
+        "alt": "印出最高峰數值與其座標釘選位置",
+        "why": "印出掃描成果",
+        "mean": "輸出最高峰資訊"
+      }
+    ],
+    "output": "最高峰高度: 280, 座標: (1, 1)",
+    "memoryState": [
+      {
+        "name": "peak",
+        "val": "280",
+        "diff": true
+      },
+      {
+        "name": "(pr, pc)",
+        "val": "(1, 1)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "掃描全域鎖定巔峰"
+      },
+      {
+        "type": "point",
+        "text": "利用 Python 多變數同時指派 peak, pr, pc = elevation[r][c], r, c，能以最簡約的語法同步維持極值與座標的一致性。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.4 綜合驗收與通關簽到",
+    "titleZh": "單元結業通關——網格雙重走訪與行列統計完全通透！",
+    "titleEn": "Unit Completion: Mastering 2D Grid Traversal and Statistics",
+    "completionCard": {
+      "badge": "網格統計大師",
+      "summary": "你已精通時鐘走訪模型、外列內行與直行外行內列翻轉、全域極值與座標同步鎖定，徹底免疫非方陣 IndexError 地雷！",
+      "nextUnit": "9.5 二維方陣與特殊走訪：對角線與棋盤規律"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "驗收網格 2x2",
+        "why": "驗收基準矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "r_sum = [sum(row) for row in grid]",
+        "html": "<span class=\"token-ident\">r_sum</span> = [<span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">row</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>]",
+        "alt": "各列總和推導式",
+        "why": "列統計彙總",
+        "mean": "計算列總和"
+      },
+      {
+        "num": 3,
+        "code": "c_sum = [sum(grid[r][c] for r in range(2)) for c in range(2)]",
+        "html": "<span class=\"token-ident\">c_sum</span> = [<span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>)) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>)]",
+        "alt": "各行總和推導式",
+        "why": "行統計彙總",
+        "mean": "計算行總和"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"驗收達成: 列總和={r_sum}, 行總和={c_sum}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"驗收達成: 列總和={r_sum}, 行總和={c_sum}\"</span>)",
+        "alt": "印出雙向統計成果完成結業",
+        "diff": true,
+        "why": "印出通關驗收",
+        "mean": "輸出通關結業"
+      }
+    ],
+    "output": "驗收達成: 列總和=[3, 7], 行總和=[4, 6]",
+    "memoryState": [
+      {
+        "name": "列總和",
+        "val": "[3, 7]",
+        "diff": true
+      },
+      {
+        "name": "行總和",
+        "val": "[4, 6]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "網格遍歷統計全通"
+      },
+      {
+        "type": "point",
+        "text": "恭喜完成單元 9-4！下一單元我們將邁向二維方陣與特殊幾何走訪，解鎖主對角線、次對角線與棋盤格幾何規律！"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-4",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-4_2d_array_traversal_and_row_col_statistics.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

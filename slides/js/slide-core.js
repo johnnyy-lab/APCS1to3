@@ -591,6 +591,12 @@ function renderSlide(index) {
   // 迴圈變數追蹤矩陣卡 (Trace Table Widget - agytodo 2.4)
   renderTraceTable(slide);
 
+  // 雙向索引尺標卡 (Index Ruler Widget - agytodo 2.3)
+  renderIndexRuler(slide);
+
+  // 遞迴呼叫堆疊盒組件 (Call Stack Frame Widget - agytodo 2.5)
+  renderCallStack(slide);
+
   // 單元通關徽章與 Colab 實戰卡片 (agytodo 5.3)
   const isLast = (index === activeSlidesData.length - 1);
   const completionCard = document.getElementById('completionCard');
@@ -1062,6 +1068,310 @@ window.onTraceRowLeave = onTraceRowLeave;
 window.togglePinTraceRow = togglePinTraceRow;
 window.highlightTraceRowsForLines = highlightTraceRowsForLines;
 window.clearHighlightedTraceRows = clearHighlightedTraceRows;
+
+/* ==========================================================================
+   7.4 雙向索引尺標卡渲染引擎 (Index Ruler Widget - agytodo 2.3)
+   ========================================================================== */
+
+/**
+ * 動態渲染字串/串列雙向索引尺標卡
+ * slide.indexRuler 資料格式：
+ * {
+ *   title: "字串 s = \"PYTHON\" 的雙向索引",
+ *   hint: "點選欄位可高亮對應索引",
+ *   items: ["P","Y","T","H","O","N"],    // 字串字元或串列元素
+ *   activeIndex: 2,                       // 當前高亮欄位（optional）
+ *   diffIndices: [0, 5],                  // 特別標記欄位（optional）
+ *   showLegend: true                      // 是否顯示圖例
+ * }
+ */
+function renderIndexRuler(slide) {
+  let rulerStage = document.getElementById('indexRulerStage');
+
+  // 自動掛載：若 HTML 無此容器，自動插入在 traceTableStage 之後或 completionCard 之前
+  if (!rulerStage) {
+    const traceStage = document.getElementById('traceTableStage');
+    const notesContainer = traceStage
+      ? traceStage.parentNode
+      : (document.querySelector('.card-notes > div') || document.querySelector('.card-notes'));
+    if (!notesContainer) return;
+
+    rulerStage = document.createElement('div');
+    rulerStage.className = 'index-ruler-stage';
+    rulerStage.id = 'indexRulerStage';
+    rulerStage.style.display = 'none';
+    rulerStage.innerHTML = `
+      <div class="index-ruler-header">
+        <span class="index-ruler-title" id="indexRulerTitle">📐 雙向索引尺標</span>
+        <span class="index-ruler-hint" id="indexRulerHint">正向 0~N-1 · 負向 -1~-N</span>
+      </div>
+      <div class="index-ruler-cells" id="indexRulerCells"></div>
+      <div class="index-ruler-legend" id="indexRulerLegend" style="display:none">
+        <div class="ruler-legend-item"><div class="ruler-legend-dot pos"></div>正向索引</div>
+        <div class="ruler-legend-item"><div class="ruler-legend-dot val"></div>字元/元素</div>
+        <div class="ruler-legend-item"><div class="ruler-legend-dot neg"></div>負向索引</div>
+      </div>
+    `;
+
+    const completionCard = document.getElementById('completionCard');
+    if (traceStage && traceStage.nextSibling) {
+      notesContainer.insertBefore(rulerStage, traceStage.nextSibling);
+    } else if (completionCard) {
+      notesContainer.insertBefore(rulerStage, completionCard);
+    } else {
+      notesContainer.appendChild(rulerStage);
+    }
+  }
+
+  const rulerTitle = document.getElementById('indexRulerTitle');
+  const rulerHint = document.getElementById('indexRulerHint');
+  const rulerCells = document.getElementById('indexRulerCells');
+  const rulerLegend = document.getElementById('indexRulerLegend');
+
+  // 若無資料，隱藏並清空
+  if (!slide || !slide.indexRuler || !Array.isArray(slide.indexRuler.items) || slide.indexRuler.items.length === 0) {
+    rulerStage.style.display = 'none';
+    if (rulerCells) rulerCells.innerHTML = '';
+    return;
+  }
+
+  const ir = slide.indexRuler;
+  const items = ir.items;
+  const n = items.length;
+  const activeIndex = (typeof ir.activeIndex === 'number') ? ir.activeIndex : -1;
+  const diffIndices = Array.isArray(ir.diffIndices) ? ir.diffIndices : [];
+
+  rulerStage.style.display = 'block';
+
+  if (rulerTitle) rulerTitle.textContent = ir.title || '📐 雙向索引尺標';
+  if (rulerHint) rulerHint.textContent = ir.hint || `字串/串列長度：${n}，點選欄位高亮對應索引`;
+
+  if (rulerLegend) {
+    rulerLegend.style.display = (ir.showLegend !== false) ? 'flex' : 'none';
+  }
+
+  // 生成欄位 HTML：每個欄位包含 [正向索引, 元素, 負向索引]
+  const columnsHtml = items.map((item, i) => {
+    const posIdx = i;
+    const negIdx = i - n;
+    const isActive = (i === activeIndex);
+    const isDiff = diffIndices.includes(i);
+    const colClass = `ruler-column${isActive ? ' ruler-col-active' : ''}${isDiff ? ' ruler-col-diff' : ''}`;
+    const clickHandler = `onRulerColumnClick(${i})`;
+
+    // 顯示字串時用引號包圍
+    let displayVal = item;
+    if (typeof item === 'string' && item.length === 1) {
+      displayVal = `'${item}'`;
+    } else if (typeof item === 'string' && item.length > 1) {
+      displayVal = item;
+    }
+
+    return `
+      <div class="${colClass}" data-index="${i}" onclick="${clickHandler}" title="正向索引: ${posIdx}  負向索引: ${negIdx}  元素: ${item}">
+        <div class="ruler-cell-pos">${posIdx}</div>
+        <div class="ruler-cell-value">${displayVal}</div>
+        <div class="ruler-cell-neg">${negIdx}</div>
+      </div>
+    `;
+  }).join('');
+
+  if (rulerCells) {
+    rulerCells.innerHTML = `<div class="ruler-row" style="display:flex;flex-direction:row;gap:2px;">${columnsHtml}</div>`;
+  }
+}
+
+/**
+ * 點選尺標欄位時切換高亮
+ */
+function onRulerColumnClick(idx) {
+  const allCols = document.querySelectorAll('.ruler-column');
+  const clickedCol = document.querySelector(`.ruler-column[data-index="${idx}"]`);
+  if (!clickedCol) return;
+
+  // 若已高亮則取消，否則切換到該欄
+  if (clickedCol.classList.contains('ruler-col-active')) {
+    allCols.forEach(c => c.classList.remove('ruler-col-active'));
+  } else {
+    allCols.forEach(c => c.classList.remove('ruler-col-active'));
+    clickedCol.classList.add('ruler-col-active');
+  }
+}
+
+window.renderIndexRuler = renderIndexRuler;
+window.onRulerColumnClick = onRulerColumnClick;
+
+/* ==========================================================================
+   7.5 遞迴呼叫堆疊盒渲染引擎 (Call Stack Frame Widget - agytodo 2.5)
+   ========================================================================== */
+
+/**
+ * 動態渲染遞迴呼叫堆疊盒
+ * slide.callStack 資料格式：
+ * {
+ *   title: "呼叫堆疊（Call Stack）",
+ *   hint: "最新呼叫在最上方",
+ *   frames: [                             // 由底部到頂部順序
+ *     {
+ *       name: "factorial",               // 函式名
+ *       args: "(n=5)",                   // 參數（帶括號的完整字串）
+ *       vars: [                          // 區域變數（optional）
+ *         { name: "n", val: "5" },
+ *         { name: "result", val: "?" }
+ *       ],
+ *       returnVal: "120",                // 已回傳的值（optional）
+ *       status: "active"|"push"|"pop"|"base"|"done",
+ *       badge: "執行中",                 // 徽章文字（optional）
+ *       depth: 0                         // 巢狀深度（optional）
+ *     }
+ *   ],
+ *   maxDepth: 5                          // 最大深度限制展示（optional）
+ * }
+ */
+function renderCallStack(slide) {
+  let callStackStage = document.getElementById('callStackStage');
+
+  // 自動掛載
+  if (!callStackStage) {
+    const rulerStage = document.getElementById('indexRulerStage');
+    const traceStage = document.getElementById('traceTableStage');
+    const anchor = rulerStage || traceStage;
+    const notesContainer = anchor
+      ? anchor.parentNode
+      : (document.querySelector('.card-notes > div') || document.querySelector('.card-notes'));
+    if (!notesContainer) return;
+
+    callStackStage = document.createElement('div');
+    callStackStage.className = 'call-stack-stage';
+    callStackStage.id = 'callStackStage';
+    callStackStage.style.display = 'none';
+    callStackStage.innerHTML = `
+      <div class="call-stack-header">
+        <span class="call-stack-title" id="callStackTitle">📞 呼叫堆疊 (Call Stack)</span>
+        <span class="call-stack-hint" id="callStackHint">最新呼叫在最上方</span>
+      </div>
+      <div class="call-stack-frames" id="callStackFrames"></div>
+      <div class="call-stack-depth-bar" id="callStackDepthBar" style="display:none">
+        <span class="call-stack-depth-label">呼叫深度：</span>
+        <div class="call-stack-depth-dots" id="callStackDepthDots"></div>
+      </div>
+    `;
+
+    const completionCard = document.getElementById('completionCard');
+    if (anchor && anchor.nextSibling) {
+      notesContainer.insertBefore(callStackStage, anchor.nextSibling);
+    } else if (completionCard) {
+      notesContainer.insertBefore(callStackStage, completionCard);
+    } else {
+      notesContainer.appendChild(callStackStage);
+    }
+  }
+
+  const callStackTitle = document.getElementById('callStackTitle');
+  const callStackHint = document.getElementById('callStackHint');
+  const callStackFrames = document.getElementById('callStackFrames');
+  const callStackDepthBar = document.getElementById('callStackDepthBar');
+  const callStackDepthDots = document.getElementById('callStackDepthDots');
+
+  // 若無資料，隱藏並清空
+  if (!slide || !slide.callStack || !Array.isArray(slide.callStack.frames) || slide.callStack.frames.length === 0) {
+    callStackStage.style.display = 'none';
+    if (callStackFrames) callStackFrames.innerHTML = '';
+    return;
+  }
+
+  const cs = slide.callStack;
+  const frames = cs.frames;
+
+  callStackStage.style.display = 'block';
+
+  if (callStackTitle) callStackTitle.textContent = cs.title || '📞 呼叫堆疊 (Call Stack)';
+  if (callStackHint) callStackHint.textContent = cs.hint || '最新呼叫在最上方';
+
+  // 渲染框架列表
+  const framesHtml = frames.map((frame, fi) => {
+    const status = frame.status || 'active';
+    let frameClass = 'stack-frame';
+    if (status === 'active') frameClass += ' frame-active';
+    else if (status === 'pop') frameClass += ' frame-popping';
+    else if (status === 'base') frameClass += ' frame-base';
+    else if (status === 'done') frameClass += ' frame-done';
+
+    // 徽章
+    let badgeHtml = '';
+    let badgeClass = 'stack-badge ';
+    if (frame.badge) {
+      if (status === 'active') badgeClass += 'stack-badge-active';
+      else if (status === 'push') badgeClass += 'stack-badge-push';
+      else if (status === 'pop') badgeClass += 'stack-badge-pop';
+      else if (status === 'base') badgeClass += 'stack-badge-base';
+      else badgeClass += 'stack-badge-done';
+      badgeHtml = `<span class="${badgeClass}">${frame.badge}</span>`;
+    }
+
+    // 區域變數
+    let varsHtml = '';
+    if (Array.isArray(frame.vars) && frame.vars.length > 0) {
+      const varItems = frame.vars.map(v =>
+        `<span class="stack-frame-var">
+          <span class="stack-frame-var-name">${v.name}</span>
+          <span class="stack-frame-var-eq"> = </span>
+          <span class="stack-frame-var-val">${v.val}</span>
+        </span>`
+      ).join('');
+      varsHtml = `<div class="stack-frame-vars">${varItems}</div>`;
+    }
+
+    // 回傳值
+    let returnHtml = '';
+    if (frame.returnVal !== undefined && frame.returnVal !== null) {
+      returnHtml = `
+        <div class="stack-frame-return">
+          <span class="stack-frame-return-arrow">↩ return</span>
+          <span class="stack-frame-return-val">${frame.returnVal}</span>
+        </div>`;
+    }
+
+    const depth = typeof frame.depth === 'number' ? frame.depth : fi;
+    const marginLeft = Math.min(depth * 8, 48);
+
+    return `
+      <div class="${frameClass}" data-frame-index="${fi}" style="margin-left:${marginLeft}px">
+        <div class="stack-frame-header">
+          <span class="stack-frame-name">${frame.name || 'func'}</span>
+          <span class="stack-frame-args">${frame.args || ''}</span>
+          ${badgeHtml}
+        </div>
+        ${varsHtml}
+        ${returnHtml}
+      </div>
+    `;
+  }).join('');
+
+  if (callStackFrames) {
+    callStackFrames.innerHTML = framesHtml.length > 0
+      ? framesHtml
+      : '<div class="call-stack-empty">堆疊為空</div>';
+  }
+
+  // 深度指示點
+  const totalDepth = frames.length;
+  const maxDots = cs.maxDepth || Math.max(totalDepth, 1);
+  if (callStackDepthBar && totalDepth > 0) {
+    callStackDepthBar.style.display = 'flex';
+    if (callStackDepthDots) {
+      callStackDepthDots.innerHTML = Array.from({ length: maxDots }, (_, i) =>
+        `<div class="call-stack-depth-dot ${i < totalDepth ? 'active' : ''}" title="深度 ${i + 1}"></div>`
+      ).join('');
+    }
+  } else if (callStackDepthBar) {
+    callStackDepthBar.style.display = 'none';
+  }
+}
+
+window.renderCallStack = renderCallStack;
+
+
 
 /* ==========================================================================
    7.5 數據流向同步引擎（Data Flow Sync Engine - agytodo 6.1, 6.2）

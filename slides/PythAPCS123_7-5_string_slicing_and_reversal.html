@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 7.5 字串切片與反轉（[::-1]） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.8 APCS 考場迴圈輸入實戰模式 (PythAPCS123_6-8_eof_and_input_streaming_patterns.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.1 基本切片語法 s[start:stop]",
+    "titleZh": "字串切片（Slicing）——從取一個字到切一段文字",
+    "titleEn": "String Slicing: Extracting Substrings Effortlessly",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "text = \"APCS2026PYTHON\"",
+        "html": "<span class=\"token-ident\">text</span> = <span class=\"token-string\">\"APCS2026PYTHON\"</span>",
+        "alt": "測試字串",
+        "why": "定義長字串",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# 切片語法：s[起點 : 終點]",
+        "html": "<span class=\"token-comment\"># 切片語法：s[start:stop]</span>",
+        "alt": "註解：切片語法結構",
+        "why": "引導切片語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "title = text[0:4]",
+        "html": "<span class=\"token-ident\">title</span> = <span class=\"token-ident\">text</span>[<span class=\"token-number\">0</span>:<span class=\"token-number\">4</span>]",
+        "alt": "切取索引 0 到 3 的子字串",
+        "diff": true,
+        "why": "截取前 4 個字元",
+        "mean": "得到 APCS"
+      },
+      {
+        "num": 4,
+        "code": "year = text[4:8]",
+        "html": "<span class=\"token-ident\">year</span> = <span class=\"token-ident\">text</span>[<span class=\"token-number\">4</span>:<span class=\"token-number\">8</span>]",
+        "alt": "切取索引 4 到 7 的子字串",
+        "diff": true,
+        "why": "截取中間 4 個字元",
+        "mean": "得到 2026"
+      },
+      {
+        "num": 5,
+        "code": "print(title, year)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">title</span>, <span class=\"token-ident\">year</span>)",
+        "alt": "印出兩個子字串",
+        "why": "輸出結果",
+        "mean": "輸出 APCS 2026"
+      }
+    ],
+    "output": "APCS 2026",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>切片（Slicing）的概念</strong>：單一索引 <code>s[i]</code> 只能取出一個字元；透過切片語法 <code>s[start:stop]</code>，能像麵包刀一樣乾淨俐落地切出任意<strong>子字串（Substring）</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>冒號 <code>:</code> 是切片符號</strong>：中括號內一旦出現冒號，Python 就會啟動切片機制。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：切片如刀切，取出一整段"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.1 左閉右開區間特性",
+    "titleZh": "左閉右開鐵律——含頭不含尾（[start, stop)）",
+    "titleEn": "Half-Open Interval: Including Start, Excluding Stop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "word = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">word</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "單字 PYTHON",
+        "why": "測試字串",
+        "mean": "長度 6"
+      },
+      {
+        "num": 2,
+        "code": "# [1:4] 包含索引 1, 2, 3，不包含 4！",
+        "html": "<span class=\"token-comment\"># [1:4] 包含 1, 2, 3，不包含 4</span>",
+        "alt": "註解：左閉右開說明",
+        "why": "強調不含終點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "sub = word[1:4]",
+        "html": "<span class=\"token-ident\">sub</span> = <span class=\"token-ident\">word</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">4</span>]",
+        "alt": "切取索引 1 到 3 的字元",
+        "diff": true,
+        "why": "取 'Y', 'T', 'H'",
+        "mean": "得到 YTH"
+      },
+      {
+        "num": 4,
+        "code": "print(\"切片結果:\", sub)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"切片結果:\"</span>, <span class=\"token-ident\">sub</span>)",
+        "alt": "印出切片結果",
+        "why": "輸出字串",
+        "mean": "輸出 YTH"
+      },
+      {
+        "num": 5,
+        "code": "print(\"子字串長度:\", len(sub))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"子字串長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">sub</span>))",
+        "alt": "印出子字串長度",
+        "why": "長度驗證",
+        "mean": "輸出 3"
+      }
+    ],
+    "output": "切片結果: YTH\n子字串長度: 3",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>左閉右開數學區間</strong>：<code>s[start:stop]</code> 嚴格遵循數學的半開區間 <code>[start, stop)</code>——<strong>包含起點 start，但不包含終點 stop</strong>！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 長度心算黃金公式</strong>：切片產出的子字串長度永遠等於 <strong><code>stop - start</code></strong>（例如 <code>4 - 1 = 3</code>）！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：包含頭不含尾，左閉右開線"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.1 切片超界自動容錯",
+    "titleZh": "切片的天使超能力——邊界超界自動截斷不報錯",
+    "titleEn": "Slice Out-of-Bounds: Graceful Auto-Truncation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "msg = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">msg</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "字串長度僅為 6",
+        "why": "長度 6 字串",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# 索引存取超界 msg[99] 會噴 IndexError",
+        "html": "<span class=\"token-comment\"># 單一索引 msg[99] 會崩潰</span>",
+        "alt": "註解：對比單一索引崩潰",
+        "why": "對比說明",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 但切片 msg[2:99] 會溫柔地自動截斷至末尾！",
+        "html": "<span class=\"token-comment\"># 切片 msg[2:99] 寬容自動截斷</span>",
+        "alt": "註解：切片超界自動截斷",
+        "why": "展示切片寬容度",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "safe_slice = msg[2:99]",
+        "html": "<span class=\"token-ident\">safe_slice</span> = <span class=\"token-ident\">msg</span>[<span class=\"token-number\">2</span>:<span class=\"token-number\">99</span>]",
+        "alt": "從索引 2 切到 99",
+        "diff": true,
+        "why": "超大終點自動收斂至字串尾",
+        "mean": "安全得到 THON"
+      },
+      {
+        "num": 5,
+        "code": "print(safe_slice)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">safe_slice</span>)",
+        "alt": "印出截取結果",
+        "why": "輸出結果",
+        "mean": "印出 THON"
+      }
+    ],
+    "output": "THON",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>切片極致寬容原則</strong>：在單一索引 <code>s[i]</code> 中，超出範圍會引發 <code>IndexError</code>；但<strong>切片完全不怕超界</strong>！只要範圍超出字串長度，直譯器會自動在字串邊界停下，絕對不報錯！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>安全取後綴</strong>：若不確定字串是否夠長，使用 <code>s[i:i+k]</code> 切片永遠比一個個取 <code>s[i]</code> 安全一百倍。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：切片寬容界，超界自動截"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.2 省略預設值 s[:n] 與 s[n:]",
+    "titleZh": "省略預設值——截頭與去尾的黃金互補",
+    "titleEn": "Omitting Indices: Prefix, Suffix & Perfect Harmony",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = \"AmazingPython\"",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-string\">\"AmazingPython\"</span>",
+        "alt": "定義長字串",
+        "why": "測試字串",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# 省略起點 s[:7]：代表「從最開頭切到索引 6」",
+        "html": "<span class=\"token-comment\"># 省略起點：從頭切到 6</span>",
+        "alt": "註解：前綴切片說明",
+        "why": "省略 start",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "prefix = s[:7]",
+        "html": "<span class=\"token-ident\">prefix</span> = <span class=\"token-ident\">s</span>[:<span class=\"token-number\">7</span>]",
+        "alt": "切出前 7 個字元 Amazing",
+        "diff": true,
+        "why": "預設起點為 0",
+        "mean": "得到前綴 Amazing"
+      },
+      {
+        "num": 4,
+        "code": "# 省略終點 s[7:]：代表「從索引 7 切到最末尾」",
+        "html": "<span class=\"token-comment\"># 省略終點：從 7 切到尾端</span>",
+        "alt": "註解：後綴切片說明",
+        "why": "省略 stop",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "suffix = s[7:]",
+        "html": "<span class=\"token-ident\">suffix</span> = <span class=\"token-ident\">s</span>[<span class=\"token-number\">7</span>:]",
+        "alt": "切出後綴 Python",
+        "diff": true,
+        "why": "預設終點為 len(s)",
+        "mean": "得到後綴 Python"
+      },
+      {
+        "num": 6,
+        "code": "print(prefix, suffix)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">prefix</span>, <span class=\"token-ident\">suffix</span>)",
+        "alt": "印出前綴與後綴",
+        "why": "輸出兩部分",
+        "mean": "輸出 Amazing Python"
+      },
+      {
+        "num": 7,
+        "code": "print(prefix + suffix == s)  # 完美互補拼合",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">prefix</span> + <span class=\"token-ident\">suffix</span> == <span class=\"token-ident\">s</span>)",
+        "alt": "驗證兩部分相加還原原字串",
+        "why": "驗證互補性",
+        "mean": "印出 True"
+      }
+    ],
+    "output": "Amazing Python\nTrue",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>省略值的默認設定</strong>：冒號左邊省略 <code>s[:stop]</code> 默認從 <strong>索引 0</strong> 開始；冒號右邊省略 <code>s[start:]</code> 默認切到 <strong>最後一個字元</strong>！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 黃金互補定理</strong>：對於任何字串 <code>s</code> 與任意非負整數 <code>n</code>，<strong><code>s[:n] + s[n:] == s</code> 永遠恆成立</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：前綴加後綴，拼回原字串"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.3 步進值切片 s[start:stop:step]",
+    "titleZh": "步進值切片——奇偶分流與跳格抽字",
+    "titleEn": "Stride/Step Slicing: Skipping & Alternating Characters",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "alphabet = \"ABCDEFGHIJ\"",
+        "html": "<span class=\"token-ident\">alphabet</span> = <span class=\"token-string\">\"ABCDEFGHIJ\"</span>",
+        "alt": "英文字母序列 A 到 J",
+        "why": "字母測試序列",
+        "mean": "長度 10"
+      },
+      {
+        "num": 2,
+        "code": "# 抽取偶數索引 (0, 2, 4, 6, 8)",
+        "html": "<span class=\"token-comment\"># 步長 2：抽取偶數位置</span>",
+        "alt": "註解：偶數位置說明",
+        "why": "step=2 抽取偶數位",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "evens = alphabet[::2]",
+        "html": "<span class=\"token-ident\">evens</span> = <span class=\"token-ident\">alphabet</span>[::<span class=\"token-number\">2</span>]",
+        "alt": "以步長 2 抽取字串",
+        "diff": true,
+        "why": "從 0 開始每隔 2 個取一個",
+        "mean": "得到 ACEGI"
+      },
+      {
+        "num": 4,
+        "code": "# 抽取奇數索引 (1, 3, 5, 7, 9)",
+        "html": "<span class=\"token-comment\"># 起點 1 步長 2：抽取奇數位置</span>",
+        "alt": "註解：奇數位置說明",
+        "why": "起點 1 步長 2 抽取奇數位",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "odds = alphabet[1::2]",
+        "html": "<span class=\"token-ident\">odds</span> = <span class=\"token-ident\">alphabet</span>[<span class=\"token-number\">1</span>::<span class=\"token-number\">2</span>]",
+        "alt": "從索引 1 開始以步長 2 抽取",
+        "diff": true,
+        "why": "從 1 開始每隔 2 個取一個",
+        "mean": "得到 BDFHJ"
+      },
+      {
+        "num": 6,
+        "code": "print(\"偶數位置:\", evens)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"偶數位置:\"</span>, <span class=\"token-ident\">evens</span>)",
+        "alt": "印出偶數位置字元",
+        "why": "輸出偶數列",
+        "mean": "輸出 ACEGI"
+      },
+      {
+        "num": 7,
+        "code": "print(\"奇數位置:\", odds)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"奇數位置:\"</span>, <span class=\"token-ident\">odds</span>)",
+        "alt": "印出奇數位置字元",
+        "why": "輸出奇數列",
+        "mean": "輸出 BDFHJ"
+      }
+    ],
+    "output": "偶數位置: ACEGI\n奇數位置: BDFHJ",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>第三個參數 <code>step</code>（步長）</strong>：切片完整語法為 <code>s[start:stop:step]</code>。<code>step</code> 控制每次取字的跳躍步伐，預設值為 <code>1</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>一行完成奇偶拆分</strong>：在密碼學加密或跳格抽樣題目中，<code>s[::2]</code> 與 <code>s[1::2]</code> 是最頂級的秒殺利器！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：步進值跨步，奇偶位分流"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.4 負步進值與字串反轉",
+    "titleZh": "反轉神技 s[::-1]——負步進倒退嚕",
+    "titleEn": "Reversal Magic s[::-1]: Stepping Backwards",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "word = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">word</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "測試單字 PYTHON",
+        "why": "定義單字",
+        "mean": "長度 6"
+      },
+      {
+        "num": 2,
+        "code": "# 經典神技：s[::-1] 全字串倒退反轉",
+        "html": "<span class=\"token-comment\"># 經典神技：負步進 -1 倒序反轉</span>",
+        "alt": "註解：全字串反轉神技說明",
+        "why": "引入 Python 反轉神技",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "rev_word = word[::-1]",
+        "html": "<span class=\"token-ident\">rev_word</span> = <span class=\"token-ident\">word</span>[::<span class=\"token-op\">-1</span>]",
+        "alt": "使用冒號冒號負一反轉字串",
+        "diff": true,
+        "why": "step=-1 從末尾倒序掃描至開頭",
+        "mean": "得到 NOHTYP"
+      },
+      {
+        "num": 4,
+        "code": "print(\"原本單字:\", word)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原本單字:\"</span>, <span class=\"token-ident\">word</span>)",
+        "alt": "印出原本單字",
+        "why": "確認原字串不變",
+        "mean": "輸出 PYTHON"
+      },
+      {
+        "num": 5,
+        "code": "print(\"反轉單字:\", rev_word)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"反轉單字:\"</span>, <span class=\"token-ident\">rev_word</span>)",
+        "alt": "印出反轉後單字",
+        "why": "輸出反轉結果",
+        "mean": "輸出 NOHTYP"
+      },
+      {
+        "num": 6,
+        "code": "print(\"數字反轉:\", \"12345\"[::-1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"數字反轉:\"</span>, <span class=\"token-string\">\"12345\"</span>[::<span class=\"token-op\">-1</span>])",
+        "alt": "數字字串反轉測試",
+        "why": "直接對字串字面值切片",
+        "mean": "輸出 54321"
+      }
+    ],
+    "output": "原本單字: PYTHON\n反轉單字: NOHTYP\n數字反轉: 54321",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong><code>s[::-1]</code> 的運作原理</strong>：當 <code>step = -1</code> 時，方向徹底逆轉為<strong>由右向左</strong>！省略的起點默認為『最後一個字元』，省略的終點默認為『第一個字元之前』。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 Python 特有超能力</strong>：在其他語言反轉字串需要雙指針迴圈交換，Python 僅需 6 個字元 <code>s[::-1]</code>，零迴圈直接完成！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：冒號負一號，字串倒退嚕"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.4 局部倒退切片",
+    "titleZh": "局部倒退切片——起點必須大於終點",
+    "titleEn": "Partial Reversal: Start Must Be Greater Than Stop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "#       0    1    2    3    4    5",
+        "html": "<span class=\"token-comment\"># 索引: 0    1    2    3    4    5</span>",
+        "alt": "註解：正向索引標尺",
+        "why": "顯示索引位置",
+        "mean": "門牌號碼"
+      },
+      {
+        "num": 2,
+        "code": "word = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">word</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "定義字串 PYTHON",
+        "why": "測試字串",
+        "mean": "字串長度 6"
+      },
+      {
+        "num": 3,
+        "code": "# 欲從 4 號 ('O') 倒退切到 2 號 ('T')",
+        "html": "<span class=\"token-comment\"># 欲從 4 號倒退切到 2 號</span>",
+        "alt": "註解：局部倒退目標",
+        "why": "設定目標範圍",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "# 終點 stop 必須設為 1 (左閉右開，不包含 1 號 'Y')",
+        "html": "<span class=\"token-comment\"># 終點設 1，取到 2 號為止</span>",
+        "alt": "註解：終點邊界說明",
+        "why": "左閉右開邊界換算",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "sub_rev = word[4:1:-1]",
+        "html": "<span class=\"token-ident\">sub_rev</span> = <span class=\"token-ident\">word</span>[<span class=\"token-number\">4</span>:<span class=\"token-number\">1</span>:<span class=\"token-op\">-1</span>]",
+        "alt": "從 4 倒退切到 2",
+        "diff": true,
+        "why": "起點 4 終點 1 步長 -1",
+        "mean": "依序取出 4, 3, 2 (O, H, T)"
+      },
+      {
+        "num": 6,
+        "code": "print(sub_rev)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">sub_rev</span>)",
+        "alt": "印出局部倒退切片",
+        "why": "輸出結果",
+        "mean": "印出 OHT"
+      }
+    ],
+    "output": "OHT",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>倒退行駛方向觀</strong>：當 <code>step < 0</code> 時，世界完全顛倒！游標是<strong>向左邊走</strong>，因此起點門牌號碼 <strong>start 必須大於終點 stop</strong>（如 <code>4 > 1</code>）！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>左閉右開依舊有效</strong>：在負步進下，<code>stop=1</code> 依然是不包含的，所以切片在 <code>2</code> 號停下，精確取出 <code>4, 3, 2</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：倒退切片段，起點大於終"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.2 完整切片拷貝 s[:]",
+    "titleZh": "完整切片拷貝 s[:]——建立字串鏡像副本",
+    "titleEn": "Full Slice Copy s[:]: Mirror Duplication",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "original = \"APCS2026\"",
+        "html": "<span class=\"token-ident\">original</span> = <span class=\"token-string\">\"APCS2026\"</span>",
+        "alt": "原始字串",
+        "why": "定義來源",
+        "mean": "字串賦值"
+      },
+      {
+        "num": 2,
+        "code": "# s[:] 代表從最頭切到最尾，步長 1",
+        "html": "<span class=\"token-comment\"># s[:] 省略起終點，拷貝整條序列</span>",
+        "alt": "註解：全切片拷貝語法",
+        "why": "全切片語意說明",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "clone = original[:]",
+        "html": "<span class=\"token-ident\">clone</span> = <span class=\"token-ident\">original</span>[:]",
+        "alt": "使用全切片複製字串",
+        "diff": true,
+        "why": "省略前後代表全序列",
+        "mean": "複製出完整鏡像"
+      },
+      {
+        "num": 4,
+        "code": "print(\"clone 內容:\", clone)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"clone 內容:\"</span>, <span class=\"token-ident\">clone</span>)",
+        "alt": "印出拷貝內容",
+        "why": "輸出結果",
+        "mean": "印出 APCS2026"
+      },
+      {
+        "num": 5,
+        "code": "print(\"兩者內容是否相等:\", clone == original)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"兩者內容是否相等:\"</span>, <span class=\"token-ident\">clone</span> == <span class=\"token-ident\">original</span>)",
+        "alt": "比對內容完全相同",
+        "why": "驗證內容一致性",
+        "mean": "印出 True"
+      }
+    ],
+    "output": "clone 內容: APCS2026\n兩者內容是否相等: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>全序列切片 <code>s[:]</code></strong>：雙引數全部省略的 <code>s[:]</code> 代表完整拷貝。雖然字串不可變，但在第 8 章<strong>串列（List）</strong>中，<code>lst[:]</code> 是進行淺拷貝（Shallow Copy）避免資料污染的核心神技！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>語法一致性</strong>：Python 所有序列型態（字串、串列、元組）皆共享同一套切片邏輯。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：單獨雙冒號，完整取切片"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5 考場常見陷阱",
+    "titleZh": "考場致命地雷一：起大於終且正步進產出空字串",
+    "titleEn": "Pitfall 1: Start > Stop with Positive Step Gives Empty",
+    "predictQuiz": {
+      "question": "預測思考：若字串 s = \"PYTHON\"，執行 sub = s[4:1]（注意：起點 4 大於終點 1，且 step 為預設 +1），sub 的值會是？",
+      "options": [
+        "長度為 0 的空字串 \"\"（因為正步進向右永遠遇不到 1）",
+        "直譯器自動反向切片，輸出 \"OHT\""
+      ],
+      "answer": 0,
+      "correct": 0,
+      "explanation": "正步進值（step > 0）只會由左向右推進！從索引 4 出發向右走，終點 1 落在左方，游標永遠碰不到終點，Python 不會反向思考，而是直接交出空字串 \"\"！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "測試字串 PYTHON",
+        "why": "定義單字",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# ❌ 邏輯踩雷：起點 4，終點 1，但 step 為預設 +1",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：起點大於終點，卻忘了給負步進！</span>",
+        "alt": "註解：正步進逆向踩雷",
+        "why": "展示常見方向錯誤",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "wrong = s[4:1]",
+        "html": "<span class=\"token-ident\">wrong</span> = <span class=\"token-ident\">s</span>[<span class=\"token-number\">4</span>:<span class=\"token-number\">1</span>]",
+        "alt": "起點大於終點產出空字串",
+        "error": true,
+        "why": "正步進無法往左走",
+        "mean": "得到空字串"
+      },
+      {
+        "num": 4,
+        "code": "# ✅ 安全修正：必須明確給予負步進值 -1！",
+        "html": "<span class=\"token-comment\"># ✅ 安全修正：給予 step=-1 才能往左切</span>",
+        "alt": "註解：給予負步進修正",
+        "why": "推薦正確寫法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "correct = s[4:1:-1]",
+        "html": "<span class=\"token-ident\">correct</span> = <span class=\"token-ident\">s</span>[<span class=\"token-number\">4</span>:<span class=\"token-number\">1</span>:<span class=\"token-op\">-1</span>]",
+        "alt": "加上負步進成功往左切",
+        "diff": true,
+        "why": "方向與起終點匹配",
+        "mean": "得到 OHT"
+      },
+      {
+        "num": 6,
+        "code": "print(\"wrong 結果  :\", repr(wrong), \", 長度:\", len(wrong))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"wrong 結果  :\"</span>, <span class=\"token-builtin\">repr</span>(<span class=\"token-ident\">wrong</span>), <span class=\"token-string\">\", 長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">wrong</span>))",
+        "alt": "印出錯誤切片為空字串",
+        "why": "驗證長度為 0",
+        "mean": "輸出空引號"
+      },
+      {
+        "num": 7,
+        "code": "print(\"correct 結果:\", correct)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"correct 結果:\"</span>, <span class=\"token-ident\">correct</span>)",
+        "alt": "印出正確切片",
+        "why": "輸出正確結果",
+        "mean": "輸出 OHT"
+      }
+    ],
+    "output": "wrong 結果  : '' , 長度: 0\ncorrect 結果: OHT",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 考場隱形殺手</strong>：切片方向矛盾時<strong>完全不會報錯</strong>！程式默默拿到空字串 <code>\"\"</code> 繼續往下算，最終輸出空白或長度 0，導致莫名其妙拿 WA！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>方向定錨原則</strong>：起點小於終點配<strong>正步進</strong>；起點大於終點配<strong>負步進</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：起大終小正，產出空字串"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5 考場常見陷阱",
+    "titleZh": "考場致命地雷二：倒退切到開頭首字漏寫留白",
+    "titleEn": "Pitfall 2: Missing Index 0 in Negative Step Slicing",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 欲將 \"PYTHON\" 前三個字元倒退切出：'T', 'Y', 'P'",
+        "html": "<span class=\"token-comment\"># 欲切出前三字的倒退序列 TYP</span>",
+        "alt": "註解：倒退切到首字目標",
+        "why": "題目情境設定",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "word = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">word</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "測試字串",
+        "why": "定義單字",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 3,
+        "code": "# ❌ 錯誤寫法：終點寫 0，結果因為不包含 0，漏掉了 'P'！",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：終點寫 0，0 號 'P' 慘遭拋棄！</span>",
+        "alt": "註解：終點寫 0 漏字陷阱",
+        "why": "展示漏掉第 0 位",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "bad = word[2:0:-1]",
+        "html": "<span class=\"token-ident\">bad</span> = <span class=\"token-ident\">word</span>[<span class=\"token-number\">2</span>:<span class=\"token-number\">0</span>:<span class=\"token-op\">-1</span>]",
+        "alt": "終點寫 0 漏掉首字",
+        "error": true,
+        "why": "左閉右開不含終點 0",
+        "mean": "只得到 TY 漏掉 P"
+      },
+      {
+        "num": 5,
+        "code": "# ✅ 正確解法：終點直接留白！代表一路倒退切到頭！",
+        "html": "<span class=\"token-comment\"># ✅ 終點留白：代表完全切到第 0 位</span>",
+        "alt": "註解：終點留白解法",
+        "why": "展示正確包含首字技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "good = word[2::-1]",
+        "html": "<span class=\"token-ident\">good</span> = <span class=\"token-ident\">word</span>[<span class=\"token-number\">2</span>::<span class=\"token-op\">-1</span>]",
+        "alt": "終點留白順利切出 TYP",
+        "diff": true,
+        "why": "省略 stop 完整包含首字",
+        "mean": "成功得到 TYP"
+      },
+      {
+        "num": 7,
+        "code": "print(\"終點寫 0 輸出:\", bad)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"終點寫 0 輸出:\"</span>, <span class=\"token-ident\">bad</span>)",
+        "alt": "印出錯誤少字結果",
+        "why": "觀察錯誤",
+        "mean": "輸出 TY"
+      },
+      {
+        "num": 8,
+        "code": "print(\"終點留白輸出:\", good)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"終點留白輸出:\"</span>, <span class=\"token-ident\">good</span>)",
+        "alt": "印出正確完整結果",
+        "why": "觀察正確",
+        "mean": "輸出 TYP"
+      }
+    ],
+    "output": "終點寫 0 輸出: TY\n終點留白輸出: TYP",
+    "notes": [
+      {
+        "type": "bad",
+        "text": "<strong>❌ 終點 0 的殘酷陷阱</strong>：在負步進切片中，若寫 <code>word[2:0:-1]</code>，由於右開不包含終點，索引 0 的字元會<strong>直接被丟棄</strong>，只切出長度 2 的 <code>TY</code>！"
+      },
+      {
+        "type": "good",
+        "text": "<strong>✅ 倒退到頭必留白</strong>：想從某處倒退切到最開頭的第 0 字元，<strong>中間的 stop 絕對不能寫數字，必須直接留空 <code>s[start::-1]</code></strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：倒退切到頭，終點留空白"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5 考場常見陷阱",
+    "titleZh": "考場致命地雷三：切片反轉忘記存回變數",
+    "titleEn": "Pitfall 3: Forgetting to Reassign Sliced String",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_code = \"12345\"",
+        "html": "<span class=\"token-ident\">raw_code</span> = <span class=\"token-string\">\"12345\"</span>",
+        "alt": "測試字串 12345",
+        "why": "定義原始字串",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# ❌ 徒勞操作：直接呼叫 raw_code[::-1]，卻沒有存回變數！",
+        "html": "<span class=\"token-comment\"># ❌ 徒勞操作：切片生出新字串，但沒存起來直接丟棄</span>",
+        "alt": "註解：未賦值徒勞操作",
+        "why": "展示未重新指派錯誤",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "raw_code[::-1]",
+        "html": "<span class=\"token-ident\">raw_code</span>[::<span class=\"token-op\">-1</span>]",
+        "alt": "切片產生反轉字串但未接取",
+        "error": true,
+        "why": "產生新字串後立即在記憶體蒸發",
+        "mean": "未存入變數"
+      },
+      {
+        "num": 4,
+        "code": "print(\"徒勞操作後的 raw_code:\", raw_code)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"徒勞操作後的 raw_code:\"</span>, <span class=\"token-ident\">raw_code</span>)",
+        "alt": "印出未改變的原字串",
+        "why": "證明原本字串絲毫未變",
+        "mean": "依然輸出 12345"
+      },
+      {
+        "num": 5,
+        "code": "# ✅ 正確修復：必須用變數接住切片結果！",
+        "html": "<span class=\"token-comment\"># ✅ 必須指派：raw_code = raw_code[::-1]</span>",
+        "alt": "註解：正確賦值寫法",
+        "why": "展示正確重新指派",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "raw_code = raw_code[::-1]",
+        "html": "<span class=\"token-ident\">raw_code</span> = <span class=\"token-ident\">raw_code</span>[::<span class=\"token-op\">-1</span>]",
+        "alt": "將反轉結果重新存回變數",
+        "diff": true,
+        "why": "重新覆蓋指向新物件",
+        "mean": "成功更新為 54321"
+      },
+      {
+        "num": 7,
+        "code": "print(\"正確賦值後的 raw_code:\", raw_code)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正確賦值後的 raw_code:\"</span>, <span class=\"token-ident\">raw_code</span>)",
+        "alt": "印出更新後反轉字串",
+        "why": "輸出正確結果",
+        "mean": "輸出 54321"
+      }
+    ],
+    "output": "徒勞操作後的 raw_code: 12345\n正確賦值後的 raw_code: 54321",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 再次複習 Immutable</strong>：字串沒有像串列那樣的 <code>list.reverse()</code> 就地修改方法！任何切片運算產生的都是<strong>全新物件</strong>，沒用變數接住就會立刻在記憶體中蒸發！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>習慣養成</strong>：寫完切片，左邊一定要有 <code>變數 =</code> 把它接好。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：切片生新串，賦值才生效"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5 考場常見陷阱",
+    "titleZh": "考場致命地雷四：步進值 step 絕對不能設為 0",
+    "titleEn": "Pitfall 4: Slice Step Cannot Be Zero (ValueError)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = \"PYTHON\"",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-string\">\"PYTHON\"</span>",
+        "alt": "字串 PYTHON",
+        "why": "定義單字",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 2,
+        "code": "# ❌ 致命語法死穴：切片的第三個參數 step 設為 0！",
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：切片步長絕對不能是 0！</span>",
+        "alt": "註解：步長為 0 錯誤",
+        "why": "警告非法步進值",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# sub = s[::0]  # 引發 ValueError: slice step cannot be zero",
+        "html": "<span class=\"token-comment\"># sub = s[::0]  # 拋出 ValueError 當場暴斃！</span>",
+        "alt": "註解：展示 ValueError 代碼",
+        "why": "展示報錯訊息",
+        "mean": "步長不能為零"
+      },
+      {
+        "num": 4,
+        "code": "# ✅ 觀念澄清：乘法可以乘 0，但切片步長絕不能為 0！",
+        "html": "<span class=\"token-comment\"># ✅ 乘法可乘 0 得空串，切片步進絕不能為 0</span>",
+        "alt": "註解：觀念對比釐清",
+        "why": "辨析乘法與切片差異",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "print(\"乘法乘 0 產出空字串:\", repr(s * 0))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"乘法乘 0 產出空字串:\"</span>, <span class=\"token-builtin\">repr</span>(<span class=\"token-ident\">s</span> * <span class=\"token-number\">0</span>))",
+        "alt": "印出乘法乘 0 正常合法",
+        "why": "展示乘 0 合法",
+        "mean": "印出 ''"
+      }
+    ],
+    "output": "乘法乘 0 產出空字串: ''",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 數學邏輯死穴</strong>：<code>step</code> 代表每次推進的步數，如果步數為 0，游標將永遠原地踏步，陷入邏輯矛盾！因此直譯器會直接拋出 <code>ValueError: slice step cannot be zero</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>切片三參數安全法則</strong>：<code>start</code> 與 <code>stop</code> 可以隨便給或省略，但 <code>step</code> <strong>必須是非零整數</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：切片步進值，絕對莫設零"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.5 APCS 經典迴文檢測實戰",
+    "titleZh": "APCS 實戰專題——一行秒殺迴文檢測（Palindrome）",
+    "titleEn": "APCS Capstone: One-Line Palindrome Detection",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 測試單字列表：正讀反讀都一樣的稱為「迴文」",
+        "html": "<span class=\"token-comment\"># 迴文測試單字列表</span>",
+        "alt": "註解：迴文定義說明",
+        "why": "APCS 核心高頻考題",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "test_words = [\"level\", \"radar\", \"python\", \"12321\"]",
+        "html": "<span class=\"token-ident\">test_words</span> = [<span class=\"token-string\">\"level\"</span>, <span class=\"token-string\">\"radar\"</span>, <span class=\"token-string\">\"python\"</span>, <span class=\"token-string\">\"12321\"</span>]",
+        "alt": "四個測試單字",
+        "why": "測試資料集",
+        "mean": "字串陣列"
+      },
+      {
+        "num": 3,
+        "code": "for w in test_words:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">test_words</span>:",
+        "alt": "走訪每個單字",
+        "why": "迴圈逐一檢查",
+        "mean": "依序比對"
+      },
+      {
+        "num": 4,
+        "code": "    if w == w[::-1]:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">w</span> == <span class=\"token-ident\">w</span>[::<span class=\"token-op\">-1</span>]:",
+        "alt": "比對單字與其反轉字串是否完全相等",
+        "diff": true,
+        "why": "一行切片反轉比對核心神技",
+        "mean": "若原字串等於反轉字串"
+      },
+      {
+        "num": 5,
+        "code": "        print(f\"{w} 是完美迴文！\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">w</span>} 是完美迴文！\"</span>)",
+        "alt": "印出是迴文",
+        "why": "命中分支",
+        "mean": "輸出迴文判定"
+      },
+      {
+        "num": 6,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span>:",
+        "alt": "否則分支",
+        "why": "非迴文分支",
+        "mean": "若不相等"
+      },
+      {
+        "num": 7,
+        "code": "        print(f\"{w} 不是迴文。\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">w</span>} 不是迴文。\"</span>)",
+        "alt": "印出不是迴文",
+        "why": "輸出非迴文結果",
+        "mean": "輸出非迴文判定"
+      }
+    ],
+    "output": "level 是完美迴文！\nradar 是完美迴文！\npython 不是迴文。\n12321 是完美迴文！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>降維打擊的極致</strong>：在其他語言中，檢查迴文需要設定頭尾雙指針逐步向中間收斂；但在 Python 中，<strong>只需一行 <code>w == w[::-1]</code></strong>，瞬間完成比對！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>文字與數字皆通</strong>：無論是英文單字 <code>radar</code> 還是迴文數字 <code>12321</code>，轉為字串後通通一視同仁！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：正反一比對，迴文現原形"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5.5 APCS 密碼解密實戰",
+    "titleZh": "APCS 實戰專題——密碼解碼：去除首尾跳格還原",
+    "titleEn": "APCS Capstone: Cipher Decryption with Slices",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 密碼規則：字串頭尾各有 2 個干擾字元，且有效字母被反轉倒序",
+        "html": "<span class=\"token-comment\"># 題目：去除頭尾干擾字元並將文字反轉解碼</span>",
+        "alt": "註解：密碼解碼規則說明",
+        "why": "APCS 題型複合應用",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "cipher = \"##SCPA##\"",
+        "html": "<span class=\"token-ident\">cipher</span> = <span class=\"token-string\">\"##SCPA##\"</span>",
+        "alt": "加密密文 ##SCPA##",
+        "why": "密文字串",
+        "mean": "變數賦值"
+      },
+      {
+        "num": 3,
+        "code": "# 第一步：切片去除頭部 2 個與尾部 2 個字元",
+        "html": "<span class=\"token-comment\"># 第一步：s[2:-2] 去除首尾干擾碼</span>",
+        "alt": "註解：首尾去干擾切片",
+        "why": "雙向負索引去尾",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "core = cipher[2:-2]",
+        "html": "<span class=\"token-ident\">core</span> = <span class=\"token-ident\">cipher</span>[<span class=\"token-number\">2</span>:-<span class=\"token-number\">2</span>]",
+        "alt": "取索引 2 到倒數第 2",
+        "diff": true,
+        "why": "前去 2 後去 2",
+        "mean": "取出 SCPA"
+      },
+      {
+        "num": 5,
+        "code": "# 第二步：反轉還原真實明文",
+        "html": "<span class=\"token-comment\"># 第二步：[::-1] 倒序還原明文</span>",
+        "alt": "註解：反轉還原",
+        "why": "負步進反轉",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "decoded = core[::-1]",
+        "html": "<span class=\"token-ident\">decoded</span> = <span class=\"token-ident\">core</span>[::<span class=\"token-op\">-1</span>]",
+        "alt": "反轉字串還原明文",
+        "diff": true,
+        "why": "反轉得出 APCS",
+        "mean": "得到 APCS"
+      },
+      {
+        "num": 7,
+        "code": "print(\"解密後明文:\", decoded)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"解密後明文:\"</span>, <span class=\"token-ident\">decoded</span>)",
+        "alt": "印出解密明文",
+        "why": "輸出結果",
+        "mean": "輸出 APCS"
+      }
+    ],
+    "output": "解密後明文: APCS",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>切片的兩大組合技</strong>：1. <code>s[2:-2]</code> 巧妙結合正向與負向索引，一次性切掉前後各 2 個干擾符號；2. <code>core[::-1]</code> 瞬間將倒序密文轉正！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>一步到位進階寫法</strong>：你甚至可以直接合體寫成 <code>cipher[2:-2][::-1]</code>，兩步化為一步！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：切片去頭尾，解密如神助"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 7 章 字串特性與序列操作",
+    "section": "7.5 綜合驗收",
+    "titleZh": "單元 7.5 綜合驗收：字串切片與反轉神刀法通關",
+    "titleEn": "Unit 7.5 Comprehensive Review & Mastery",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 恭喜完成單元 7.5！字串切片神刀法已全面大成！",
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 7.5！字串切片神刀法已大成！</span>",
+        "alt": "註解：單元 7.5 完結慶賀",
+        "why": "里程碑總結",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"Mastered String Slicing and [::-1] Magic!\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Mastered String Slicing and [::-1] Magic!\"</span>)",
+        "alt": "印出通關慶祝宣言",
+        "why": "輸出完封宣言",
+        "mean": "印出通關宣言"
+      }
+    ],
+    "output": "Mastered String Slicing and [::-1] Magic!",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>全章核心回顧</strong>：1. <code>s[start:stop]</code> 左閉右開；2. 切片自動容錯不超界；3. <code>s[:n] + s[n:] == s</code> 完美互補；4. <code>s[::2]</code> 奇偶分流；5. <code>s[::-1]</code> 極速反轉；6. 倒退切到頭 stop 必留空；7. <code>step</code> 絕不能為 0。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>邁向字串終局之戰</strong>：在單元 7.6 中，我們將解鎖 Python 字串最強大的內建武器庫——<strong>字串常用方法（split, count, in, find, upper, lower）</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "⏱️ 考場秒記口訣：切片神刀法，序列我主宰"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 7.5 通關：字串切片與反轉神刀手！",
+      "summary": "你已精通左閉右開切片（s[start:stop]）、超界自動容錯、奇偶分流（::2）與 s[::-1] 極速迴文判定神技，徹底掌握了字串子序列操縱的核心命脈！",
+      "nextUnit": "前往 7.6 字串常用方法（split, count, in, find）"
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec7-5",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_7-5_string_slicing_and_reversal.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -91,9 +91,9 @@ const courseCurriculum = [
       { id: "sec7-1", title: "7.1 字串表示法與跳脫字元", available: true, url: "PythAPCS123_7-1_string_representation_and_escape_characters.html" },
       { id: "sec7-2", title: "7.2 字串序列操作（串接與重複）", available: true, url: "PythAPCS123_7-2_string_concatenation_and_repetition.html" },
       { id: "sec7-3", title: "7.3 格式化字串（f-string）與數值對齊", available: true, url: "PythAPCS123_7-3_fstring_formatting_and_alignment.html" },
-      { id: "sec7-4", title: "7.4 字串索引、長度與走訪", available: false },
-      { id: "sec7-5", title: "7.5 字串切片與反轉技巧（[::-1]）", available: false },
-      { id: "sec7-6", title: "7.6 字串常用方法（split, count, in）", available: false }
+      { id: "sec7-4", title: "7.4 字串索引、長度與走訪", available: true, url: "PythAPCS123_7-4_string_indexing_length_and_traversal.html" },
+      { id: "sec7-5", title: "7.5 字串切片與反轉技巧（[::-1]）", available: true, url: "PythAPCS123_7-5_string_slicing_and_reversal.html" },
+      { id: "sec7-6", title: "7.6 字串常用方法（split, count, in）", available: true, url: "PythAPCS123_7-6_common_string_methods.html" }
     ]
   },
   {

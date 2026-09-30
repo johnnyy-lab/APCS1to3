@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.7 迴圈常見邏輯與控制變數陷阱排查 (PythAPCS123_6-7_loop_control_variable_pitfalls.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.1 陷阱一：在 for 迴圈內手動修改計數變數無效的「自動校正機制」",
+    "titleZh": "陷阱一：for 迴圈體內竄改變數的徒勞掙扎",
+    "titleEn": "Pitfall 1: Modifying Control Variable Inside for Has No Effect",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):  <span class=\"token-comment\"># 預定依序走訪 0, 1, 2</span>",
+        "mean": "走訪 range(3)",
+        "why": "觀察每一圈開頭 i 的值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"開頭 i =\"</span>, <span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出每圈剛開始時的 i",
+        "why": "印出 0, 1, 2",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">i</span> <span class=\"token-op\">=</span> <span class=\"token-number\">999</span>  <span class=\"token-comment\"># 💥 妄圖跳過後續走訪或人為改變計數</span>",
+        "mean": "在體內強行改寫 i = 999",
+        "why": "初學者試圖手動控制 for 變數",
+        "alt": "",
+        "error": true
+      }
+    ],
+    "output": "開頭 i = 0 開頭 i = 1 開頭 i = 2 ",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "自動覆蓋機制",
+        "type": "concept",
+        "text": "<strong>強制校正回歸</strong>：Python 的 for 是『迭代器（Iterator）驅動』！每一圈開始時，直譯器會強制從 range 提取下一個排定值直接覆寫 i，你在內部改的值瞬間被清空！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "思維轉換",
+        "type": "key",
+        "text": "<strong>若真想手動控制</strong>：若需要手動改變步長（如一次跳 2 格），請改用 while 迴圈或善用 range 的第三參數 step。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：體內改值徒勞，下輪照樣讀"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.3 陷阱三：迴圈結束後計數變數的「殘留值與生命週期陷阱」",
+    "titleZh": "陷阱三：迴圈結束後的殘留值真相",
+    "titleEn": "Pitfall 3: Residual Value of Loop Variable After Completion",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">5</span>):  <span class=\"token-comment\"># 依序走訪 0, 1, 2, 3, 4</span>",
+        "mean": "走訪 5 次",
+        "why": "檢驗變數 i 的最終狀態",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">pass</span>  <span class=\"token-comment\"># 跑完 5 輪</span>",
+        "mean": "空陳述句",
+        "why": "無額外運算",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迴圈結束後 i =\"</span>, <span class=\"token-ident\">i</span>)  <span class=\"token-comment\"># 殘留值究竟是 4 還是 5？</span>",
+        "mean": "印出外部殘留的 i",
+        "why": "揭發 i 殘留在 4 絕非 5 的真相",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "迴圈結束後 i = 4",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "殘留為 4 絕非 5",
+        "type": "radar",
+        "text": "<strong>🎯 停在最後一次賦值</strong>：range(5) 產生的最後一個數值就是 4，直譯器從未將 5 賦予 i，因此 i 永遠殘留在 4！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "變數生命週期",
+        "type": "key",
+        "text": "<strong>無塊級作用域</strong>：Python 的 for 變數在迴圈結束後依然活在全域中，考場觀念題最愛考此題抓出粗心考生！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：迴圈結束變數在，留最後值"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.2 陷阱二：左閉右開與負步進的差一邊界陷阱（Off-by-one Error）",
+    "titleZh": "陷阱二：左閉右開與倒數差一邊界天坑",
+    "titleEn": "Pitfall 2: Off-by-one Error in Forward & Reverse Ranges",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 正向：想跑到 10，stop 必須設為 11（range(1, 11)）</span>",
+        "mean": "正向區間左閉右開 [start, stop)",
+        "why": "防範漏跑最後一數",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 負步進：想倒數到 1，stop 必須設為 0（range(5, 0, -1)）</span>",
+        "mean": "負向區間同樣不含尾端 stop",
+        "why": "想停在 1，邊界寫 0",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正向 stop=11 包含 10，負步進 stop=0 包含 1\"</span>)",
+        "mean": "宣告雙向邊界鐵律",
+        "why": "徹底根除差一錯誤",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "正向 stop=11 包含 10，負步進 stop=0 包含 1",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "正向加一",
+        "type": "key",
+        "text": "<strong>想跑到 N 寫 N + 1</strong>：若寫 range(1, 10)，最後一個只跑到 9，第 10 筆資料直接蒸發（WA 0 分）！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "倒數寫零",
+        "type": "radar",
+        "text": "<strong>🎯 倒數停在 stop + 1</strong>：若寫 range(5, 1, -1)，只會倒數到 2，第 1 筆永遠被擋在門外！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：想停在 N，終點必須加一"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.5 陷阱五：巢狀迴圈計數變數重名遮蔽（外層 i 內層又寫 i 互相踩腳）",
+    "titleZh": "陷阱五：巢狀迴圈同名遮蔽引發踩腳慘劇",
+    "titleEn": "Pitfall 5: Shadowing Loop Variables Destroys Outer State",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 正確外層命名 r</span>",
+        "mean": "外層嚴格命名為 r（避免與內層衝突）",
+        "why": "保障獨立狀態空間",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 正確內層命名 c</span>",
+        "mean": "內層嚴格命名為 c",
+        "why": "互不干擾",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"r{r}c{c}\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "清楚印出各自維度的座標",
+        "why": "驗證正常展開",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "mean": "換行收尾",
+        "why": "完成展示",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "r0c0 r0c1 r1c0 r1c1 \n",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "同名踩腳災難",
+        "type": "wa",
+        "text": "<strong>💥 內外同名死穴</strong>：若兩層都寫 for i，內層跑完時 i 變成 1，外層誤以為自己已經跑完而提早退出！"
+      },
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "命名防禦守則",
+        "type": "key",
+        "text": "<strong>命名神聖契約</strong>：一律寫 (r, c) 或 (i, j, k)，絕不偷懶重複使用同一個英文字母。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內外莫同名，防止變數踩腳"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.6 陷阱六：累加器或旗標放錯位置（迴圈外未歸零導致多回合殘留污染）",
+    "titleZh": "陷阱六：多回合測資累加器放錯層級引發污染",
+    "titleEn": "Pitfall 6: Failure to Reset Accumulator Across Test Cases",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">rounds</span> <span class=\"token-op\">=</span> [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]  <span class=\"token-comment\"># 兩組獨立測資</span>",
+        "mean": "兩組獨立測資：第 0 組應為 3，第 1 組應為 7",
+        "why": "模擬競賽多測資情境",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">idx</span>, <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">rounds</span>):",
+        "mean": "走訪每一組測試回合",
+        "why": "每回合需獨立結算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">r_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 關鍵守護：每回合開頭必須強制歸零！</span>",
+        "mean": "每回合開頭將累加器清零",
+        "why": "切斷前一回合歷史殘留",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">r</span>: <span class=\"token-ident\">r_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">v</span>",
+        "mean": "累加本回合數值",
+        "why": "本回合結算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"回合 {idx} 正確總和 = {r_sum}\"</span>)",
+        "mean": "印出每回合乾淨的總和",
+        "why": "驗證 3 與 7 互不干擾",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "回合 0 正確總和 = 3\n回合 1 正確總和 = 7",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "多回合殘留污染",
+        "type": "radar",
+        "text": "<strong>🎯 第一筆對，後面全錯</strong>：若把 r_sum = 0 放最外面，第一筆測資對，第二筆直接加上上一筆變成 10 爆零！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "歸零位置",
+        "type": "key",
+        "text": "<strong>重置守則</strong>：旗標（flag）與累加器（sum）只要是『每組獨立計算』，宣告位置必須縮在『回合迴圈的內部第一行』。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：每回獨立算，每輪開頭歸零"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.7 陷阱七：走訪過程中指標亂跳引發的「跳格漏跑與地毯抽換陷阱」",
+    "titleZh": "陷阱七：指標雙重推進引發跳格漏跑",
+    "titleEn": "Pitfall 7: Double Increment Skips Elements Silently",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化索引指標",
+        "why": "手動指標走訪",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">items</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "mean": "待走訪串列",
+        "why": "包含 3 筆元素",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">items</span>):",
+        "mean": "指標小於長度時前進",
+        "why": "走訪防越界",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">items</span>[<span class=\"token-ident\">idx</span>], <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "讀取當前元素",
+        "why": "核心運算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 單一出口唯一推進！切勿在 if 內外重複加！</span>",
+        "mean": "單一位置推進一次",
+        "why": "杜絕雙重推進",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "mean": "換行",
+        "why": "完成輸出",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "10 20 30 \n",
+    "notes": [
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "雙重推進 (Double Increment)",
+        "type": "wa",
+        "text": "<strong>💥 跳格大坑</strong>：初學者常在 if 裡面寫了 idx += 1，外面又寫了 idx += 1，結果一次跳兩格，漏掉一半資料！"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "單一職責",
+        "type": "key",
+        "text": "<strong>指針前進單一化</strong>：while 迴圈指標更新盡量收攏在迴圈最後一行，確保每輪只推進精準的一步。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：步進單一推進，防跳格漏跑"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.4 陷阱四：while 迴圈計數器忘記更新導致 CPU 100% 的無窮死結",
+    "titleZh": "陷阱四：while 計數器遺漏與 continue 避坑",
+    "titleEn": "Pitfall 4: Missing Step Update & continue Loop Traps",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># while 迴圈自檢兩大鐵律：</span>",
+        "mean": "while 迴圈生命防線",
+        "why": "防超時 TLE 核心原則",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 1. 迴圈體內必定要有朝向終止條件前進的語句（如 count += 1 或 n //= 10）</span>",
+        "mean": "保證狀態不會原地踏步",
+        "why": "打破死結",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 2. 若使用 continue，步進語句必須寫在 continue 之前！</span>",
+        "mean": "保證跳過本輪時指針已經向前跨步",
+        "why": "防止指針卡在同一個數值無限迴圈",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"while 步進防漏自檢確認\"</span>)",
+        "mean": "確認防禦認知落地",
+        "why": "建立考場反射動作",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "while 步進防漏自檢確認",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "防禦反射",
+        "type": "key",
+        "text": "<strong>寫完 while 立刻找步進</strong>：鍵盤剛敲完 while，手立刻在區塊最下方補上步進語句，再回頭寫中間的運算邏輯。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "continue 前置步進",
+        "type": "radar",
+        "text": "<strong>🎯 continue 殺手</strong>：在 while 裡使用 continue，一定要問自己：『我跳過這輪時，計數器有先加一嗎？』"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先推步進再跳，防超時死結"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.6 陷阱六：累加器或旗標放錯位置（迴圈外未歸零導致多回合殘留污染）",
+    "titleZh": "多回合殘留追蹤表：放錯層級的污染演變矩陣",
+    "titleEn": "Trace Table: Visualizing Variable Scope Leak Across Test Cases",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">rounds_data</span> <span class=\"token-op\">=</span> [[<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>], [<span class=\"token-number\">5</span>, <span class=\"token-number\">5</span>]]",
+        "mean": "兩組測資：[10, 20] 應為 30，[5, 5] 應為 10",
+        "why": "對比錯誤寫法的殘留演化",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">acc</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 💥 致命放錯：放在最外層，每組測資不會重新清零！</span>",
+        "mean": "累加器宣告在最外層",
+        "why": "前一組的數值被保留並污染下一組",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">round_idx</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):",
+        "mean": "走訪兩組測資",
+        "why": "展示污染過程",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">rounds_data</span>[<span class=\"token-ident\">round_idx</span>]: <span class=\"token-ident\">acc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">val</span>",
+        "mean": "將數值累加進未歸零的 acc",
+        "why": "累積數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"回合 {round_idx} 累加結果: {acc}\"</span>)",
+        "mean": "印出錯誤結算：第 0 回合得 30，第 1 回合誤算成 40！",
+        "why": "揭發歷史殘留",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "回合 0 累加結果: 30\n回合 1 累加結果: 40",
+    "traceTable": {
+      "title": "📊 累加器放錯層級之跨回合污染動態追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "測試回合",
+        "本回合真實數據",
+        "累加計算歷程",
+        "輸出結果 (是否遭污染)"
+      ],
+      "activeRow": 1,
+      "rows": [
+        {
+          "values": [
+            "回合 0",
+            "[10, 20]",
+            "0 + 10 + 20 ➔ acc = 30",
+            "輸出 30 (✓ 正確！第一筆未受害)"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "第一筆正確",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "values": [
+            "回合 1",
+            "[5, 5]",
+            "30(殘留!) + 5 + 5 ➔ acc = 40",
+            "輸出 40 (💥 錯誤！繼承了前一回的 30)"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "慘遭污染",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          2,
+          5
+        ],
+        "lineText": "假性通過",
+        "type": "wa",
+        "text": "<strong>💥 假性通過最致命</strong>：在 APCS 線上評判系統中，測資 1 通常只有 1 筆數據，考生看到綠燈 AC 以為全對，結果測資 2 有多筆數據全部 WA 爆零！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "修正指南",
+        "type": "key",
+        "text": "<strong>移入迴圈內</strong>：只要把 acc = 0 移到 for round_idx 內部第一行，即可徹底根除跨回殘留。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：追蹤表查殘留，污染看分明"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7 考場地雷一：多回合測資累加器放在迴圈外，導致第二筆測資「繼承上一筆結果」",
+    "titleZh": "考場致命地雷一：多回合測資累加器外置引發慘劇",
+    "titleEn": "Pitfall 1: Accumulator Placed Outside Test Case Loop",
+    "predictQuiz": {
+      "question": "預測思考：第一組成績 [10, 20]，第二組成績 [5, 5]；若 total 放在最外層且第二組前未歸零，第二組算出的總分會是？",
+      "options": [
+        "40 分（慘遭第一組的 30 分殘留污染！）",
+        "10 分（Python 會在每組自動歸零）"
+      ],
+      "correct": 0,
+      "explanation": "因為變數在迴圈結束後不會自動歸零！第二組累加時會直接在原有的 30 基礎上加上 5+5，得出荒謬的 40 分！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 💥 放在最外層</span>",
+        "mean": "最外層宣告 total",
+        "why": "跨組共用同一個存錢筒",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]: <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">r</span>",
+        "mean": "第一組累加完畢",
+        "why": "total 變成 30",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 1 組總分 =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出第一組 30（正確）",
+        "why": "看似完全正常",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">5</span>, <span class=\"token-number\">5</span>]: <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">r</span>  <span class=\"token-comment\"># 💥 未清零，直接繼承 30！</span>",
+        "mean": "第二組未清零直接累加",
+        "why": "30 + 5 + 5 = 40",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 2 組被污染總分 =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出被污染的 40（大錯特錯！）",
+        "why": "揭發跨組污染慘劇",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "第 1 組總分 = 30\n第 2 組被污染總分 = 40",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "血淚教訓",
+        "type": "wa",
+        "text": "<strong>💥 考場第一名殺手</strong>：每年 APCS 實作題有超過三成考生死於『第二筆測資忘記將 total 歸零』，得分瞬間從 100 掉到 20！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "唯一安全守則",
+        "type": "key",
+        "text": "<strong>進入新測資第一件事</strong>：只要看到『本題包含多筆測資』，讀進一筆新資料的第一行，立刻將所有計數器、累加器、最大值重設！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：多回測資累加，每輪必清零"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7 考場地雷二：在 for 迴圈體內試圖以 i += 2 跳過偶數的「徒勞掙扎」",
+    "titleZh": "考場致命地雷二：for 體內手動 i += 1 的徒勞掙扎",
+    "titleEn": "Pitfall 2: Attempting Manual Index Jumping Inside for Loop",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):  <span class=\"token-comment\"># 原本想跳著走</span>",
+        "mean": "range(3) 依序給予 0, 1, 2",
+        "why": "迭代器控制節奏",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-ident\">i</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 💥 以為這樣下一輪就會跳過下一個數</span>",
+        "mean": "手動讓 i 加 1",
+        "why": "誤以為能影響下一輪",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出當前輪次計算成果",
+        "why": "印出 1 2 3（下一輪照樣從 1, 2 推進，完全沒跳過！）",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "mean": "換行",
+        "why": "完成展示",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 2 3 \n",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "無效性真相",
+        "type": "radar",
+        "text": "<strong>🎯 下一輪強制重置</strong>：你在本輪把 i 改成 100，下一輪一到，for 迴圈依然會無情地把 range 的下一個預定值（1）塞給 i！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "正確跳格法",
+        "type": "key",
+        "text": "<strong>用 range(0, N, 2)</strong>：若想跳過數字，請在 range 的 step 參數寫 2，絕不在迴圈體內手動改變數。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：手動改值無效，下輪被覆寫"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7 考場地雷三：邊走訪串列邊用 list.remove() 刪除元素導致的跳格漏檢",
+    "titleZh": "考場致命地雷三：邊走訪邊 remove 引發地毯抽換漏跑",
+    "titleEn": "Pitfall 3: Modifying List During Iteration Causes Index Shift",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 經典地毯抽換大坑：</span>",
+        "mean": "註解剖析邊走訪邊修改串列的大忌",
+        "why": "說明直譯器內部指標位移災難",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># nums = [1, 2, 2, 3]</span>",
+        "mean": "若寫 for x in nums: if x == 2: nums.remove(x)",
+        "why": "第一個 2 被刪除後，後面的 2 會瞬間往前挪一個位置！",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 指標前進到下一個索引時，第二個 2 就被無情跳過了！</span>",
+        "mean": "造成刪除不乾淨（殘留第二個 2）",
+        "why": "嚴重邏輯 Bug",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"走訪時切勿邊跑邊 remove 串列元素！\"</span>)",
+        "mean": "宣導安全過濾法",
+        "why": "建議改用串列生成式或新串列過濾",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "走訪時切勿邊跑邊 remove 串列元素！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "地毯抽換效應",
+        "type": "wa",
+        "text": "<strong>💥 地毯抽換 (Rug Pull)</strong>：邊跑邊刪就像邊在紅地毯走路邊抽掉地毯，後面的人位置全跑掉，迴圈指標必定漏看！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "安全解法",
+        "type": "key",
+        "text": "<strong>建新串列</strong>：改寫為 new_nums = [x for x in nums if x != 2]，安全、快速且無任何副作用。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：走訪莫刪元素，防止跳格漏"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7 考場地雷四：巢狀迴圈只跳一層，外層沒跟著煞車導致多算後續列",
+    "titleZh": "考場致命地雷四：巢狀 break 範圍僅限單層的幻覺",
+    "titleEn": "Pitfall 4: Misconception of Single break Exiting Nested Loops",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 誤以為在內層寫 break 就能拯救全世界</span>",
+        "mean": "以為內層 break 會讓外層也停下來",
+        "why": "破除語言規範認知誤區",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 事實：內層 break 僅僅是結束內層，外層列迴圈依然會執著地繼續跑！</span>",
+        "mean": "外層毫不知情，繼續推進後續所有列",
+        "why": "造成時間浪費與計算多跑",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"跳出多層迴圈務必配合布林旗標！\"</span>)",
+        "mean": "宣告雙層退出唯一標準對策",
+        "why": "以布林旗標進行跨層引爆",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "跳出多層迴圈務必配合布林旗標！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "單層煞車鐵律",
+        "type": "radar",
+        "text": "<strong>🎯 break 的射程只有一層</strong>：不管嵌套了五層還是十層，一個 break 永遠只能粉碎直接包覆它的那一層！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "高分技巧",
+        "type": "key",
+        "text": "<strong>函式 return 神技</strong>：若在函式內部，直接執行 return 即可一瞬間秒殺所有多層迴圈，極度痛快乾脆！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：煞車只跳一層，外層繼續跑"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.8 考場迴圈自檢 SOP：4 個關鍵問題消滅 99% 的迴圈執行錯誤",
+    "titleZh": "考場自檢 SOP：四大黃金問題消滅 99% 迴圈錯誤",
+    "titleEn": "Pre-Flight Checklist: 4 Golden Questions to Eliminate 99% Loop Bugs",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 考場送出代碼前 10 秒黃金自檢：</span>",
+        "mean": "考試送出前的 10 秒靜默檢查清單",
+        "why": "保障實作題滿分過關",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># ① 起點對嗎？（0 開始還是 1 開始？單位元素是 0 還是 1？）</span>",
+        "mean": "起點與初始化檢查",
+        "why": "防加乘混淆",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ② 終點包到了嗎？（左閉右開有沒有 +1？倒數有沒有寫 0？）</span>",
+        "mean": "差一錯誤防禦",
+        "why": "防邊界漏跑",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># ③ 步進有前進嗎？（while 有沒有忘記 +=1？方向有沒有矛盾？）</span>",
+        "mean": "死結防禦",
+        "why": "防 TLE 超時",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># ④ 每回合有歸零嗎？（累加器是在外層還是內層？）</span>",
+        "mean": "多測資殘留防禦",
+        "why": "防後續測資污染",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迴圈四大自檢問題：起點、終點、步進、歸零！\"</span>)",
+        "mean": "宣告四問通關口訣",
+        "why": "形成大腦神經反射",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "迴圈四大自檢問題：起點、終點、步進、歸零！",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "lineText": "四大檢查點",
+        "type": "key",
+        "text": "<strong>起訖步零四字訣</strong>：起點（初始化）、訖點（+1 防差一）、步進（while 推進）、歸零（每回合重置），四點全過，程式必滿分。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "神經反射",
+        "type": "concept",
+        "text": "<strong>10 秒救一生</strong>：考場寫完不要急著按 Submit，花 10 秒默念這四個問題，能救回無數被扣除的寶貴分數。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：四問排查迴圈，消滅九成錯"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7.7 陷阱七：走訪過程中指標亂跳引發的「跳格漏跑與地毯抽換陷阱」",
+    "titleZh": "單元 6.7 綜合驗收一：修復雙重推進與偶數走訪實戰",
+    "titleEn": "Unit 6.7 Comprehensive Review: Fixing Double Increment Bug",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">i</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "指標從第 0 格起跑",
+        "why": "串列索引從 0 開始",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">arr</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]",
+        "mean": "包含奇偶交錯的數列",
+        "why": "目標：精準篩檢所有偶數，一個不漏",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">arr</span>):",
+        "mean": "單一邊界保護",
+        "why": "嚴防 IndexError",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">arr</span>[<span class=\"token-ident\">i</span>] <span class=\"token-op\">%</span> <span class=\"token-number\">2</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "條件式單純判斷，絕不在其肚子裡私自增加指標！",
+        "why": "職責分離",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"偶數 {arr[i]}\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出命中的偶數 2 與 4",
+        "why": "輸出命中元素",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">i</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 唯一指標推進出口：每輪穩健前進 1 格！</span>",
+        "mean": "每一輪末尾統一步進 1",
+        "why": "杜絕雙重推進與跳格漏檢",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "mean": "換行",
+        "why": "完成展示",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "偶數 2 偶數 4 \n",
+    "notes": [
+      {
+        "lines": [
+          4,
+          6
+        ],
+        "lineText": "單一前進律",
+        "type": "key",
+        "text": "<strong>判斷與推進解耦</strong>：if 裡面只負責印出或計算，指標 i += 1 獨立放在最外層，保證 1, 2, 3, 4 每個元素都被溫柔檢驗到。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "零漏網",
+        "type": "concept",
+        "text": "<strong>徹底消滅漏檢</strong>：成功抓出偶數 2 與 4，無任何元素因為手滑雙重推進而成為冤魂。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：單一指針步進，元素不漏查"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.7 綜合驗收",
+    "titleZh": "單元 6.7 綜合驗收：迴圈陷阱全破除與通關",
+    "titleEn": "Unit 6.7 Comprehensive Review: Pitfall-Free Mastery & Milestone",
+    "completionCard": {
+      "badge": "🏆 單元 6.7 通關：迴圈排坑與除錯防禦專家！",
+      "summary": "太強悍了！你已全面通透 for 體內竄改無效性、結束殘留值、左閉右開差一邊界、巢狀變數撞名、多回合未歸零污染與自檢四大問題！",
+      "nextUnit": "6.8 APCS 考場迴圈輸入實戰模式：固定筆數、哨兵終止與未知行數（EOF）處理"
+    },
+    "traceTable": {
+      "title": "📊 APCS 迴圈七大陷阱防禦指南總表 (Trace Table)",
+      "hint": "七大高頻失分地雷與標準應對心法對照表",
+      "headers": [
+        "陷阱編號與類型",
+        "致命錯誤表現",
+        "直譯器真實反應",
+        "考場唯一解法"
+      ],
+      "activeRow": 6,
+      "rows": [
+        {
+          "values": [
+            "1. for 內竄改變數",
+            "i = 999 妄圖跳格",
+            "下輪強制被 range 覆寫",
+            "改用 range(start, stop, step)"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已掌握",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "2. 差一邊界天坑",
+            "想跑到 10 寫 stop=10",
+            "漏跑最後一數 (WA)",
+            "正向 stop 寫 N + 1，倒數寫 0"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已掌握",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "3. 結束殘留值",
+            "以為 range(5) 結束為 5",
+            "殘留在 4 絕非 5",
+            "牢記停在最後一輪賦值"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已掌握",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "4. while 漏步進",
+            "漏寫 count += 1",
+            "條件永真，TLE 爆零",
+            "寫完 while 立刻在末尾補步進"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已掌握",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "5. 巢狀同名遮蔽",
+            "外層 i 內層又寫 i",
+            "內層踩爛外層計數器",
+            "嚴格規範外層 r 內層 c"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已掌握",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "6. 多回合未歸零",
+            "total 放迴圈外層",
+            "後續測資繼承上一組",
+            "多測資開頭強制初始化歸零"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已掌握",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "7. 雙重推進漏跑",
+            "if 內外都寫 idx += 1",
+            "一次跳兩格漏跑資料",
+            "指標推進統整在單一出口"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "金鐘罩通關",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 迴圈陷阱金鐘罩大成：</span>",
+        "mean": "總結全單元防坑成果",
+        "why": "建立自信防線",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"七大迴圈陷阱全數擊破！\"</span>)",
+        "mean": "通關榮耀宣告",
+        "why": "完成單元驗收",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "七大迴圈陷阱全數擊破！",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取專屬通關成就！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "考場自信",
+        "type": "key",
+        "text": "<strong>零死角防禦</strong>：掌握這七大陷阱的本質成因與對策，你的迴圈代碼在考場上將如磐石般堅不可摧。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：迴圈七大陷阱，全面破除通"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-7",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-7_loop_control_variable_pitfalls.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

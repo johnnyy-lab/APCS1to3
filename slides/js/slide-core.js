@@ -79,9 +79,9 @@ const courseCurriculum = [
       { id: "sec6-3", title: "6.3 條件迴圈 while 的運作機制與經典數值演算法", available: true, url: "PythAPCS123_6-3_conditional_loop_while.html" },
       { id: "sec6-4", title: "6.4 迴圈流程跳轉控制（break, continue 與 for...else）", available: true, url: "PythAPCS123_6-4_loop_break_and_continue.html" },
       { id: "sec6-5", title: "6.5 雙重與多重巢狀迴圈（時鐘模型與維度展開）", available: true, url: "PythAPCS123_6-5_nested_loops_and_clock_model.html" },
-      { id: "sec6-6", title: "6.6 幾何圖形與星號排版專題特訓（巢狀迴圈視覺化）", available: false },
-      { id: "sec6-7", title: "6.7 迴圈常見邏輯與控制變數陷阱排查", available: false },
-      { id: "sec6-8", title: "6.8 APCS 考場迴圈輸入實戰模式：固定筆數、哨兵終止與未知行數（EOF）", available: false }
+      { id: "sec6-6", title: "6.6 幾何圖形與星號排版專題特訓（巢狀迴圈視覺化）", available: true, url: "PythAPCS123_6-6_geometric_patterns_and_asterisk_formatting.html" },
+      { id: "sec6-7", title: "6.7 迴圈常見邏輯與控制變數陷阱排查", available: true, url: "PythAPCS123_6-7_loop_control_variable_pitfalls.html" },
+      { id: "sec6-8", title: "6.8 APCS 考場迴圈輸入實戰模式：固定筆數、哨兵終止與未知行數（EOF）", available: true, url: "PythAPCS123_6-8_eof_and_input_streaming_patterns.html" }
     ]
   },
   {

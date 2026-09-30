@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.8 APCS 考場迴圈輸入實戰模式 (PythAPCS123_6-8_eof_and_input_streaming_patterns.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.1 APCS / OJ 競技題庫三大輸入格式全景概覽",
+    "titleZh": "考場全景：APCS 線上題庫三大輸入架構",
+    "titleEn": "APCS Exam Input Landscape: Three Essential Ingestion Paradigms",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># APCS / ZeroJudge 歷屆真題三大輸入格式：</span>",
+        "mean": "題目輸入格式分類",
+        "why": "破除初學者對 OJ 測資讀取的恐懼",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 模式一：固定筆數（首行給 N，for _ in range(N):）</span>",
+        "mean": "第一種：已知次數讀取",
+        "why": "標準計次走訪",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 模式二：哨兵值終止（以 0 或 -1 結束，while True + break）</span>",
+        "mean": "第二種：特定暗號終止",
+        "why": "條件終止",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># 模式三：未知行數 EOF（讀到檔案結尾，sys.stdin 或 try-except）</span>",
+        "mean": "第三種：檔案流自然結束",
+        "why": "串流讀取",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"三大輸入架構：固定次數 N、哨兵終止值、未知行數 EOF\"</span>)",
+        "mean": "宣告三大輸入模式",
+        "why": "建立心智地圖",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "三大輸入架構：固定次數 N、哨兵終止值、未知行數 EOF",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "lineText": "題型識別",
+        "type": "concept",
+        "text": "<strong>看懂輸入說明即得分</strong>：解題第一步永遠是看題目的『輸入說明』，秒判斷屬於哪一種模式，直接套用對應迴圈骨架。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "骨架先行",
+        "type": "key",
+        "text": "<strong>骨架寫對，解題事半功倍</strong>：輸入骨架是一切演算法運算的原物料輸送帶，輸送帶穩固，後續解題才會順暢。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：三大輸入法，定次哨兵結尾"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.2 題型一：首行給定總筆數 N 的標準讀取架構（for _ in range(N):）",
+    "titleZh": "題型一：首行給定總筆數 N 的標準讀取骨架",
+    "titleEn": "Pattern 1: Fixed N Inputs via for _ in range(N)",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">simulated_input</span> <span class=\"token-op\">=</span> [<span class=\"token-string\">\"3\"</span>, <span class=\"token-string\">\"10\"</span>, <span class=\"token-string\">\"20\"</span>, <span class=\"token-string\">\"30\"</span>]  <span class=\"token-comment\"># 模擬輸入：N=3，後接 3 筆數據</span>",
+        "mean": "模擬終端機依序輸入字串",
+        "why": "第 1 行是筆數，後續是資料",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">it</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">iter</span>(<span class=\"token-ident\">simulated_input</span>)",
+        "mean": "建立走訪迭代器",
+        "why": "模擬 input() 連續讀取行為",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">N</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span>(<span class=\"token-builtin\">next</span>(<span class=\"token-ident\">it</span>))  <span class=\"token-comment\"># 首行讀入總筆數 N（等價於 N = int(input())）</span>",
+        "mean": "第一行讀出整數 N",
+        "why": "決定後續迴圈總執行次數",
+        "alt": "N = int(input())",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "累加器歸零",
+        "why": "準備加總",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">N</span>):  <span class=\"token-comment\"># 精準跑 N 次，以 _ 代表純計次</span>",
+        "mean": "精準執行 N 輪",
+        "why": "以底線表示不關心變數名",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span>(<span class=\"token-builtin\">next</span>(<span class=\"token-ident\">it</span>))  <span class=\"token-comment\"># 讀入一筆（等價於 val = int(input())）</span>",
+        "mean": "迴圈內部讀入當前數字",
+        "why": "提取數據",
+        "alt": "val = int(input())",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">val</span>",
+        "mean": "累加",
+        "why": "10 + 20 + 30",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"固定 {N} 筆資料總和 =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出結算總合 60",
+        "why": "驗證固定次數讀取成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "固定 3 筆資料總和 = 60",
+    "notes": [
+      {
+        "lines": [
+          3,
+          5
+        ],
+        "lineText": "兩步驟標準起手式",
+        "type": "key",
+        "text": "<strong>N 先讀，for 後跑</strong>：第一步 N = int(input())；第二步 for _ in range(N):。這是 APCS 第一題最常見的送分骨架。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "底線計次習慣",
+        "type": "concept",
+        "text": "<strong>慣用底線 _</strong>：既然只是純粹想跑 N 輪，不需要使用到迴圈變數本身，寫 _ 語意最為清晰專業。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：首行讀總數，定次跑迴圈"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.3 題型二：哨兵值（Sentinel Value）終止法：以 0 或 -1 結束的 while True: 讀取（免例外，純邏輯！）",
+    "titleZh": "題型二：哨兵終止值（0 或 -1）純邏輯讀取",
+    "titleEn": "Pattern 2: Sentinel Value Termination via while True",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">stream</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">15</span>, <span class=\"token-number\">25</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">99</span>]  <span class=\"token-comment\"># 0 為結束哨兵暗號</span>",
+        "mean": "題目註明：『當輸入為 0 時代表測資結束』",
+        "why": "模擬哨兵值情境",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化加總器",
+        "why": "累計哨兵前的數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">stream</span>:  <span class=\"token-comment\"># 實際考場為 while True: x = int(input())</span>",
+        "mean": "持續讀入數值",
+        "why": "在讀入當下檢驗哨兵",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:      <span class=\"token-comment\"># 偵測到哨兵暗號！</span>",
+        "mean": "檢查是否為 0",
+        "why": "結束閘門",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-keyword\">break</span>      <span class=\"token-comment\"># 立即煞車退場，後續 99 不再處理</span>",
+        "mean": "跳出迴圈",
+        "why": "哨兵不參與運算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">x</span>",
+        "mean": "累加有效數值（15 + 25 + 40）",
+        "why": "正確加總",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"哨兵 0 終止前總和 =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出結算總額 80",
+        "why": "驗證哨兵終止邏輯",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "哨兵 0 終止前總和 = 80",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "免例外純邏輯",
+        "type": "key",
+        "text": "<strong>免例外純邏輯</strong>：哨兵題不需要 try-except，單純用 if x == 0: break 即可完成最純粹的邏輯煞車。"
+      },
+      {
+        "lines": [
+          5,
+          6
+        ],
+        "lineText": "位置神聖性",
+        "type": "radar",
+        "text": "<strong>🎯 先判斷後計算</strong>：if 檢查必須放在 total += x 之前！若寫在後面，哨兵 -1 就會誤加進去造成結果偏差！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：哨兵訊號一現，立刻踩煞車"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.4 題型三：什麼是檔案結尾（EOF）？線上題庫測試檔的真實面貌與鍵盤輸入模擬",
+    "titleZh": "EOF 本質：檔案結尾的重定向真相與鍵盤模擬",
+    "titleEn": "Demystifying EOF: Redirection Nature & Terminal Signals",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 什麼是 EOF (End of File)？</span>",
+        "mean": "剖析線上題庫的真實評測環境",
+        "why": "消除初學者對未知行數的迷惘",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 線上評判系統（OJ）是用檔案重定向：python solution.py &lt; test_data.txt</span>",
+        "mean": "OJ 是將檔案直接灌進程式",
+        "why": "檔案讀到最後一個位元組後就再也沒有內容了",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 本地終端手動測試 EOF 信號：Windows 按 [Ctrl + Z]、Mac/Linux 按 [Ctrl + D]</span>",
+        "mean": "本機鍵盤手動觸發 EOF 暗號",
+        "why": "指導學生本機除錯心法",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"EOF 的本質：文字串流讀取到尾端，返回空字串或觸發 EOFError\"</span>)",
+        "mean": "宣告 EOF 兩種 Python 捕獲方式",
+        "why": "引導至後續兩種解法",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "EOF 的本質：文字串流讀取到尾端，返回空字串或觸發 EOFError",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "OJ 真實面貌",
+        "type": "concept",
+        "text": "<strong>沒有人坐在電腦前打字</strong>：線上題庫是由機器把數萬行測試檔一次性注入標準輸入，讀到檔尾自然結束。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "Ctrl+Z 鍵盤暗號",
+        "type": "key",
+        "text": "<strong>本機模擬 EOF</strong>：在 Windows 命令提示字元測試時，輸入完測資後按下 Ctrl + Z 再按 Enter，即可模擬 OJ 的 EOF 信號。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：檔尾讀空字串，或例外終止"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.5 純迴圈派 EOF 讀取法：import sys; for line in sys.stdin:（無需 try-except 的自然迭代法！）",
+    "titleZh": "純迴圈派 EOF：sys.stdin 自然迭代走訪術",
+    "titleEn": "Pure Loop EOF: Natural Iteration with sys.stdin",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 標準考場寫法：import sys; for line in sys.stdin:</span>",
+        "mean": "引入 sys 模組，直接將標準輸入當作可迭代序列",
+        "why": "免寫 try-except 的最高雅解法",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">lines</span> <span class=\"token-op\">=</span> [<span class=\"token-string\">\"10 20\\n\"</span>, <span class=\"token-string\">\"30 40\\n\"</span>]  <span class=\"token-comment\"># 模擬 sys.stdin 串流灌入兩行</span>",
+        "mean": "模擬多行輸入串流",
+        "why": "展示單行多值解析",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">sum_all</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化加總器",
+        "why": "全局加總",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">line</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">lines</span>:  <span class=\"token-comment\"># 自然走訪每一行，直到檔案結束自動停止！</span>",
+        "mean": "for 迴圈自動一列一列讀取，遇 EOF 自動優雅退場",
+        "why": "自然迭代器機制",
+        "alt": "for line in sys.stdin:",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">nums</span> <span class=\"token-op\">=</span> [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">line</span>.<span class=\"token-ident\">strip</span>().<span class=\"token-ident\">split</span>()]",
+        "mean": "去除字尾換行並拆解轉整數",
+        "why": "將 '10 20' 轉為 [10, 20]",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">sum_all</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">nums</span>)",
+        "mean": "累加",
+        "why": "10+20 + 30+40 = 100",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"sys.stdin 走訪總和 =\"</span>, <span class=\"token-ident\">sum_all</span>)",
+        "mean": "印出結算成果 100",
+        "why": "驗證 sys.stdin 自然走訪成效",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "sys.stdin 走訪總和 = 100",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "自然迭代力量",
+        "type": "key",
+        "text": "<strong>優雅免例外</strong>：sys.stdin 本身就是一個文字檔迭代器！用 for line in sys.stdin 自然讀到檔尾退場，完全不需要處理例外。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": ".strip().split()",
+        "type": "radar",
+        "text": "<strong>🎯 標準解拆組合拳</strong>：line.strip().split() 先削去尾端換行符號 \\n，再以空格切開，是處理字串行輸入的黃金搭檔。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：走訪標準輸入，免例外處理"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.6 考場速解模板派：while True: try ... except EOFError: break",
+    "titleZh": "考場速解模板派：try-except EOFError 經典配方",
+    "titleEn": "Standard Template: while True with try-except EOFError",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 考場經典模板：input() 讀不到東西時會噴出 EOFError</span>",
+        "mean": "input() 遇 EOF 的特性",
+        "why": "以例外捕捉作為煞車信號",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">test_inputs</span> <span class=\"token-op\">=</span> [<span class=\"token-string\">\"5\"</span>, <span class=\"token-string\">\"15\"</span>]",
+        "mean": "模擬兩筆資料",
+        "why": "兩次 input()",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">it2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">iter</span>(<span class=\"token-ident\">test_inputs</span>); <span class=\"token-ident\">acc</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化迭代器與累加器",
+        "why": "準備捕捉模擬檔尾",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-keyword\">True</span>:",
+        "mean": "無窮循環嘗試讀入",
+        "why": "不知道有多少行",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-keyword\">try</span>:",
+        "mean": "嘗試區塊：正常讀入資料",
+        "why": "在考場寫 line = input()",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "        <span class=\"token-ident\">val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span>(<span class=\"token-builtin\">next</span>(<span class=\"token-ident\">it2</span>))  <span class=\"token-comment\"># 考場真題寫：val = int(input())</span>",
+        "mean": "讀取並轉型整數",
+        "why": "核心運算",
+        "alt": "val = int(input())",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "        <span class=\"token-ident\">acc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">val</span>",
+        "mean": "累加",
+        "why": "5 + 15 = 20",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "    <span class=\"token-keyword\">except</span> <span class=\"token-ident\">StopIteration</span>:  <span class=\"token-comment\"># 考場真題寫：except EOFError:</span>",
+        "mean": "捕捉檔尾信號（模擬環境為 StopIteration，考場真實環境為 EOFError）",
+        "why": "檔案讀完觸發例外",
+        "alt": "except EOFError:",
+        "diff": true
+      },
+      {
+        "num": 9,
+        "html": "        <span class=\"token-keyword\">break</span>              <span class=\"token-comment\"># 優雅煞車退場！</span>",
+        "mean": "煞車跳出無窮迴圈",
+        "why": "完成未知行數讀取",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 10,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"EOF 終止累加成果 =\"</span>, <span class=\"token-ident\">acc</span>)",
+        "mean": "印出結算 20",
+        "why": "驗證模板成效",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "EOF 終止累加成果 = 20",
+    "notes": [
+      {
+        "lines": [
+          5,
+          8,
+          9
+        ],
+        "lineText": "固定公式記憶",
+        "type": "key",
+        "text": "<strong>考場速解公式</strong>：while True: try: ... except EOFError: break。背熟這三行，所有未知行數題庫題通行無阻。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "第 13 章銜接預告",
+        "type": "concept",
+        "text": "<strong>例外處理底層</strong>：此處作為考場固定公式使用，try-except 的完整異常機制與底層原理將在第 13 章深度專題解密。"
+      },
+      {
+        "lines": [
+          8
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：嘗試讀取檔尾，例外即跳出"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.7 串流數據即時運算（Streaming Processing）：邊讀邊算、空間 O(1) 的解題優化",
+    "titleZh": "串流即時運算：邊讀邊算，O(1) 空間防爆記憶體",
+    "titleEn": "Streaming Processing: Real-Time Compute with O(1) Memory",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">data</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">12</span>, <span class=\"token-number\">45</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">30</span>]",
+        "mean": "模擬海量資料來源",
+        "why": "示範空間複雜度 O(1) 的極限優化",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">running_max</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">float</span>(<span class=\"token-string\">\"-inf\"</span>)",
+        "mean": "擂台盟主初始值設為負無窮大",
+        "why": "記憶體只留一個變數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">data</span>:  <span class=\"token-comment\"># 來一個處理一個，不開大清單存全部</span>",
+        "mean": "走訪串流",
+        "why": "串流處理模式",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">></span> <span class=\"token-ident\">running_max</span>: <span class=\"token-ident\">running_max</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span>",
+        "mean": "即時更新目前最大值",
+        "why": "單趟結算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"串流即時最大值 =\"</span>, <span class=\"token-ident\">running_max</span>)",
+        "mean": "印出最終最大值 45",
+        "why": "驗證邊讀邊算成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "串流即時最大值 = 45",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "MLE 記憶體超限防衛",
+        "type": "radar",
+        "text": "<strong>🎯 空間 O(1) 神技</strong>：若題目測資有 1000 萬筆，全存進串列會直接噴出 Memory Limit Exceeded (MLE)！邊讀邊算只佔一個變數空間！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "流式計算哲學",
+        "type": "key",
+        "text": "<strong>大數據處理精神</strong>：只要題目只問『最大值』或『總和』，絕不把資料存起來，讀進來立刻吃掉算完。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：邊讀邊算，記憶體最省"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.3 題型二：哨兵值（Sentinel Value）終止法：以 0 或 -1 結束的 while True: 讀取（免例外，純邏輯！）",
+    "titleZh": "哨兵終止追蹤表：數據流與攔截點動態矩陣",
+    "titleEn": "Trace Table: Sentinel Interception & Accumulation Timeline",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">seq</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">15</span>, <span class=\"token-number\">25</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">0</span>]",
+        "mean": "輸入數列包含有效數據與哨兵 0",
+        "why": "追蹤矩陣演練",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">s</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "累加器歸零",
+        "why": "初始化存錢筒",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">seq</span>:",
+        "mean": "走訪數列",
+        "why": "逐一檢驗",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "命中哨兵",
+        "why": "煞車判斷",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"讀入 0: 哨兵命中！觸發 break 終止\"</span>); <span class=\"token-keyword\">break</span>",
+        "mean": "印出命中通報並煞車退出",
+        "why": "終止流向",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">s</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">x</span>",
+        "mean": "累加",
+        "why": "更新狀態",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"讀入 {x}: 累加後總和 {s}\"</span>)",
+        "mean": "印出每輪狀態",
+        "why": "驗證追蹤矩陣",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "讀入 15: 累加後總和 15\n讀入 25: 累加後總和 40\n讀入 40: 累加後總和 80\n讀入 0: 哨兵命中！觸發 break 終止",
+    "traceTable": {
+      "title": "📊 哨兵值 0 攔截動態追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "輪次",
+        "讀入數值 x",
+        "哨兵檢查 (x == 0)",
+        "累計總和 s"
+      ],
+      "activeRow": 3,
+      "rows": [
+        {
+          "values": [
+            "第 1 步",
+            "x = 15",
+            "False (非哨兵)",
+            "0 + 15 ➔ s = 15"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            6,
+            7
+          ]
+        },
+        {
+          "values": [
+            "第 2 步",
+            "x = 25",
+            "False (非哨兵)",
+            "15 + 25 ➔ s = 40"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            6,
+            7
+          ]
+        },
+        {
+          "values": [
+            "第 3 步",
+            "x = 40",
+            "False (非哨兵)",
+            "40 + 40 ➔ s = 80"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            6,
+            7
+          ]
+        },
+        {
+          "values": [
+            "第 4 步",
+            "x = 0",
+            "True (哨兵命中！)",
+            "觸發 break 煞車！最終總和保持 80"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "成功攔截",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "攔截無污染",
+        "type": "key",
+        "text": "<strong>0 被攔截在門外</strong>：第四步讀入 0 時直接跳出，完全沒有執行第 6 行加總，總和乾淨保持在 80。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "追蹤定錨",
+        "type": "concept",
+        "text": "<strong>時間軸可視化</strong>：看清楚每一筆數值被消化與結算的時序，徹底掌握狀態機運行。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：追蹤表查哨兵，攔截前結算"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8 考場地雷一：EOF 題目誤用單次 input() 導致面對多行測資提早退場",
+    "titleZh": "考場致命地雷一：未知行數誤寫單次 input 引發提早退場",
+    "titleEn": "Pitfall 1: Using Single input() on Multi-Line EOF Data",
+    "predictQuiz": {
+      "question": "預測思考：題目說明『輸入包含多行，直到檔案結束』，若你的程式只寫了一行 s = input()，提交給線上題庫評判會得到？",
+      "options": [
+        "WA 錯誤（只讀了第 1 行就結束程式，後續數百行測資全部漏掉！）",
+        "系統會自動把每一行都串接進 s 字串中"
+      ],
+      "correct": 0,
+      "explanation": "input() 每次呼叫『只會讀取一行』！遇到未知多行測資，外層必須套上 while 或 sys.stdin 迴圈持續讀取！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 致命誤區：題目說「有多行輸入直到 EOF」</span>",
+        "mean": "審題誤區",
+        "why": "以單行思維寫多行題目",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 很多考生只寫：data = input() 隨後就開始運算</span>",
+        "mean": "只讀了第 1 行",
+        "why": "後續所有行被丟棄",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"EOF 題目切勿只寫單次 input()，必須用 while 或 sys.stdin 包覆！\"</span>)",
+        "mean": "宣告防禦鐵律",
+        "why": "警惕考生建立外層迴圈包覆意識",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "EOF 題目切勿只寫單次 input()，必須用 while 或 sys.stdin 包覆！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "審題天眼",
+        "type": "wa",
+        "text": "<strong>💥 只要看到『未知行數』</strong>：立刻在心裡畫一個大外圈！沒有外層迴圈，再厲害的演算法也只能吃到第一塊碎屑（WA 爆零）！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "首選方案",
+        "type": "key",
+        "text": "<strong>最穩寫法</strong>：考場首選 for line in sys.stdin:，乾淨俐落，自動讀完每一行。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：未知行數包迴圈，莫單次讀"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8 考場地雷二：哨兵判斷放在累加之後，導致哨兵值（如 -1 或 0）污染結算答案",
+    "titleZh": "考場致命地雷二：哨兵判斷放錯順序引發數值污染",
+    "titleEn": "Pitfall 2: Sentinel Check Placed After Computation Pollutes Answer",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">stream</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, -<span class=\"token-number\">1</span>]  <span class=\"token-comment\"># 哨兵為 -1</span>",
+        "mean": "真實總和應為 10 + 20 = 30",
+        "why": "-1 只是結束信號，非運算資料",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">tot</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化加總器",
+        "why": "加總容器",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">stream</span>:",
+        "mean": "依序走訪",
+        "why": "走訪數列",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> -<span class=\"token-number\">1</span>: <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 守門員第一行：先檢查哨兵才准加！</span>",
+        "mean": "先檢查哨兵",
+        "why": "若為 -1 立即煞車，不碰第 5 行",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">tot</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">x</span>",
+        "mean": "安全累加",
+        "why": "只累加有效數字",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正確排除哨兵後總和 =\"</span>, <span class=\"token-ident\">tot</span>)",
+        "mean": "印出乾淨總和 30",
+        "why": "驗證 30 而非 29",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "正確排除哨兵後總和 = 30",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "差一慘劇",
+        "type": "wa",
+        "text": "<strong>💥 差 -1 慘案</strong>：若把 if x == -1 寫在 tot += x 後面，tot 就會先加上 -1 變成 29 才退出，答案差 1 直接 WA！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "門衛原則",
+        "type": "key",
+        "text": "<strong>門衛必須站門口</strong>：檢查暗號必須在所有運算之前執行，絕不讓危險分子進入大廳。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先判哨兵後加，防數值污染"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8 考場地雷三：sys.stdin 走訪時忘記使用 .strip() 導致字尾換行符 \\n 引發格式錯誤",
+    "titleZh": "考場致命地雷三：未 strip() 殘留換行符引發拆解崩潰",
+    "titleEn": "Pitfall 3: Forgetting .strip() Leaves Hidden Newlines",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">raw_line</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"  123 \\n\"</span>  <span class=\"token-comment\"># sys.stdin 讀入的字串必定帶有尾端換行符 \\n</span>",
+        "mean": "原始讀入行包含前後空白與換行符",
+        "why": "展示字串清理重要性",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">cleaned</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">raw_line</span>.<span class=\"token-ident\">strip</span>()  <span class=\"token-comment\"># 剃除前後所有空白與 \\n</span>",
+        "mean": "以 .strip() 乾淨去除雜質",
+        "why": "得到純粹字串 '123'",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"原始: '{raw_line}' -&gt; 清理後: '{cleaned}'\"</span>)",
+        "mean": "印出清理對比成果",
+        "why": "驗證換行符號被安全移除",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "原始: '  123 \n' -> 清理後: '123'",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "隱形字元危害",
+        "type": "radar",
+        "text": "<strong>🎯 \\n 的隱形破壞</strong>：若直接拿 line 做字串比對（如 line == 'YES'），會因為 'YES\\n' != 'YES' 判定失敗！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "養成習慣",
+        "type": "key",
+        "text": "<strong>讀進來立刻 strip()</strong>：只要是從 sys.stdin 拿出來的字串，起手式必定先掛上 .strip() 清洗。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：讀行記得去空，防字尾換行"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8 考場地雷四：多筆測資下全域變數未重置導致連續測資交叉感染",
+    "titleZh": "考場致命地雷四：連續測資全域變數未清空引發交叉感染",
+    "titleEn": "Pitfall 4: Global Variable Leakage Across Multiple Test Cases",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># APCS 考場最悲壯死因：</span>",
+        "mean": "分析多筆測資下的大規模失分原因",
+        "why": "建立終極防禦壁壘",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 在連續 EOF 測資中，若宣告了全域串列 records = [] 或 total = 0</span>",
+        "mean": "宣告位置在所有迴圈最外圍",
+        "why": "第一筆測資跑完時把資料留在裡面",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 第二筆測資進場時，累加了第一筆的殘餘成果，直接交叉感染全面陣亡！</span>",
+        "mean": "後續測資無一倖免",
+        "why": "得分斷崖式暴跌",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"多筆測資每一回合開頭務必清空暫存！\"</span>)",
+        "mean": "宣告神聖重置定律",
+        "why": "保障多測資穩定拿滿分",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "多筆測資每一回合開頭務必清空暫存！",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "清空暫存",
+        "type": "wa",
+        "text": "<strong>💥 交叉感染死穴</strong>：每測一組資料，所有答案變數、串列、計數器必須全部『重置歸零』！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "函式封裝解法",
+        "type": "key",
+        "text": "<strong>封裝進 solve()</strong>：將每筆測資的邏輯包進 def solve(): 函式中，變數隨函式結束自然銷毀，乾淨又俐落。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：多回合開頭清，變數不繼承"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.8 APCS 歷屆真題輸入骨架模擬特訓：從單行多值到連續測資的完整通關",
+    "titleZh": "真題模擬：T 組測資與單行多值解析實戰",
+    "titleEn": "APCS Exam Archetype: T Test Cases & Multiple Inputs per Line",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">cases</span> <span class=\"token-op\">=</span> [[<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>], [<span class=\"token-number\">5</span>, <span class=\"token-number\">15</span>]]  <span class=\"token-comment\"># 模擬 T=2 組測資</span>",
+        "mean": "模擬兩組測試案例",
+        "why": "每組有不同數量的整數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">case_idx</span>, <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">cases</span>):  <span class=\"token-comment\"># 外層跑 T 組</span>",
+        "mean": "外層控制組數",
+        "why": "逐組獨立處理",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">ans</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">c</span>)  <span class=\"token-comment\"># 考場真題可直接計算本組答案</span>",
+        "mean": "獨立結算本組總和",
+        "why": "第 1 組得 60，第 2 組得 20",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"測資 #{case_idx + 1} 答案 = {ans}\"</span>)",
+        "mean": "格式化印出本組成果",
+        "why": "驗證兩組獨立答案落地",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "測資 #1 答案 = 60\n測資 #2 答案 = 20",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "雙層解法骨架",
+        "type": "key",
+        "text": "<strong>外層跑測資，內層拆數據</strong>：外層 for _ in range(T) 掌管回合數；內層 map(int, input().split()) 負責吞食數據。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "獨立解耦",
+        "type": "concept",
+        "text": "<strong>組組獨立</strong>：第一組的變數絕不洩漏到第二組，這是奪下 APCS 實作題滿分 100 分的定海神針。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：外層筆數內拆，雙層定乾坤"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8.7 串流數據即時運算（Streaming Processing）：邊讀邊算、空間 O(1) 的解題優化",
+    "titleZh": "單元 6.8 綜合驗收一：串流數據流式多指標統計實戰",
+    "titleEn": "Unit 6.8 Comprehensive Review: Streaming Multi-Metric Ingestion",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">stream_data</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">80</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">60</span>]",
+        "mean": "串流資料陸續進場",
+        "why": "模擬巨量資料流式讀取",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">cur_sum</span>, <span class=\"token-ident\">cur_cnt</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>",
+        "mean": "初始化即時累加與計數器",
+        "why": "維持 O(1) 空間",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">stream_data</span>:",
+        "mean": "走訪串流數據",
+        "why": "來一筆消化一筆",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">cur_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">s</span>; <span class=\"token-ident\">cur_cnt</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "即時更新總分與人數",
+        "why": "同步縮減",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"串流結算: 總分 {cur_sum}, 人數 {cur_cnt}, 平均 {cur_sum/cur_cnt:.1f}\"</span>)",
+        "mean": "印出串流結算報表",
+        "why": "驗證 O(1) 空間多指標運算",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "串流結算: 總分 235, 人數 3, 平均 78.3",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "O(1) 極致記憶體",
+        "type": "key",
+        "text": "<strong>不建大串列</strong>：無論測資是 3 筆還是 300 萬筆，記憶體佔用永遠維持在常數級，效能極限飆升。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "流式計算力量",
+        "type": "concept",
+        "text": "<strong>資料縮減威力</strong>：這就是現代大數據處理引擎（Spark、Flink）的核心精髓，在迴圈中優雅體現。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：串流即時算，空間僅常數"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.8 綜合驗收",
+    "titleZh": "第六章 迴圈全章大圓滿：三大輸入模式與巔峰通關",
+    "titleEn": "Chapter 6 Grand Finale: Three Input Paradigms & Course Milestone",
+    "completionCard": {
+      "badge": "🏆 第六章 大圓滿：迴圈結構與考場輸入最高大師！",
+      "summary": "恭喜達成不可思議的里程碑！你已徹底精通計數迴圈 for、條件迴圈 while、流程跳轉 break/continue、巢狀時鐘模型、幾何排版術、陷阱排查與考場三大輸入模式（固定 N、哨兵、EOF）！",
+      "nextUnit": "第七章 容器型態初探：字串進階操作與切片"
+    },
+    "traceTable": {
+      "title": "📊 APCS 線上題庫三大輸入架構全速查總表 (Trace Table)",
+      "hint": "三大輸入模式核心骨架與適用題目特徵速查",
+      "headers": [
+        "輸入模式類型",
+        "題目關鍵字特徵",
+        "考場標準程式碼骨架",
+        "核心注意事項"
+      ],
+      "activeRow": 2,
+      "rows": [
+        {
+          "values": [
+            "1. 固定筆數 N",
+            "首行給定 N 筆資料",
+            "N = int(input()); for _ in range(N):",
+            "首行先讀 N，迴圈精準跑 N 輪"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已精通",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "2. 哨兵終止值",
+            "以 0 或 -1 代表結束",
+            "while True: x=int(input()); if x==0: break",
+            "先檢查哨兵才累加，防數值污染"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已精通",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2
+          ]
+        },
+        {
+          "values": [
+            "3. 未知行數 EOF",
+            "直到檔案結束為止",
+            "for line in sys.stdin: ...",
+            "讀進字串先 .strip() 去除換行"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "全章登頂",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 第六章 迴圈結構與控制流程 全章大圓滿！</span>",
+        "mean": "全章終極里程碑",
+        "why": "完成整個第六章 8 個單元的完整修煉",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"APCS 考場三大輸入模式全通關！\"</span>)",
+        "mean": "榮耀輸出登頂通關宣告",
+        "why": "全章完工圓滿結算",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "APCS 考場三大輸入模式全通關！",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取第六章專屬全通關成就！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "登峰造極",
+        "type": "key",
+        "text": "<strong>程式控制心臟</strong>：迴圈是演算法與資料結構的心臟跳動。學完第六章，你已經具備在 APCS 考場披荊斬棘的深厚內力！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：迴圈大圓滿，登峰造極境"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-8",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-8_eof_and_input_streaming_patterns.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

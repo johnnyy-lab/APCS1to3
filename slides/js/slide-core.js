@@ -104,9 +104,9 @@ const courseCurriculum = [
       { id: "sec8-2", title: "8.2 串列切片語法與切片賦值", available: true, url: "PythAPCS123_8-2_list_slicing_and_slice_assignment.html" },
       { id: "sec8-3", title: "8.3 串列常用內建方法（append, pop, insert 等）", available: true, url: "PythAPCS123_8-3_list_methods_append_pop_insert.html" },
       { id: "sec8-4", title: "8.4 串列統計與極值運算（sum, max, min, len）", available: true, url: "PythAPCS123_8-4_list_statistics_sum_max_min.html" },
-      { id: "sec8-5", title: "8.5 串列走訪與成員查詢（for, index, in）", available: false },
-      { id: "sec8-6", title: "8.6 串列參照與淺拷貝（copy, [:]）", available: false },
-      { id: "sec8-7", title: "8.7 列表生成式與動態輸入（List Comprehension）", available: false }
+      { id: "sec8-5", title: "8.5 串列走訪與成員查詢（for, index, in）", available: true, url: "PythAPCS123_8-5_list_traversal_and_membership.html" },
+      { id: "sec8-6", title: "8.6 串列參照與淺拷貝（copy, [:]）", available: true, url: "PythAPCS123_8-6_list_reference_and_shallow_copy.html" },
+      { id: "sec8-7", title: "8.7 列表生成式與動態輸入（List Comprehension）", available: true, url: "PythAPCS123_8-7_list_comprehension_and_dynamic_input.html" }
     ]
   },
   {

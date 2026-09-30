@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 8.6 串列參照與淺拷貝（copy, [:]） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 8.6 串列參照與淺拷貝（copy, [:]）
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.1 變數賦值的大陷阱：b = a 只是共用同一張標籤",
+    "titleZh": "別名參照大陷阱——b = a 不是複製，是貼第二張名牌！",
+    "titleEn": "Aliasing Pitfall: b = a Shares the Same List",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "宣告串列 a",
+        "why": "別名示範清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "b = a",
+        "html": "<span class=\"token-ident\">b</span> = <span class=\"token-ident\">a</span>",
+        "alt": "將 a 賦值給 b（建立別名參照）",
+        "diff": true,
+        "why": "建立別名而非複製",
+        "mean": "共享指針"
+      },
+      {
+        "num": 3,
+        "code": "b[0] = 99",
+        "html": "<span class=\"token-ident\">b</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">99</span>",
+        "alt": "透過 b 修改索引 0 的值為 99",
+        "diff": true,
+        "why": "透過 b 修改內部元素",
+        "mean": "修改 b[0]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"串列 a 也跟著變了:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"串列 a 也跟著變了:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出 a 發現 a 也變成了 99",
+        "diff": true,
+        "why": "驗證 a 被牽連修改",
+        "mean": "輸出 [99, 20, 30]"
+      }
+    ],
+    "output": "串列 a 也跟著變了: [99, 20, 30]",
+    "memoryState": [
+      {
+        "name": "a / b[0]",
+        "val": "99",
+        "prevVal": "10",
+        "diff": true
+      },
+      {
+        "name": "a / b[1]",
+        "val": "20",
+        "diff": false
+      },
+      {
+        "name": "a / b[2]",
+        "val": "30",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>變數只是便利貼</strong>：在 Python 中，變數並不是裝資料的盒子，而是貼在記憶體物件上的「名牌標籤」。<code>b = a</code> 只是在同一箱物品上貼上第二張名牌！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考首選</strong>：透過 <code>b</code> 修改元素，透過 <code>a</code> 讀取時完全同步，因為底層根本是**同一個箱子**！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：b等號a共用箱，改b動a全遭殃"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.2 身分證驗證：id() 函式與 is 運算子",
+    "titleZh": "身分證驗證——id() 函式透視記憶體門牌號碼",
+    "titleEn": "Memory Identity: Verifying with id() Function",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告串列 a",
+        "why": "身分證測試清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "b = a",
+        "html": "<span class=\"token-ident\">b</span> = <span class=\"token-ident\">a</span>",
+        "alt": "b 參照 a",
+        "why": "建立參照別名",
+        "mean": "別名賦值"
+      },
+      {
+        "num": 3,
+        "code": "c = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">c</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "另外宣告內容相同的獨立新串列 c",
+        "diff": true,
+        "why": "建立同值不同箱新串列",
+        "mean": "新物件宣告"
+      },
+      {
+        "num": 4,
+        "code": "print(\"a 與 b 門牌相同?\", id(a) == id(b))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"a 與 b 門牌相同?\"</span>, <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">a</span>) == <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">b</span>))",
+        "alt": "比對 id(a) 與 id(b)",
+        "diff": true,
+        "why": "驗證同記憶體位址",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 5,
+        "code": "print(\"a 與 c 門牌相同?\", id(a) == id(c))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"a 與 c 門牌相同?\"</span>, <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">a</span>) == <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">c</span>))",
+        "alt": "比對 id(a) 與 id(c)",
+        "diff": true,
+        "why": "驗證不同記憶體位址",
+        "mean": "輸出 False"
+      }
+    ],
+    "output": "a 與 b 門牌相同? True\na 與 c 門牌相同? False",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>記憶體唯一的身分證</strong>：<code>id(obj)</code> 回傳該物件在記憶體中的整數門牌號碼。門牌相同代表就是同一實體。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>內容一樣不等於同一個箱子</strong>：<code>c = [1, 2, 3]</code> 雖然內容和 <code>a</code> 相同，但電腦在記憶體開闢了全新的另一個箱子，所以 <code>id(a) != id(c)</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：id 看門牌號碼，同號才是真同體"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.2 身分證驗證：id() 函式與 is 運算子",
+    "titleZh": "運算子大對決——== 內容比對 vs is 物件同體比對",
+    "titleEn": "Equality vs Identity: == vs is Operators",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "x = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">x</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告串列 x",
+        "why": "比較示範清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "y = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">y</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告獨立串列 y",
+        "why": "同值不同箱清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 3,
+        "code": "print(\"x == y (內容相等?):\", x == y)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"x == y (內容相等?):\"</span>, <span class=\"token-ident\">x</span> == <span class=\"token-ident\">y</span>)",
+        "alt": "以雙等號比對內容",
+        "diff": true,
+        "why": "比對元素內容",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 4,
+        "code": "print(\"x is y (同一物件?):\", x is y)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"x is y (同一物件?):\"</span>, <span class=\"token-ident\">x</span> <span class=\"token-keyword\">is</span> <span class=\"token-ident\">y</span>)",
+        "alt": "以 is 運算子比對記憶體同體",
+        "diff": true,
+        "why": "比對身分同體",
+        "mean": "輸出 False"
+      }
+    ],
+    "output": "x == y (內容相等?): True\nx is y (同一物件?): False",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>雙等號 == 比對「數值內容」</strong>：只要裡面的元素順序與數值一模一樣，<code>x == y</code> 就是 <code>True</code>。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 is 運算子比對「身分同體」</strong>：<code>x is y</code> 等價於 <code>id(x) == id(y)</code>，比對兩者是否指向同一個記憶體實體！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：雙等比內容，is 比身分"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.3 製作真正的獨立副本：copy() 方法",
+    "titleZh": "獨立副本之道一——.copy() 方法打造安全分身",
+    "titleEn": "Cloning Path 1: .copy() Method for Independent Copy",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "origin = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">origin</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "宣告原始串列 origin",
+        "why": "copy 測試資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "clone = origin.copy()",
+        "html": "<span class=\"token-ident\">clone</span> = <span class=\"token-ident\">origin</span>.<span class=\"token-ident\">copy</span>()",
+        "alt": "呼叫 copy 複製獨立副本",
+        "diff": true,
+        "why": "呼叫 copy 建立新箱",
+        "mean": "獨立拷貝"
+      },
+      {
+        "num": 3,
+        "code": "clone[0] = 99",
+        "html": "<span class=\"token-ident\">clone</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">99</span>",
+        "alt": "修改副本的第一個元素",
+        "diff": true,
+        "why": "修改副本元素",
+        "mean": "修改 clone[0]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"origin 完好無缺:\", origin)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"origin 完好無缺:\"</span>, <span class=\"token-ident\">origin</span>)",
+        "alt": "印出 origin 確認未受波及",
+        "diff": true,
+        "why": "驗證原始串列完好",
+        "mean": "輸出 10, 20, 30"
+      },
+      {
+        "num": 5,
+        "code": "print(\"clone 成功修改:\", clone)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"clone 成功修改:\"</span>, <span class=\"token-ident\">clone</span>)",
+        "alt": "印出 clone 確認修改成功",
+        "diff": true,
+        "why": "確認副本獨立更新",
+        "mean": "輸出 99, 20, 30"
+      }
+    ],
+    "output": "origin 完好無缺: [10, 20, 30]\nclone 成功修改: [99, 20, 30]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>語意最明確的複製</strong>：<code>a.copy()</code> 方法會建造一個全新的一維串列容器，並把所有元素數值搬進新家。此時 <code>clone is origin</code> 為 <code>False</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>互不干擾</strong>：修改 <code>clone</code> 的元素，<code>origin</code> 紋絲不動，各自安好。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：點 copy 生新箱，各自修改互不干"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.4 切片複製經典技法：b = a[:]",
+    "titleZh": "獨立副本之道二——全切片 b = a[:] 極速克隆",
+    "titleEn": "Cloning Path 2: Full Slice b = a[:] Classic Clone",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "data = [5, 10, 15]",
+        "html": "<span class=\"token-ident\">data</span> = [<span class=\"token-number\">5</span>, <span class=\"token-number\">10</span>, <span class=\"token-number\">15</span>]",
+        "alt": "宣告資料串列 data",
+        "why": "全切片示範",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "backup = data[:]",
+        "html": "<span class=\"token-ident\">backup</span> = <span class=\"token-ident\">data</span>[:]",
+        "alt": "以全切片複製副本至 backup",
+        "diff": true,
+        "why": "切片克隆神技",
+        "mean": "全切片拷貝"
+      },
+      {
+        "num": 3,
+        "code": "print(\"兩者是同一個箱子嗎?\", backup is data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"兩者是同一個箱子嗎?\"</span>, <span class=\"token-ident\">backup</span> <span class=\"token-keyword\">is</span> <span class=\"token-ident\">data</span>)",
+        "alt": "以 is 驗證身分獨立",
+        "diff": true,
+        "why": "確認是不同實體",
+        "mean": "輸出 False"
+      },
+      {
+        "num": 4,
+        "code": "print(\"兩者內容相等嗎?\", backup == data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"兩者內容相等嗎?\"</span>, <span class=\"token-ident\">backup</span> == <span class=\"token-ident\">data</span>)",
+        "alt": "以雙等號驗證內容一致",
+        "diff": true,
+        "why": "確認內容相同",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "兩者是同一個箱子嗎? False\n兩者內容相等嗎? True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>競賽選手最愛寫法</strong>：<code>a[:]</code> 字數最短、執行極快，能以 3 個字元輕鬆產出一份完全獨立的一維淺拷貝。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>Python 慣例（Idiom）</strong>：在 Python 社群中，<code>a[:]</code> 是家喻戶曉的拷貝暗號，效果與 <code>a.copy()</code> 完全一致。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：冒號全切片，克隆副本最精簡"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.3 製作真正的獨立副本：copy() 方法",
+    "titleZh": "獨立副本之道三——list(a) 建構函式重塑新箱",
+    "titleEn": "Cloning Path 3: list(a) Constructor Rebuilding",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "original = [100, 200]",
+        "html": "<span class=\"token-ident\">original</span> = [<span class=\"token-number\">100</span>, <span class=\"token-number\">200</span>]",
+        "alt": "宣告 original 串列",
+        "why": "建構函式範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "new_list = list(original)",
+        "html": "<span class=\"token-ident\">new_list</span> = <span class=\"token-builtin\">list</span>(<span class=\"token-ident\">original</span>)",
+        "alt": "呼叫 list() 建構函式複製",
+        "diff": true,
+        "why": "建構新串列物件",
+        "mean": "建構全新串列"
+      },
+      {
+        "num": 3,
+        "code": "print(\"is 物件比對:\", new_list is original)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"is 物件比對:\"</span>, <span class=\"token-ident\">new_list</span> <span class=\"token-keyword\">is</span> <span class=\"token-ident\">original</span>)",
+        "alt": "印出 is 比對結果 False",
+        "diff": true,
+        "why": "證明記憶體不同",
+        "mean": "輸出 False"
+      },
+      {
+        "num": 4,
+        "code": "print(\"== 內容比對:\", new_list == original)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"== 內容比對:\"</span>, <span class=\"token-ident\">new_list</span> == <span class=\"token-ident\">original</span>)",
+        "alt": "印出內容比對結果 True",
+        "diff": true,
+        "why": "證明內容一致",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "is 物件比對: False\n== 內容比對: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>型態建構法</strong>：呼叫 <code>list(iterable)</code> 會強迫直譯器走訪可迭代對象，並在記憶體打造一個全新的串列放入元素。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>三大拷貝法殊途同歸</strong>：在處理一維串列時，<code>a.copy()</code>、<code>a[:]</code>、<code>list(a)</code> 三者功能 100% 等價，皆為獨立淺拷貝。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：copy、切片、list函式，一維拷貝三劍客"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.1 變數賦值的大陷阱：b = a 只是共用同一張標籤",
+    "titleZh": "函式傳參參照效應——傳遞串列就是傳遞原箱鑰匙！",
+    "titleEn": "Function Parameter Side-Effects: Mutating Passed Lists",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def add_bonus(box):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">add_bonus</span>(<span class=\"token-ident\">box</span>):",
+        "alt": "定義修改串列的函式 add_bonus",
+        "why": "副作用示範函式",
+        "mean": "函式定義"
+      },
+      {
+        "num": 2,
+        "code": "    box.append(999)",
+        "html": "    <span class=\"token-ident\">box</span>.<span class=\"token-ident\">append</span>(<span class=\"token-number\">999</span>)",
+        "alt": "在 box 尾端追加 999",
+        "diff": true,
+        "why": "就地修改傳入串列",
+        "mean": "追加 999"
+      },
+      {
+        "num": 3,
+        "code": "scores = [10, 20]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]",
+        "alt": "宣告外部串列 scores",
+        "why": "全域原始資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 4,
+        "code": "add_bonus(scores)",
+        "html": "<span class=\"token-ident\">add_bonus</span>(<span class=\"token-ident\">scores</span>)",
+        "alt": "將 scores 傳入函式",
+        "diff": true,
+        "why": "傳入參照",
+        "mean": "呼叫函式"
+      },
+      {
+        "num": 5,
+        "code": "print(\"全域 scores 被永久改動:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"全域 scores 被永久改動:\"</span>, <span class=\"token-ident\">scores</span>)",
+        "alt": "印出 scores 發現被修改",
+        "diff": true,
+        "why": "展示副作用成果",
+        "mean": "輸出 10, 20, 999"
+      }
+    ],
+    "output": "全域 scores 被永久改動: [10, 20, 999]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>傳址參照（Pass by Object Reference）</strong>：將串列傳入函式時，參數 <code>box</code> 接到的並非串列副本，而是<strong>指向原箱的同一張名牌</strong>！函式內的任何 <code>append</code> 或 <code>pop</code> 都會直接改動全域串列！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題常考死穴</strong>：整數和字串不可變，傳入函式不會被改動；但串列是可變的，函式就地修改具有永久副作用！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：串列進函式交鑰匙，就地修改全域變"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.4 切片複製經典技法：b = a[:]",
+    "titleZh": "函式防護之道——傳入前先建立副本 func(a[:])",
+    "titleEn": "Guarding Functions: Passing Sliced Copies func(a[:])",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def dangerous_func(box):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">dangerous_func</span>(<span class=\"token-ident\">box</span>):",
+        "alt": "定義會修改串列的危險函式",
+        "why": "展示防護寫法",
+        "mean": "函式宣告"
+      },
+      {
+        "num": 2,
+        "code": "    box.clear()",
+        "html": "    <span class=\"token-ident\">box</span>.<span class=\"token-ident\">clear</span>()",
+        "alt": "函式內部清空串列",
+        "why": "倒空串列操作",
+        "mean": "清空 box"
+      },
+      {
+        "num": 3,
+        "code": "my_data = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">my_data</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告珍貴資料 my_data",
+        "why": "原始珍貴資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 4,
+        "code": "dangerous_func(my_data[:])",
+        "html": "<span class=\"token-ident\">dangerous_func</span>(<span class=\"token-ident\">my_data</span>[:])",
+        "alt": "關鍵防護：傳入全切片副本！",
+        "diff": true,
+        "why": "傳入獨立切片副本",
+        "mean": "替身送入函式"
+      },
+      {
+        "num": 5,
+        "code": "print(\"my_data 依然安然無恙:\", my_data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"my_data 依然安然無恙:\"</span>, <span class=\"token-ident\">my_data</span>)",
+        "alt": "印出 my_data 完好如初",
+        "diff": true,
+        "why": "驗證資料未受損害",
+        "mean": "輸出 1, 2, 3"
+      }
+    ],
+    "output": "my_data 依然安然無恙: [1, 2, 3]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>金蟬脫殼替身術</strong>：若不希望外部資料被函式修改，呼叫時**傳入 <code>my_data[:]</code> 或 <code>my_data.copy()</code>**！函式清空的只是替身副本，本體安全無恙。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>設計原則</strong>：好的函式通常盡量避免就地修改外部參數，或在函式開頭自行拷貝 <code>box = box.copy()</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：送替身切片進函式，本體安全無恙留"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.5 淺拷貝（Shallow Copy）的核心本質與防禦實踐",
+    "titleZh": "淺拷貝核心本質——外層換了新箱，內層原物共用！",
+    "titleEn": "Shallow Copy Mechanics: New Outer, Shared Inner",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nested = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">nested</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "宣告包含子串列的二維串列 nested",
+        "why": "淺拷貝本質剖析資料",
+        "mean": "二維串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "shallow = nested.copy()",
+        "html": "<span class=\"token-ident\">shallow</span> = <span class=\"token-ident\">nested</span>.<span class=\"token-ident\">copy</span>()",
+        "alt": "淺拷貝 copy() 建立 shallow",
+        "diff": true,
+        "why": "淺拷貝外層",
+        "mean": "複製外層新箱"
+      },
+      {
+        "num": 3,
+        "code": "print(\"外層箱子不同?\", shallow is not nested)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"外層箱子不同?\"</span>, <span class=\"token-ident\">shallow</span> <span class=\"token-keyword\">is not</span> <span class=\"token-ident\">nested</span>)",
+        "alt": "外層物件確實不同",
+        "diff": true,
+        "why": "證明外層獨立",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 4,
+        "code": "print(\"但內層子串列竟然共用同一箱?\", shallow[0] is nested[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"但內層子串列竟然共用同一箱?\"</span>, <span class=\"token-ident\">shallow</span>[<span class=\"token-number\">0</span>] <span class=\"token-keyword\">is</span> <span class=\"token-ident\">nested</span>[<span class=\"token-number\">0</span>])",
+        "alt": "內層第 0 格子串列竟然指向同一個物件！",
+        "diff": true,
+        "why": "揭露淺拷貝內層共用真相",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "外層箱子不同? True\n但內層子串列竟然共用同一箱? True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>淺拷貝的「淺」究竟淺在哪裡？</strong>：<code>copy()</code> 和 <code>[:]</code> 只複製了最外層的大箱子；大箱子裡裝的「小箱子（子串列）」指標依然原封不動被搬過去，導致小箱子依然共用！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題最深奧考點</strong>：如果修改 <code>shallow[0][0] = 99</code>，原串列 <code>nested[0][0]</code> 也會連帶被改！這就是為什麼它叫「淺」拷貝。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：淺拷貝外分內合，子串列依然同一箱"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.5 淺拷貝（Shallow Copy）的核心本質與防禦實踐",
+    "titleZh": "深拷貝極致防禦——copy.deepcopy() 連根拔起徹底獨立",
+    "titleEn": "Deep Copy Solution: copy.deepcopy() Total Independence",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import copy",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">copy</span>",
+        "alt": "匯入標準函式庫 copy 模組",
+        "why": "深拷貝模組匯入",
+        "mean": "模組匯入"
+      },
+      {
+        "num": 2,
+        "code": "nested = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">nested</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "宣告巢狀串列 nested",
+        "why": "深拷貝測試資料",
+        "mean": "二維串列宣告"
+      },
+      {
+        "num": 3,
+        "code": "deep = copy.deepcopy(nested)",
+        "html": "<span class=\"token-ident\">deep</span> = <span class=\"token-ident\">copy</span>.<span class=\"token-ident\">deepcopy</span>(<span class=\"token-ident\">nested</span>)",
+        "alt": "使用 deepcopy 遞迴徹底複製所有層級",
+        "diff": true,
+        "why": "徹底深拷貝",
+        "mean": "內外層全造新箱"
+      },
+      {
+        "num": 4,
+        "code": "deep[0][0] = 999",
+        "html": "<span class=\"token-ident\">deep</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">999</span>",
+        "alt": "修改深拷貝內部元素",
+        "diff": true,
+        "why": "修改深拷貝子元素",
+        "mean": "修改 deep"
+      },
+      {
+        "num": 5,
+        "code": "print(\"nested 完好如初:\", nested[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"nested 完好如初:\"</span>, <span class=\"token-ident\">nested</span>[<span class=\"token-number\">0</span>])",
+        "alt": "印出 nested 未受波及",
+        "diff": true,
+        "why": "證明子元素不受波及",
+        "mean": "輸出 [1, 2]"
+      }
+    ],
+    "output": "nested 完好如初: [1, 2]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>連根拔起的深拷貝（Deep Copy）</strong>：<code>copy.deepcopy()</code> 會遞迴走訪所有層級，大箱子、小箱子統統重新打造，實現 100% 絕對物理隔離！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>銜接第九章伏筆</strong>：在第 9 章處理二維網格地圖時，深拷貝是防止迷宮尋路修改污染初始地圖的最強防禦盾牌！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：多層巢狀用 deepcopy，內外徹底全獨立"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.1 變數賦值的大陷阱：b = a 只是共用同一張標籤",
+    "titleZh": "考場致命地雷一：b = a 修改 b 導致 a 被暗箭射傷！",
+    "titleEn": "Exam Pitfall 1: Mutating Alias B Unexpectedly Alters A",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [5, 6, 7]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">7</span>]",
+        "alt": "宣告串列 a",
+        "why": "地雷示範串列",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "b = a",
+        "html": "<span class=\"token-ident\">b</span> = <span class=\"token-ident\">a</span>",
+        "alt": "別名指派",
+        "why": "同指針賦值",
+        "mean": "同箱綁定"
+      },
+      {
+        "num": 3,
+        "code": "b[1] = 99",
+        "html": "<span class=\"token-ident\">b</span>[<span class=\"token-number\">1</span>] = <span class=\"token-number\">99</span>",
+        "alt": "修改 b[1] 為 99",
+        "diff": true,
+        "why": "修改同箱元素",
+        "mean": "更新第 1 格"
+      },
+      {
+        "num": 4,
+        "code": "print(a[1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>])",
+        "alt": "印出 a[1]",
+        "diff": true,
+        "why": "展示 a[1] 同步變成 99",
+        "mean": "輸出 99"
+      }
+    ],
+    "output": "99",
+    "predictQuiz": {
+      "question": "預測思考：執行 a = [5, 6, 7]; b = a; b[1] = 99 後，print(a[1]) 會印出？",
+      "options": [
+        "6（a 維持原本的值，不受 b 影響）",
+        "99（a 與 b 指向同一箱，a[1] 同步變成 99）"
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "b = a 只是建立了別名參照（Aliasing），兩個變數指向同一個串列記憶體物件！修改 b[1] 就等同於修改 a[1]，印出 99！"
+    },
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 觀念題最常丟分題型</strong>：題目故意寫 <code>b = a; b[1] = 99</code> 然後問你 <code>print(a)</code>，選未修改選項的考生全數陣亡！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避坑口訣</strong>：看到 <code>b = a</code> 請在考卷上立刻畫箭頭指向同一個框框！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：等號只貼名牌，改b等於改a"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.2 身分證驗證：id() 函式與 is 運算子",
+    "titleZh": "考場致命地雷二：濫用 is 取代 == 導致判斷失真",
+    "titleEn": "Exam Pitfall 2: Misusing is Instead of ==",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "ans = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">ans</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告標準答案 ans",
+        "why": "is 誤用地雷",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "user = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">user</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告使用者輸入答案 user",
+        "why": "獨立輸入串列",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 3,
+        "code": "# 踩雷：比對答案誤用 is！內容完全一樣卻被判 False！",
+        "html": "<span class=\"token-comment\"># 踩雷：比對內容誤寫 user is ans！</span>",
+        "alt": "註解：提示 is 誤用",
+        "why": "標註比對錯誤",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "if user is ans: print(\"答對了\")",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">user</span> <span class=\"token-keyword\">is</span> <span class=\"token-ident\">ans</span>: <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"答對了\"</span>)",
+        "alt": "誤用 is 比對",
+        "diff": true,
+        "why": "is 回傳 False",
+        "mean": "條件不成立"
+      },
+      {
+        "num": 5,
+        "code": "else: print(\"踩雷判定答錯！\")",
+        "html": "<span class=\"token-keyword\">else</span>: <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"踩雷判定答錯！\"</span>)",
+        "alt": "印出踩雷判定",
+        "diff": true,
+        "why": "進入 else 分支",
+        "mean": "輸出答錯"
+      }
+    ],
+    "output": "踩雷判定答錯！",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 語意誤解大災難</strong>：<code>user</code> 與 <code>ans</code> 內容分毫不差，但因為是兩個各自獨立配置的串列，<code>is</code> 比對記憶體門牌回傳 <code>False</code>，導致邏輯判斷全盤皆輸！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>唯一準則</strong>：數值、字串、串列比對內容是否一樣，**永遠使用雙等號 <code>==</code>**！<code>is</code> 只能用於單例比對（例如 <code>x is None</code>）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：比值比內容用雙等，比 None 才用 is"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.1 變數賦值的大陷阱：b = a 只是共用同一張標籤",
+    "titleZh": "考場致命地雷三：可變預設引數 def f(box=[]) 跨回合污染",
+    "titleEn": "Exam Pitfall 3: Mutable Default Argument def f(box=[])",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def add_item(val, box=[]):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">add_item</span>(<span class=\"token-ident\">val</span>, <span class=\"token-ident\">box</span>=[]):",
+        "alt": "函式預設參數宣告為空串列 box=[]",
+        "why": "可變預設參數地雷",
+        "mean": "預設參數地雷"
+      },
+      {
+        "num": 2,
+        "code": "    box.append(val); return box",
+        "html": "    <span class=\"token-ident\">box</span>.<span class=\"token-ident\">append</span>(<span class=\"token-ident\">val</span>); <span class=\"token-keyword\">return</span> <span class=\"token-ident\">box</span>",
+        "alt": "追加元素並回傳 box",
+        "why": "就地修改預設參數",
+        "mean": "修改並回傳"
+      },
+      {
+        "num": 3,
+        "code": "print(add_item(1))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">add_item</span>(<span class=\"token-number\">1</span>))",
+        "alt": "第一次呼叫印出 [1]",
+        "diff": true,
+        "why": "首次呼叫",
+        "mean": "輸出 [1]"
+      },
+      {
+        "num": 4,
+        "code": "print(add_item(2))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">add_item</span>(<span class=\"token-number\">2</span>))",
+        "alt": "第二次呼叫印出 [1, 2]！",
+        "diff": true,
+        "why": "歷史殘留污染",
+        "mean": "輸出 [1, 2]"
+      }
+    ],
+    "output": "[1]\n[1, 2]",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 Python 核心地雷：函式定義時只建立一次</strong>：預設參數 <code>box=[]</code> 在函式載入時只會被建立**唯一的一份**！後續每一次呼叫都在共用同一個箱子，上一回合的資料殘留污染！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>標準安全解法</strong>：預設值設為 <code>None</code>，內部再開箱：<code>if box is None: box = []</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：預設參數莫用串列，用 None 開箱最安全"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6.5 淺拷貝（Shallow Copy）的核心本質與防禦實踐",
+    "titleZh": "考場致命地雷四：[[0]*3]*3 乘法造二維陣列淺拷貝連鎖引爆！",
+    "titleEn": "Exam Pitfall 4: [[0]*3]*3 Multiplies References",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[0] * 3] * 3",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-number\">3</span>] * <span class=\"token-number\">3</span>",
+        "alt": "以乘法造二維網格（致命陷阱！）",
+        "why": "乘法參照共用",
+        "mean": "三列共用同一行"
+      },
+      {
+        "num": 2,
+        "code": "grid[0][0] = 7",
+        "html": "<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">7</span>",
+        "alt": "明明只修改第 0 列第 0 格為 7",
+        "diff": true,
+        "why": "修改單一格子",
+        "mean": "更新 grid[0][0]"
+      },
+      {
+        "num": 3,
+        "code": "print(grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">grid</span>)",
+        "alt": "印出 grid 發現三列的第 0 格全變成 7！",
+        "diff": true,
+        "why": "全欄被同步污染",
+        "mean": "輸出三列皆為 [7, 0, 0]"
+      }
+    ],
+    "output": "[[7, 0, 0], [7, 0, 0], [7, 0, 0]]",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 歷屆無數考生血淚：改一格整欄全變！</strong>：外層的 <code>* 3</code> 只是複製了同一列子串列的名牌 3 次！三列在記憶體中根本是同一列！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>第九章提前打預防針</strong>：造二維網格切勿用乘法複製外層，必須使用列表生成式：<code>[[0]*3 for _ in range(3)]</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：一維乘法很安全，二維乘法全共用"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.6 綜合驗收",
+    "titleZh": "單元 8.6 綜合驗收——串列參照與獨立副本大融通",
+    "titleEn": "Unit 8.6 Mastery: Reference & Shallow Copy Integration",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]",
+        "alt": "宣告串列 a",
+        "why": "綜合驗收資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "alias = a",
+        "html": "<span class=\"token-ident\">alias</span> = <span class=\"token-ident\">a</span>",
+        "alt": "alias 共享名牌",
+        "diff": true,
+        "why": "建立參照共享",
+        "mean": "別名賦值"
+      },
+      {
+        "num": 3,
+        "code": "clone = a[:]",
+        "html": "<span class=\"token-ident\">clone</span> = <span class=\"token-ident\">a</span>[:]",
+        "alt": "clone 建立全切片獨立新箱",
+        "diff": true,
+        "why": "建立獨立切片副本",
+        "mean": "獨立拷貝"
+      },
+      {
+        "num": 4,
+        "code": "alias[0] = 99",
+        "html": "<span class=\"token-ident\">alias</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">99</span>",
+        "alt": "修改 alias[0]",
+        "diff": true,
+        "why": "修改共享箱子",
+        "mean": "修改第 0 格"
+      },
+      {
+        "num": 5,
+        "code": "print(*a, *clone)",
+        "html": "<span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">a</span>, *<span class=\"token-ident\">clone</span>)",
+        "alt": "星號解包輸出 a 與 clone",
+        "diff": true,
+        "why": "對照驗收輸出",
+        "mean": "輸出 99 20 10 20"
+      }
+    ],
+    "output": "99 20 10 20",
+    "completionCard": {
+      "badge": "🏆 單元 8.6 通關：記憶體指針透視鏡！",
+      "summary": "太精采了！你已徹底洞悉變數別名共享、id() 門牌驗證、== 與 is 的本質分界，並精通 copy()、[:] 與 deepcopy() 的絕對防禦神盾！",
+      "nextUnit": "8.7 列表生成式與動態輸入（List Comprehension）"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 動手練！</strong>：單元 8-6 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 40/50 儲存格的參照拷貝深度演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>指針透視心法</strong>：可變物件賦值共用箱，若需獨立 copy 扛；雙等比值 is 門牌，深淺拷貝要分清！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：參照共用要警惕，獨立拷貝用切片"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec8-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_8-6_list_reference_and_shallow_copy.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

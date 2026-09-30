@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 8.7 列表生成式與動態輸入（List Comprehension） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 8.7 列表生成式與動態輸入（List Comprehension）
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.1 列表生成式基礎語法：[運算式 for 變數 in 迭代對象]",
+    "titleZh": "告別冗長 append——一行搞定串列運算的魔法生成式！",
+    "titleEn": "List Comprehension: Elegant One-Line List Creation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [1, 2, 3, 4, 5]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>]",
+        "alt": "建立原始整數串列 nums",
+        "why": "基礎數值資料來源",
+        "mean": "原始資料"
+      },
+      {
+        "num": 2,
+        "code": "squares = [x ** 2 for x in nums]",
+        "html": "<span class=\"token-ident\">squares</span> = [<span class=\"token-ident\">x</span> ** <span class=\"token-number\">2</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span>]",
+        "alt": "使用列表生成式一行計算每個數字的平方",
+        "diff": true,
+        "why": "列表生成式核心語法",
+        "mean": "生成平方串列"
+      },
+      {
+        "num": 3,
+        "code": "print(\"平方串列:\", squares)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"平方串列:\"</span>, <span class=\"token-ident\">squares</span>)",
+        "alt": "印出平方串列結果",
+        "diff": true,
+        "why": "檢視生成結果",
+        "mean": "輸出 [1, 4, 9, 16, 25]"
+      }
+    ],
+    "output": "平方串列: [1, 4, 9, 16, 25]",
+    "memoryState": [
+      {
+        "name": "nums",
+        "val": "[1, 2, 3, 4, 5]",
+        "diff": false
+      },
+      {
+        "name": "squares",
+        "val": "[1, 4, 9, 16, 25]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>什麼是列表生成式？</strong>：List Comprehension 是 Python 極具特色的簡潔語法。傳統寫法需要宣告空串列並搭配 <code>for ... in</code> 與 <code>append()</code>，而生成式將這三步驟壓縮成一條高雅的單行指令！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>執行速度優勢</strong>：在 Python 直譯器底層，列表生成式由專屬的 C 語言字節碼最佳化執行，效能顯著優於手動迴圈逐步 <code>append()</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：括號包算式，for走迭代器"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.1 列表生成式基礎語法：[運算式 for 變數 in 迭代對象]",
+    "titleZh": "解剖生成式公式——運算式為首，for 迴圈居中！",
+    "titleEn": "Syntax Breakdown: Expression First, Loop in the Middle",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "words = [\"cat\", \"apple\", \"banana\"]",
+        "html": "<span class=\"token-ident\">words</span> = [<span class=\"token-string\">\"cat\"</span>, <span class=\"token-string\">\"apple\"</span>, <span class=\"token-string\">\"banana\"</span>]",
+        "alt": "宣告字串串列 words",
+        "why": "文字長度轉換示範",
+        "mean": "字串清單"
+      },
+      {
+        "num": 2,
+        "code": "lengths = [len(w) for w in words]",
+        "html": "<span class=\"token-ident\">lengths</span> = [<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">w</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">words</span>]",
+        "alt": "以 len(w) 為運算式生成單字長度串列",
+        "diff": true,
+        "why": "函式運算式示範",
+        "mean": "映射為長度"
+      },
+      {
+        "num": 3,
+        "code": "print(\"單字長度串列:\", lengths)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"單字長度串列:\"</span>, <span class=\"token-ident\">lengths</span>)",
+        "alt": "印出各單字長度",
+        "diff": true,
+        "why": "印出結果",
+        "mean": "輸出 [3, 5, 6]"
+      }
+    ],
+    "output": "單字長度串列: [3, 5, 6]",
+    "memoryState": [
+      {
+        "name": "words",
+        "val": "['cat', 'apple', 'banana']",
+        "diff": false
+      },
+      {
+        "name": "lengths",
+        "val": "[3, 5, 6]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>語法黃金結構</strong>：<code>[運算式 for 變數 in 迭代對象]</code>。最左邊的「運算式」決定了新串列中每個元素的模樣，中間的 <code>for 變數 in 迭代對象</code> 負責逐一取出原始資料。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>映射操作（Map）</strong>：當運算式是函式呼叫（如 <code>len(w)</code> 或 <code>str(x)</code>）時，列表生成式完美取代了傳統函數式編程的 <code>map()</code>，且可讀性更上一層樓。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：前定產出值，後取輪巡項"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.2 列表生成式搭配條件篩選：[運算式 for 變數 in 迭代對象 if 條件]",
+    "titleZh": "條件守門員——末端 if 篩選，非請莫入！",
+    "titleEn": "Conditional Filtering: Trailing if for Element Selection",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [1, 2, 3, 4, 5, 6, 7, 8]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">8</span>]",
+        "alt": "宣告連續整數串列 nums",
+        "why": "數值篩選範例",
+        "mean": "原始資料"
+      },
+      {
+        "num": 2,
+        "code": "evens = [x for x in nums if x % 2 == 0]",
+        "html": "<span class=\"token-ident\">evens</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> % <span class=\"token-number\">2</span> == <span class=\"token-number\">0</span>]",
+        "alt": "末端加上 if 條件過濾出偶數",
+        "diff": true,
+        "why": "末端條件過濾",
+        "mean": "過濾偶數"
+      },
+      {
+        "num": 3,
+        "code": "print(\"篩選後的偶數串列:\", evens)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"篩選後的偶數串列:\"</span>, <span class=\"token-ident\">evens</span>)",
+        "alt": "印出篩選出的偶數串列",
+        "diff": true,
+        "why": "檢視過濾結果",
+        "mean": "輸出 [2, 4, 6, 8]"
+      }
+    ],
+    "output": "篩選後的偶數串列: [2, 4, 6, 8]",
+    "memoryState": [
+      {
+        "name": "nums",
+        "val": "[1, 2, 3, 4, 5, 6, 7, 8]",
+        "diff": false
+      },
+      {
+        "name": "evens",
+        "val": "[2, 4, 6, 8]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>末端 if 扮演過濾閥門</strong>：當 <code>if</code> 放在生成式最後端時，它相當於傳統迴圈內的 <code>if 條件成立: append()</code>。只有條件評估為 <code>True</code> 的元素才會進入前方的運算式！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>長度縮短</strong>：篩選後產生的新串列長度通常小於或等於原串列，這與無條件映射（長度保持不變）形成強烈對比。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：末端加if，真者才放行"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.2 列表生成式搭配條件篩選：[運算式 for 變數 in 迭代對象 if 條件]",
+    "titleZh": "先過濾再運算——篩選與數值轉換的完美組合拳！",
+    "titleEn": "Filter Then Transform: Chaining Conditions with Arithmetic",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [12, 7, 18, 5, 24, 3]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">12</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">18</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">24</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告待處理整數串列 nums",
+        "why": "組合轉換資料來源",
+        "mean": "原始資料"
+      },
+      {
+        "num": 2,
+        "code": "halved = [x // 2 for x in nums if x > 10]",
+        "html": "<span class=\"token-ident\">halved</span> = [<span class=\"token-ident\">x</span> // <span class=\"token-number\">2</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> &gt; <span class=\"token-number\">10</span>]",
+        "alt": "先篩選大於 10 的數字再進行整數除以 2 運算",
+        "diff": true,
+        "why": "運算式與過濾條件協同",
+        "mean": "大於10者折半"
+      },
+      {
+        "num": 3,
+        "code": "print(\"大於10且折半的結果:\", halved)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"大於10且折半的結果:\"</span>, <span class=\"token-ident\">halved</span>)",
+        "alt": "印出篩選且折半後的串列",
+        "diff": true,
+        "why": "驗證連鎖運算",
+        "mean": "輸出 [6, 9, 12]"
+      }
+    ],
+    "output": "大於10且折半的結果: [6, 9, 12]",
+    "memoryState": [
+      {
+        "name": "nums",
+        "val": "[12, 7, 18, 5, 24, 3]",
+        "diff": false
+      },
+      {
+        "name": "halved",
+        "val": "[6, 9, 12]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>直譯器內部執行三部曲</strong>：1. <code>for x in nums</code> 取出元素；2. <code>if x > 10</code> 檢驗條件（7, 5, 3 直接被捨棄）；3. 對通過考驗的 12, 18, 24 執行 <code>x // 2</code> 產出最終結果。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>效率保障</strong>：未通過 <code>if</code> 條件的元素絕對不會浪費 CPU 運算資源去計算左側的 <code>x // 2</code>，安全且極高效率！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：後篩選保平安，前運算展神威"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.3 APCS 必備同行數值動態輸入：[int(x) for x in input().split()]",
+    "titleZh": "APCS 萬能神咒——一行拆解整列輸入轉整數！",
+    "titleEn": "The APCS Holy Grail: [int(x) for x in input().split()]",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "sample_line = \"25 80 15 90 60\"",
+        "html": "<span class=\"token-ident\">sample_line</span> = <span class=\"token-string\">\"25 80 15 90 60\"</span>",
+        "alt": "模擬 APCS 讀取到的單行字串測資",
+        "why": "模擬輸入資料",
+        "mean": "測資字串"
+      },
+      {
+        "num": 2,
+        "code": "scores = [int(x) for x in sample_line.split()]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">sample_line</span>.<span class=\"token-builtin\">split</span>()]",
+        "alt": "以 split 切割字串並用 int(x) 逐項轉型為整數",
+        "diff": true,
+        "why": "APCS 必考輸入轉換標準招式",
+        "mean": "轉型整數串列"
+      },
+      {
+        "num": 3,
+        "code": "print(\"整數串列:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"整數串列:\"</span>, <span class=\"token-ident\">scores</span>)",
+        "alt": "印出純整數串列",
+        "diff": true,
+        "why": "印出串列",
+        "mean": "輸出 [25, 80, 15, 90, 60]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"總分與最高分:\", sum(scores), max(scores))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"總分與最高分:\"</span>, <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">scores</span>), <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">scores</span>))",
+        "alt": "立刻搭配 sum 與 max 進行統計",
+        "diff": true,
+        "why": "直接統計分數",
+        "mean": "輸出 270 90"
+      }
+    ],
+    "output": "整數串列: [25, 80, 15, 90, 60]\n總分與最高分: 270 90",
+    "memoryState": [
+      {
+        "name": "sample_line",
+        "val": "'25 80 15 90 60'",
+        "diff": false
+      },
+      {
+        "name": "scores",
+        "val": "[25, 80, 15, 90, 60]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 考場出現頻率 100%</strong>：題目幾乎永遠給定「一行以空白隔開的多個整數」。使用 <code>[int(x) for x in input().split()]</code> 能在 0.1 秒內完成切割、轉型、封裝，代碼乾淨絕不翻車！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>split() 預設優勢</strong>：無參數的 <code>split()</code> 會自動忽略連續空白與換行符 <code>\\n</code>，比手動切片或指定 <code>split(' ')</code> 更加穩健健壯。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：拆字串轉整數，split配生成式"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.3 APCS 必備同行數值動態輸入：[int(x) for x in input().split()]",
+    "titleZh": "資料大掃除——strip 與自訂分隔符串聯清洗！",
+    "titleEn": "Data Cleansing: Cleaning Whitespace and Custom Separators",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_data = \"  12,  34 , 56  , 78 \"",
+        "html": "<span class=\"token-ident\">raw_data</span> = <span class=\"token-string\">\"  12,  34 , 56  , 78 \"</span>",
+        "alt": "宣告帶有雜亂空白與逗號的原始字串",
+        "why": "髒資料範例",
+        "mean": "未清洗字串"
+      },
+      {
+        "num": 2,
+        "code": "cleaned = [int(x.strip()) for x in raw_data.split(\",\")]",
+        "html": "<span class=\"token-ident\">cleaned</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>.<span class=\"token-builtin\">strip</span>()) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_data</span>.<span class=\"token-builtin\">split</span>(<span class=\"token-string\">\",\"</span>)]",
+        "alt": "依逗號分割並對每一項目使用 strip 去除前後空白再轉整數",
+        "diff": true,
+        "why": "多階段資料清洗生成式",
+        "mean": "清理轉型"
+      },
+      {
+        "num": 3,
+        "code": "print(\"清洗後的純淨數值:\", cleaned)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"清洗後的純淨數值:\"</span>, <span class=\"token-ident\">cleaned</span>)",
+        "alt": "印出清洗轉型後的整數串列",
+        "diff": true,
+        "why": "驗證資料清洗成果",
+        "mean": "輸出 [12, 34, 56, 78]"
+      }
+    ],
+    "output": "清洗後的純淨數值: [12, 34, 56, 78]",
+    "memoryState": [
+      {
+        "name": "raw_data",
+        "val": "'  12,  34 , 56  , 78 '",
+        "diff": false
+      },
+      {
+        "name": "cleaned",
+        "val": "[12, 34, 56, 78]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>組合運算式威力</strong>：左側運算式不僅限於單純變數，可以連續調用方法！<code>int(x.strip())</code> 先剔除邊緣空白再將純數字轉換成整數，徹底防堵轉型異常。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>浮點數適用</strong>：若是經緯度或小數測資，只要將 <code>int</code> 替換為 <code>float(x.strip())</code>，同樣適用！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：逗號切開先strip，轉型乾淨不報錯"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.4 雙重分支與三元運算生成式：[值A if 條件 else 值B for ...]",
+    "titleZh": "前置三元運算式——每個元素都有兩個命運！",
+    "titleEn": "Ternary Expression: Transforming Every Element Conditionally",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [85, 45, 92, 58, 70]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">85</span>, <span class=\"token-number\">45</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">58</span>, <span class=\"token-number\">70</span>]",
+        "alt": "宣告 5 位學生的成績串列",
+        "why": "評語轉換資料來源",
+        "mean": "原始成績"
+      },
+      {
+        "num": 2,
+        "code": "tags = [\"Pass\" if s >= 60 else \"Fail\" for s in scores]",
+        "html": "<span class=\"token-ident\">tags</span> = [<span class=\"token-string\">\"Pass\"</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">s</span> &gt;= <span class=\"token-number\">60</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">\"Fail\"</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span>]",
+        "alt": "使用前置 if-else 三元運算將成績轉為 Pass 或 Fail",
+        "diff": true,
+        "why": "前置三元運算子生成式",
+        "mean": "及格標記轉換"
+      },
+      {
+        "num": 3,
+        "code": "print(\"評語清單:\", tags)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"評語清單:\"</span>, <span class=\"token-ident\">tags</span>)",
+        "alt": "印出及格與不及格標籤清單",
+        "diff": true,
+        "why": "印出結果",
+        "mean": "輸出 ['Pass', 'Fail', 'Pass', 'Fail', 'Pass']"
+      }
+    ],
+    "output": "評語清單: ['Pass', 'Fail', 'Pass', 'Fail', 'Pass']",
+    "memoryState": [
+      {
+        "name": "scores",
+        "val": "[85, 45, 92, 58, 70]",
+        "diff": false
+      },
+      {
+        "name": "tags",
+        "val": "['Pass', 'Fail', 'Pass', 'Fail', 'Pass']",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>長度不變，一對一映射</strong>：當我們需要對「每一個元素」都給出對應的新值（例如及格給 Pass、不及格給 Fail），就必須將 <code>if-else</code> 搬到最前面作為「三元運算式」。產出串列長度依然是 5 個！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>三元運算子結構</strong>：<code>值A if 條件 else 值B</code>。條件成立取值A，否則取值B。這在資料標籤分類與數值標準化中極為常用。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：前置三元分兩路，長度不縮等長顧"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.4 雙重分支與三元運算生成式：[值A if 條件 else 值B for ...]",
+    "titleZh": "if 位置大辯論——前置替換 vs 末端篩選！",
+    "titleEn": "Placement Battle: Front Replacement vs Trailing Filter",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "readings = [15, -4, 28, -10, 0, 7]",
+        "html": "<span class=\"token-ident\">readings</span> = [<span class=\"token-number\">15</span>, -<span class=\"token-number\">4</span>, <span class=\"token-number\">28</span>, -<span class=\"token-number\">10</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">7</span>]",
+        "alt": "宣告含正負數的感測器讀數 readings",
+        "why": "對照資料來源",
+        "mean": "原始讀數"
+      },
+      {
+        "num": 2,
+        "code": "clipped = [x if x > 0 else 0 for x in readings]",
+        "html": "<span class=\"token-ident\">clipped</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> &gt; <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">readings</span>]",
+        "alt": "前置 if-else 將負數修剪為 0（長度不變為 6）",
+        "diff": true,
+        "why": "前置替換修剪示範",
+        "mean": "數值修剪歸零"
+      },
+      {
+        "num": 3,
+        "code": "positives = [x for x in readings if x > 0]",
+        "html": "<span class=\"token-ident\">positives</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">readings</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> &gt; <span class=\"token-number\">0</span>]",
+        "alt": "末端 if 篩選直接丟棄負數與零（長度縮短為 3）",
+        "diff": true,
+        "why": "末端篩選示範",
+        "mean": "純過濾正數"
+      },
+      {
+        "num": 4,
+        "code": "print(\"修剪後(長度6):\", clipped)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"修剪後(長度6):\"</span>, <span class=\"token-ident\">clipped</span>)",
+        "alt": "印出修剪後的串列",
+        "diff": true,
+        "why": "印出修剪串列",
+        "mean": "輸出 [15, 0, 28, 0, 0, 7]"
+      },
+      {
+        "num": 5,
+        "code": "print(\"過濾後(長度3):\", positives)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"過濾後(長度3):\"</span>, <span class=\"token-ident\">positives</span>)",
+        "alt": "印出過濾後的串列",
+        "diff": true,
+        "why": "印出過濾串列",
+        "mean": "輸出 [15, 28, 7]"
+      }
+    ],
+    "output": "修剪後(長度6): [15, 0, 28, 0, 0, 7]\n過濾後(長度3): [15, 28, 7]",
+    "memoryState": [
+      {
+        "name": "readings",
+        "val": "[15, -4, 28, -10, 0, 7]",
+        "diff": false
+      },
+      {
+        "name": "clipped",
+        "val": "[15, 0, 28, 0, 0, 7]",
+        "diff": true
+      },
+      {
+        "name": "positives",
+        "val": "[15, 28, 7]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>何時放前？何時放後？</strong>：要「替換」就放前面（必帶 <code>else</code>，長度不縮）；要「篩選」就放後面（不帶 <code>else</code>，長度會縮）。考場觀念題必考！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>記憶口訣心法</strong>：前置 if 換零件，後置 if 挑人才。搞懂位置，生成式無往不利！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：前換後挑，前必else後無else"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.3 APCS 必備同行數值動態輸入：[int(x) for x in input().split()]",
+    "titleZh": "考場地雷 1——int() 遇到髒字元引爆 ValueError！",
+    "titleEn": "Pitfall 1: Non-numeric String Explodes with ValueError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "tokens = [\"10\", \"20\", \"abc\"]",
+        "html": "<span class=\"token-ident\">tokens</span> = [<span class=\"token-string\">\"10\"</span>, <span class=\"token-string\">\"20\"</span>, <span class=\"token-string\">\"abc\"</span>]",
+        "alt": "模擬含有非數字字串 abc 的輸入切割串列",
+        "why": "髒資料範例",
+        "mean": "非數字字串"
+      },
+      {
+        "num": 2,
+        "code": "nums = [int(x) for x in tokens]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">tokens</span>]",
+        "alt": "對含有 abc 的項目執行 int(x) 爆發 ValueError",
+        "diff": true,
+        "error": true,
+        "why": "無法將文字轉型為十進位整數",
+        "mean": "引爆例外"
+      }
+    ],
+    "output": "ValueError: invalid literal for int() with base 10: 'abc'",
+    "memoryState": [
+      {
+        "name": "tokens",
+        "val": "['10', '20', 'abc']",
+        "diff": false
+      },
+      {
+        "name": "nums",
+        "val": "未完成 (拋出例外)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>地雷警示</strong>：當測資結尾有多餘的文字說明或題目給定混合字串時，直接 <code>int(x)</code> 會拋出 <code>ValueError: invalid literal for int()</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：可搭配末端條件過濾 <code>[int(x) for x in tokens if x.isdigit()]</code>，或先檢視測資是否有非數值標籤！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：轉整數前要純淨，遇文字報值錯誤"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.2 列表生成式搭配條件篩選：[運算式 for 變數 in 迭代對象 if 條件]",
+    "titleZh": "考場地雷 2——運算式除以零引爆 ZeroDivisionError！",
+    "titleEn": "Pitfall 2: Division by Zero Crashes List Comprehension",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "divisors = [10, 5, 0, 2]",
+        "html": "<span class=\"token-ident\">divisors</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">2</span>]",
+        "alt": "宣告含有除數為 0 的整數串列 divisors",
+        "why": "含零除數示範",
+        "mean": "含零串列"
+      },
+      {
+        "num": 2,
+        "code": "ratios = [100 // d for d in divisors]",
+        "html": "<span class=\"token-ident\">ratios</span> = [<span class=\"token-number\">100</span> // <span class=\"token-ident\">d</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">divisors</span>]",
+        "alt": "當遍歷到 0 時執行 100 // 0 引爆 ZeroDivisionError",
+        "diff": true,
+        "error": true,
+        "why": "除以零引爆執行期崩潰",
+        "mean": "引爆除零錯誤"
+      }
+    ],
+    "output": "ZeroDivisionError: integer division or modulo by zero",
+    "memoryState": [
+      {
+        "name": "divisors",
+        "val": "[10, 5, 0, 2]",
+        "diff": false
+      },
+      {
+        "name": "ratios",
+        "val": "中斷 (在 d=0 處崩潰)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>地雷警示</strong>：生成式內部的運算若發生數學除以零或取餘數為零（<code>// 0</code> 或 <code>% 0</code>），整個生成式會立即中斷並拋出 <code>ZeroDivisionError</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：務必在末端加上防護過濾 <code>[100 // d for d in divisors if d != 0]</code>，將 0 阻擋在外！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：除法必防除數零，末端if來保駕"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.4 雙重分支與三元運算生成式：[值A if 條件 else 值B for ...]",
+    "titleZh": "考場地雷 3——二維矩陣乘法共用參照 vs 生成式安全造網！",
+    "titleEn": "Pitfall 3: 2D Matrix Trap [[0]*3]*3 vs Comprehension",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid_trap = [[0] * 3] * 3",
+        "html": "<span class=\"token-ident\">grid_trap</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-number\">3</span>] * <span class=\"token-number\">3</span>",
+        "alt": "使用乘法快速建立二維陣列（踩入共用參照地雷）",
+        "why": "APCS 最慘烈地雷寫法",
+        "mean": "建立參照共享矩陣"
+      },
+      {
+        "num": 2,
+        "code": "grid_trap[0][0] = 7",
+        "html": "<span class=\"token-ident\">grid_trap</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">7</span>",
+        "alt": "修改第 0 列第 0 行為 7",
+        "diff": true,
+        "why": "修改單一點",
+        "mean": "改動 [0][0]"
+      },
+      {
+        "num": 3,
+        "code": "print(\"乘法陷阱(整排遭殃):\", grid_trap)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"乘法陷阱(整排遭殃):\"</span>, <span class=\"token-ident\">grid_trap</span>)",
+        "alt": "印出乘法陷阱陣列發現三列全部變成 7",
+        "diff": true,
+        "why": "揭露整排遭殃真相",
+        "mean": "輸出 [[7, 0, 0], [7, 0, 0], [7, 0, 0]]"
+      },
+      {
+        "num": 4,
+        "code": "grid_safe = [[0] * 3 for _ in range(3)]",
+        "html": "<span class=\"token-ident\">grid_safe</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>)]",
+        "alt": "使用列表生成式每一次迴圈建立全新獨立的列",
+        "diff": true,
+        "why": "生成式安全宣告法",
+        "mean": "獨立建立各列"
+      },
+      {
+        "num": 5,
+        "code": "grid_safe[0][0] = 7",
+        "html": "<span class=\"token-ident\">grid_safe</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-number\">7</span>",
+        "alt": "安全矩陣修改第 0 列第 0 行為 7",
+        "diff": true,
+        "why": "修改安全矩陣單點",
+        "mean": "改動 safe[0][0]"
+      },
+      {
+        "num": 6,
+        "code": "print(\"生成式安全(單點修改):\", grid_safe)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"生成式安全(單點修改):\"</span>, <span class=\"token-ident\">grid_safe</span>)",
+        "alt": "印出安全矩陣確認僅第 0 列被修改",
+        "diff": true,
+        "why": "驗證獨立參照正確無誤",
+        "mean": "輸出 [[7, 0, 0], [0, 0, 0], [0, 0, 0]]"
+      }
+    ],
+    "output": "乘法陷阱(整排遭殃): [[7, 0, 0], [7, 0, 0], [7, 0, 0]]\n生成式安全(單點修改): [[7, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "memoryState": [
+      {
+        "name": "grid_trap",
+        "val": "[[7, 0, 0], [7, 0, 0], [7, 0, 0]] (同一子串列被複製3次)",
+        "diff": true
+      },
+      {
+        "name": "grid_safe",
+        "val": "[[7, 0, 0], [0, 0, 0], [0, 0, 0]] (3個獨立子串列)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>致命參照複製</strong>：<code>[[0] * 3] * 3</code> 外層的 <code>* 3</code> 只複製了同一個子串列的參照！改了一列，所有列全體遭殃！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>二維陣列唯一正解</strong>：宣告二維串列永遠使用 <code>[[0] * cols for _ in range(rows)]</code>，每次迴圈都新建獨立記憶體空間！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：矩陣不用雙重乘，生成式造各列"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.2 列表生成式搭配條件篩選：[運算式 for 變數 in 迭代對象 if 條件]",
+    "titleZh": "考場地雷 4——取固定索引引發字串越界 IndexError！",
+    "titleEn": "Pitfall 4: Short String Indexing Triggers IndexError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "words = [\"Python\", \"C++\", \"Java\", \"Go\"]",
+        "html": "<span class=\"token-ident\">words</span> = [<span class=\"token-string\">\"Python\"</span>, <span class=\"token-string\">\"C++\"</span>, <span class=\"token-string\">\"Java\"</span>, <span class=\"token-string\">\"Go\"</span>]",
+        "alt": "宣告不同長度的程式語言字串串列 words",
+        "why": "長度不一字串範例",
+        "mean": "語言清單"
+      },
+      {
+        "num": 2,
+        "code": "chars = [w[3] for w in words]",
+        "html": "<span class=\"token-ident\">chars</span> = [<span class=\"token-ident\">w</span>[<span class=\"token-number\">3</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">words</span>]",
+        "alt": "試圖取得索引 3 的字元，但 C++ 與 Go 長度不足引爆 IndexError",
+        "diff": true,
+        "error": true,
+        "why": "索引越界拋出例外",
+        "mean": "引爆越界錯誤"
+      }
+    ],
+    "output": "IndexError: string index out of range",
+    "memoryState": [
+      {
+        "name": "words",
+        "val": "['Python', 'C++', 'Java', 'Go']",
+        "diff": false
+      },
+      {
+        "name": "chars",
+        "val": "中斷 (在 w='C++' 處拋出 IndexError)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "trap",
+        "text": "<strong>地雷警示</strong>：在生成式內取字串或子串列索引時，若元素長度不齊全，會直接噴出 <code>IndexError: string index out of range</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>避雷解法</strong>：務必在末端加上長度過濾門檻 <code>[w[3] for w in words if len(w) > 3]</code>，即可萬無一失。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：定點取值查長度，末端過濾防越界"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.5 列表生成式實戰綜合特訓",
+    "titleZh": "實戰驗收 1——多條件字串清理與標準化！",
+    "titleEn": "Challenge 1: Multi-Condition Data Sanitization",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_names = [\"  Alice  \", \"bob\", \"  CHARLIE  \", \"da\", \"   Eve \"]",
+        "html": "<span class=\"token-ident\">raw_names</span> = [<span class=\"token-string\">\"  Alice  \"</span>, <span class=\"token-string\">\"bob\"</span>, <span class=\"token-string\">\"  CHARLIE  \"</span>, <span class=\"token-string\">\"da\"</span>, <span class=\"token-string\">\"   Eve \"</span>]",
+        "alt": "宣告格式雜亂且長短不一的使用者名稱串列",
+        "why": "字串實戰資料來源",
+        "mean": "原始名單"
+      },
+      {
+        "num": 2,
+        "code": "cleaned = [n.strip().capitalize() for n in raw_names if len(n.strip()) >= 3]",
+        "html": "<span class=\"token-ident\">cleaned</span> = [<span class=\"token-ident\">n</span>.<span class=\"token-builtin\">strip</span>().<span class=\"token-builtin\">capitalize</span>() <span class=\"token-keyword\">for</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_names</span> <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">n</span>.<span class=\"token-builtin\">strip</span>()) &gt;= <span class=\"token-number\">3</span>]",
+        "alt": "過濾去除空白後長度大於等於 3 的名字，並轉成首字大寫",
+        "diff": true,
+        "why": "綜合字串清洗與篩選",
+        "mean": "標準化清洗"
+      },
+      {
+        "num": 3,
+        "code": "print(\"清洗後合法名單:\", cleaned)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"清洗後合法名單:\"</span>, <span class=\"token-ident\">cleaned</span>)",
+        "alt": "印出清洗後的標準化姓名串列",
+        "diff": true,
+        "why": "驗證清洗結果",
+        "mean": "輸出 ['Alice', 'Bob', 'Charlie', 'Eve']"
+      }
+    ],
+    "output": "清洗後合法名單: ['Alice', 'Bob', 'Charlie', 'Eve']",
+    "memoryState": [
+      {
+        "name": "raw_names",
+        "val": "['  Alice  ', 'bob', '  CHARLIE  ', 'da', '   Eve ']",
+        "diff": false
+      },
+      {
+        "name": "cleaned",
+        "val": "['Alice', 'Bob', 'Charlie', 'Eve'] (da被排除)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字串方法連鎖</strong>：<code>n.strip().capitalize()</code> 先去空白、再轉首字大寫；末端 <code>if len(n.strip()) >= 3</code> 則將無效短名稱過濾剔除，一行完成商業級數據清洗！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 實戰提示</strong>：讀入含有多餘空白或換行符的字串時，善用 <code>strip()</code> 能省去極多例外處理代碼。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：去空轉大寫，長度不足不錄取"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7.5 列表生成式實戰綜合特訓",
+    "titleZh": "實戰驗收 2——APCS 動態測資輸入與及格統計！",
+    "titleEn": "Challenge 2: Dynamic Input Parsing and Pass Rate Statistics",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_scores = \"85 42 90 58 76 60\"",
+        "html": "<span class=\"token-ident\">raw_scores</span> = <span class=\"token-string\">\"85 42 90 58 76 60\"</span>",
+        "alt": "模擬整行成績測資輸入",
+        "why": "模擬輸入資料",
+        "mean": "原始測資"
+      },
+      {
+        "num": 2,
+        "code": "scores = [int(x) for x in raw_scores.split()]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-builtin\">int</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_scores</span>.<span class=\"token-builtin\">split</span>()]",
+        "alt": "轉為整數串列",
+        "diff": true,
+        "why": "轉型整數串列",
+        "mean": "拆解轉型"
+      },
+      {
+        "num": 3,
+        "code": "passed = [s for s in scores if s >= 60]",
+        "html": "<span class=\"token-ident\">passed</span> = [<span class=\"token-ident\">s</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">s</span> &gt;= <span class=\"token-number\">60</span>]",
+        "alt": "篩選及格分數",
+        "diff": true,
+        "why": "及格過濾",
+        "mean": "篩選 >= 60"
+      },
+      {
+        "num": 4,
+        "code": "avg_pass = sum(passed) // len(passed)",
+        "html": "<span class=\"token-ident\">avg_pass</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">passed</span>) // <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">passed</span>)",
+        "alt": "計算及格者的整數平均成績",
+        "diff": true,
+        "why": "整數平均計算",
+        "mean": "計算平均"
+      },
+      {
+        "num": 5,
+        "code": "print(\"及格人數與平均:\", len(passed), avg_pass)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"及格人數與平均:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">passed</span>), <span class=\"token-ident\">avg_pass</span>)",
+        "alt": "印出及格人數與平均成績",
+        "diff": true,
+        "why": "輸出最後統計",
+        "mean": "輸出 4 77"
+      }
+    ],
+    "output": "及格人數與平均: 4 77",
+    "memoryState": [
+      {
+        "name": "scores",
+        "val": "[85, 42, 90, 58, 76, 60]",
+        "diff": false
+      },
+      {
+        "name": "passed",
+        "val": "[85, 90, 76, 60]",
+        "diff": true
+      },
+      {
+        "name": "avg_pass",
+        "val": "77",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 經典題型全流程</strong>：1. 讀入字串 ➔ 2. <code>[int(x) for x in ...]</code> ➔ 3. 條件篩選 ➔ 4. <code>sum // len</code> 統計。行雲流水，僅需數行代碼！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>整數除法 //</strong>：APCS 題目多要求「以整數輸出」或「無條件捨去」，記得使用 <code>//</code> 而非 <code>/</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：拆解轉型再過濾，總和個數得平均"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.7 綜合驗收：第八章全章大圓滿回顧",
+    "titleZh": "第 8 章全章大圓滿——串列大師的畢業認證！",
+    "titleEn": "Chapter 8 Grand Finale: The List Mastery Milestone",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grades = [55, 95, 82, 60, 48]",
+        "html": "<span class=\"token-ident\">grades</span> = [<span class=\"token-number\">55</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">82</span>, <span class=\"token-number\">60</span>, <span class=\"token-number\">48</span>]",
+        "alt": "宣告最終驗收分數串列 grades",
+        "why": "全章整合範例資料",
+        "mean": "成績清單"
+      },
+      {
+        "num": 2,
+        "code": "summary = [\"及格\" if g >= 60 else \"不及格\" for g in grades]",
+        "html": "<span class=\"token-ident\">summary</span> = [<span class=\"token-string\">\"及格\"</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">g</span> &gt;= <span class=\"token-number\">60</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">\"不及格\"</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">g</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grades</span>]",
+        "alt": "使用前置三元生成式標註及格狀態",
+        "diff": true,
+        "why": "三元生成式整合",
+        "mean": "生成及格標記"
+      },
+      {
+        "num": 3,
+        "code": "print(\"統計結果:\", summary.count(\"及格\"), \"人及格\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"統計結果:\"</span>, <span class=\"token-ident\">summary</span>.<span class=\"token-builtin\">count</span>(<span class=\"token-string\">\"及格\"</span>), <span class=\"token-string\">\"人及格\"</span>)",
+        "alt": "結合串列 count 方法統計及格人數",
+        "diff": true,
+        "why": "綜合印出結果",
+        "mean": "輸出 統計結果: 3 人及格"
+      }
+    ],
+    "output": "統計結果: 3 人及格",
+    "memoryState": [
+      {
+        "name": "grades",
+        "val": "[55, 95, 82, 60, 48]",
+        "diff": false
+      },
+      {
+        "name": "summary",
+        "val": "['不及格', '及格', '及格', '及格', '不及格']",
+        "diff": true
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 第八章全章通關：一維串列與生成式大師！",
+      "summary": "太震撼了！從建立、索引、解包，到切片、append/pop、統計、遍歷、記憶體參照，直至今天的一行神技列表生成式，你已完整掌握 Python 最強大的序列結構！",
+      "nextUnit": "9.1 二維陣列宣告與存取（2D Array / List of Lists）"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 展開全章終極實戰！</strong>：第八章 7 大單元投影片已全部大圓滿吸收！請點擊右上角「Colab 筆記本」按鈕，立即展開 40/50 儲存格的深度實機挑戰！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>串列心法精要</strong>：一維串列是 APCS 實作題最核心的資料骨幹，後續第 9 章二維矩陣與演算法題目，皆建立在今天的串列功底之上！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：生成式神咒一行過，串列大師由此生"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec8-7",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_8-7_list_comprehension_and_dynamic_input.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

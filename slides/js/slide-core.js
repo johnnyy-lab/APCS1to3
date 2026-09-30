@@ -74,11 +74,11 @@ const courseCurriculum = [
     id: "ch6",
     title: "第六章 迴圈結構與控制流程",
     sections: [
-      { id: "sec6-1", title: "6.1 計數迴圈基礎與 range 函式全方位解析", available: false },
-      { id: "sec6-2", title: "6.2 迴圈累加器、計數器與極值維護（資料縮減模式）", available: false },
-      { id: "sec6-3", title: "6.3 條件迴圈 while 的運作機制與經典數值演算法", available: false },
-      { id: "sec6-4", title: "6.4 迴圈流程跳轉控制（break, continue 與 for...else）", available: false },
-      { id: "sec6-5", title: "6.5 雙重與多重巢狀迴圈（時鐘模型與維度展開）", available: false },
+      { id: "sec6-1", title: "6.1 計數迴圈基礎與 range 函式全方位解析", available: true, url: "PythAPCS123_6-1_counting_loop_for_and_range.html" },
+      { id: "sec6-2", title: "6.2 迴圈累加器、計數器與極值維護（資料縮減模式）", available: true, url: "PythAPCS123_6-2_loop_accumulators_and_counters.html" },
+      { id: "sec6-3", title: "6.3 條件迴圈 while 的運作機制與經典數值演算法", available: true, url: "PythAPCS123_6-3_conditional_loop_while.html" },
+      { id: "sec6-4", title: "6.4 迴圈流程跳轉控制（break, continue 與 for...else）", available: true, url: "PythAPCS123_6-4_loop_break_and_continue.html" },
+      { id: "sec6-5", title: "6.5 雙重與多重巢狀迴圈（時鐘模型與維度展開）", available: true, url: "PythAPCS123_6-5_nested_loops_and_clock_model.html" },
       { id: "sec6-6", title: "6.6 幾何圖形與星號排版專題特訓（巢狀迴圈視覺化）", available: false },
       { id: "sec6-7", title: "6.7 迴圈常見邏輯與控制變數陷阱排查", available: false },
       { id: "sec6-8", title: "6.8 APCS 考場迴圈輸入實戰模式：固定筆數、哨兵終止與未知行數（EOF）", available: false }
@@ -581,6 +581,9 @@ function renderSlide(index) {
     }
   }
 
+  // 迴圈變數追蹤矩陣卡 (Trace Table Widget - agytodo 2.4)
+  renderTraceTable(slide);
+
   // 單元通關徽章與 Colab 實戰卡片 (agytodo 5.3)
   const isLast = (index === activeSlidesData.length - 1);
   const completionCard = document.getElementById('completionCard');
@@ -703,6 +706,7 @@ function onLineLeave() {
   if (pinnedLineNum !== null) return; // 鎖定狀態下保留導引與高亮
   resetLineBar();
   clearHighlightedMemoryBoxes();
+  clearHighlightedTraceRows();
   clearDataFlowSync();
 }
 
@@ -731,6 +735,7 @@ function highlightLines(lineNums) {
     }
   }
   highlightMemoryBoxesForLines(lineNums);
+  highlightTraceRowsForLines(lineNums);
 }
 
 function clearHighlightedLines() {
@@ -739,6 +744,7 @@ function clearHighlightedLines() {
     el.classList.remove('linked-highlight');
   });
   clearHighlightedMemoryBoxes();
+  clearHighlightedTraceRows();
   clearDataFlowSync();
   resetLineBar();
 }
@@ -852,7 +858,203 @@ function onMemoryBoxLeave() {
   if (pinnedLineNum !== null) return;
   clearHighlightedLines();
   clearHighlightedMemoryBoxes();
+  clearHighlightedTraceRows();
 }
+
+/* ==========================================================================
+   7.4.5 迴圈變數追蹤矩陣卡引擎（Trace Table Widget - agytodo 2.4）
+   ========================================================================== */
+
+/**
+ * 動態渲染迴圈變數追蹤矩陣卡 (Trace Table)
+ * @param {Object} slide 當前投影片物件
+ */
+function renderTraceTable(slide) {
+  let traceStage = document.getElementById('traceTableStage');
+  // 自動掛載防禦：若 HTML 檔中無 traceTableStage，自動在 notes 區塊內動態插入
+  if (!traceStage) {
+    const memoryStage = document.getElementById('memoryStage');
+    const notesContainer = memoryStage ? memoryStage.parentNode : (document.querySelector('.card-notes > div') || document.querySelector('.card-notes'));
+    if (!notesContainer) return;
+    traceStage = document.createElement('div');
+    traceStage.className = 'trace-table-stage';
+    traceStage.id = 'traceTableStage';
+    traceStage.style.display = 'none';
+    traceStage.innerHTML = `
+      <div class="trace-table-header">
+        <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+        <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+      </div>
+      <div class="trace-table-wrap" id="traceTableWrap"></div>
+    `;
+    if (memoryStage && memoryStage.nextSibling) {
+      notesContainer.insertBefore(traceStage, memoryStage.nextSibling);
+    } else {
+      const completionCard = document.getElementById('completionCard');
+      if (completionCard) {
+        notesContainer.insertBefore(traceStage, completionCard);
+      } else {
+        notesContainer.appendChild(traceStage);
+      }
+    }
+  }
+
+  const traceTableTitle = document.getElementById('traceTableTitle');
+  const traceTableHint = document.getElementById('traceTableHint');
+  const traceTableWrap = document.getElementById('traceTableWrap');
+  if (!traceTableWrap) return;
+
+  // 若無 traceTable 資料或表頭為空，隱藏舞台並清空
+  if (!slide || !slide.traceTable || !Array.isArray(slide.traceTable.headers) || slide.traceTable.headers.length === 0) {
+    traceStage.style.display = 'none';
+    traceTableWrap.innerHTML = '';
+    return;
+  }
+
+  const tt = slide.traceTable;
+  traceStage.style.display = 'block';
+
+  if (traceTableTitle) {
+    traceTableTitle.textContent = tt.title || '📊 迴圈變數追蹤矩陣 (Trace Table)';
+  }
+  if (traceTableHint) {
+    traceTableHint.textContent = tt.hint || '每一圈變數動態變化';
+  }
+
+  const headers = tt.headers || [];
+  const rows = Array.isArray(tt.rows) ? tt.rows : [];
+  const activeRowIdx = (typeof tt.activeRow === 'number') ? tt.activeRow : ((typeof tt.activeRowIndex === 'number') ? tt.activeRowIndex : -1);
+
+  const thHtml = headers.map(h => `<th>${h}</th>`).join('');
+
+  const rowsHtml = rows.map((rowItem, rIndex) => {
+    // 支援 row 為物件或單純陣列
+    const isObj = (typeof rowItem === 'object' && rowItem !== null && !Array.isArray(rowItem));
+    const values = isObj ? (rowItem.values || rowItem.cells || []) : (Array.isArray(rowItem) ? rowItem : []);
+    const isRowActive = isObj ? (rowItem.active === true || rIndex === activeRowIdx) : (rIndex === activeRowIdx);
+    const isRowDone = isObj ? (rowItem.done === true || (activeRowIdx > -1 && rIndex < activeRowIdx)) : (activeRowIdx > -1 && rIndex < activeRowIdx);
+
+    let rowClass = 'trace-row';
+    if (isRowActive) rowClass += ' trace-row-active';
+    else if (isRowDone) rowClass += ' trace-row-done';
+
+    // 狀態徽章
+    let badgeHtml = '';
+    if (isObj && rowItem.badge) {
+      let bClass = rowItem.badgeClass || (isRowActive ? 'trace-badge-active' : (rowItem.status === 'break' ? 'trace-badge-break' : (rowItem.status === 'continue' ? 'trace-badge-continue' : (rowItem.status === 'exit' ? 'trace-badge-exit' : 'trace-badge-done'))));
+      badgeHtml = `<span class="trace-badge ${bClass}">${rowItem.badge}</span>`;
+    } else if (isRowActive && tt.showActiveBadge !== false) {
+      badgeHtml = `<span class="trace-badge trace-badge-active">當前圈</span>`;
+    }
+
+    // 關聯程式碼行號
+    let hoverEvents = '';
+    let codeLinesAttr = '';
+    let clickableClass = '';
+    const codeLines = isObj ? (Array.isArray(rowItem.codeLines) ? rowItem.codeLines : (typeof rowItem.codeLine === 'number' ? [rowItem.codeLine] : null)) : null;
+    if (codeLines && codeLines.length > 0) {
+      clickableClass = ' trace-row-clickable';
+      const lineNumsJson = JSON.stringify(codeLines);
+      hoverEvents = `
+        onmouseenter="onTraceRowHover(${lineNumsJson})"
+        onmouseleave="onTraceRowLeave()"
+        onclick="togglePinTraceRow(${lineNumsJson}, event)"
+      `;
+      codeLinesAttr = `data-code-lines="${codeLines.join(',')}" title="點擊鎖定或懸停高亮關聯程式碼行 [${codeLines.join(', ')}]"`;
+    }
+
+    const badgeCol = (isObj && typeof rowItem.badgeCol === 'number') ? rowItem.badgeCol : 0;
+
+    const cellsHtml = values.map((val, cIndex) => {
+      const isDiff = isObj && Array.isArray(rowItem.diffCols) && rowItem.diffCols.includes(cIndex);
+      const diffClass = isDiff ? 'trace-cell-diff' : '';
+      let cellContent = val;
+      if (cIndex === badgeCol && badgeHtml) {
+        cellContent = `<div class="trace-cell-inner"><span>${val}</span>${badgeHtml}</div>`;
+      }
+      return `<td class="${diffClass}">${cellContent}</td>`;
+    }).join('');
+
+    return `
+      <tr class="${rowClass}${clickableClass}" id="trace-row-${rIndex}" ${codeLinesAttr} ${hoverEvents}>
+        ${cellsHtml}
+      </tr>
+    `;
+  }).join('');
+
+  traceTableWrap.innerHTML = `
+    <table class="trace-table" aria-label="迴圈變數追蹤表">
+      <thead>
+        <tr>${thHtml}</tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+  `;
+}
+
+/**
+ * 依據程式碼行號反向微高亮追蹤表列
+ */
+function highlightTraceRowsForLines(lineNums) {
+  if (!Array.isArray(lineNums) || lineNums.length === 0) return;
+  clearHighlightedTraceRows();
+  const rows = document.querySelectorAll('.trace-row[data-code-lines]');
+  rows.forEach(row => {
+    const rawLines = row.getAttribute('data-code-lines');
+    if (!rawLines) return;
+    const rowLines = rawLines.split(',').map(s => parseInt(s.trim(), 10));
+    const hasOverlap = lineNums.some(num => rowLines.includes(num));
+    if (hasOverlap) {
+      row.classList.add('trace-row-highlighted');
+    }
+  });
+}
+
+/**
+ * 清除所有追蹤表反向高亮
+ */
+function clearHighlightedTraceRows() {
+  document.querySelectorAll('.trace-row.trace-row-highlighted').forEach(el => {
+    el.classList.remove('trace-row-highlighted');
+  });
+}
+
+/**
+ * 滑鼠懸停追蹤表列時高亮程式碼行
+ */
+function onTraceRowHover(lineNums) {
+  if (!Array.isArray(lineNums) || lineNums.length === 0) return;
+  highlightLines(lineNums);
+}
+
+/**
+ * 滑鼠離開追蹤表列時恢復
+ */
+function onTraceRowLeave() {
+  if (pinnedLineNum !== null) return;
+  clearHighlightedLines();
+  clearHighlightedMemoryBoxes();
+  clearHighlightedTraceRows();
+}
+
+/**
+ * 點選追蹤表列切換鎖定關聯程式碼行
+ */
+function togglePinTraceRow(lineNums, event) {
+  if (event) event.stopPropagation();
+  if (!Array.isArray(lineNums) || lineNums.length === 0) return;
+  onLineClick(lineNums[0]);
+}
+
+// 暴露全域事件處理函式以供 inline HTML 呼叫
+window.renderTraceTable = renderTraceTable;
+window.onTraceRowHover = onTraceRowHover;
+window.onTraceRowLeave = onTraceRowLeave;
+window.togglePinTraceRow = togglePinTraceRow;
+window.highlightTraceRowsForLines = highlightTraceRowsForLines;
+window.clearHighlightedTraceRows = clearHighlightedTraceRows;
 
 /* ==========================================================================
    7.5 數據流向同步引擎（Data Flow Sync Engine - agytodo 6.1, 6.2）

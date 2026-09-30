@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.4 迴圈流程跳轉控制 (PythAPCS123_6-4_loop_break_and_continue.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.1 break：緊急煞車踏板——滿足特定條件立刻終止並跳出迴圈",
+    "titleZh": "break 踏板：條件成立瞬間徹底粉碎迴圈",
+    "titleEn": "The break Statement: Emergency Brake to Exit Loop Immediately",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">6</span>):",
+        "mean": "走訪 1 到 5 的數字",
+        "why": "預計執行 5 輪循環",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-number\">3</span>:",
+        "mean": "條件式檢查：當 i 等於 3 時",
+        "why": "觸發緊急煞車條件",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-keyword\">break</span>",
+        "mean": "立即強制終止整座迴圈，後續輪次（3, 4, 5）全部作廢",
+        "why": "緊急煞車，不再回頭",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出未被中斷前的數值",
+        "why": "印出 1 與 2",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迴圈結束！\"</span>)",
+        "mean": "跳出迴圈後執行的下一行",
+        "why": "驗證直接抵達迴圈外部",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 2 迴圈結束！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "徹底終止",
+        "type": "concept",
+        "text": "<strong>緊急煞車踏板</strong>：break 會瞬間砸碎當前迴圈，不僅當前這圈立刻中斷，未來的輪次也完全取消！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "指令順序影響",
+        "type": "key",
+        "text": "<strong>順序關鍵</strong>：print 放在 break 之後，因此當 i=3 時在印出前就已跳出，輸出只有 1 2。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：緊急煞車退場，後面全不跑"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.2 continue：換下一個——跳過當前回合剩餘指令，直奔下一輪",
+    "titleZh": "continue 按鈕：跳過當前回合，直奔下一輪",
+    "titleEn": "The continue Statement: Skip Rest of Current Iteration",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">6</span>):",
+        "mean": "走訪 1 到 5 的數字",
+        "why": "預計執行 5 輪循環",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-number\">3</span>:",
+        "mean": "當遇上特定特例（i 等於 3）",
+        "why": "觸發換人條件",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-keyword\">continue</span>",
+        "mean": "跳過第 3 圈剩下的程式碼，直接進入第 4 圈！",
+        "why": "不終止迴圈，只跳過單一輪次",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出通過過濾的數值",
+        "why": "印出 1 2 4 5（唯獨缺 3）",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迴圈結束！\"</span>)",
+        "mean": "跑完所有輪次後正常結束",
+        "why": "驗證 4 與 5 順利執行",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 2 4 5 迴圈結束！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "換人繼續",
+        "type": "concept",
+        "text": "<strong>換下一個上台</strong>：continue 不會摧毀迴圈，只是沒收『本回合』接下來的指令，立刻推進到下一圈。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "特例略過",
+        "type": "key",
+        "text": "<strong>黑名單略過</strong>：常用於略過髒資料、無效資料或特定黑名單編號。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：略過當前這輪，直接奔下圈"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.3 break vs continue 流程跳轉路徑視覺化圖解對比",
+    "titleZh": "深度對決：break 與 continue 跳轉路徑透視",
+    "titleEn": "Deep Duel: Visualizing Control Paths of break vs continue",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># break：遇到紅色警報，直接炸毀出口逃生</span>",
+        "mean": "break 路徑：直接墜入迴圈結尾之後",
+        "why": "徹底切斷迴圈生命週期",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># [1 ➔ 2 ➔ 💥 break ➔ 🔴 終止退出！]</span>",
+        "mean": "3, 4, 5 永遠沒有登場機會",
+        "why": "路徑往右下直接出圈",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># continue：遇到綠色跳板，跳過本輪直接進下一棒</span>",
+        "mean": "continue 路徑：折返回迴圈頂部換下個值",
+        "why": "迴圈生命週期依然完整",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># [1 ➔ 2 ➔ 🦘 continue (跳過3) ➔ 4 ➔ 5 ➔ 🏁 正常走完]</span>",
+        "mean": "只有 3 被略過，其餘全部正常跑完",
+        "why": "路徑折返頂部",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"break 提早離場，continue 換人上台\"</span>)",
+        "mean": "印出核心心智總結",
+        "why": "定錨兩者關鍵差異",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "break 提早離場，continue 換人上台",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "離場 vs 換人",
+        "type": "key",
+        "text": "<strong>離場 vs 換人</strong>：考場題目只要問『迴圈共跑了幾次』，看到 break 要算煞車點，看到 continue 次數照跑！"
+      },
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "路徑定錨",
+        "type": "concept",
+        "text": "<strong>箭頭方向性</strong>：break 箭頭指向迴圈之外；continue 箭頭折返指向迴圈標頭。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：煞車提早走，換人直奔下輪"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.4 線性搜尋與布林旗標（Flag）：「找到就停」的質數檢驗演算法",
+    "titleZh": "找到就停：開根號加速與質數判定演算法",
+    "titleEn": "Early Exit: Square Root Speedup for Primality Testing",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">29</span>; <span class=\"token-ident\">is_prime</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "mean": "檢驗 29 是否為質數，旗標預設 True",
+        "why": "假設是質數，嘗試尋找反例",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span> <span class=\"token-op\">**</span> <span class=\"token-number\">0.5</span>) <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>):",
+        "mean": "只需檢查 2 到 根號 n（2 到 5）",
+        "why": "因數必定成對，超過根號無需再查",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">%</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "若找到任何一個能整除的因數",
+        "why": "反例成立，確定為合數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">is_prime</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>; <span class=\"token-keyword\">break</span>",
+        "mean": "旗標降下，立刻踩煞車跳出！後面不用再浪費時間！",
+        "why": "找到一個因數就已足夠判定，極速優化",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{n} 是否為質數:\"</span>, <span class=\"token-ident\">is_prime</span>)",
+        "mean": "印出判定結果 True",
+        "why": "驗證質數演算法正確性",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "29 是否為質數: True",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "提早煞車",
+        "type": "key",
+        "text": "<strong>找到就停思維</strong>：一旦抓到因數，數字就不可能是質數，立刻 break 避免 O(N) 浪費，時間壓到 O(√N)。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "開根號邊界",
+        "type": "radar",
+        "text": "<strong>🎯 根號加一鐵律</strong>：range 結尾不含尾，必須寫 int(n ** 0.5) + 1，否則平方數（如 9, 25, 49）會漏掉自己的根號因數！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：找到因數就停，質數檢驗快"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.5 continue 在髒資料過濾與跳過無效測資之防守應用",
+    "titleZh": "衛語句守護：continue 過濾髒資料防禦術",
+    "titleEn": "Guard Clauses: Filtering Dirty Inputs with continue",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">raw_data</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">10</span>, -<span class=\"token-number\">5</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">25</span>, -<span class=\"token-number\">8</span>, <span class=\"token-number\">40</span>]",
+        "mean": "原始資料清單混雜負數與零（無效測資）",
+        "why": "模擬競技程式常見之混合髒資料",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">valid_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化有效正數累加器",
+        "why": "準備只統計有效數據",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_data</span>:",
+        "mean": "逐筆檢查進場數值",
+        "why": "每筆資料依序過濾",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">val</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">0</span>:  <span class=\"token-comment\"># 衛語句：只要無效立即跳過</span>",
+        "mean": "門禁守衛：若小於等於 0 判定無效",
+        "why": "及早排除特例",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-keyword\">continue</span>",
+        "mean": "跳過後續指令，換下一筆資料",
+        "why": "避免髒資料進入核心運算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">valid_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">val</span>  <span class=\"token-comment\"># 核心業務邏輯免包深層縮排</span>",
+        "mean": "安全累加有效正數（10 + 25 + 40）",
+        "why": "核心運算維持乾淨淺層",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正數有效總和 =\"</span>, <span class=\"token-ident\">valid_sum</span>)",
+        "mean": "印出過濾後的總和 75",
+        "why": "驗證衛語句過濾成效",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "正數有效總和 = 75",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "衛語句模式",
+        "type": "key",
+        "text": "<strong>衛語句 (Guard Clauses)</strong>：把異常情況用 if ...: continue 提早踢掉，讓核心程式碼不需層層巢狀縮排。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "防止巢狀地獄",
+        "type": "concept",
+        "text": "<strong>扁平化代碼</strong>：大量使用 continue 守衛能減少程式碼向右縮排，大幅降低 APCS 考場閱讀代碼的心理負擔。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：衛語句濾特例，代碼整齊美"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.6 Python 特色語法：for ... else 與 while ... else（正常走完才執行的語意）",
+    "titleZh": "Python 獨家絕技：for...else 完整走完才執行",
+    "titleEn": "Exclusive Syntax: for...else Executes ONLY If No break",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">target</span> <span class=\"token-op\">=</span> <span class=\"token-number\">7</span>",
+        "mean": "搜尋目標數值 7",
+        "why": "在陣列中尋找是否存在",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">2</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">8</span>]:",
+        "mean": "走訪偶數陣列",
+        "why": "陣列中全為偶數，不含 7",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">target</span>:",
+        "mean": "若找到目標數值",
+        "why": "觸發提早跳出",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-keyword\">break</span>",
+        "mean": "中途煞車（本範例未觸發）",
+        "why": "中途煞車會沒收 else",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">else</span>:  <span class=\"token-comment\"># 🌟 迴圈「完整走完且沒碰上 break」才會執行！</span>",
+        "mean": "迴圈清白走完獎勵區塊",
+        "why": "證明全清單均無目標",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"清單中未找到目標數值 {target}\"</span>)",
+        "mean": "印出未找到的報告",
+        "why": "免旗標完成未找到的處理",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "清單中未找到目標數值 7",
+    "notes": [
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "for...else 真諦",
+        "type": "radar",
+        "text": "<strong>🎯 else 是迴圈的好朋友</strong>：不是跟 if 配對，而是跟 for 配對！只有迴圈『全數走完、未遇 break』才會執行 else。"
+      },
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "沒收機制",
+        "type": "key",
+        "text": "<strong>break 沒收 else</strong>：只要中途哪怕踩了一次 break，下面的 else 就永遠不會被執行！"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：沒被煞車阻斷，才執行結尾"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.7 while True 搭配 break：動態事件驅動與自由出口架構",
+    "titleZh": "自由出口架構：while True 搭配哨兵值終止",
+    "titleEn": "Free Exit Pattern: while True with Sentinel Value break",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">inputs</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">15</span>, <span class=\"token-number\">20</span>, -<span class=\"token-number\">1</span>, <span class=\"token-number\">30</span>]  <span class=\"token-comment\"># -1 為指定哨兵結束符號</span>",
+        "mean": "測資序列包含正常數值與 -1 哨兵結束碼",
+        "why": "模擬 APCS 經典哨兵輸入題型",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化加總器",
+        "why": "累計哨兵出現前的數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">inputs</span>:",
+        "mean": "走訪輸入串流",
+        "why": "依序接收輸入",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">val</span> <span class=\"token-op\">==</span> -<span class=\"token-number\">1</span>:  <span class=\"token-comment\"># 偵測到哨兵標記</span>",
+        "mean": "檢查是否抵達結束信號",
+        "why": "哨兵值判定",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-keyword\">break</span>      <span class=\"token-comment\"># 立即跳出，不將 -1 算入總和</span>",
+        "mean": "緊急煞車離場，忽略後續資料",
+        "why": "保證哨兵 -1 本身不被污染進 total",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">val</span>",
+        "mean": "累加有效數值（15 + 20）",
+        "why": "更新正確總和",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"哨兵終止前的總和 =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出結算總和 35",
+        "why": "驗證哨兵終止邏輯",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "哨兵終止前的總和 = 35",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "哨兵機制",
+        "type": "concept",
+        "text": "<strong>哨兵值 (Sentinel Value)</strong>：以特定非正常數值（如 -1、0、'EOF'）作為終止暗號，遇上立刻 break 退場。"
+      },
+      {
+        "lines": [
+          5,
+          6
+        ],
+        "lineText": "先檢查後累加",
+        "type": "key",
+        "text": "<strong>順序防污染</strong>：先 if val == -1 break 再進行累加，確保哨兵 -1 不會誤加進總額導致答案差一。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：哨兵值現身，立刻踩煞車"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.4 線性搜尋與布林旗標（Flag）：「找到就停」的質數檢驗演算法",
+    "titleZh": "質數檢驗追蹤表：因數走訪與提早 break 矩陣",
+    "titleEn": "Trace Table: Primality Testing & Early Break Trigger",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">15</span>",
+        "mean": "受檢數值 15",
+        "why": "展示在第 2 輪因數 3 命中時提早煞車",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-number\">6</span>):",
+        "mean": "預計走訪 2, 3, 4, 5",
+        "why": "走訪潛在候選因數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">%</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "檢查是否能被 d 整除",
+        "why": "餘數為 0 代表命中因數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"檢查因數 {d}: 整除！觸發 break 提早結束\"</span>)",
+        "mean": "通報命中",
+        "why": "印出命中資訊",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-keyword\">break</span>",
+        "mean": "觸發煞車跳出",
+        "why": "剩餘候選因數 4 與 5 完全省去不用查！",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "檢查因數 3: 整除！觸發 break 提早結束",
+    "traceTable": {
+      "title": "📊 檢驗 n=15 是否為質數動態追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "候選因數 d",
+        "餘數計算 (15 % d)",
+        "整除判定 (== 0)",
+        "演算法動作與狀態"
+      ],
+      "activeRow": 1,
+      "rows": [
+        {
+          "values": [
+            "d = 2",
+            "15 % 2 ➔ 餘 1",
+            "False (未整除)",
+            "繼續推進到下一輪 (d = 3)"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "d = 3",
+            "15 % 3 ➔ 餘 0",
+            "True (整除！)",
+            "觸發 break！立即終止，省去檢查 4 與 5！"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "煞車終止",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "省時威力",
+        "type": "key",
+        "text": "<strong>提早跳出的省時魅力</strong>：原本排定要跑到 5，在 d=3 提早確認合數並煞車，大量節省 CPU 計算量。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "追蹤矩陣觀察",
+        "type": "concept",
+        "text": "<strong>紙上追蹤表定錨</strong>：考場觀念題常問『break 執行時 d 的值為何』，看追蹤表一眼即知是 3。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：追蹤表看因數，整除即煞車"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4 考場地雷一：縮排錯位使 break 脫離 if 控制，導致「只跑第一輪就猝死」",
+    "titleZh": "考場致命地雷一：縮排錯位引發只跑一輪就猝死",
+    "titleEn": "Pitfall 1: Indentation Bug Causes One-and-Done Premature Exit",
+    "predictQuiz": {
+      "question": "預測思考：欲走訪 1 到 3，若寫：\nfor i in range(1, 4):\n    print('跑第一輪 i =', i)\n    break\n終端機會印出幾行輸出？",
+      "options": [
+        "只印出 1 行（跑完第 1 輪就被無條件 break 謀殺！）",
+        "正常印出 3 行（因為 break 會自動找條件）"
+      ],
+      "correct": 0,
+      "explanation": "因為 break 沒有縮排在 if 內，變成了迴圈體內的無條件陳述句！跑完第一輪的 print 立刻碰上 break 猝死退出！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):",
+        "mean": "原本預計跑 3 輪",
+        "why": "展示致命縮排錯誤",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"跑第一輪 i =\"</span>, <span class=\"token-ident\">i</span>)",
+        "mean": "印出第一輪資訊",
+        "why": "第 1 輪順利執行",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 💥 致命縮排：未放進 if 內，變成無條件煞車！</span>",
+        "mean": "沒有任何條件守護，直接強行跳出！",
+        "why": "第 2、3 輪慘遭謀殺",
+        "alt": "if 条件: break",
+        "error": true
+      }
+    ],
+    "output": "跑第一輪 i = 1",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "無條件煞車",
+        "type": "wa",
+        "text": "<strong>💥 猝死大坑 (One-and-Done)</strong>：break 必須受 if 條件保護！若縮排跟 print 平級，迴圈永遠只跑第 1 輪就猝死！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "除錯心法",
+        "type": "key",
+        "text": "<strong>視覺垂直對齊</strong>：檢查 break 前面是否有 8 個空格（縮在 if 肚子裡），若只有 4 格就是致命 Bug！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：縮排放錯層級，只跑一輪死"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4 考場地雷二：在 while 迴圈中使用 continue 卻將步進寫在 continue 之後引發死結",
+    "titleZh": "考場致命地雷二：continue 略過步進引發無窮死結",
+    "titleEn": "Pitfall 2: continue Skipping Step Update Causes Infinite Loop",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 while 內使用 continue 的奪命天坑：</span>",
+        "mean": "註解剖析 while 與 continue 的相剋關係",
+        "why": "揭露步進語句被略過之陷阱真相",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># i = 1; while i &lt;= 5:</span>",
+        "mean": "若在迴圈體開頭寫 if i == 3: continue",
+        "why": "當 i=3 時會直接折返頂部",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\">#     if i == 3: continue</span>",
+        "mean": "碰上 continue 直接跳回 while 標頭",
+        "why": "後方的 i += 1 永遠不會被執行！",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\">#     i += 1  # 💥 步進被略過！i 永遠卡在 3！TLE 爆零！</span>",
+        "mean": "步進被 continue 跨過，造成無窮死結",
+        "why": "CPU 100% 暴走",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"在 while 內用 continue，步進必須在 continue 之前！\"</span>)",
+        "mean": "印出考場防禦守則",
+        "why": "警惕考生嚴格注意步進語句位置",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "在 while 內用 continue，步進必須在 continue 之前！",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "步進遭跳過",
+        "type": "wa",
+        "text": "<strong>💥 while 專屬陷阱</strong>：for 迴圈由直譯器自動步進，不受 continue 影響；但 while 是手動步進，若步進被 continue 跳過必定 TLE！"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "安全對策",
+        "type": "key",
+        "text": "<strong>先步進再跳</strong>：在 while 裡若要使用 continue，必須在 continue 前手動補上 i += 1，或改用 for 迴圈。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先推步進再跳，防超時死結"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4 考場地雷三：誤以為 break 能一次跳出多層巢狀迴圈的「單層限制陷阱」",
+    "titleZh": "考場致命地雷三：break 只跳一層，外層繼續跑",
+    "titleEn": "Pitfall 3: break Only Exits ONE Level of Nested Loops",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 外層迴圈 r = 0, 1</span>",
+        "mean": "外層迴圈跑 2 輪",
+        "why": "建立二維巢狀環境",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 內層迴圈 c = 0, 1</span>",
+        "mean": "內層迴圈跑 2 輪",
+        "why": "每輪由內層推動",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span>: <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 💥 誤以為能全部結束！</span>",
+        "mean": "內層觸發 break，僅跳出內層 c 迴圈！",
+        "why": "外層 r 依舊會繼續推進下一輪！",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"({r},{c})\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出當前座標",
+        "why": "印出 (0,0) 與 (1,0)",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"僅跳出內層\"</span>)",
+        "mean": "印出總結說明",
+        "why": "驗證外層不受內層 break 影響",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "(0,0) (1,0) 僅跳出內層",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "單層煞車鐵律",
+        "type": "radar",
+        "text": "<strong>🎯 break 範圍僅限所處那層</strong>：內層的 break 只能破壞內層迴圈，外層迴圈毫髮無傷照樣繼續！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "跳出多層解法",
+        "type": "key",
+        "text": "<strong>連鎖退出對策</strong>：若欲跳出雙重迴圈，需在外層配合布林旗標（如 if stop_flag: break）或封裝進函式使用 return。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：煞車只跳一層，外層繼續跑"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4 考場地雷四：誤解 for...else 語意，以為 else 代表「條件為 False 的每輪執行」",
+    "titleZh": "考場致命地雷四：誤將 for...else 當作 if...else",
+    "titleEn": "Pitfall 4: Confusing for...else with if...else Logic",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>]:",
+        "mean": "走訪兩筆元素",
+        "why": "展示無 break 時的 else 反應",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">pass</span>  <span class=\"token-comment\"># 內部順利跑完，完全沒有觸發 break</span>",
+        "mean": "正常跑完兩輪",
+        "why": "未受任何阻攔",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">else</span>:  <span class=\"token-comment\"># 💥 初學者誤以為此行會執行兩次！其實整座迴圈只會執行一次！</span>",
+        "mean": "整座迴圈的總結收尾區塊",
+        "why": "迴圈清白走完後僅執行一次",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"未遇 break，順利走完執行 else！\"</span>)",
+        "mean": "印出收尾成功訊息",
+        "why": "證實 else 僅在完整走完時單次觸發",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "未遇 break，順利走完執行 else！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "單次執行收尾",
+        "type": "radar",
+        "text": "<strong>🎯 else 絕非每輪執行</strong>：它是『迴圈整體的成就結算』，整座迴圈跑完才執行『唯一一次』！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "命名被吐槽",
+        "type": "key",
+        "text": "<strong>Python 之父的遺憾</strong>：Guido 曾坦言此語法若命名為 nobreak 會更清楚，但既然已成標準，請牢記『全走完才跑』。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：走完才執行，中途煞車沒"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.5 continue 在髒資料過濾與跳過無效測資之防守應用",
+    "titleZh": "衛語句實戰：安全除法防除零與髒資料過濾",
+    "titleEn": "Unit 6.4 Comprehensive Review: Defensive Division with continue",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">s</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化運算總和為 0",
+        "why": "準備進行多筆除法累加",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">item</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">10</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]:",
+        "mean": "走訪清單，其中混雜 0 作為分母",
+        "why": "測試除以零防禦機制",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">item</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:  <span class=\"token-comment\"># 衛語句守護：嚴防除數為零崩潰</span>",
+        "mean": "若分母為 0 立即攔截",
+        "why": "阻止致命 ZeroDivisionError",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-keyword\">continue</span>",
+        "mean": "跳過此輪無效計算，直接換下一個分母",
+        "why": "保障程式健壯不中斷",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">s</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">100</span> <span class=\"token-op\">//</span> <span class=\"token-ident\">item</span>  <span class=\"token-comment\"># 100//10 + 100//20 + 100//30</span>",
+        "mean": "安全執行整除累加（10 + 5 + 3 = 18）",
+        "why": "有效數值正常計算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"安全除法結算 =\"</span>, <span class=\"token-ident\">s</span>)",
+        "mean": "印出最終安全運算結算 18",
+        "why": "驗證衛語句防禦成效",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "安全除法結算 = 18",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "防禦效益",
+        "type": "key",
+        "text": "<strong>免除例外處理負擔</strong>：在迴圈前置加入 if item == 0: continue，免寫複雜的 try-except 即可達成 100% 防禦。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "安全整除",
+        "type": "concept",
+        "text": "<strong>穩定運行</strong>：0 被優雅過濾，其餘數值 10、20、30 依序貢獻商數 10、5、3，得到總和 18。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：衛語句除零防，髒資料跳過"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4.6 Python 特色語法：for ... else 與 while ... else（正常走完才執行的語意）",
+    "titleZh": "for...else 實戰：免旗標優雅質數檢驗演算法",
+    "titleEn": "Unit 6.4 Comprehensive Review: Flag-Free Primality via for...else",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">17</span>",
+        "mean": "待判定數值 17",
+        "why": "目標：以最極簡 Pythonic 代碼完成質數檢定",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span> <span class=\"token-op\">**</span> <span class=\"token-number\">0.5</span>) <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>):",
+        "mean": "檢查 2 到 4 的因數",
+        "why": "根號範圍走訪",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">%</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "若發現因數",
+        "why": "合數判定",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{n} 是合數\"</span>)",
+        "mean": "印出合數判定",
+        "why": "通報非質數",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 命中因數，煞車跳出並沒收 else！</span>",
+        "mean": "煞車退出，沒收後續 else",
+        "why": "防止誤判為質數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-keyword\">else</span>:",
+        "mean": "沒有任何因數能整除（未遇 break），清白通關！",
+        "why": "保證百分之百是質數！",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{n} 是質數！\"</span>)",
+        "mean": "榮耀輸出質數判定",
+        "why": "完成優雅判定",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "17 是質數！",
+    "notes": [
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "極簡代碼",
+        "type": "key",
+        "text": "<strong>免除布林旗標</strong>：無需再宣告 is_prime = True，代碼行數少 30%，邏輯更清晰，是高分考生最愛的炫技寫法。"
+      },
+      {
+        "lines": [
+          5,
+          6
+        ],
+        "lineText": "語意自然",
+        "type": "concept",
+        "text": "<strong>自然語意</strong>：for d 尋找因數，如果找到就 break，如果『找不到任何因數（else）』就斷定是質數！"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：走完即是質數，簡潔免旗標"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.4 綜合驗收",
+    "titleZh": "單元 6.4 綜合驗收：流程跳轉神功與全單元通關",
+    "titleEn": "Unit 6.4 Comprehensive Review: Control Flow Mastery & Milestone",
+    "completionCard": {
+      "badge": "🏆 單元 6.4 通關：流程跳轉掌控專家！",
+      "summary": "太強悍了！你已徹底精通 break 緊急煞車、continue 換人上台、衛語句髒資料防禦、for...else 走完才執行與哨兵自由出口模式！",
+      "nextUnit": "6.5 雙重與多重巢狀迴圈（時鐘模型與維度展開）"
+    },
+    "traceTable": {
+      "title": "📊 哨兵值 -999 攔截累加動態追蹤矩陣 (Trace Table)",
+      "hint": "走訪 [5, 8, 12, -999, 20]，遇 -999 觸發 break 煞車",
+      "headers": [
+        "輪次",
+        "讀入元素 x",
+        "哨兵檢查 (== -999)",
+        "累加狀態 (acc += x)"
+      ],
+      "activeRow": 3,
+      "rows": [
+        {
+          "values": [
+            "第 1 輪",
+            "x = 5",
+            "False",
+            "0 + 5 ➔ acc = 5"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            5
+          ]
+        },
+        {
+          "values": [
+            "第 2 輪",
+            "x = 8",
+            "False",
+            "5 + 8 ➔ acc = 13"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            5
+          ]
+        },
+        {
+          "values": [
+            "第 3 輪",
+            "x = 12",
+            "False",
+            "13 + 12 ➔ acc = 25"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            5
+          ]
+        },
+        {
+          "values": [
+            "第 4 輪",
+            "x = -999",
+            "True (哨兵命中！)",
+            "觸發 break 煞車！20 被攔截，最終 acc = 25"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "滿分結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">seq</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">5</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">12</span>, -<span class=\"token-number\">999</span>, <span class=\"token-number\">20</span>]",
+        "mean": "測試序列包含正常數值、哨兵 -999 與後續無效數值 20",
+        "why": "驗證哨兵攔截防禦",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">acc</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化加總器",
+        "why": "準備累計",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">seq</span>:",
+        "mean": "走訪數列元素",
+        "why": "依序送入哨兵檢驗",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> -<span class=\"token-number\">999</span>: <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 哨兵命中，立即煞車！</span>",
+        "mean": "命中哨兵，跳出迴圈",
+        "why": "阻斷後續資料與 -999 污染",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">acc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">x</span>",
+        "mean": "累加有效數值",
+        "why": "5 + 8 + 12 = 25",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"哨兵 -999 攔截結算 =\"</span>, <span class=\"token-ident\">acc</span>)",
+        "mean": "印出結算總額 25",
+        "why": "驗證全單元綜合通關成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "哨兵 -999 攔截結算 = 25",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取專屬通關成就！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "哨兵與煞車合一",
+        "type": "key",
+        "text": "<strong>哨兵終止典範</strong>：以 -999 作為邊界，配合 break 實現自由出口，是 APCS 與各大線上題庫的標準架構。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：流程跳轉自如，掌握掌控權"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-4",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-4_loop_break_and_continue.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.2 迴圈累加器、計數器與極值維護 (PythAPCS123_6-2_loop_accumulators_and_counters.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.1 累加器（Accumulator）模式：存錢筒模型與初始值歸零（total = 0）",
+    "titleZh": "累加器模式：小豬撲滿存錢筒模型",
+    "titleEn": "Accumulator Pattern: Piggy Bank Mental Model & Zero Init",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "建立累加器變數 total，初始值設定為 0（空存錢筒）",
+        "why": "累加必須由 0 開始，避免髒資料污染結果",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">6</span>):",
+        "mean": "走訪數列 1, 2, 3, 4, 5（左閉右開停在 6 前）",
+        "why": "依序將 1 到 5 五個數字投進存錢筒",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">i</span>",
+        "mean": "將當前的 i 累加進 total（等價於 total = total + i）",
+        "why": "每輪迭代將新數值累積至現有總額",
+        "alt": "total = total + i",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"1 加到 5 總和 =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出最終結算的累計總合 15",
+        "why": "驗證 1+2+3+4+5 累加成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 加到 5 總和 = 15",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "存錢筒模型",
+        "type": "concept",
+        "text": "<strong>小豬撲滿存錢筒</strong>：累加器本質是外設容器，迴圈每跑一圈就投幣一枚，迴圈結束打破撲滿看結算！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "初始值歸零",
+        "type": "key",
+        "text": "<strong>初始歸零鐵律</strong>：加法單位元素是 0，累加器進入迴圈前必須確保 total = 0。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：累加前先歸零，積少能成多"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.2 計數器（Counter）模式：特定事件發生的「打勾計次機（count += 1）」",
+    "titleZh": "計數器模式：特定事件的打勾計次機",
+    "titleEn": "Counter Pattern: Event Trigger & Increment by One",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "建立計數器變數 count，初始次數設為 0",
+        "why": "統計特定條件發生的次數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">21</span>):",
+        "mean": "走訪 1 到 20 的所有整數",
+        "why": "逐一檢驗每個整數是否符合事件條件",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">%</span> <span class=\"token-number\">3</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "若 i 能被 3 整除，代表觸發特定事件",
+        "why": "以條件式判定是否為 3 的倍數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "計數器累加 1（打勾計次）",
+        "why": "累計事件發生的總次數",
+        "alt": "count = count + 1",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"1 到 20 中 3 的倍數共有\"</span>, <span class=\"token-ident\">count</span>, <span class=\"token-string\">\"個\"</span>)",
+        "mean": "印出符合倍數條件的總個數 6",
+        "why": "輸出事件統計結果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 到 20 中 3 的倍數共有 6 個",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "累加 vs 計數",
+        "type": "key",
+        "text": "<strong>累加 vs 計數</strong>：累加器是加數值（total += x），計數器是加次數（count += 1），考場千萬別混淆！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "事件過濾",
+        "type": "concept",
+        "text": "<strong>事件過濾機制</strong>：搭配 if 條件過濾，只有滿足特定目標時才觸發計數器動作。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：特定事件發生，計數器加一"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.3 累乘器（Product）模式：階乘 N! 與初始值設 1 的關鍵守則",
+    "titleZh": "累乘器模式：階乘運算與乘法單位元素 1",
+    "titleEn": "Product Pattern: Factorial N! & Initializing to One",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">factorial</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>",
+        "mean": "建立累乘器變數 factorial，初始值必須設定為 1",
+        "why": "乘法的單位元素是 1，任何數乘 1 維持不變",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">6</span>):",
+        "mean": "依序走訪 1, 2, 3, 4, 5",
+        "why": "依序計算 1 * 2 * 3 * 4 * 5",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">factorial</span> <span class=\"token-op\">*=</span> <span class=\"token-ident\">i</span>",
+        "mean": "將當前的 i 累乘至 factorial（factorial = factorial * i）",
+        "why": "逐輪連乘累積階乘值",
+        "alt": "factorial = factorial * i",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"5 階乘 (5!) =\"</span>, <span class=\"token-ident\">factorial</span>)",
+        "mean": "印出 5 階乘的運算結果 120",
+        "why": "驗證連乘運算輸出結果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "5 階乘 (5!) = 120",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "初始值必設為1",
+        "type": "key",
+        "text": "<strong>乘法單位元素 1</strong>：若誤將累乘器設為 0，任何數字相乘都將被歸零黑洞吞噬！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "複合乘法運算子",
+        "type": "concept",
+        "text": "<strong>*= 簡潔語法</strong>：factorial *= i 等價於 factorial = factorial * i，是 APCS 官方指定規範寫法。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：累乘初始設一，切忌寫成零"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.4 條件複合累加：奇數和、偶數和與 3/5 倍數篩選加總",
+    "titleZh": "條件複合累加：偶數篩選與加總運算",
+    "titleEn": "Conditional Accumulation: Filtering Even Numbers and Summing",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">even_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "建立偶數加總累加器，初始歸零為 0",
+        "why": "準備統計所有偶數的數值總和",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">11</span>):",
+        "mean": "走訪 1 到 10 的所有整數",
+        "why": "逐一檢驗範圍內的每一個數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">%</span> <span class=\"token-number\">2</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "若 i 是偶數（被 2 整除餘 0）",
+        "why": "以餘數運算子篩選偶數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">even_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">i</span>",
+        "mean": "將符合偶數條件的 i 累加進 even_sum",
+        "why": "只累加滿足條件的目標值（2+4+6+8+10）",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"1 到 10 偶數和 =\"</span>, <span class=\"token-ident\">even_sum</span>)",
+        "mean": "印出偶數總和 30",
+        "why": "驗證條件篩選累加之最終成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 到 10 偶數和 = 30",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "條件累加",
+        "type": "concept",
+        "text": "<strong>篩選後再累加</strong>：迴圈負責產生數值，if 負責閘門過濾，兩者組合是 APCS 觀念題最核心模板。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "變數語意化",
+        "type": "key",
+        "text": "<strong>命名自帶文件</strong>：命名為 even_sum 或 odd_sum 比單寫 total 更能避免考場邏輯混淆。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：條件過濾加總，符合才累加"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.5 迴圈流式平均值計算：累加與計數協同作戰及防除零保護",
+    "titleZh": "流式平均值：累加器與計數器的協同作戰",
+    "titleEn": "Streaming Average: Accumulator & Counter Synergy",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">scores</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">80</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">70</span>, <span class=\"token-number\">85</span>]",
+        "mean": "建立成績清單 scores",
+        "why": "模擬多筆成績資料輸入來源",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "同時宣告累加器 total 與計數器 count 並歸零",
+        "why": "平均值公式為 總和 / 個數，兩者需並肩作戰",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span>:",
+        "mean": "逐一走訪每一筆成績 s",
+        "why": "單趟走訪更新雙統計指標",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">s</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "每輪將分數累加進 total，同時 count 計數加 1",
+        "why": "同步累加分數並計算資料筆數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-ident\">avg</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">total</span> <span class=\"token-op\">/</span> <span class=\"token-ident\">count</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-number\">0</span>",
+        "mean": "若 count > 0 則計算平均，否則給予安全預設 0",
+        "why": "嚴防空清單時觸發 ZeroDivisionError 致命錯誤",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"總分 =\"</span>, <span class=\"token-ident\">total</span>, <span class=\"token-string\">\"平均 =\"</span>, <span class=\"token-ident\">avg</span>)",
+        "mean": "印出總分 330 與平均成績 82.5",
+        "why": "輸出最終雙統計指標成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "總分 = 330 平均 = 82.5",
+    "notes": [
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "防除零保護",
+        "type": "radar",
+        "text": "<strong>🎯 防除零保護 (ZeroDivisionError)</strong>：算平均前務必檢查 count > 0，APCS 實作題常以 0 筆測資測試程式強韌度！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "協同作戰",
+        "type": "key",
+        "text": "<strong>單趟流式處理</strong>：無需重複走訪資料兩次，在一輪 for 迴圈中同時完成 total 與 count 維護。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：平均先看個數，大於零才除"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.6 擂台盟主法（極值維護）：負無窮大初始化與單趟走訪求最大/最小值",
+    "titleZh": "擂台盟主法：單趟走訪動態維護最大值",
+    "titleEn": "King of the Hill: Maintaining Maximum via Single Pass",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">nums</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">15</span>, <span class=\"token-number\">42</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">23</span>, <span class=\"token-number\">67</span>]",
+        "mean": "建立整數串列 nums 包含 5 個數值",
+        "why": "準備示範擂台挑戰機制",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">max_val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">float</span>(<span class=\"token-string\">\"-inf\"</span>)",
+        "mean": "初始盟主設定為負無窮大 float('-inf')",
+        "why": "保證任何真實數字都比它大，必定能成功退位給第一筆資料",
+        "alt": "max_val = nums[0]",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span>:",
+        "mean": "走訪串列中的每一名挑戰者 x",
+        "why": "讓每個數值上台與當前盟主比試",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">></span> <span class=\"token-ident\">max_val</span>:",
+        "mean": "若挑戰者數值大於當前盟主",
+        "why": "挑戰成功，準備奪冠換位",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-ident\">max_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span>",
+        "mean": "將盟主寶座讓給挑戰者 x（更新最大值）",
+        "why": "維護當前走訪過的全局最大值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"最大值 =\"</span>, <span class=\"token-ident\">max_val</span>)",
+        "mean": "印出走訪完畢後的最終勝出盟主 88",
+        "why": "驗證擂台盟主法求極值結果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "最大值 = 88",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "負無窮大初始化",
+        "type": "radar",
+        "text": "<strong>🎯 負無窮大 float('-inf')</strong>：切勿隨意設 max_val = 0！若資料全是負數（如 -5, -10），設 0 會導致錯誤回傳 0！"
+      },
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "擂台挑戰機制",
+        "type": "key",
+        "text": "<strong>誰大誰稱王</strong>：每輪遇到更大值就立刻覆寫，單趟走訪 O(N) 即可完成極值篩選。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：求最大設負極，誰大誰當王"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.6 擂台盟主法（極值維護）：負無窮大初始化與單趟走訪求最大/最小值",
+    "titleZh": "擂台盟主法：單趟走訪動態維護最小值",
+    "titleEn": "King of the Hill: Maintaining Minimum via Single Pass",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">nums</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">15</span>, <span class=\"token-number\">42</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">23</span>, <span class=\"token-number\">67</span>]",
+        "mean": "建立整數串列 nums 包含 5 個數值",
+        "why": "展示求最小值的比試情境",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">min_val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">float</span>(<span class=\"token-string\">\"inf\"</span>)",
+        "mean": "初始最小值設定為正無窮大 float('inf')",
+        "why": "保證任何真實數字都比它小，第一筆必定成功挑戰退位",
+        "alt": "min_val = nums[0]",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span>:",
+        "mean": "走訪串列中的每一名挑戰者 x",
+        "why": "逐一比試尋找更小的值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">min_val</span>:",
+        "mean": "若挑戰者數值小於當前最小值",
+        "why": "發現比現有盟主更小的值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-ident\">min_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span>",
+        "mean": "將最小值寶座交給挑戰者 x（更新最小值）",
+        "why": "維護當前走訪過的全局最小值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"最小值 =\"</span>, <span class=\"token-ident\">min_val</span>)",
+        "mean": "印出最終篩選出的最小值 15",
+        "why": "驗證最小值擂台盟主演算法成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "最小值 = 15",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "正無窮大初始化",
+        "type": "radar",
+        "text": "<strong>🎯 正無窮大 float('inf')</strong>：求最小值時盟主初始值設為正極限，保證首位挑戰者必定勝出。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "首項替換法",
+        "type": "key",
+        "text": "<strong>首元素初始化法</strong>：若確定資料不為空，亦可直接寫 min_val = nums[0]，安全且直觀。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：求最小設正極，誰小誰稱霸"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.8 數值範圍全距（Max - Min）與多指標統計報表產出實戰",
+    "titleZh": "迴圈追蹤矩陣：單趟走訪累加與計數動態演進",
+    "titleEn": "Trace Table: Step-by-Step State Evolution for Sum & Count",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">data</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">12</span>, <span class=\"token-number\">45</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">30</span>]",
+        "mean": "建立走訪測試串列包含 4 筆數值",
+        "why": "作為動態追蹤矩陣演練之資料來源",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化累加器 total 與計數器 count 為 0",
+        "why": "進入迴圈前完成容器歸零",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">data</span>:",
+        "mean": "依序走訪 data 中的每一個數字 x",
+        "why": "每輪迭代提取一個數值進行雙指標更新",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">x</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "同步更新累加總額與累積筆數",
+        "why": "一輪運算完成兩個縮減任務",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"資料 {x}: 目前累計 {total}, 個數 {count}\"</span>)",
+        "mean": "格式化印出當前輪次的結算狀態",
+        "why": "驗證追蹤表中每一步計算結果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "資料 12: 目前累計 12, 個數 1\n資料 45: 目前累計 57, 個數 2\n資料 8: 目前累計 65, 個數 3\n資料 30: 目前累計 95, 個數 4",
+    "traceTable": {
+      "title": "📊 單趟走訪累加與計數追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "輪次",
+        "目前挑戰者 x",
+        "累計總和 (total += x)",
+        "累計筆數 (count += 1)"
+      ],
+      "activeRow": 3,
+      "rows": [
+        {
+          "values": [
+            "第 1 輪",
+            "x = 12",
+            "0 + 12 ➔ total = 12",
+            "count = 1"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "values": [
+            "第 2 輪",
+            "x = 45",
+            "12 + 45 ➔ total = 57",
+            "count = 2"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "values": [
+            "第 3 輪",
+            "x = 8",
+            "57 + 8 ➔ total = 65",
+            "count = 3"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "values": [
+            "第 4 輪",
+            "x = 30",
+            "65 + 30 ➔ total = 95",
+            "count = 4"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "當前結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "雙指標維護",
+        "type": "key",
+        "text": "<strong>雙指標同步維護</strong>：每輪迴圈只花 O(1) 步數，四筆資料結束即可同時得到總額 95 與總數 4。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "心智模擬",
+        "type": "concept",
+        "text": "<strong>心智模擬表格化</strong>：草稿紙繪製 Trace Table 是排查 APCS 觀念題計算邏輯的最強武器。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：手繪追蹤矩陣，逐輪看分明"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2 考場地雷一：累乘器誤設初始值為 0 的「歸零黑洞」",
+    "titleZh": "考場致命地雷一：累乘器初始值誤設為 0 的歸零黑洞",
+    "titleEn": "Pitfall 1: Product Initialized to Zero Black Hole",
+    "predictQuiz": {
+      "question": "預測思考：欲計算 1 到 5 的階乘乘積，若程式第一行誤寫 prod = 0，最終印出的結果會是？",
+      "options": [
+        "結果為 0（被乘法黑洞完全吞噬！）",
+        "正常算出 120"
+      ],
+      "correct": 0,
+      "explanation": "因為 0 乘上任何數字皆為 0（0 * 1 = 0, 0 * 2 = 0...）！累乘器的初始值必須設定為乘法單位元素 1！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">prod</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 💥 致命錯誤：習慣性歸零，造成乘法黑洞</span>",
+        "mean": "誤將累乘器初始值設為 0",
+        "why": "展示初學者從累加器過渡到累乘器時最常犯的慣性錯誤",
+        "alt": "prod = 1",
+        "error": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">6</span>):",
+        "mean": "走訪 1 到 5 的數字",
+        "why": "執行 5 次乘法迭代",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">prod</span> <span class=\"token-op\">*=</span> <span class=\"token-ident\">i</span>",
+        "mean": "每一輪執行 prod = prod * i",
+        "why": "每輪算式為 0 * i，永遠為 0",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"錯誤的階乘結果 =\"</span>, <span class=\"token-ident\">prod</span>)",
+        "mean": "印出運算結果，證實全盤歸零",
+        "why": "印出錯誤結果 0 警惕考生",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "錯誤的階乘結果 = 0",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "WA警報",
+        "type": "wa",
+        "text": "<strong>💥 爆零紅線 (WA 警報)</strong>：加法單位元素是 0，乘法單位元素是 1！累乘器誤填 0 會導致全盤測資輸出 0 直接爆零！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "解法對策",
+        "type": "key",
+        "text": "<strong>安全修正法</strong>：累乘器永遠記住起手式 prod = 1。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：累乘誤設為零，算式全歸零"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2 考場地雷二：極值擂台盟主誤設 max_val = 0 的「負數全軍覆沒陷阱」",
+    "titleZh": "考場致命地雷二：極值盟主誤設 0 引發負數全軍覆沒",
+    "titleEn": "Pitfall 2: Setting max_val to 0 Fails Completely for Negative Numbers",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">neg_nums</span> <span class=\"token-op\">=</span> [-<span class=\"token-number\">15</span>, -<span class=\"token-number\">42</span>, -<span class=\"token-number\">8</span>, -<span class=\"token-number\">23</span>]",
+        "mean": "建立全為負數的數列清單",
+        "why": "模擬真實測資中包含負溫、負利潤或負座標的極端場景",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">wrong_max</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 💥 致命錯誤：直覺以為 0 是最小</span>",
+        "mean": "盟主初始值誤設為 0",
+        "why": "初學者直覺以為 0 很小，忽略了負數比 0 還小",
+        "alt": "wrong_max = float('-inf')",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">neg_nums</span>:",
+        "mean": "走訪負數串列中的每一個數值",
+        "why": "每個挑戰者都無法大於 0",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">></span> <span class=\"token-ident\">wrong_max</span>:",
+        "mean": "比較 x 與 wrong_max（負數比 0 小，條件永遠不成立！）",
+        "why": "所有負數挑戰全部失敗",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-ident\">wrong_max</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span>",
+        "mean": "更新盟主值（此行永遠未被執行）",
+        "why": "盟主寶座被幽靈 0 霸佔",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"錯誤的最大值 =\"</span>, <span class=\"token-ident\">wrong_max</span>)",
+        "mean": "印出錯誤的最大值 0（清單中根本沒有 0！）",
+        "why": "揭露負數場景下的嚴重邏輯 Bug",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "錯誤的最大值 = 0",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "幽靈盟主",
+        "type": "wa",
+        "text": "<strong>💥 幽靈數據霸佔</strong>：陣列最大明明是 -8，但因為預設 0 比所有負數都大，導致輸出幽靈數值 0！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "標準解法",
+        "type": "key",
+        "text": "<strong>雙保險解法</strong>：求最大值初始設 float('-inf')，或直接取第一筆元素 neg_nums[0]。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：求最大莫設零，全負數慘敗"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2 考場地雷三：累加器放錯位置（迴圈體內誤歸零導致每輪洗牌）",
+    "titleZh": "考場致命地雷三：累加器放體內引發每輪被洗牌",
+    "titleEn": "Pitfall 3: Re-initializing Accumulator Inside Loop Body",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):",
+        "mean": "迴圈預定走訪 1, 2, 3 三輪",
+        "why": "示範累加器生命週期放錯區塊之破綻",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 💥 致命錯誤：放在迴圈內部，每輪都被強制清零！</span>",
+        "mean": "每一輪進入迴圈時強行將 total 歸零",
+        "why": "前幾輪累積成果全部被抹煞洗牌",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">i</span>",
+        "mean": "本輪將 i 加進已歸零的 total",
+        "why": "每輪結果只等於當前的 i",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"最終誤算 total =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出錯誤總計 3（只留住最後一輪的 3，而非 1+2+3=6！）",
+        "why": "證實累加器被每輪清零導致歷史丟失",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "最終誤算 total = 3",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "作用域天坑",
+        "type": "radar",
+        "text": "<strong>🎯 變數生命週期天坑</strong>：累加器是『跨輪次持久容器』，必須放在迴圈外部初始化！放在迴圈內等於每輪砸碎撲滿！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "記憶體觀察",
+        "type": "key",
+        "text": "<strong>第 1 輪 total=1 ➔ 第 2 輪 total 被清成 0 ➔ 第 3 輪 total 被清成 0 變 3</strong>，歷史紀錄蕩然無存。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：累加放迴圈外，否則每輪清"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2 考場地雷四：平均值計算未防空集合導致 ZeroDivisionError 崩潰爆零",
+    "titleZh": "考場致命地雷四：未防空集合引發 ZeroDivisionError 崩潰",
+    "titleEn": "Pitfall 4: ZeroDivisionError Crash on Empty Datasets",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">empty_list</span> <span class=\"token-op\">=</span> []",
+        "mean": "測試輸入資料為空清單（0 筆資料）",
+        "why": "競賽常見邊界測資（無符合條件的數據）",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化累加與計數器",
+        "why": "資料筆數為 0 時 count 維持 0",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">empty_list</span>:",
+        "mean": "走訪空清單，迴圈直接 0 次結束",
+        "why": "count 依舊保持為 0",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">x</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "累加與計數（完全未執行）",
+        "why": "空迴圈直接略過",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "主動防禦：檢查資料筆數是否為 0",
+        "why": "避免直接執行除法引發除以零例外崩潰",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"查無有效資料，無法計算平均值！\"</span>)",
+        "mean": "優雅處置空資料情境",
+        "why": "保護程式不崩潰並給出清晰回饋",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-keyword\">else</span>:",
+        "mean": "若有資料才進行除法計算",
+        "why": "安全計算平均值分流",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"平均 =\"</span>, <span class=\"token-ident\">total</span> <span class=\"token-op\">/</span> <span class=\"token-ident\">count</span>)",
+        "mean": "印出安全計算的平均數值",
+        "why": "保障除數必定大於 0",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "查無有效資料，無法計算平均值！",
+    "notes": [
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "防禦性程式設計",
+        "type": "wa",
+        "text": "<strong>💥 RE 執行期錯誤警報</strong>：若直接寫 total / count，在 count=0 時直譯器會立刻噴出 ZeroDivisionError 造成 RE 零分！"
+      },
+      {
+        "lines": [
+          5,
+          6
+        ],
+        "lineText": "防禦機制",
+        "type": "key",
+        "text": "<strong>除法前必防零</strong>：只要分母來自計數器 count，執行除法前必須有 if count > 0 守護。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：空資料算平均，小心除零錯"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.7 連續 N 筆資料動態輸入累加：結合 input() 的流式處理模式",
+    "titleZh": "流式動態處理：即時累加與 O(1) 空間優化",
+    "titleEn": "Streaming Processing: Real-time Accumulation with O(1) Space",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">stream</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>]",
+        "mean": "模擬串流湧入的 4 筆數據（如連續 input() 讀取）",
+        "why": "展示不需要儲存全部資料的流式運算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">running_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "建立流式即時累加器 running_sum 初始為 0",
+        "why": "來一筆算一筆，記憶體永遠只記一個總和變數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">stream</span>:",
+        "mean": "走訪串流中的每一筆數據",
+        "why": "模擬巨量資料進場的情境",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">running_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">val</span>",
+        "mean": "將新進數據即時注入累加器",
+        "why": "即時更新目前最新總和",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"接收 {val} -&gt; 即時總和 {running_sum}\"</span>)",
+        "mean": "動態印出每次接收數值後的即時總計",
+        "why": "驗證邊收邊算的流式反應效果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "接收 10 -> 即時總和 10\n接收 20 -> 即時總和 30\n接收 30 -> 即時總和 60\n接收 40 -> 即時總和 100",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "O(1) 空間極限",
+        "type": "concept",
+        "text": "<strong>O(1) 記憶體空間優化</strong>：即便測資高達 100 萬筆，只要邊讀邊累加，完全不需要開巨大串列吃爆記憶體（MLE 防禦）。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "即時反應",
+        "type": "key",
+        "text": "<strong>流式計算思維</strong>：數據來一個消化一個，是巨量資料處理與競賽效能優化的核心心法。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：串流邊讀邊算，記憶體最省"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2.8 數值範圍全距（Max - Min）與多指標統計報表產出實戰",
+    "titleZh": "單元 6.2 綜合驗收：單趟維護五大統計指標實戰",
+    "titleEn": "Unit 6.2 Comprehensive Review: Single-Pass Five Statistical Metrics",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">grades</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">78</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">65</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">95</span>]",
+        "mean": "成績清單包含 5 筆考試分數",
+        "why": "作為多指標統計實戰資料來源",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total</span>, <span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>",
+        "mean": "多變數指派：同時將總分 total 與人數 count 歸零",
+        "why": "乾淨初始化累加與計數器",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">max_g</span>, <span class=\"token-ident\">min_g</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">float</span>(<span class=\"token-string\">\"-inf\"</span>), <span class=\"token-builtin\">float</span>(<span class=\"token-string\">\"inf\"</span>)",
+        "mean": "初始化最高分為負無窮大，最低分為正無窮大",
+        "why": "為雙擂台極值挑選設立標準安全哨兵",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">g</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grades</span>:",
+        "mean": "單趟走訪每一筆成績 g",
+        "why": "單一迴圈完成全部統計維護",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">g</span>; <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "累加總分並累計人數",
+        "why": "同步更新加法與個數指標",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">g</span> <span class=\"token-op\">></span> <span class=\"token-ident\">max_g</span>: <span class=\"token-ident\">max_g</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">g</span>",
+        "mean": "若發現更高分，更新最高分盟主",
+        "why": "維護單趟最高分",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">g</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">min_g</span>: <span class=\"token-ident\">min_g</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">g</span>",
+        "mean": "若發現更低分，更新最低分盟主",
+        "why": "維護單趟最低分",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-ident\">range_g</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">max_g</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">min_g</span>",
+        "mean": "計算全距 = 最高分 - 最低分",
+        "why": "評估分數離散程度的統計指標",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 9,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"人數: {count}, 總分: {total}, 最高: {max_g}, 最低: {min_g}, 全距: {range_g}\"</span>)",
+        "mean": "格式化印出完整的成績五指標結算報表",
+        "why": "驗證五項統計成果落地輸出",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "人數: 5, 總分: 418, 最高: 95, 最低: 65, 全距: 30",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5,
+          6,
+          7
+        ],
+        "lineText": "單趟走訪力量",
+        "type": "key",
+        "text": "<strong>單趟走訪威力</strong>：時間複雜度僅 O(N)，一趟走訪同時結算 Sum, Count, Max, Min, Range，無多餘浪費。"
+      },
+      {
+        "lines": [
+          8
+        ],
+        "lineText": "全距指標",
+        "type": "concept",
+        "text": "<strong>全距公式</strong>：Range = Max - Min，先有雙極值擂台，再取差值即可瞬間完成。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：單趟算齊五標，全距大減小"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.2 綜合驗收",
+    "titleZh": "單元 6.2 綜合驗收：資料縮減心法與全單元通關",
+    "titleEn": "Unit 6.2 Comprehensive Review: Data Reduction Paradigm & Milestone",
+    "completionCard": {
+      "badge": "🏆 單元 6.2 通關：資料縮減與統計大師！",
+      "summary": "太精彩了！你已徹底融會貫通累加器（撲滿模型）、計數器（打勾機）、累乘器（階乘單位元）、擂台盟主法（極值維護）與防除零保護！",
+      "nextUnit": "6.3 條件迴圈 while 的運作機制與經典數值演算法"
+    },
+    "traceTable": {
+      "title": "📊 5 筆資料縮減累加動態追蹤矩陣",
+      "hint": "走訪 [4, 7, 2, 9, 5]，逐步匯總為單一標量總和",
+      "headers": [
+        "輪次",
+        "輸入元素 num",
+        "累加計算式",
+        "結算總額 sum_val"
+      ],
+      "activeRow": 4,
+      "rows": [
+        {
+          "values": [
+            "第 1 輪",
+            "4",
+            "0 + 4 ➔ 4",
+            "sum_val = 4"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 2 輪",
+            "7",
+            "4 + 7 ➔ 11",
+            "sum_val = 11"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 3 輪",
+            "2",
+            "11 + 2 ➔ 13",
+            "sum_val = 13"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 4 輪",
+            "9",
+            "13 + 9 ➔ 22",
+            "sum_val = 22"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 5 輪",
+            "5",
+            "22 + 5 ➔ 27",
+            "sum_val = 27"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "滿分結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">dataset</span> <span class=\"token-op\">=</span> [<span class=\"token-number\">4</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">9</span>, <span class=\"token-number\">5</span>]",
+        "mean": "測試資料集包含 5 個數值",
+        "why": "展示資料縮減（Reduce）的核心心法",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">sum_val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "累加器初始歸零為 0",
+        "why": "準備進行資料縮減總和",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">num</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dataset</span>:",
+        "mean": "走訪清單中的每一個數值",
+        "why": "將多個數值逐步縮減為單一標量",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">sum_val</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">num</span>",
+        "mean": "每輪將數值累加進 sum_val",
+        "why": "實踐資料縮減匯總運算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"全體總和 =\"</span>, <span class=\"token-ident\">sum_val</span>)",
+        "mean": "印出縮減後的最終總合 27",
+        "why": "驗證資料縮減運算最終成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "全體總和 = 27",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取專屬通關成就！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "資料縮減範式",
+        "type": "key",
+        "text": "<strong>資料縮減 (Data Reduction)</strong>：將多筆數據依序折疊合併為單一數值，是 Map-Reduce 與演算法的核心基石。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：資料縮減心法，多值化單值"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-2_loop_accumulators_and_counters.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

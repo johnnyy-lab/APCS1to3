@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.1 計數迴圈基礎與 range 函式全方位解析 (PythAPCS123_6-1_counting_loop_for_and_range.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.1 為什麼需要迴圈？告別人工複製貼上與電腦的自動化超能力",
+    "titleZh": "為什麼需要迴圈？告別複製貼上",
+    "titleEn": "Why Loops? Goodbye Copy-Paste, Hello Automation",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 傳統手動方式：逐行複製貼上多行指令</span>",
+        "mean": "以 # 開頭之單行註解，電腦略過不執行，供人類閱讀",
+        "why": "對照手動複製貼上與迴圈自動化的巨大生產力差異",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"跑第 1 圈\"</span>)",
+        "mean": "印出第一圈進度文字",
+        "why": "手動印出第一項資料",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"跑第 2 圈\"</span>)",
+        "mean": "印出第二圈進度文字",
+        "why": "手動印出第二項資料",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"跑第 3 圈\"</span>)",
+        "mean": "印出第三圈進度文字",
+        "why": "手動印出第三項資料",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "跑第 1 圈\n跑第 2 圈\n跑第 3 圈",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "痛點",
+        "type": "concept",
+        "text": "<strong>痛點剖析</strong>：若需要重複執行 1,000 次，手動複製 1,000 次程式碼將極其冗長且極易手滑漏行。"
+      },
+      {
+        "lines": [
+          2,
+          3,
+          4
+        ],
+        "lineText": "自動化",
+        "type": "key",
+        "text": "<strong>迴圈使命</strong>：讓電腦以極高速自動重複執行規律運算，是程式語言發揮算力超能力的核心武器。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：重複動作交給迴圈做"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.2 for 迴圈解剖學：迴圈變數、in 運算子與縮排區塊（Suite）",
+    "titleZh": "for 迴圈解剖學：結構與縮排",
+    "titleEn": "Anatomy of a for Loop: Variable, in & Indented Block",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># for 變數 in 序列: 冒號後縮排 4 空格為迴圈主體</span>",
+        "mean": "說明 for 迴圈基本語法結構與縮排約定",
+        "why": "建立 Python 計數迴圈核心語法框架",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]:",
+        "mean": "宣告迴圈：變數 i 依序走訪串列 [1, 2, 3] 中的每一個元素",
+        "why": "透過序列走訪示範 for 變數自動取值的物理歷程",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"跑第\"</span>, <span class=\"token-ident\">i</span>, <span class=\"token-string\">\"圈\"</span>)",
+        "mean": "縮排 4 格：每一輪依序印出當前圈數 i",
+        "why": "每跑一輪，變數 i 的值便自動替換為下一項",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "跑第 1 圈\n跑第 2 圈\n跑第 3 圈",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "語法解剖",
+        "type": "key",
+        "text": "<strong>for 變數 in 序列:</strong> 結尾必加冒號 `:`；每跑一輪，變數 i 自動取入序列中的下一個值。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "縮排區塊",
+        "type": "concept",
+        "text": "<strong>縮排區塊（Suite）</strong>：凡是縮排在 for 下方的指令，皆屬於迴圈主體，隨巡迴反覆執行。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：標頭要有冒號，內層縮四格"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.3 單參數 range(n)：從 0 開始到 n-1 的 n 次規律點名",
+    "titleZh": "單參數 range(n)：從 0 起跑的 n 次點名",
+    "titleEn": "Single Argument range(n): Count n Times from 0",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># range(5) 自動產生 0, 1, 2, 3, 4 連續整數</span>",
+        "mean": "註解說明單參數 range 函式之生成區間特性",
+        "why": "破除初學者誤認 range(5) 包含 5 的經典迷思",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">5</span>):",
+        "mean": "令 i 依序走訪 range(5) 生成的 5 個整數",
+        "why": "單參數 range(n) 是電腦最常見的 0-based 計數器",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出 i 並以空格作結，使數值水平排列在同一行",
+        "why": "方便直觀檢視生成的完整整數序列",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "0 1 2 3 4 ",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "核心考點",
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：range(n) 一律從 0 起跑，停在 n-1，總個數恰好是 n 個（絕不包含 n 本身）！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "空格排版",
+        "type": "concept",
+        "text": "<strong>end=' ' 水平排版</strong>：將預設換行替換為單一空格，讓輸出緊湊排列在同一列。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：單參數從零起，停在尾減一"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.3 單參數 range(n)：純次數重複與底線匿名變數",
+    "titleZh": "底線 _ 匿名變數：純次數重複",
+    "titleEn": "Discard Variable _: Repeat Purely for Count",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 當僅需重複指定次數、不關心當前是第幾輪時使用 _</span>",
+        "mean": "註解說明單底線 _ 匿名變數的 Python 慣用語境",
+        "why": "傳授競技程式與專業 Python 開發中的乾淨代碼慣例",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):",
+        "mean": "以底線 _ 作為匿名迴圈變數，循環執行恰好 3 次",
+        "why": "向直譯器與協作者宣告：此變數純粹計次，其數值無需使用",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"重要的事情說三次！\"</span>)",
+        "mean": "印出固定字串內容",
+        "why": "展示純次數重複的典型應用場景",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "重要的事情說三次！\n重要的事情說三次！\n重要的事情說三次！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "慣用法則",
+        "type": "key",
+        "text": "<strong>底線 _ 命名慣例</strong>：在 Python 中，若迴圈主體內完全不會用到迴圈變數，習慣命名為 `_`。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "清晰意圖",
+        "type": "concept",
+        "text": "<strong>意圖更明確</strong>：避免宣告多餘未使用的變數名，讓程式碼閱讀起來簡潔無干擾。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：純計次用底線，免取變數名"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.4 雙參數 range(start, stop)：「左閉右開（含頭不含尾）」的區間走訪",
+    "titleZh": "雙參數 range(start, stop)：左閉右開鐵律",
+    "titleEn": "Two Arguments: [start, stop) Left-Closed Right-Open",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># range(2, 6) 包含起點 2，但不包含終點 6！</span>",
+        "mean": "註解說明雙參數 range 的起迄區間數學定義",
+        "why": "建立 APCS 最核心的「含頭不含尾」心智模型",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-number\">6</span>):",
+        "mean": "從 start=2 開始走訪，遇到 stop=6 立即停下（走訪 2, 3, 4, 5）",
+        "why": "展示雙參數指定自訂起點的走訪語法",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出當前數值並加上空格分隔",
+        "why": "直觀觀察雙參數走訪之數值清單",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "2 3 4 5 ",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "核心鐵律",
+        "type": "radar",
+        "text": "<strong>🎯 左閉右開 [start, stop)</strong>：包含起點 start，但不包含終點 stop！實際走訪範圍為 start 到 stop - 1。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "長度公式",
+        "type": "concept",
+        "text": "<strong>次數計算公式</strong>：走訪總次數 = `stop - start` = 6 - 2 = 4 次（依序輸出 2, 3, 4, 5）。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：含頭不含尾，終點必定減一"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.5 三參數正步進 range(start, stop, step)：等差數列跳步走訪",
+    "titleZh": "三參數正步進：等差數列跳步走訪",
+    "titleEn": "Three Arguments: Stepping with Arithmetic Progression",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># range(1, 10, 2) 每次跨 2 步：依序生成 1 到 9 奇數</span>",
+        "mean": "註解說明三參數 range 之步長（step）機制",
+        "why": "掌握產生間隔跳步等差數列的快速方法",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">10</span>, <span class=\"token-number\">2</span>):",
+        "mean": "起點為 1、每次 +2，只要小於 10 就持續進行",
+        "why": "展示等差數列跳步走訪語法，可免寫 if 奇數過濾",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出奇數並以空格間隔",
+        "why": "驗證數列生成包含 1, 3, 5, 7, 9 共 5 個數值",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 3 5 7 9 ",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "步長參數",
+        "type": "key",
+        "text": "<strong>第三參數 step</strong>：代表每次迭代的增量（預設值為 1）。此處設定為 2，每次遞增 2。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "終點判定",
+        "type": "concept",
+        "text": "<strong>邊界未越線</strong>：9 之後下一項為 9 + 2 = 11，已超過 stop=10，故走訪在 9 完美收尾。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：三參數加步長，等差向前跳"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.6 負步進倒數計時 range(start, stop, -step)：倒著數的邊界與防空轉陷阱",
+    "titleZh": "負步進倒數計時：倒著數的終點防線",
+    "titleEn": "Negative Step Countdown: Stop Boundary When Reversing",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 倒數計時：從 5 數到 1（終點 stop 必須設為 0 才能數到 1）</span>",
+        "mean": "註解說明負步進倒數時的邊界設定關鍵",
+        "why": "破除初學者在負步進時容易寫錯 stop 邊界的陷阱",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">5</span>, <span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>):",
+        "mean": "起點 5、終點 0（不含 0）、步長 -1（每次減 1）",
+        "why": "展示由大到小遞減走訪的標準語法",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出當前倒數秒數",
+        "why": "依序印出 5 4 3 2 1",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"發射！\"</span>)",
+        "mean": "迴圈結束後印出發射字串並換行",
+        "why": "驗證迴圈在數完 1 之後順利退出",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "5 4 3 2 1 發射！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "倒數邊界",
+        "type": "radar",
+        "text": "<strong>🎯 倒數停在 stop + 1</strong>：因為同樣「不含尾」，若想數到 1，stop 必須設定為 0（停在 0 前面的 1）！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "起點大於終點",
+        "type": "key",
+        "text": "<strong>起大迄小鐵律</strong>：負步進時，起點 start(5) 必須大於終點 stop(0)，否則步長倒退將導致迴圈 0 次空轉。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：倒數負步進，想停一尾寫零"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.7 迴圈追蹤表（Trace Table）：手繪變數逐輪演變的視覺化除錯法",
+    "titleZh": "迴圈追蹤表：手繪變數動態演進矩陣",
+    "titleEn": "Trace Table: Visualizing Iteration States & Accumulator",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "建立累加器變數 total，初始值歸零為 0",
+        "why": "迴圈累加前必須先建立存放總和的存錢筒",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>):",
+        "mean": "走訪 1, 2, 3, 4 四個整數（左閉右開停在 5 前）",
+        "why": "透過 4 輪迭代演練追蹤表的繪製與心智模擬",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">i</span>",
+        "mean": "將當前的 i 累加進 total（等價於 total = total + i）",
+        "why": "展示每一輪累加器與控制變數的狀態變化",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第\"</span>, <span class=\"token-ident\">i</span>, <span class=\"token-string\">\"圈累加後 total =\"</span>, <span class=\"token-ident\">total</span>)",
+        "mean": "印出每圈的圈數 i 與結算總和 total",
+        "why": "驗證追蹤表中每一輪計算的真實落地輸出",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "第 1 圈累加後 total = 1\n第 2 圈累加後 total = 3\n第 3 圈累加後 total = 6\n第 4 圈累加後 total = 10",
+    "traceTable": {
+      "title": "📊 1 到 4 連續累加追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "圈數",
+        "控制變數 i",
+        "累加計算 (total += i)",
+        "本輪結算 total"
+      ],
+      "activeRow": 3,
+      "rows": [
+        {
+          "values": [
+            "第 1 圈",
+            "1",
+            "0 + 1 ➔ 1",
+            "total = 1"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 2 圈",
+            "2",
+            "1 + 2 ➔ 3",
+            "total = 3"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 3 圈",
+            "3",
+            "3 + 3 ➔ 6",
+            "total = 6"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 4 圈",
+            "4",
+            "6 + 4 ➔ 10",
+            "total = 10"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "當前結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "初始歸零",
+        "type": "key",
+        "text": "<strong>初始歸零</strong>：累加器 total 在進入迴圈前必須預先建立並設定初始值 0。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "追蹤矩陣",
+        "type": "concept",
+        "text": "<strong>追蹤矩陣力量</strong>：在計算紙畫出每圈的 i 與 total，APCS 觀念題得分率 100%。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：草稿畫追蹤表，變數看分明"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1.8 字串字元逐一走訪：for ch in text 的自然序列走訪初體驗",
+    "titleZh": "字串走訪：依序提取每一個字元",
+    "titleEn": "String Traversal: Naturally Iterating Over Characters",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">word</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"APCS\"</span>",
+        "mean": "宣告字串變數 word 內容為 'APCS'",
+        "why": "準備示範字串序列走訪的原料字串",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">ch</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">word</span>:",
+        "mean": "for 迴圈自動將字串視為序列，依序走訪每一個字元",
+        "why": "展示 Python 自然走訪容器元素的直觀特質",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"字元:\"</span>, <span class=\"token-ident\">ch</span>)",
+        "mean": "逐行印出目前取出的字元 ch",
+        "why": "驗證字元被逐一拆解提領出來",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "字元: A\n字元: P\n字元: C\n字元: S",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "字串是序列",
+        "type": "key",
+        "text": "<strong>字串是可迭代序列</strong>：for ch in word 會由左至右自動取出每個字元，免寫索引值即可完成走訪。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "字元變數 ch",
+        "type": "concept",
+        "text": "<strong>字元變數命名</strong>：習慣以 ch（character）命名，語意清晰直觀。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：字串也是序列，依序取字元"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1 考場地雷一：左閉右開差一邊界天坑（Off-by-one Error）",
+    "titleZh": "考場致命地雷一：左閉右開差一邊界（漏跑最後一數）",
+    "titleEn": "Pitfall 1: Off-by-one Error — Missing the Stop Value",
+    "predictQuiz": {
+      "question": "預測思考：欲走訪 1 到 10 的所有整數，若寫 for i in range(1, 10):，印出的最後一個數字會是？",
+      "options": [
+        "印出到 9（漏掉 10！）",
+        "順利印出到 10"
+      ],
+      "correct": 0,
+      "explanation": "range(1, 10) 為左閉右開區間 [1, 10)，stop=10 不包含！若要印到 10，必須寫 range(1, 11)！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 考場高頻失分：想印 1 到 10，卻漏跑了 10！</span>",
+        "mean": "標註考生在區間設定最常犯的差一錯誤（Off-by-one）",
+        "why": "揭發 range 結尾不包含之陷阱真相",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">10</span>):",
+        "mean": "走訪 range(1, 10)，數值只會到達 9，停在 10 之前！",
+        "why": "示範容易引發 WA 的錯誤寫法",
+        "alt": "for i in range(1, 11):",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出數值清單，觀察實際最後一項",
+        "why": "印出結果證實只跑到 9",
+        "alt": ""
+      }
+    ],
+    "output": "1 2 3 4 5 6 7 8 9 ",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "WA警報",
+        "type": "wa",
+        "text": "<strong>💥 爆零紅線 (WA 警報)</strong>：題目要求 1 到 N，stop 必須填寫 N + 1，否則最後一個數值永遠不會被計算！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "解法對策",
+        "type": "key",
+        "text": "<strong>安全修正法</strong>：改寫為 range(1, 11) 即可完整涵蓋 1 到 10。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：想跑到 N，終點必須加一"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1 考場地雷二：負步進方向矛盾導致的「空氣迴圈（空轉）」",
+    "titleZh": "考場致命地雷二：負步進方向矛盾（空氣迴圈零次執行）",
+    "titleEn": "Pitfall 2: Conflicting Direction Causing Zero Iterations",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 方向矛盾：起點 1 小於終點 5，但步長卻是 -1（倒退走）</span>",
+        "mean": "註解說明起點與步長方向互相矛盾之致命邏輯",
+        "why": "說明直譯器判定無法抵達終點之行為",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>, -<span class=\"token-number\">1</span>):",
+        "mean": "起點 1 欲往 -1 方向走訪到 5，方向完全背道而馳",
+        "why": "示範空氣迴圈的代碼構造",
+        "alt": "for i in range(5, 1, -1):",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"這行永遠不會被執行\"</span>)",
+        "mean": "迴圈內部的指令完全沒有被執行的機會",
+        "why": "直譯器判定 0 次迭代，直接略過區塊",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"直接跳過迴圈！\"</span>)",
+        "mean": "迴圈外的第一行程式碼立即被執行",
+        "why": "驗證空氣迴圈被直接跳過",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "直接跳過迴圈！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "邏輯矛盾",
+        "type": "radar",
+        "text": "<strong>🎯 邏輯矛盾</strong>：起點 1 已經在 5 的左邊，若步長為 -1 只會離 5 越來越遠，直譯器立即判定結束！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "無警報靜默",
+        "type": "wa",
+        "text": "<strong>無警告靜默空轉</strong>：直譯器不會報錯，直接當作 0 次跳過，初學者極易誤認程式失靈。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：負步進起點大，否則變空氣"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1 考場地雷三：在 for 迴圈體內竄改變數的「無效掙扎」",
+    "titleZh": "考場致命地雷三：在 for 體內手動竄改變數的無效性",
+    "titleEn": "Pitfall 3: Modifying Loop Variable Inside for Has No Effect",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):",
+        "mean": "for 迴圈排定依序走訪 0, 1, 2",
+        "why": "準備示範迴圈體內試圖修改控制變數的無效性",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"進入第\"</span>, <span class=\"token-ident\">i</span>, <span class=\"token-string\">\"圈\"</span>)",
+        "mean": "印出每圈剛開始時的 i 值",
+        "why": "觀察每一圈開始時 i 是否如期復原為排定值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">i</span> <span class=\"token-op\">=</span> <span class=\"token-number\">999</span>  <span class=\"token-comment\"># 💥 妄圖跳過迴圈或改變下輪計數</span>",
+        "mean": "在迴圈內部強行將 i 改寫為 999",
+        "why": "示範初學者試圖手動控制 for 變數的無效操作",
+        "alt": "",
+        "error": true
+      }
+    ],
+    "output": "進入第 0 圈\n進入第 1 圈\n進入第 2 圈",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "迭代機制",
+        "type": "radar",
+        "text": "<strong>🎯 Python 迭代機制</strong>：每一圈開始時，for 會強制從 range 提取下一個預定值覆蓋 i！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "思維陷阱",
+        "type": "key",
+        "text": "<strong>C/C++ 思維陷阱</strong>：在 Python 的 for 迴圈中修改控制變數 i，對下一圈走訪完全無效！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：體內改值無效，下輪照樣讀"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1 考場地雷四：迴圈外部存取變數的「殘留值陷阱」",
+    "titleZh": "考場致命地雷四：迴圈結束後的殘留值陷阱",
+    "titleEn": "Pitfall 4: Residual Value of Loop Variable After Termination",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># range(5) 依序走訪 0, 1, 2, 3, 4</span>",
+        "mean": "註解說明迴圈走訪之數值清單",
+        "why": "對比迴圈最後一輪的真實賦值",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">5</span>):",
+        "mean": "執行 range(5) 的 5 次走訪",
+        "why": "建立迴圈變數的生命週期情境",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">pass</span>",
+        "mean": "空陳述句，佔位不執行任何運算",
+        "why": "單純讓迴圈跑完 5 輪",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"迴圈結束後的殘留 i =\"</span>, <span class=\"token-ident\">i</span>)",
+        "mean": "在迴圈外部印出殘留變數 i 的值",
+        "why": "揭發 i 殘留在 4 而非 5 的真相",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "迴圈結束後的殘留 i = 4",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "殘留為4非5",
+        "type": "radar",
+        "text": "<strong>🎯 殘留值為 4 絕非 5</strong>：i 停在最後一次成功執行的賦值（4），range 本身從未將 5 賦予 i！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "pass陳述句",
+        "type": "concept",
+        "text": "<strong>空迴圈 pass</strong>：pass 是佔位陳述句，代表語法上需要一行但邏輯上不做任何事。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：迴圈結束，變數停在最後值"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1 綜合驗收",
+    "titleZh": "單元 6.1 綜合驗收：九九乘法單行數列排版實戰",
+    "titleEn": "Unit 6.1 Comprehensive Review: Multiplication Series Formatting",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 綜合實戰：印出 7 的乘法表（1 到 9）</span>",
+        "mean": "註解說明單元綜合驗收題目要求",
+        "why": "結合 range 與運算式輸出完整數列",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">10</span>):",
+        "mean": "使用雙參數 range(1, 10) 精準產生 1 到 9",
+        "why": "落實左閉右開防禦，停在 10 前面",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"7 *\"</span>, <span class=\"token-ident\">i</span>, <span class=\"token-string\">\"=\"</span>, <span class=\"token-number\">7</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">i</span>)",
+        "mean": "格式化印出 7 * i = 7*i",
+        "why": "展示迴圈結合運算式輸出成倍數算式",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "7 * 1 = 7\n7 * 2 = 14\n7 * 3 = 21\n7 * 4 = 28\n7 * 5 = 35\n7 * 6 = 42\n7 * 7 = 49\n7 * 8 = 56\n7 * 9 = 63",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "左閉右開",
+        "type": "key",
+        "text": "<strong>左閉右開實戰</strong>：range(1, 10) 精準對應 1 到 9 的乘法係數。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "運算式輸出",
+        "type": "concept",
+        "text": "<strong>運算式輸出</strong>：在 print 中直接計算 7 * i，動態輸出乘積。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：想算一到九，區間寫一到十"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.1 綜合驗收",
+    "titleZh": "單元 6.1 綜合驗收：偶數步進累加與全單元通關",
+    "titleEn": "Unit 6.1 Comprehensive Review: Even Step Accumulation & Milestone",
+    "completionCard": {
+      "badge": "🏆 單元 6.1 通關：計數迴圈巡航專家！",
+      "summary": "太棒了！你已徹底精通 Python for 迴圈核心架構、range 單雙三參數走訪法則、左閉右開差一邊界防禦與迴圈追蹤表手繪心法！",
+      "nextUnit": "6.2 迴圈累加器、計數器與極值維護（資料縮減模式）"
+    },
+    "traceTable": {
+      "title": "📊 1 到 10 偶數步進累加動態追蹤矩陣",
+      "hint": "步長 +2，包含 2, 4, 6, 8, 10 共 5 圈",
+      "headers": [
+        "圈數",
+        "偶數 num",
+        "累加計算 (even_sum += num)",
+        "累計結果 even_sum"
+      ],
+      "activeRow": 4,
+      "rows": [
+        {
+          "values": [
+            "第 1 圈",
+            "2",
+            "0 + 2 ➔ 2",
+            "even_sum = 2"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 2 圈",
+            "4",
+            "2 + 4 ➔ 6",
+            "even_sum = 6"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 3 圈",
+            "6",
+            "6 + 6 ➔ 12",
+            "even_sum = 12"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 4 圈",
+            "8",
+            "12 + 8 ➔ 20",
+            "even_sum = 20"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "第 5 圈",
+            "10",
+            "20 + 10 ➔ 30",
+            "even_sum = 30"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "滿分結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">even_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "建立偶數總和累加器，初始歸零為 0",
+        "why": "準備累加 1 到 10 的所有偶數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">num</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-number\">11</span>, <span class=\"token-number\">2</span>):",
+        "mean": "起點 2、終點 11（包含 10）、步長 2，精準走訪 2, 4, 6, 8, 10",
+        "why": "利用等差步長直接篩選偶數，省去迴圈內 if 判斷",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">even_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">num</span>",
+        "mean": "將當前偶數累加至 even_sum",
+        "why": "每輪依序累加 2, 4, 6, 8, 10",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"1 到 10 偶數總和 =\"</span>, <span class=\"token-ident\">even_sum</span>)",
+        "mean": "印出最終偶數總和 30",
+        "why": "驗證偶數步進累加運算成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 到 10 偶數總和 = 30",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取專屬通關成就！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "等差步進",
+        "type": "key",
+        "text": "<strong>等差步進精妙處</strong>：range(2, 11, 2) 精準命中 2, 4, 6, 8, 10，完全免寫 if 判斷！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：步長設為二，省掉偶數判斷"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-1_counting_loop_for_and_range.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

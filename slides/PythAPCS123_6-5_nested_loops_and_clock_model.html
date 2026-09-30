@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.5 雙重與多重巢狀迴圈 (PythAPCS123_6-5_nested_loops_and_clock_model.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.1 雙重迴圈心智模型：時鐘的分針與時針——外層帶動內層的維度展開",
+    "titleZh": "雙重迴圈心智模型：時鐘的時針與分針",
+    "titleEn": "Nested Loops Mental Model: The Clock Hands Analogy",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">hour</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">3</span>):  <span class=\"token-comment\"># 外層迴圈（時針：走得慢，推進一格）</span>",
+        "mean": "外層迴圈代表時針，走訪 1 點與 2 點",
+        "why": "外層推動大進度，每走一步帶動內層轉滿一圈",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">minute</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">0</span>, <span class=\"token-number\">30</span>]:  <span class=\"token-comment\"># 內層迴圈（分針：走得快，轉滿一圈）</span>",
+        "mean": "內層迴圈代表分針，走訪 0 分與 30 分",
+        "why": "內層在外層的每一個刻度下都要完全跑完",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{hour}點{minute}分\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "水平印出目前的時刻組合",
+        "why": "輸出 (1點0分, 1點30分...)",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>()  <span class=\"token-comment\"># 外層的一點結束，換行進入下一小時</span>",
+        "mean": "內層整圈跑完後，外層負責換行",
+        "why": "區隔不同小時的時間區塊",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1點0分 1點30分 \n2點0分 2點30分 ",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "時鐘心智模型",
+        "type": "concept",
+        "text": "<strong>時鐘分針定律</strong>：外層迴圈就像『時針』走得慢；內層迴圈就像『分針』走得快。時針前進一小格，分針必須狂跑一整圈！"
+      },
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "總運算次數",
+        "type": "key",
+        "text": "<strong>乘法原理</strong>：外層 M 次 × 內層 N 次 = 總共執行 M × N 次運算（此處 2 × 2 = 4 次）。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：外層走一步，內層轉一圈"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.2 迴圈計數器命名鐵律：外層 r 內層 c（或 i, j），嚴禁同名覆蓋（Shadowing）",
+    "titleZh": "二維座標網格：外層 r (Row) 與內層 c (Col)",
+    "titleEn": "2D Grid Traversal: Row (r) and Column (c) Naming Standard",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 外層 r 代表橫向列（Row: 0, 1）</span>",
+        "mean": "以 r 命名列號，直觀代表橫列",
+        "why": "建立二維陣列標準座標認知",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):  <span class=\"token-comment\"># 內層 c 代表直向欄（Column: 0, 1, 2）</span>",
+        "mean": "以 c 命名行/欄號，代表直向欄位",
+        "why": "每列內部橫向逐欄走訪",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"({r},{c})\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出二維網格座標 (r, c)",
+        "why": "視覺化展示網格展開樣貌",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>()  <span class=\"token-comment\"># 整列印完，換下一列</span>",
+        "mean": "整列結束換行",
+        "why": "排版為 2 列 3 欄的矩陣",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "(0,0) (0,1) (0,2) \n(1,0) (1,1) (1,2) ",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "標準命名習慣",
+        "type": "key",
+        "text": "<strong>r 與 c 黃金組合</strong>：外層寫 r（Row 列），內層寫 c（Col 欄），或外 i 內 j，嚴禁兩層都寫成 i 互相踩腳！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "二維空間雛形",
+        "type": "concept",
+        "text": "<strong>二維資料地基</strong>：此網格正是第 8 章二維串列（2D List）與地圖迷宮走訪的核心骨幹。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：外層取列號，內層取行號"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.3 精密排版輸出基本功：end=' ' 水平間隔與 print() 換行節奏掌控",
+    "titleZh": "排版節奏：end 與換行 print() 的呼吸律動",
+    "titleEn": "Output Rhythm: Horizontal spacing with end and Row-end print()",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):  <span class=\"token-comment\"># 總共要印 3 列</span>",
+        "mean": "外層控制列數（3 列）",
+        "why": "決定垂直高度",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">4</span>):  <span class=\"token-comment\"># 每列要印 4 顆星</span>",
+        "mean": "內層控制欄數（每列 4 欄）",
+        "why": "決定水平寬度",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"*\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)  <span class=\"token-comment\"># 關鍵一：end=\" \" 不換行，水平鋪開</span>",
+        "mean": "水平印出星號加空格",
+        "why": "維持在同一列橫向延伸",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>()  <span class=\"token-comment\"># 關鍵二：縮排退回外層，一列結束才換行！</span>",
+        "mean": "一列排完後換行",
+        "why": "將下一顆星趕到下一列開頭",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "* * * * \n* * * * \n* * * * ",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "水平鋪開",
+        "type": "key",
+        "text": "<strong>內層不換行</strong>：內層 print 必須加上 end=\" \"，否則每一顆星都會自動換行變成一條直線。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "外層換行",
+        "type": "radar",
+        "text": "<strong>🎯 print() 縮排位置</strong>：換行的 print() 必須與內層 for 平級（縮 4 格）！縮在最裡面會每顆星換行，縮在最外面只會換一次。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內層橫向印，外層結尾換行"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.4 九九乘法表排版大作戰：格式化對齊工整表格（二維網格雛形）",
+    "titleZh": "九九乘法矩陣：:2d 格式化排版對齊威力",
+    "titleEn": "Multiplication Matrix: Industrial Alignment with :2d",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):  <span class=\"token-comment\"># 被乘數 i: 1 到 3</span>",
+        "mean": "外層控制乘法表第幾列（1 到 3）",
+        "why": "展示迷你 3x3 乘法表排版",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):  <span class=\"token-comment\"># 乘數 j: 1 到 3</span>",
+        "mean": "內層橫向推進乘數（1 到 3）",
+        "why": "每列逐一計算 i * j",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{i}*{j}={i*j:2d}\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\"  \"</span>)",
+        "mean": "利用 :2d 預留兩格寬度右對齊，並以兩個空格水平間隔",
+        "why": "使一位數與兩位數乘積垂直嚴格齊頭",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>()  <span class=\"token-comment\"># 算完一行換行</span>",
+        "mean": "一列排完換行",
+        "why": "維持工整矩陣網格",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1*1= 1  1*2= 2  1*3= 3  \n2*1= 2  2*2= 4  2*3= 6  \n3*1= 3  3*2= 6  3*3= 9  ",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": ":2d 格式化魔法",
+        "type": "key",
+        "text": "<strong>:2d 排版必殺技</strong>：數值小於 10 會自動在左側補空格，徹底解決 APCS 輸出題因為位數不同而造成的表格歪斜。"
+      },
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "矩陣走訪",
+        "type": "concept",
+        "text": "<strong>行列座標映射</strong>：i 是列座標，j 是欄座標，(i, j) 唯一定位矩陣中的每一個算式單元格。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：格式化對齊，矩陣工整美"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.5 內層邊界與外層連動：隨外層行數動態改變內層跑動次數",
+    "titleZh": "動態展開：內層邊界與外層變數連動",
+    "titleEn": "Dynamic Range: Inner Bound Tied to Outer Loop Variable",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):  <span class=\"token-comment\"># 列號 r 依序為 1, 2, 3</span>",
+        "mean": "外層列號從 1 跑到 3",
+        "why": "外層變數 r 將作為內層的邊界上限",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>):  <span class=\"token-comment\"># 關鍵：上限隨 r 動態放大！</span>",
+        "mean": "內層範圍設為 range(1, r + 1)",
+        "why": "第 1 列跑 1 次，第 2 列跑 2 次，第 3 列跑 3 次",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">c</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出當前欄號 c",
+        "why": "輸出階梯展開的數列",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>()  <span class=\"token-comment\"># 換行</span>",
+        "mean": "每列結尾換行",
+        "why": "形成階梯三角形圖形",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 \n1 2 \n1 2 3 ",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "動態綁定",
+        "type": "radar",
+        "text": "<strong>🎯 內層邊界帶變數</strong>：內層 range(1, r + 1) 將外層 r 當成終止值，這是解構幾何星號圖形的關鍵金鑰！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "階梯次數演變",
+        "type": "key",
+        "text": "<strong>次數數列</strong>：次數分別為 1, 2, 3...，總執行次數為等差級數求和 $N(N+1)/2$ 次。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內層連外層，動態展三角形"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.6 雙重枚舉（Brute Force）：數對 (i, j) 與所有不重複組合 (i < j) 生成",
+    "titleZh": "雙重枚舉：兩兩配對不重複組合 (i < j)",
+    "titleEn": "Brute Force Pair Enumeration: Generating (i < j) Combinations",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">pairs</span> <span class=\"token-op\">=</span> []",
+        "mean": "建立配對容器 pairs",
+        "why": "存放所有不重複的組合數對",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):  <span class=\"token-comment\"># 第一個數 i 取 1, 2, 3</span>",
+        "mean": "外層枚舉第一個元素 i",
+        "why": "依序作為組合的左半部",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">i</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):  <span class=\"token-comment\"># 關鍵：j 從 i + 1 開始！</span>",
+        "mean": "內層 j 從 i + 1 起跑，直到 3",
+        "why": "保證 j 永遠大於 i，徹底杜絕 (1,1) 自己配自己，且杜絕 (2,1) 重複倒敘！",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">pairs</span>.<span class=\"token-builtin\">append</span>((<span class=\"token-ident\">i</span>, <span class=\"token-ident\">j</span>))",
+        "mean": "將有效不重複數對存入清單",
+        "why": "依序收集 (1,2), (1,3), (2,3)",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"不重複配對:\"</span>, <span class=\"token-ident\">pairs</span>)",
+        "mean": "印出所有生成的兩兩組合",
+        "why": "驗證數學組合數 C(3, 2) = 3 組",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "不重複配對: [(1, 2), (1, 3), (2, 3)]",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "起點 i + 1 魔法",
+        "type": "key",
+        "text": "<strong>起點設為 i + 1</strong>：只要內層起始值寫 range(i + 1, ...)，就能在不寫任何 if 判斷式的情況下，自動過濾掉自己跟自己配與反向重複組合！"
+      },
+      {
+        "lines": [
+          1,
+          5
+        ],
+        "lineText": "握手問題模型",
+        "type": "concept",
+        "text": "<strong>APCS 考題原型</strong>：本模型就是著名的兩兩互比、握手問題、兩點距離計算的原型骨幹。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：起點外加一，不重複雙枚舉"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.7 巢狀迴圈中的 break 範圍陷阱：只跳一層的特性與跳出多層迴圈之旗標技巧",
+    "titleZh": "連鎖煞車術：布林旗標突破單層 break 限制",
+    "titleEn": "Multi-Level Escape: Boolean Flag for Cascading break",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">found</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>  <span class=\"token-comment\"># 建立連鎖引爆旗標</span>",
+        "mean": "宣告布林旗標 found 初始為 False",
+        "why": "作為跨越內外層的緊急逃生信號燈",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):",
+        "mean": "外層列迴圈走訪",
+        "why": "二維空間搜尋",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):",
+        "mean": "內層欄迴圈走訪",
+        "why": "逐格比對目標",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span>:  <span class=\"token-comment\"># 找到目標寶藏</span>",
+        "mean": "若在 (1, 1) 找到目標",
+        "why": "觸發全面終止",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "            <span class=\"token-ident\">found</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>; <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 點亮旗標，並先煞停內層！</span>",
+        "mean": "旗標升起為 True，並先跳出內層",
+        "why": "第一階段煞車",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">found</span>:",
+        "mean": "外層檢查旗標信號：若旗標為 True",
+        "why": "收到內層的逃生請求",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "        <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 連鎖煞停外層！實現雙層全面跳出！</span>",
+        "mean": "外層立刻跟著 break",
+        "why": "完成兩層連鎖徹底跳出",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"旗標連鎖跳出，停止在 r={r}, c={c}\"</span>)",
+        "mean": "印出停駐點 r=1, c=1",
+        "why": "驗證外層沒有繼續跑 r=2",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "旗標連鎖跳出，停止在 r=1, c=1",
+    "notes": [
+      {
+        "lines": [
+          5,
+          6,
+          7
+        ],
+        "lineText": "連鎖煞車心法",
+        "type": "radar",
+        "text": "<strong>🎯 旗標連鎖心法</strong>：內層 break 只能出內層，在外層補上 if found: break 才能順利逃出雙層牢籠！"
+      },
+      {
+        "lines": [
+          8
+        ],
+        "lineText": "提早結束保護",
+        "type": "key",
+        "text": "<strong>r=2 完全略過</strong>：若無外層旗標保護，外層仍會盲目跑 r=2，浪費時間又造成變數污染。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：旗標作信號，連鎖跳雙層"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.1 雙重迴圈心智模型：時鐘的分針與時針——外層帶動內層的維度展開",
+    "titleZh": "二維走訪追蹤表：(r, c) 狀態演變矩陣",
+    "titleEn": "Trace Table: Visualizing 2D Loop Index Evolution",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># r = 0, 1</span>",
+        "mean": "外層列走訪",
+        "why": "2 列",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># c = 0, 1</span>",
+        "mean": "內層欄走訪",
+        "why": "2 欄",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"r={r}, c={c} -&gt; 格點值 {r*2 + c}\"</span>)",
+        "mean": "計算並印出二維展平成一維的索引值 (r*2 + c)",
+        "why": "展示二維座標與記憶體一維位址對應",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "r=0, c=0 -> 格點值 0\nr=0, c=1 -> 格點值 1\nr=1, c=0 -> 格點值 2\nr=1, c=1 -> 格點值 3",
+    "traceTable": {
+      "title": "📊 2x2 雙重迴圈時鐘推進動態追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "外層時針 r",
+        "內層分針 c",
+        "一維換算公式 (r * 2 + c)",
+        "格點定位成果"
+      ],
+      "activeRow": 3,
+      "rows": [
+        {
+          "values": [
+            "r = 0 (第 0 列)",
+            "c = 0 (第 0 欄)",
+            "0 * 2 + 0 ➔ 0",
+            "格點 #0 完成"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "r = 0 (第 0 列)",
+            "c = 1 (第 1 欄)",
+            "0 * 2 + 1 ➔ 1",
+            "格點 #1 完成 (第 0 列結束)"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "r = 1 (第 1 列)",
+            "c = 0 (第 0 欄)",
+            "1 * 2 + 0 ➔ 2",
+            "格點 #2 完成"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "r = 1 (第 1 列)",
+            "c = 1 (第 1 欄)",
+            "1 * 2 + 1 ➔ 3",
+            "格點 #3 完成 (全網格跑完)"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "矩陣走訪完畢",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "二維轉一維公式",
+        "type": "key",
+        "text": "<strong>r * Width + c 經典公式</strong>：這是電腦記憶體存放二維圖片、遊戲地圖的最底層定址公式，APCS 觀念題超級常客！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "輪次展開",
+        "type": "concept",
+        "text": "<strong>步步為營</strong>：每當 r 保持不變，c 轉動一圈；接著 r 跳下一位，c 再次從頭轉動。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：追蹤表記座標，二維網格清"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5 考場地雷一：內外層計數變數撞名遮蔽（Shadowing）引發死結或計數崩潰",
+    "titleZh": "考場致命地雷一：內外層變數撞名遮蔽引發踩腳",
+    "titleEn": "Pitfall 1: Loop Variable Shadowing Breaks Counter State",
+    "predictQuiz": {
+      "question": "預測思考：若寫：\nfor i in range(2):\n    for i in range(2):\n        print(i, end=' ')\n外層與內層都宣告同名變數 i，會發生什麼後果？",
+      "options": [
+        "內層變數覆蓋外層變數，破壞外層狀態造成邏輯崩潰！",
+        "Python 會自動幫內層重新命名為 i_inner"
+      ],
+      "correct": 0,
+      "explanation": "Python 變數為同一個作用域！內層 for i 會強制竄改並覆蓋外層的 i，造成外層計數器遭到嚴重破壞與非預期行為！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 致命大忌：內外層都叫 i（同名遮蔽變數）</span>",
+        "mean": "變數撞名反面教材",
+        "why": "說明直譯器命名空間衝突之災難",
+        "alt": "",
+        "error": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 外層想用 i</span>",
+        "mean": "外層宣告 i",
+        "why": "外層計數器",
+        "alt": "for r in range(2):",
+        "error": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):  <span class=\"token-comment\"># 💥 內層又搶用 i！覆蓋外層！</span>",
+        "mean": "內層搶佔同名 i",
+        "why": "外層原本的 i 值被直接篡改抹煞",
+        "alt": "for c in range(2):",
+        "error": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">i</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "輸出混亂",
+        "why": "程式邏輯徹底失控",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"內外層皆命名為 i，內層覆蓋外層造成嚴重混亂！\"</span>)",
+        "mean": "印出避坑指引",
+        "why": "提醒考生嚴格遵循命名規範",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "0 1 0 1 內外層皆命名為 i，內層覆蓋外層造成嚴重混亂！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "變數遮蔽 (Shadowing)",
+        "type": "wa",
+        "text": "<strong>💥 變數同名死穴</strong>：內外層共用同一個變數名，內層每一輪結束時殘留的值會直接覆寫外層，導致外層邏輯完全大亂！"
+      },
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "防禦規範",
+        "type": "key",
+        "text": "<strong>命名神聖不可侵犯</strong>：一律嚴格遵循『外層 r 內層 c』或『外層 i 內層 j』，絕不可偷懶重複用同名。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內外莫同名，防止變數踩腳"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5 考場地雷二：換行 print() 放錯縮排層級導致每一格都換行或整張表不換行",
+    "titleZh": "考場致命地雷二：換行 print 縮排錯位導致排版全毀",
+    "titleEn": "Pitfall 2: Indentation Misplacement of Newline print()",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 💥 陷阱 A：換行縮在內層最深處（每印一個就換行，矩陣變一條長龍）</span>",
+        "mean": "縮排過深反面教材",
+        "why": "失去水平排列效果",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 💥 陷阱 B：換行縮在迴圈最外層（所有元素印完才換行，整座表擠在同一行）</span>",
+        "mean": "縮排太淺反面教材",
+        "why": "失去分列折行效果",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"print() 必須縮在外層，與內層 for 平級！\"</span>)",
+        "mean": "宣告唯一正確縮排層級",
+        "why": "維持二維網格呼吸律動",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "print() 必須縮在外層，與內層 for 平級！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "視覺對齊線",
+        "type": "radar",
+        "text": "<strong>🎯 正確縮排標準</strong>：換行的 print() 必須與內層 for『左邊對齊』（通常為 4 個空格）！不多不少，剛好在內層結束時執行。"
+      },
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "考場抓蟲 SOP",
+        "type": "key",
+        "text": "<strong>若圖形排版異常</strong>：畫面全擠一行 ➔ 檢查是否漏了 print() 或縮得太外面；畫面變成一直線 ➔ 檢查 print() 是否誤塞進內層肚子裡。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：換行縮在外，每列印完才換"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5 考場地雷三：巢狀迴圈中累加器誤放錯外層/內層引發跨列殘留污染",
+    "titleZh": "考場致命地雷三：每列累加器放錯層級引發殘留污染",
+    "titleEn": "Pitfall 3: Placing Row Accumulator in Wrong Scope Causes Spillover",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>):",
+        "mean": "外層走訪每一列",
+        "why": "目標：獨立統計每列的總和",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-ident\">row_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 關鍵守護：每換一列，列累加器必須重新歸零！</span>",
+        "mean": "每一列開頭將 row_sum 歸零",
+        "why": "避免上一列的計算結果污染到本列",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]:",
+        "mean": "內層走訪本列的元素",
+        "why": "計算 10 + 20 = 30",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">row_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">c</span>",
+        "mean": "累加本列元素",
+        "why": "單純統計本列",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"第 {r} 列總和 = {row_sum}\"</span>)",
+        "mean": "印出每列的獨立總計 30",
+        "why": "兩列皆各自得到乾淨的 30",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "第 0 列總和 = 30\n第 1 列總和 = 30",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "放錯層級悲劇",
+        "type": "wa",
+        "text": "<strong>💥 跨列殘留死穴</strong>：若誤將 row_sum = 0 放在所有迴圈最外面，第 1 列算完 30 沒被清掉，第 2 列算完就會變成 60 發生嚴重偏誤！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "作用域黃金法則",
+        "type": "key",
+        "text": "<strong>要算誰的總和就放在誰那層</strong>：算全局總和放最外層；算每列總和放外層迴圈體內；算每格總和放內層。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：跨列算總和，內層前必歸零"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5 考場地雷四：多重迴圈複雜度大爆炸（O(N^3) 運算量 TLE 警報）",
+    "titleZh": "考場致命地雷四：三重迴圈運算量立方級大爆炸",
+    "titleEn": "Pitfall 4: Cubic Complexity O(N^3) Explosion Triggering TLE",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">100</span>  <span class=\"token-comment\"># 測資大小僅僅為 100</span>",
+        "mean": "測資大小 n = 100",
+        "why": "看似很小的數字",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 若寫三重巢狀迴圈：for i in range(n): for j in range(n): for k in range(n):</span>",
+        "mean": "三層巢狀走訪",
+        "why": "運算量為 n * n * n = n^3",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"三重迴圈 {n}^3 運算量 =\"</span>, <span class=\"token-ident\">n</span><span class=\"token-op\">**</span><span class=\"token-number\">3</span>, <span class=\"token-string\">\"次，超過 100 萬次防線！\"</span>)",
+        "mean": "印出運算量高達 1,000,000 次",
+        "why": "警惕考生對多重迴圈保持敬畏",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "三重迴圈 100^3 運算量 = 1000000 次，超過 100 萬次防線！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "立方級大爆炸",
+        "type": "wa",
+        "text": "<strong>💥 O(N^3) TLE 警報</strong>：若 n=1000，三重迴圈需要跑 10 億次，在 Python 至少需耗時 60 秒以上，必定直接 TLE 零分！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "審題心法",
+        "type": "key",
+        "text": "<strong>考場時間常數速算</strong>：Python 評判限時 1 秒，總運算次數安全上限約為 500 萬次，若 n > 500 絕不可寫三重迴圈暴力枚舉！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：三重運算大，防超時大爆炸"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.6 雙重枚舉（Brute Force）：數對 (i, j) 與所有不重複組合 (i < j) 生成",
+    "titleZh": "單元 6.5 綜合驗收一：握手問題兩兩配對實戰",
+    "titleEn": "Unit 6.5 Comprehensive Review: Handshake Combinations Counter",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">total_handshakes</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化握手次數計數器為 0",
+        "why": "統計 4 個人兩兩互相握手的總次數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>):  <span class=\"token-comment\"># 人物編號 1 到 4</span>",
+        "mean": "外層走訪第一個人",
+        "why": "1, 2, 3, 4",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">i</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>):  <span class=\"token-comment\"># 只找編號比自己大的人握手</span>",
+        "mean": "內層只找編號更大的人握手",
+        "why": "保證不重複且不握自己",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">total_handshakes</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "握手計數加 1",
+        "why": "累加握手總次數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"4 人互相握手總次數 =\"</span>, <span class=\"token-ident\">total_handshakes</span>)",
+        "mean": "印出總握手次數 6（C(4, 2) = 6）",
+        "why": "驗證不重複組合枚舉演算法",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "4 人互相握手總次數 = 6",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "組合數 C(N, 2)",
+        "type": "key",
+        "text": "<strong>數學公式對照</strong>：4 個人握手為 4 × 3 / 2 = 6 次，雙重迴圈跑出的結果與組合數完全契合。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "不重複邊界",
+        "type": "concept",
+        "text": "<strong>無冗餘枚舉</strong>：i=1 配 2,3,4；i=2 配 3,4；i=3 配 4；i=4 內層為空不跑，極度俐落。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：握手問題枚舉，兩兩不重複"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5.5 內層邊界與外層連動：隨外層行數動態改變內層跑動次數",
+    "titleZh": "單元 6.5 綜合驗收二：階梯星號直角三角形排版",
+    "titleEn": "Unit 6.5 Comprehensive Review: Right Triangle Asterisk Formatting",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>):  <span class=\"token-comment\"># 4 列展開</span>",
+        "mean": "外層控制行數（1 到 4 列）",
+        "why": "為 6.6 幾何圖形單元奠定實戰地基",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>):  <span class=\"token-comment\"># 第 r 列剛好印 r 顆星號</span>",
+        "mean": "第 r 列印 r 顆星號",
+        "why": "代數關係：星星數 = 目前列號",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"*\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\"\"</span>)",
+        "mean": "緊密連續印出星號（無空格）",
+        "why": "輸出連綿實心星號",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span>()  <span class=\"token-comment\"># 本列結束換行</span>",
+        "mean": "每列排完換行",
+        "why": "完成直角三角形階梯圖案",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "*\n**\n***\n****\n",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "代數映射心法",
+        "type": "key",
+        "text": "<strong>列號即星號個數</strong>：第 1 列 1 顆、第 2 列 2 顆、第 3 列 3 顆、第 4 列 4 顆，直接將外層變數 r 注入內層 range。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "緊湊輸出",
+        "type": "concept",
+        "text": "<strong>end=\"\" 緊密相連</strong>：設為空字串可讓字元無縫黏合，是印出幾何圖案的標準基本功。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：星號三角形，行數決定顆數"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.5 綜合驗收",
+    "titleZh": "單元 6.5 綜合驗收：二維維度展開與全單元通關",
+    "titleEn": "Unit 6.5 Comprehensive Review: Dimensional Expansion & Milestone",
+    "completionCard": {
+      "badge": "🏆 單元 6.5 通關：多維空間巡航專家！",
+      "summary": "太不可思議了！你已徹底精通時鐘心智模型、外層 r 內層 c 命名鐵律、九九乘法 :2d 對齊、動態階梯邊界、不重複雙枚舉與布林旗標連鎖跳出！",
+      "nextUnit": "6.6 幾何圖形與星號排版專題特訓（巢狀迴圈視覺化）"
+    },
+    "traceTable": {
+      "title": "📊 3x3 乘積網格累加動態追蹤矩陣 (Trace Table)",
+      "hint": "走訪 r in 1..3 與 c in 1..3，累計 sum_grid += r * c",
+      "headers": [
+        "外層列 r",
+        "內層欄 c",
+        "本格乘積 (r * c)",
+        "累計網格總和 sum_grid"
+      ],
+      "activeRow": 4,
+      "rows": [
+        {
+          "values": [
+            "r = 1",
+            "c = 1 ➔ 3",
+            "1*1 + 1*2 + 1*3 ➔ 6",
+            "sum_grid = 6"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "第 1 列結算",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "r = 2",
+            "c = 1 ➔ 3",
+            "2*1 + 2*2 + 2*3 ➔ 12",
+            "sum_grid = 18"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "第 2 列結算",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "values": [
+            "r = 3",
+            "c = 1 ➔ 3",
+            "3*1 + 3*2 + 3*3 ➔ 18",
+            "sum_grid = 36"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "滿分結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">sum_grid</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化全網格總和累加器",
+        "why": "統計 3x3 乘法網格中全部 9 個數值的總和",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):",
+        "mean": "外層走訪列號 1 到 3",
+        "why": "時針走訪 3 列",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>):",
+        "mean": "內層走訪欄號 1 到 3",
+        "why": "分針走訪 3 欄",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">sum_grid</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">c</span>",
+        "mean": "將單元格乘積累加至總額",
+        "why": "累計所有網格數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"3x3 乘積網格總和 =\"</span>, <span class=\"token-ident\">sum_grid</span>)",
+        "mean": "印出最終總和 36",
+        "why": "驗證 3x3 乘積網格總和成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "3x3 乘積網格總和 = 36",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取專屬通關成就！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "因式分解數學驗證",
+        "type": "key",
+        "text": "<strong>數學美學驗證</strong>：(1+2+3) × (1+2+3) = 6 × 6 = 36，二維網格總和等於一維總和相乘！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：雙重巢狀心法，二維展開靈"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-5",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-5_nested_loops_and_clock_model.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

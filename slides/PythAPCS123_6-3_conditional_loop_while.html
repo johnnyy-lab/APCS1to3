@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 6.3 條件迴圈 while 的運作機制與經典數值演算法 (PythAPCS123_6-3_conditional_loop_while.html)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.1 什麼是 while 迴圈？「會重複執行的 if」心智模型",
+    "titleZh": "while 迴圈：會重複執行的 if 心智模型",
+    "titleEn": "The while Loop: 'Repeating if' Mental Model",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">dumplings</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>",
+        "mean": "設定初始狀態：盤子裡有 3 顆水餃",
+        "why": "建立條件迴圈的起始狀態",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">dumplings</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要盤子裡還有水餃（條件為 True），就重複執行區塊",
+        "why": "每輪開頭檢查條件，為 True 才放行",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"吃了一顆水餃，還剩 {dumplings - 1} 顆\"</span>)",
+        "mean": "印出吃水餃的動作與剩餘數量",
+        "why": "觀察每次循環的動作輸出",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">dumplings</span> <span class=\"token-op\">-=</span> <span class=\"token-number\">1</span>",
+        "mean": "更新狀態：水餃數量減 1",
+        "why": "推動狀態朝終止條件前進",
+        "alt": "dumplings = dumplings - 1",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"水餃吃光了，肚子好飽！\"</span>)",
+        "mean": "當 dumplings 變成 0，條件為 False 退出迴圈執行此行",
+        "why": "驗證迴圈正常終止後的流向",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "吃了一顆水餃，還剩 2 顆\n吃了一顆水餃，還剩 1 顆\n吃了一顆水餃，還剩 0 顆\n水餃吃光了，肚子好飽！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "重複執行的if",
+        "type": "concept",
+        "text": "<strong>會轉彎的 if</strong>：if 只檢查一次就往前走；while 檢查為 True 就執行區塊，跑完會『回頭再檢查一次』！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "狀態步進",
+        "type": "key",
+        "text": "<strong>步進關鍵</strong>：每次必須讓 dumplings 減少，否則條件永遠為 True 就會吃水餃吃到撐爆（無窮迴圈）！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：條件真就重複，條件假才停"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.2 while 迴圈的三大黃金要件：初始值、終止條件、更新步進（缺一不可！）",
+    "titleZh": "while 三大黃金要件：初始、條件、步進",
+    "titleEn": "Three Golden Elements: Init, Condition, Step Update",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># ① 初始值（起跑點）</span>",
+        "mean": "第一要件：設定計數變數起始點為 1",
+        "why": "為後續判斷提供基礎狀態",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">3</span>:  <span class=\"token-comment\"># ② 延續/終止條件（煞車線）</span>",
+        "mean": "第二要件：判斷當前 count 是否仍小於等於 3",
+        "why": "決定迴圈是否繼續運轉的閘門",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"第 {count} 次打卡\"</span>)",
+        "mean": "迴圈主體任務：印出打卡紀錄",
+        "why": "執行本輪核心操作",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># ③ 步進更新（推動力）</span>",
+        "mean": "第三要件：count 加 1，推動狀態前進",
+        "why": "朝著終止邊界步進，缺此行必死結",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"打卡完成！\"</span>)",
+        "mean": "走訪完畢，成功離開迴圈",
+        "why": "驗證三次打卡完成",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "第 1 次打卡\n第 2 次打卡\n第 3 次打卡\n打卡完成！",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          4
+        ],
+        "lineText": "三大要素",
+        "type": "key",
+        "text": "<strong>三足鼎立缺一不可</strong>：起跑點（count=1）、檢查哨（count&lt;=3）、前進推力（count+=1）三者缺任何一個，程式立即崩壞。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "遺漏代價",
+        "type": "radar",
+        "text": "<strong>🎯 最常忘記第三要件</strong>：初學者最常漏打第 4 行，導致 count 永遠是 1，CPU 飆到 100% 卡死！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：初值條件步進，缺一不可少"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.3 for vs while 深度對決：已知次數 vs 未知次數的題目選型指南",
+    "titleZh": "for vs while 選型指南：已知次數 vs 狀態驅動",
+    "titleEn": "for vs while: Known Iterations vs State-Driven Selection",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 【已知次數】：用 for 迴圈自動推進，安全且優雅</span>",
+        "mean": "明確知道要跑 3 次時，優先選用 for",
+        "why": "range 自帶初始、條件與步進，絕不遺漏",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">total_for</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化 for 累加器",
+        "why": "準備示範 for 累加",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>): <span class=\"token-ident\">total_for</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">i</span>",
+        "mean": "for 迴圈自動走訪 1 到 3，三要素全封裝於一行",
+        "why": "固定次數走訪的最佳範式",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># 【狀態驅動/未知次數】：用 while 迴圈靈活控管</span>",
+        "mean": "當終止時機取決於複雜條件時，選用 while",
+        "why": "以狀態成立與否為核心依據",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-ident\">i</span>, <span class=\"token-ident\">total_while</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>",
+        "mean": "初始化 while 變數",
+        "why": "手動設定起跑狀態",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">3</span>:",
+        "mean": "條件式檢查：小於等於 3 才執行",
+        "why": "可隨時根據業務邏輯動態提早煞車",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-ident\">total_while</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">i</span>; <span class=\"token-ident\">i</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "手動累加並手動推一步",
+        "why": "程序員完全掌控步進節奏",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"for 總和: {total_for}, while 總和: {total_while}\"</span>)",
+        "mean": "印出兩者運算皆為 6",
+        "why": "驗證兩大迴圈結構等價性",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "for 總和: 6, while 總和: 6",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "for 適用場景",
+        "type": "key",
+        "text": "<strong>for 適用場景</strong>：已知次數（跑 N 次）、走訪容器（字串、串列）、等差序列 range。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "while 適用場景",
+        "type": "concept",
+        "text": "<strong>while 適用場景</strong>：未知次數（整數剝皮、歐幾里得輾轉相除、讀到檔案結尾 EOF）。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：已知次數定，未知看條件"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.4 APCS 核心基本功一：整數數位剝皮術（// 10 與 % 10 逐位拆解與加總）",
+    "titleZh": "數位剝皮術：模十取尾數，整除削末位",
+    "titleEn": "Digit Peeling: Extracting with % 10 and Removing with // 10",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">582</span>",
+        "mean": "待處理整數 582",
+        "why": "準備進行各數位逐一剝皮與加總",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">digit_sum</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化數位累加器為 0",
+        "why": "存放各個位數加總",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要 n 還大於 0（還有數位沒剝完），持續循環",
+        "why": "未知位數長度時的標準終止守護條件",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">last_digit</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">%</span> <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 模 10：取得個位數</span>",
+        "mean": "以 % 10 撈出當前最右側的個位數",
+        "why": "依序撈出 2 ➔ 8 ➔ 5",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">digit_sum</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">last_digit</span>",
+        "mean": "將剝下的數位加總進累加器",
+        "why": "累計各個位數數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">n</span> <span class=\"token-op\">//=</span> <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 整除 10：削掉個位數</span>",
+        "mean": "以 // 10 將整數除以 10 並無條件捨去小數",
+        "why": "將整數縮小 10 倍（582 ➔ 58 ➔ 5 ➔ 0）",
+        "alt": "n = n // 10",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"數位總和 =\"</span>, <span class=\"token-ident\">digit_sum</span>)",
+        "mean": "印出最終各數位總和 15（2 + 8 + 5）",
+        "why": "驗證數位剝皮加總成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "數位總和 = 15",
+    "notes": [
+      {
+        "lines": [
+          4,
+          6
+        ],
+        "lineText": "模十與整除十",
+        "type": "radar",
+        "text": "<strong>🎯 APCS 必考基本功</strong>：n % 10 抓個位，n //= 10 砍個位！兩行代碼吃遍所有整數數位處理考題。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "雙斜線整除",
+        "type": "key",
+        "text": "<strong>必須用 // 雙斜線</strong>：切勿寫成單斜線 n /= 10，否則會變成浮點數 58.2，導致永遠無法等於 0 而陷入死結！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：模十取個位，整除十削尾"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.5 APCS 核心基本功二：反轉整數與回文數檢驗（純數值無字串解法）",
+    "titleZh": "純數值反轉整數：高位推移與回文檢驗",
+    "titleEn": "Reversing Integers via Math: Digit Shifting & Palindromes",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">num</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1234</span>",
+        "mean": "原始整數 1234",
+        "why": "目標：在不轉字串情況下反轉為 4321",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">rev</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "初始化反轉容器 rev 為 0",
+        "why": "存放逐漸左移擴展的反轉數字",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">num</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要 num 尚未被削平，持續剝皮",
+        "why": "逐位提取並移位拼接",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">rev</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">rev</span> <span class=\"token-op\">*</span> <span class=\"token-number\">10</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">num</span> <span class=\"token-op\">%</span> <span class=\"token-number\">10</span>",
+        "mean": "現有 rev 放大 10 倍（騰出個位），並接上剝下的新位數",
+        "why": "十進位推移：0 ➔ 4 ➔ 43 ➔ 432 ➔ 4321",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">num</span> <span class=\"token-op\">//=</span> <span class=\"token-number\">10</span>",
+        "mean": "削掉原始數字的末位",
+        "why": "推動狀態前進",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"反轉整數 =\"</span>, <span class=\"token-ident\">rev</span>)",
+        "mean": "印出純數值運算反轉成果 4321",
+        "why": "驗證數學位移反轉法",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "反轉整數 = 4321",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "推移拼接公式",
+        "type": "key",
+        "text": "<strong>位移核心公式</strong>：rev = rev * 10 + digit。每一次乘以 10 就像將整列火車向左拉一個車廂，讓新數字接在最後面。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "回文檢驗",
+        "type": "concept",
+        "text": "<strong>回文數判斷</strong>：若最後的 rev 等於最原本的 num，即為經典回文數（如 1221、1331）。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：乘十接上新位，純數反轉法"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.6 對數級折半縮小演算法：二進位轉換與考拉茲猜想（3n + 1）",
+    "titleZh": "冰雹軌跡：考拉茲猜想 3n + 1 演算法",
+    "titleEn": "Collatz Conjecture: 3n + 1 Hailstone Trajectory",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">6</span>; <span class=\"token-ident\">steps</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "起點整數 n = 6，步數計數器 steps = 0",
+        "why": "準備觀察 6 跌宕起伏落向 1 的軌跡",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">1</span>:",
+        "mean": "只要 n 還沒抵達 1，迴圈就繼續運轉",
+        "why": "猜想指出任何正整數最終都會掉到 1",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">%</span> <span class=\"token-number\">2</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span>:",
+        "mean": "若當前 n 為偶數",
+        "why": "分支規則一：偶數折半",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-ident\">n</span> <span class=\"token-op\">//=</span> <span class=\"token-number\">2</span>",
+        "mean": "整除折半：n = n // 2",
+        "why": "偶數時數值減半下降",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-keyword\">else</span>:",
+        "mean": "若當前 n 為奇數",
+        "why": "分支規則二：奇數膨脹",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "        <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>",
+        "mean": "奇數乘三加一",
+        "why": "奇數時數值膨脹上升",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-ident\">steps</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "每變換一次，步數計數器加 1",
+        "why": "累計抵達 1 所需總跳躍次數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"6 到 1 的考拉茲步數 =\"</span>, <span class=\"token-ident\">steps</span>)",
+        "mean": "印出從 6 降落至 1 的總步數 8（軌跡: 6➔3➔10➔5➔16➔8➔4➔2➔1）",
+        "why": "驗證冰雹數演算法終止性",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "6 到 1 的考拉茲步數 = 8",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "未知次數典型",
+        "type": "concept",
+        "text": "<strong>未知步數的最佳教材</strong>：無人能提前預測一個數字要跑幾步才會回到 1，這正是 while 迴圈存在的絕佳舞台。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "折半速度",
+        "type": "key",
+        "text": "<strong>對數級縮小</strong>：二分折半 // 2 具備對數級 O(log N) 的極速下降力，是搜尋演算法的重要基石。"
+      },
+      {
+        "lines": [
+          3,
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：偶折半奇乘三，終點歸於一"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.7 古希臘智慧：歐幾里得輾轉相除法（求兩數最大公因數 GCD）",
+    "titleZh": "歐幾里得輾轉相除：極速求解最大公因數",
+    "titleEn": "Euclidean Algorithm: Lightning Fast GCD via Modulo",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">a</span> <span class=\"token-op\">=</span> <span class=\"token-number\">48</span>; <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">18</span>",
+        "mean": "欲求 48 與 18 的最大公因數",
+        "why": "兩數求 GCD 經典數論問題",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要除數 b 尚未為 0，持續進行輾轉相除",
+        "why": "餘數為 0 時的被除數即為 GCD",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">b</span>, <span class=\"token-ident\">a</span> <span class=\"token-op\">%</span> <span class=\"token-ident\">b</span>",
+        "mean": "多元同步指派：新 a 換成舊 b，新 b 換成 (a % b 餘數)",
+        "why": "一行完美完成除數與餘數的角色輪替！",
+        "alt": "temp = a % b; a = b; b = temp",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"48 與 18 的最大公因數 GCD =\"</span>, <span class=\"token-ident\">a</span>)",
+        "mean": "印出最終勝出的公因數 6",
+        "why": "驗證輾轉相除法成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "48 與 18 的最大公因數 GCD = 6",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "同步指派魔法",
+        "type": "key",
+        "text": "<strong>a, b = b, a % b</strong>：利用 Python 多元指派，無需暫存變數 temp 即可在毫秒內同步更新除數與餘數！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "終止條件判定",
+        "type": "radar",
+        "text": "<strong>🎯 終點在 b=0</strong>：當 b 變成 0 的瞬間退出迴圈，此時留在 a 身上的數值就是最大公因數！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：餘數換除數，零出現取大數"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.4 APCS 核心基本功一：整數數位剝皮術（// 10 與 % 10 逐位拆解與加總）",
+    "titleZh": "數位剝皮追蹤表：變數逐層剝落演化矩陣",
+    "titleEn": "Trace Table: Visualizing Digit Peeling Step-by-Step",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">582</span>; <span class=\"token-ident\">sum_d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>",
+        "mean": "起始整數 582，總和累加器歸零",
+        "why": "準備進行追蹤矩陣視覺化演練",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要整數尚未削減至 0 便繼續循環",
+        "why": "直到所有位數全部剝除完畢",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">%</span> <span class=\"token-number\">10</span>",
+        "mean": "剝除最右側個位數 d",
+        "why": "提取當前末端數值",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">sum_d</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">d</span>",
+        "mean": "將數位累加至總和",
+        "why": "更新累計總和狀態",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-ident\">n</span> <span class=\"token-op\">//=</span> <span class=\"token-number\">10</span>",
+        "mean": "整除削去末位，整數縮小 10 倍",
+        "why": "步進削平變數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"剝下 {d} -&gt; 目前總和 {sum_d}, 剩餘整數 {n}\"</span>)",
+        "mean": "印出本輪結算狀態",
+        "why": "驗證追蹤表中每一步變化",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "剝下 2 -> 目前總和 2, 剩餘整數 58\n剝下 8 -> 目前總和 10, 剩餘整數 5\n剝下 5 -> 目前總和 15, 剩餘整數 0",
+    "traceTable": {
+      "title": "📊 582 整數數位剝皮動態追蹤矩陣 (Trace Table)",
+      "hint": "懸停追蹤列可高亮關聯程式碼行",
+      "headers": [
+        "輪次",
+        "剝下個位 d (n % 10)",
+        "累計數位和 (sum_d += d)",
+        "削後整數 n (n //= 10)"
+      ],
+      "activeRow": 2,
+      "rows": [
+        {
+          "values": [
+            "第 1 輪",
+            "d = 2",
+            "0 + 2 ➔ sum_d = 2",
+            "582 // 10 ➔ n = 58"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "values": [
+            "第 2 輪",
+            "d = 8",
+            "2 + 8 ➔ sum_d = 10",
+            "58 // 10 ➔ n = 5"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            3,
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "values": [
+            "第 3 輪",
+            "d = 5",
+            "10 + 5 ➔ sum_d = 15",
+            "5 // 10 ➔ n = 0"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "終止退出",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            3,
+            4,
+            5,
+            6
+          ]
+        }
+      ]
+    },
+    "notes": [
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "歸零退場",
+        "type": "key",
+        "text": "<strong>最後一輪 5 // 10 = 0</strong>：商數為 0，使得下一輪迴圈條件 n > 0 判定為 False，優雅退出迴圈。"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "追蹤威力",
+        "type": "concept",
+        "text": "<strong>紙上追蹤表防護</strong>：在考場草稿紙繪製 d, sum_d, n 三欄，數位題失誤率瞬間降為 0。"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：追蹤表拆數位，逐層看分明"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3 考場地雷一：忘記更新步進導致 CPU 100% 暴走死結",
+    "titleZh": "考場致命地雷一：漏寫更新步進引發 TLE 超時死結",
+    "titleEn": "Pitfall 1: Missing Step Update Causes CPU 100% Infinite Loop (TLE)",
+    "predictQuiz": {
+      "question": "預測思考：若寫 count = 1; while count <= 3: print(count)，但忘了寫 count += 1，會發生什麼事？",
+      "options": [
+        "程式陷入無窮迴圈，終端機瘋狂印出 1 直到 TLE 超時崩潰！",
+        "直譯器會拋出 MissingStepError 警告"
+      ],
+      "correct": 0,
+      "explanation": "因為 count 永遠等於 1，count <= 3 條件永遠為 True！在 APCS 線上評判系統會直接判定 Time Limit Exceeded (TLE) 爆零！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>",
+        "mean": "初始計數變數為 1",
+        "why": "起始條件成立",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">3</span>:",
+        "mean": "只要 count 小於等於 3 便繼續",
+        "why": "檢查閘門",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">count</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出 count 數值",
+        "why": "不斷重複輸出",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-comment\"># 💥 致命疏漏：漏寫了 count += 1！count 永遠卡在 1！</span>",
+        "mean": "漏打更新步進指令",
+        "why": "導致狀態永遠無法跨出下一步",
+        "alt": "count += 1",
+        "error": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 考場示範防爆：強制煞車防止瀏覽器當機</span>",
+        "mean": "教學防護：以 break 模擬阻斷無窮迴圈",
+        "why": "避免教學簡報卡死",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "1 ",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "TLE死穴",
+        "type": "wa",
+        "text": "<strong>💥 TLE 爆零紅線</strong>：漏打步進語句是 APCS 初學者實作題最常見死因，OJ 評判不會報錯，只會超時卡死得 0 分！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "自救指引",
+        "type": "key",
+        "text": "<strong>本機終端自救</strong>：在自己電腦終端機若不慎暴走，立刻按下鍵盤 Ctrl + C 鍵強制中斷直譯器。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：忘記更新步長，當心爆死結"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3 考場地雷二：步進方向寫反而離終點越來越遠的「背道而馳無窮迴圈」",
+    "titleZh": "考場致命地雷二：步進方向相反引發背道而馳死結",
+    "titleEn": "Pitfall 2: Reverse Step Heading Away from Termination",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>",
+        "mean": "初始值設定為 1",
+        "why": "目標原本想數到 5",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">5</span>:",
+        "mean": "終止條件要求 count <= 5",
+        "why": "希望當數值超過 5 時停止",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-comment\"># 💥 致命手滑：原本應加一，誤手滑寫成減一！</span>",
+        "mean": "手滑打成減法運算",
+        "why": "數值變成 0, -1, -2, -3... 越來越小",
+        "alt": "count += 1",
+        "error": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">count</span> <span class=\"token-op\">-=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 永遠比 5 小，永無止境！</span>",
+        "mean": "每輪讓 count 遞減",
+        "why": "數值永遠無法越過 5 的界線",
+        "alt": "count += 1",
+        "error": true
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-keyword\">break</span>  <span class=\"token-comment\"># 防爆展示保護</span>",
+        "mean": "防禦中斷避免畫面凍結",
+        "why": "標記錯誤語意",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "離終點更遠",
+        "type": "wa",
+        "text": "<strong>💥 向量方向相反</strong>：終點在右邊（>5），步進卻一直往左倒退（-=1），與終止條件背道而馳，永遠到達不了彼岸！"
+      },
+      {
+        "lines": [
+          2,
+          4
+        ],
+        "lineText": "方向檢驗法",
+        "type": "key",
+        "text": "<strong>方向檢驗心法</strong>：條件若是小於（<），步進必須是遞增（+=）；條件若是大於（>），步進通常是遞減（-=）。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：步進背道而馳，永遠跑不完"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3 考場地雷三：整數數位剝皮誤用浮點除法 / 導致無限迴圈與精度崩潰",
+    "titleZh": "考場致命地雷三：數位剝皮誤用單斜線浮點除法",
+    "titleEn": "Pitfall 3: Single Slash Float Division Breaks Integer Termination",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">582</span>",
+        "mean": "欲剝皮之整數 582",
+        "why": "示範除法運算子選型重大差別",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">val</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要 val > 0 繼續運算",
+        "why": "整數除法最終會變 0，浮點除法則永遠 > 0",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-comment\"># 💥 致命大坑：若寫 val = val / 10，結果會變成 58.2, 5.82, 0.582... 永遠大於 0！</span>",
+        "mean": "單斜線產生無限縮小的浮點小數",
+        "why": "小數在電腦中永遠趨近 0 但不等於 0",
+        "alt": "val //= 10",
+        "error": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">val</span> <span class=\"token-op\">//=</span> <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 安全唯一解：雙斜線整除，5//10 必得 0！</span>",
+        "mean": "安全正解：使用 // 雙斜線整除",
+        "why": "保證個位數整除後必定歸零退場",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"安全歸零退場，val =\"</span>, <span class=\"token-ident\">val</span>)",
+        "mean": "印出最後歸零成果",
+        "why": "驗證雙斜線保障迴圈終止",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "安全歸零退場，val = 0",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "浮點精度無限小",
+        "type": "wa",
+        "text": "<strong>💥 浮點除法陷阱</strong>：val / 10 會產生 0.000582...，它依然 > 0！迴圈將狂跑 300 多輪直到浮點下溢，引發巨大邏輯災難。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "整除唯一真理",
+        "type": "key",
+        "text": "<strong>整數題目只用 //</strong>：APCS 數位運算請將單斜線 / 鎖在保險箱，嚴格貫徹雙斜線 // 唯一法則。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：數位剝皮雙斜，莫寫單斜線"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3 考場地雷四：while 條件邊界差一（> vs >=）導致提早退出或多跑一輪",
+    "titleZh": "考場致命地雷四：邊界等於號漏放導致差一錯誤",
+    "titleEn": "Pitfall 4: Missing Equals Sign Causes Off-by-One Under-run",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>",
+        "mean": "倒數計時起點 3",
+        "why": "目標：依序印出 3, 2, 1 並發射",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">>=</span> <span class=\"token-number\">1</span>:  <span class=\"token-comment\"># 若誤寫為 x > 1，倒數到 1 就會被漏掉！</span>",
+        "mean": "包含 1 的邊界：必須包含等於（>=）",
+        "why": "若漏了等於，當 x=1 時就會提早被擋在門外",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">x</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" \"</span>)",
+        "mean": "印出當前倒數數字",
+        "why": "輸出 3 2 1",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">x</span> <span class=\"token-op\">-=</span> <span class=\"token-number\">1</span>",
+        "mean": "倒數遞減 1",
+        "why": "向 0 步進",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"發射！\"</span>)",
+        "mean": "倒數完畢順利發射",
+        "why": "驗證 1 有被完整包含進倒數流程",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "3 2 1 發射！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "差一邊界",
+        "type": "radar",
+        "text": "<strong>🎯 心智代入法驗證</strong>：當 x 來到 1 時，『1 > 1』為 False 立即退出，導致 1 永遠印不出來！務必寫 >= 1！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "極值代入檢驗",
+        "type": "key",
+        "text": "<strong>邊界檢驗法</strong>：在腦中將『最後一個目標數值』直接代入條件式，親自看它回傳 True 還是 False。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：邊界等於別漏，看清包含否"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.8 考場防禦性程式設計：安全閥門計數器（Safety Guard）杜絕 TLE",
+    "titleZh": "考場防身絕技：安全閥門計數器杜絕無窮迴圈",
+    "titleEn": "Safety Guard: Defense Counter Against Runaway Loops",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>; <span class=\"token-ident\">limit</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1000000</span>  <span class=\"token-comment\"># 安全上限一百萬次</span>",
+        "mean": "設立安全保險絲上限 limit",
+        "why": "為任何不確定的 while 迴圈加上物理防護網",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">3</span>:",
+        "mean": "業務主要邏輯條件",
+        "why": "正常情況下跑 3 次結束",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>",
+        "mean": "執行計數",
+        "why": "正常業務推進",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">count</span> <span class=\"token-op\">></span> <span class=\"token-ident\">limit</span>:",
+        "mean": "安全檢查：若循環次數超越百萬上限",
+        "why": "判定陷入邏輯死結，觸發緊急熔斷",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"觸發安全閥強制中斷！\"</span>)",
+        "mean": "輸出除錯通報",
+        "why": "即時警示程序員邏輯有破綻",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "        <span class=\"token-keyword\">break</span>",
+        "mean": "強制煞車破壞迴圈",
+        "why": "杜絕本機卡死與題庫超時爆零",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"安全執行完畢，循環次數: {count}\"</span>)",
+        "mean": "正常在安全範圍內完成運算",
+        "why": "驗證熔斷器平時守護但不干預正常運算",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "安全執行完畢，循環次數: 3",
+    "notes": [
+      {
+        "lines": [
+          4,
+          6
+        ],
+        "lineText": "安全熔斷器",
+        "type": "key",
+        "text": "<strong>安全熔斷器思維</strong>：在競賽除錯或複雜演算法中，加裝 if count > limit: break 能防止本機 IDE 凍結與伺服器 TLE 懲罰。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "上限取捨",
+        "type": "concept",
+        "text": "<strong>上限設定原則</strong>：Python 每秒約能跑 1000 萬次運算，上限設 100 萬次既能覆蓋正常題目，又能瞬時煞車。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：加裝安全閥門，杜絕超時錯"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3.7 古希臘智慧：歐幾里得輾轉相除法（求兩數最大公因數 GCD）",
+    "titleZh": "單元 6.3 綜合驗收：GCD 與 LCM 數論雙雄聯動實戰",
+    "titleEn": "Unit 6.3 Comprehensive Review: GCD & LCM Mathematical Synthesis",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">24</span>, <span class=\"token-number\">36</span>",
+        "mean": "欲求解 24 與 36 的 GCD 與 LCM",
+        "why": "APCS 經典數學必考題型",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>  <span class=\"token-comment\"># 備份原始數值以備計算 LCM 使用</span>",
+        "mean": "建立副本變數 x, y 進行輾轉相除",
+        "why": "保護原始 a, b 不被碾碎，後續計算 LCM 需用到原數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">y</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "歐幾里得輾轉相除核心迴圈",
+        "why": "求出兩數之最大公因數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">y</span>, <span class=\"token-ident\">x</span> <span class=\"token-op\">%</span> <span class=\"token-ident\">y</span>",
+        "mean": "同步指派輪替除數與餘數",
+        "why": "毫秒級完成 GCD 計算",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-ident\">gcd_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span>",
+        "mean": "輾轉結束後的被除數即為 GCD（12）",
+        "why": "提取最大公因數",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-ident\">lcm_val</span> <span class=\"token-op\">=</span> (<span class=\"token-ident\">a</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">b</span>) <span class=\"token-op\">//</span> <span class=\"token-ident\">gcd_val</span>",
+        "mean": "利用數論定理：LCM = (a * b) // GCD",
+        "why": "由 GCD 極速推導出最小公倍數 72",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"數字 {a} 與 {b} 的 GCD = {gcd_val}, LCM = {lcm_val}\"</span>)",
+        "mean": "印出完整的數論兩大指標成果",
+        "why": "驗證數論雙雄聯動解答",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "數字 24 與 36 的 GCD = 12, LCM = 72",
+    "notes": [
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "數論公式",
+        "type": "key",
+        "text": "<strong>GCD * LCM = a * b 定理</strong>：無需再寫第二個迴圈尋找倍數，直接整除 gcd 即可在 O(1) 瞬間得到最小公倍數。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "保護原變數",
+        "type": "radar",
+        "text": "<strong>🎯 變數備份觀念</strong>：計算輾轉相除前務必備份 a, b，否則計算完原數值都變成 0 與 gcd，無法再算乘積！"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：乘積除以公因，即最小公倍"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第六章 迴圈結構與控制流程",
+    "section": "6.3 綜合驗收",
+    "titleZh": "單元 6.3 綜合驗收：條件迴圈心法與全單元通關",
+    "titleEn": "Unit 6.3 Comprehensive Review: While Loop Mastery & Milestone",
+    "completionCard": {
+      "badge": "🏆 單元 6.3 通關：條件迴圈與數值演算法宗師！",
+      "summary": "太強悍了！你已徹底精通 while 三大黃金要件、數位剝皮術（//10 與 %10）、純數值反轉整數、考拉茲冰雹軌跡、歐幾里得輾轉相除法與安全熔斷器！",
+      "nextUnit": "6.4 迴圈流程跳轉控制（break, continue 與 for...else）"
+    },
+    "traceTable": {
+      "title": "📊 252 與 105 歐幾里得輾轉相除動態追蹤矩陣",
+      "hint": "只要 b > 0，持續輪替 (a, b = b, a % b)",
+      "headers": [
+        "輪次",
+        "目前被除數 a",
+        "目前除數 b",
+        "餘數 (a % b) 與下一步演化"
+      ],
+      "activeRow": 3,
+      "rows": [
+        {
+          "values": [
+            "第 1 輪",
+            "a = 252",
+            "b = 105",
+            "252 % 105 ➔ 餘 42（下輪 a=105, b=42）"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 2 輪",
+            "a = 105",
+            "b = 42",
+            "105 % 42 ➔ 餘 21（下輪 a=42, b=21）"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 3 輪",
+            "a = 42",
+            "b = 21",
+            "42 % 21 ➔ 餘 0（下輪 a=21, b=0）"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "badge": "已完成",
+          "badgeClass": "trace-badge-done",
+          "codeLines": [
+            2,
+            3
+          ]
+        },
+        {
+          "values": [
+            "第 4 輪",
+            "a = 21",
+            "b = 0",
+            "b 為 0 觸發條件退出！GCD 勝出者 = 21"
+          ],
+          "diffCols": [
+            1,
+            2,
+            3
+          ],
+          "active": true,
+          "badge": "滿分結算",
+          "badgeClass": "trace-badge-active",
+          "codeLines": [
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">252</span>, <span class=\"token-number\">105</span>",
+        "mean": "求解大數 252 與 105 的最大公因數",
+        "why": "展示輾轉相除面對大數字時的超速收斂威力",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">></span> <span class=\"token-number\">0</span>:",
+        "mean": "只要除數尚未歸零持續輾轉",
+        "why": "維持數論迭代",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">b</span>, <span class=\"token-ident\">a</span> <span class=\"token-op\">%</span> <span class=\"token-ident\">b</span>",
+        "mean": "同步指派推進一輪",
+        "why": "極速對數級收斂",
+        "alt": "",
+        "diff": true
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"252 與 105 的最終 GCD =\"</span>, <span class=\"token-ident\">a</span>)",
+        "mean": "印出最終勝出的公因數 21",
+        "why": "驗證數值演算法成果",
+        "alt": "",
+        "diff": true
+      }
+    ],
+    "output": "252 與 105 的最終 GCD = 21",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！本單元 40/50 儲存格練習已全面就緒，立即點擊領取專屬通關成就！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "極速收斂",
+        "type": "key",
+        "text": "<strong>黃金分割收斂度</strong>：輾轉相除法每兩輪至少讓數值減半，即便面對百萬級大數也能在數十步內秒殺。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：條件迴圈利器，狀態轉換靈"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec6-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_6-3_conditional_loop_while.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.4 笛摩根定律的邏輯改寫 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "口語否定 vs 數理邏輯——思維迷宮探秘",
+    "titleEn": "Verbal Negation vs Mathematical Logic",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.1 口語否定與數理邏輯陷阱——「非（A 且 B）」的思維迷宮",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 口語說：「他不是又高又帥」</span>",
+        "diff": false,
+        "mean": "人類的自然語言充滿歧義。",
+        "why": "引入數理邏輯定義。",
+        "alt": "生活情境。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 意思是：他「不高」，「或者」他「不帥」！（只要缺一項就不符合又高又帥）</span>",
+        "diff": true,
+        "mean": "否定 (A 且 B) 的結果，竟然冒出了「或」！",
+        "why": "這正是笛摩根定律的核心心智模型。",
+        "alt": "邏輯本質。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"否定且變成或，否定或變成且！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出核心觀念口訣。",
+        "why": "點題重點。",
+        "alt": "輸出說明。"
+      }
+    ],
+    "output": "否定且變成或，否定或變成且！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "思維翻轉",
+        "type": "concept",
+        "text": "<strong>集合論與笛摩根</strong>：否定整組括號時，不僅裡面的每一個條件都要被翻轉，<strong>中間的連接詞也必須同步對偶翻轉</strong>（and 變 or，or 變 and）！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：負號穿括號，且或互對調！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "笛摩根第一定律——not (A and B) 等價於 (not A) or (not B)",
+    "titleEn": "De Morgan's 1st Law: not (A and B)",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.2 笛摩根第一定律——not (A and B) 等價於 (not A) or (not B)",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">A</span>, <span class=\"token-ident\">B</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>, <span class=\"token-keyword\">False</span>",
+        "diff": false,
+        "mean": "設定 A 為真，B 為假。",
+        "why": "驗證第一定律。",
+        "alt": "A, B 賦值。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">left</span>  <span class=\"token-op\">=</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">B</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "先算 A and B 得 False，not False 得到 True。",
+        "why": "左式運算。",
+        "alt": "left 為 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">right</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">A</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">or</span> <span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">B</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "not A 為 False，not B 為 True，False or True 得到 True！",
+        "why": "右式展開。",
+        "alt": "right 為 True。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">left</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">right</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 100% 等價 True！</span>",
+        "diff": true,
+        "mean": "兩者計算結果完全一致，定理得證！",
+        "why": "布林代數等價律。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "第一定律",
+        "type": "concept",
+        "text": "<strong>第一定律核心公式</strong>：<code class=\"code-inline\">not (A and B) == (not A) or (not B)</code>。將負號分配進去時，中間的 <code class=\"code-inline\">and</code> 必須翻轉為 <code class=\"code-inline\">or</code>！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：非且轉為或，條件各帶非！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "笛摩根第二定律——not (A or B) 等價於 (not A) and (not B)",
+    "titleEn": "De Morgan's 2nd Law: not (A or B)",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.3 笛摩根第二定律——not (A or B) 等價於 (not A) and (not B)",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">A</span>, <span class=\"token-ident\">B</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>, <span class=\"token-keyword\">False</span>",
+        "diff": false,
+        "mean": "設定 A 與 B 皆為假。",
+        "why": "測試第二定律。",
+        "alt": "A, B 為 False。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">left</span>  <span class=\"token-op\">=</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A</span> <span class=\"token-keyword\">or</span> <span class=\"token-ident\">B</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "A or B 為 False，not False 得到 True。",
+        "why": "左式求值。",
+        "alt": "left 為 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">right</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">A</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">B</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "not A 為 True，not B 為 True，True and True 得到 True！",
+        "why": "右式求值。",
+        "alt": "right 為 True。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">left</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">right</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 100% 等價 True！</span>",
+        "diff": true,
+        "mean": "印出 True，完全等價！",
+        "why": "驗證成功。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "第二定律",
+        "type": "concept",
+        "text": "<strong>第二定律核心公式</strong>：<code class=\"code-inline\">not (A or B) == (not A) and (not B)</code>。否定聯集時，分配進去中間的 <code class=\"code-inline\">or</code> 必須翻轉為 <code class=\"code-inline\">and</code>！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：非或轉為且，條件各帶非！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "比較運算子對偶反轉——徹底消除外層 not",
+    "titleEn": "Dual Operators: Inverting Comparisons",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.4 比較運算子的對偶反轉——徹底消除比較式外層的 not",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>",
+        "diff": false,
+        "mean": "設定數值 10。",
+        "why": "測試比較式反轉。",
+        "alt": "x = 10"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>   <span class=\"token-comment\"># not 大於 → 反轉為 小於等於</span>",
+        "diff": false,
+        "mean": "x > 5 是 True，not 之後為 False。",
+        "why": "未化簡式。",
+        "alt": "輸出 False。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span>        <span class=\"token-comment\"># 化簡為 x <= 5，乾淨俐落！</span>",
+        "diff": true,
+        "mean": "直接比對 x <= 5，結果一樣是 False，且不用包 not！",
+        "why": "比較運算子對偶反轉。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "False\nFalse",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "對偶對照表",
+        "type": "concept",
+        "text": "<strong>六大比較符號對偶反轉</strong>：<br><code class=\"code-inline\">&gt;</code> 翻轉為 <code class=\"code-inline\">&lt;=</code>（別忘記等號！）<br><code class=\"code-inline\">&lt;</code> 翻轉為 <code class=\"code-inline\">&gt;=</code><br><code class=\"code-inline\">==</code> 翻轉為 <code class=\"code-inline\">!=</code>"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：大於反小於等，等號別漏抓！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "複合條件化簡實戰——將晦澀否定化為明快邏輯",
+    "titleEn": "Condition Simplification: Positive Logic",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.5 複合條件化簡實戰——將晦澀否定句改寫為明快正向邏輯",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span>, <span class=\"token-ident\">age</span> <span class=\"token-op\">=</span> <span class=\"token-number\">50</span>, <span class=\"token-number\">15</span>",
+        "diff": false,
+        "mean": "分數 50，年齡 15。",
+        "why": "條件化簡情境。",
+        "alt": "賦值變數。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 難讀寫法：not (score >= 60 and age >= 18)</span>",
+        "diff": false,
+        "mean": "否定句難以一眼看懂淘汰條件。",
+        "why": "不易維護的負向邏輯。",
+        "alt": "難讀條件。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">fail</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">score</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">60</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">or</span> <span class=\"token-op\">(</span><span class=\"token-ident\">age</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">18</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># ✅ 笛摩根化簡：分數不夠 或 年齡不足</span>",
+        "diff": true,
+        "mean": "改寫為「不及格」或「未成年」，一眼看透淘汰原因！",
+        "why": "笛摩根化簡為正向易讀條件。",
+        "alt": "fail 為 True。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"是否未達標:\"</span>, <span class=\"token-ident\">fail</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出結果 True。",
+        "why": "驗證成功。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "是否未達標: True",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "程式碼可讀性",
+        "type": "good",
+        "text": "<strong>重構大師的心法</strong>：人類大腦不擅長理解雙重否定。運用笛摩根定律將外層的 <code class=\"code-inline\">not</code> 拆開化簡，可以讓 APCS 觀念題的閱讀速度提升三倍！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷一：笛摩根漏改連接詞（最慘失分）",
+    "titleEn": "Negation Trap: Forgetting to Flip and/or",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.6 APCS 考場地雷——笛摩根否定遺漏反轉運算子",
+    "predictQuiz": {
+      "question": "預測思考：將 not (x > 0 and y > 0) 展開改寫，下列何者才是正確的等價值？",
+      "options": [
+        "x <= 0 and y <= 0（直接把大於改小於等於，中間保留 and）",
+        "x <= 0 or y <= 0（大於改小於等於，且中間的 and 必須翻轉為 or！）"
+      ],
+      "correct": 1,
+      "explanation": "APCS 觀念題超級失分王！考生常直覺將負號套進各條件（x <= 0, y <= 0），卻忘記「中間的 and 也必須反轉成 or」！只要其中一個條件不滿足就是非真，必須用 or 連接！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span>, <span class=\"token-op\">-</span><span class=\"token-number\">2</span>  <span class=\"token-comment\"># x 是正數，y 不是正數</span>",
+        "diff": false,
+        "mean": "x > 0 成立，y > 0 不成立。",
+        "why": "測試改寫對錯。",
+        "alt": "x=5, y=-2"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">origin</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">y</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>      <span class=\"token-comment\"># 原始式子：算出 True</span>",
+        "diff": false,
+        "mean": "5>0 and -2>0 為 False，not False 為 True！",
+        "why": "基準值。",
+        "alt": "origin = True"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">wrong</span>  <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">y</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>      <span class=\"token-comment\"># 💥 踩雷：漏翻 and！算出 False！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "5<=0 為 False，False and ... 算成 False！答案完全相反！",
+        "why": "忘了將 and 翻轉為 or。",
+        "alt": "💥 算錯！"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">correct</span><span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">or</span> <span class=\"token-ident\">y</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>       <span class=\"token-comment\"># ✅ 正解：and 翻轉為 or，算出 True！</span>",
+        "diff": true,
+        "mean": "正確寫法：5<=0 (False) or -2<=0 (True) 算出 True！",
+        "why": "符合笛摩根定律。",
+        "alt": "✅ 算對！"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">origin</span>, <span class=\"token-ident\">wrong</span>, <span class=\"token-ident\">correct</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 True False True，證明漏改連接詞導致致命錯誤！",
+        "why": "對照驗證。",
+        "alt": "輸出 True False True。"
+      }
+    ],
+    "output": "True False True",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "致命漏改",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 考場觀念題殺手</span> 展開 <code class=\"code-inline\">not (A and B)</code> 時，<strong>連接詞一定要同步對調（and ⇄ or）</strong>！這是 APCS 觀念題每屆必出的經典誘答陷阱！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：負號進括號，且或必對調！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷二：反轉比較符號時忘記等號",
+    "titleEn": "Boundary Trap: Forgetting the Equal Sign",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4.7 APCS 考場地雷——邊界符號反轉遺漏等號",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>",
+        "diff": false,
+        "mean": "x 剛好踩在邊界 10。",
+        "why": "極端邊界測試。",
+        "alt": "x = 10"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">origin</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span>   <span class=\"token-comment\"># 10 > 10 為 False，not False 為 True！</span>",
+        "diff": false,
+        "mean": "原始式子回傳 True（10 並不大於 10）。",
+        "why": "基準值。",
+        "alt": "origin = True"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">wrong</span>  <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span>        <span class=\"token-comment\"># 💥 粗心：大於直接改小於，漏掉等號！算出 False！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "10 < 10 為 False，邊界值 10 直接漏接！",
+        "why": "嚴重的差一邊界錯誤（Off-by-One）。",
+        "alt": "💥 算錯！"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">correct</span><span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span>       <span class=\"token-comment\"># ✅ 正解：嚴格補上小於等於 <=！算出 True！</span>",
+        "diff": true,
+        "mean": "10 <= 10 為 True，與原始式完全一致！",
+        "why": "正確對偶反轉。",
+        "alt": "✅ 算對！"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">origin</span>, <span class=\"token-ident\">wrong</span>, <span class=\"token-ident\">correct</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 True False True，邊界漏等號造成全盤皆輸！",
+        "why": "輸出檢驗。",
+        "alt": "輸出 True False True。"
+      }
+    ],
+    "output": "True False True",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "等號守恆",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 邊界等號定律</span> 原式如果<strong>沒有等號</strong>（如 <code class=\"code-inline\">&gt;</code>），反轉後<strong>一定有等號</strong>（<code class=\"code-inline\">&lt;=</code>）！原式如果有等號，反轉後一定沒有等號！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：無等變有等，有等變無等！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.4 綜合驗收：邏輯化簡大師",
+    "titleEn": "Graduation: De Morgan Simplification Master",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.4 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">15</span>",
+        "diff": false,
+        "mean": "測試數字 15。",
+        "why": "綜合條件簡化檢驗。",
+        "alt": "n = 15"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">is_invalid</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">or</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">20</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "笛摩根化簡「不在 10 到 20 之間」：小於 10 或 大於 20！",
+        "why": "正向乾淨邏輯。",
+        "alt": "計算 is_invalid。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"超出 [10, 20] 區間:\"</span>, <span class=\"token-ident\">is_invalid</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 False（15 剛好在區間內），邏輯化簡通關！",
+        "why": "驗證成功。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "超出 [10, 20] 區間: False",
+    "completionCard": {
+      "badge": "🔮 邏輯化簡大師：笛摩根破局通關！",
+      "summary": "你已經精通了笛摩根兩大定律，學會將晦澀的 not 否定句優雅反轉為正向邏輯，並牢牢掌握了「且或互換」與「等號對偶」兩大考場防錯鐵律！",
+      "nextUnit": "5.5 分支控制結構（if, if-else, if-elif-else）"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-4",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-4_demorgans_laws.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

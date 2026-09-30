@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.2 邏輯運算子（and, or, not） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "邏輯交集 and——兩者皆真才為真",
+    "titleEn": "Logical AND: Both Conditions True",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.1 邏輯交集運算子：and（且）——兩全其美與嚴格門檻",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">age</span>, <span class=\"token-ident\">has_ticket</span> <span class=\"token-op\">=</span> <span class=\"token-number\">18</span>, <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "設定年齡 18 歲且持有入場券。",
+        "why": "雙重條件檢驗情境。",
+        "alt": "賦值變數。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">can_enter</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">age</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">18</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">has_ticket</span>",
+        "diff": true,
+        "mean": "兩邊條件皆為 True，and 運算結果為 True！",
+        "why": "and 運算子代表交集（且）。",
+        "alt": "can_enter 為 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"准許入場:\"</span>, <span class=\"token-ident\">can_enter</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出結果 True。",
+        "why": "輸出檢驗結果。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "准許入場: True",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "嚴格交集",
+        "type": "concept",
+        "text": "<strong>and 嚴格守門員</strong>：<code class=\"code-inline\">and</code> 要求兩邊條件都必須是 <code class=\"code-inline\">True</code>，結果才會是 <code class=\"code-inline\">True</code>。只要其中一邊為假，全盤皆假！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：AND 門檻高，兩真才過關！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "邏輯聯集 or——任一達標即為真",
+    "titleEn": "Logical OR: At Least One True",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.2 邏輯聯集運算子：or（或）——暢通無阻與單一達標",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">is_weekend</span>, <span class=\"token-ident\">is_holiday</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>, <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "不是週末，但是國定假日。",
+        "why": "休假判定條件。",
+        "alt": "賦值變數。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">can_rest</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">is_weekend</span> <span class=\"token-keyword\">or</span> <span class=\"token-ident\">is_holiday</span>",
+        "diff": true,
+        "mean": "只要其中一項成立（is_holiday 為 True），or 就回傳 True！",
+        "why": "or 運算子代表聯集（或）。",
+        "alt": "can_rest 為 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"今日放假:\"</span>, <span class=\"token-ident\">can_rest</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出結果 True。",
+        "why": "輸出結果。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "今日放假: True",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "寬鬆聯集",
+        "type": "concept",
+        "text": "<strong>or 寬鬆保證</strong>：<code class=\"code-inline\">or</code> 只要左右兩邊任一條件為 <code class=\"code-inline\">True</code>，結果就是 <code class=\"code-inline\">True</code>！只有在兩邊都為 <code class=\"code-inline\">False</code> 時才會是 <code class=\"code-inline\">False</code>。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：OR 門檻低，一真就放行！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "邏輯否定 not——顛倒黑白的黑白濾鏡",
+    "titleEn": "Logical NOT: Inverting Truth Values",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.3 邏輯否定運算子：not（非）——顛倒真假的黑白濾鏡",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">is_raining</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>",
+        "diff": false,
+        "mean": "目前沒有下雨。",
+        "why": "設定狀態。",
+        "alt": "is_raining = False"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">go_picnic</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">is_raining</span>",
+        "diff": true,
+        "mean": "not False 翻轉為 True，去野餐成立！",
+        "why": "not 是一元邏輯否定運算子。",
+        "alt": "go_picnic 為 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"適合野餐:\"</span>, <span class=\"token-ident\">go_picnic</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 True。",
+        "why": "輸出翻轉結果。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "適合野餐: True",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "黑白顛倒",
+        "type": "concept",
+        "text": "<strong>not 的翻轉力量</strong>：<code class=\"code-inline\">not True</code> 變成 <code class=\"code-inline\">False</code>；<code class=\"code-inline\">not False</code> 變成 <code class=\"code-inline\">True</code>。就像電燈開關被按下，永遠給出相反的狀態。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：NOT 是翻轉鏡，真變假來假變真！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "複合邏輯優先級——not > and > or 鐵律",
+    "titleEn": "Operator Precedence: not > and > or",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.4 複合邏輯與優先級鐵律：not > and > or",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span> <span class=\"token-keyword\">or</span> <span class=\"token-keyword\">False</span> <span class=\"token-keyword\">and</span> <span class=\"token-keyword\">False</span>",
+        "diff": true,
+        "mean": "先算 and：(False and False) 為 False；再算 or：True or False 為 True！",
+        "why": "and 優先級大於 or，不是純由左至右算！",
+        "alt": "res 為 True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 輸出 True</span>",
+        "diff": true,
+        "mean": "印出優先級裁決結果 True。",
+        "why": "證明先 and 後 or。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "階層秩序",
+        "type": "concept",
+        "text": "<strong>三大邏輯階層</strong>：<code class=\"code-inline\">not</code> 優先級最高（類似負號），<code class=\"code-inline\">and</code> 次之（類似乘法），<code class=\"code-inline\">or</code> 最低（類似加法）。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先非後且再或，括號搶第一！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "小括號王牌——強行掌控執行順序",
+    "titleEn": "Parentheses Control: Overriding Precedence",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.4 複合邏輯與優先級鐵律：not > and > or",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">ans1</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span> <span class=\"token-keyword\">or</span> <span class=\"token-keyword\">False</span> <span class=\"token-keyword\">and</span> <span class=\"token-keyword\">False</span>    <span class=\"token-comment\"># 預設：先算 and → True</span>",
+        "diff": false,
+        "mean": "先算 False and False 得 False，再算 True or False 得 True。",
+        "why": "預設優先級。",
+        "alt": "ans1 = True"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">ans2</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-keyword\">True</span> <span class=\"token-keyword\">or</span> <span class=\"token-keyword\">False</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">and</span> <span class=\"token-keyword\">False</span>  <span class=\"token-comment\"># 括號：先算 or → False</span>",
+        "diff": true,
+        "mean": "括號先算 (True or False) 得 True，再算 True and False 得 False！",
+        "why": "小括號強制奪回最高優先權。",
+        "alt": "ans2 = False"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">ans1</span>, <span class=\"token-ident\">ans2</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出對照結果：True 與 False！一組括號翻轉命運！",
+        "why": "展示括號威力和重要性。",
+        "alt": "輸出 True False。"
+      }
+    ],
+    "output": "True False",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "清晰防錯",
+        "type": "good",
+        "text": "<strong>APCS 最佳實務</strong>：在複雜邏輯中，不要仰賴大腦去背優先級，<strong>主動加上小括號</strong>不僅能確保邏輯 100% 正確，還能讓考卷閱讀性大幅提升！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "邏輯代數實戰——純邏輯構建互斥或 XOR",
+    "titleEn": "Logic Algebra: Building XOR from Pure Logic",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.5 邏輯代數實戰：互斥或（XOR，Exclusive OR）的純邏輯構建",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">A</span>, <span class=\"token-ident\">B</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>, <span class=\"token-keyword\">False</span>",
+        "diff": false,
+        "mean": "設定 A 為真，B 為假。",
+        "why": "測試相異成立之 XOR。",
+        "alt": "A, B 賦值。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">xor_result</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A</span> <span class=\"token-keyword\">or</span> <span class=\"token-ident\">B</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">and</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">B</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "相異為真：至少一個成立，但不能兩者同時成立！",
+        "why": "經典 XOR 邏輯代數公式。",
+        "alt": "算出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"互斥或結果:\"</span>, <span class=\"token-ident\">xor_result</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 True。",
+        "why": "驗證成功。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "互斥或結果: True",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "互斥或本質",
+        "type": "concept",
+        "text": "<strong>XOR 的白話含義</strong>：你和朋友去吃冰，「你吃或他吃，但不能兩人都吃」。這就是 (A or B) 且 not (A and B)！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷一：口語直譯陷阱 if x == 1 or 2:",
+    "titleEn": "The Verbal Trap: if x == 1 or 2",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.6 APCS 考場地雷——口語與程式邏輯陷阱",
+    "predictQuiz": {
+      "question": "預測思考：若 x 為 5，執行 if x == 1 or 2: 時，條件會成立嗎？",
+      "options": [
+        "不成立，因為 5 既不等於 1 也不等於 2",
+        "永遠成立！因為 2 在 Python 中是非零數值，被判定為 True，導致 or 永遠成立！"
+      ],
+      "correct": 1,
+      "explanation": "初學者最大死穴！if x == 1 or 2 不是「x 等於 1 或 2」，而是被切成 (x == 1) or (2)！因為非零整數 2 在布林判斷中恆為真（True），所以這個 if 永遠成立！正確寫法是 if x == 1 or x == 2: 或 if x in (1, 2):！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span>",
+        "diff": false,
+        "mean": "變數 x 為 5，既不是 1 也不是 2。",
+        "why": "準備測試條件陷阱。",
+        "alt": "x = 5"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 💥 致命口語毒藥：(x == 1) or (2) → False or True → 恆為 True！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "2 是非零真值，導致整個式子永遠是 True！",
+        "why": "or 左右兩側是獨立運算元。",
+        "alt": "大雷！"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">wrong</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">or</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": true,
+        "mean": "算出數值 2（真值），條件永遠放行！",
+        "why": "短路回傳右側非零值。",
+        "alt": "wrong 得到 2。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">correct</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">or</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># ✅ 正解：兩邊都要完整寫出比對式</span>",
+        "diff": true,
+        "mean": "正確寫法：False or False 得到安全正確的 False！",
+        "why": "嚴格宣告完整布林比較。",
+        "alt": "correct 為 False。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-ident\">wrong</span><span class=\"token-op\">)</span>, <span class=\"token-ident\">correct</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 True 與 False！口語化寫法害你完全失分！",
+        "why": "驗證錯誤因果。",
+        "alt": "輸出 True False。"
+      }
+    ],
+    "output": "True False",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "口語致命傷",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 實作題最慘 WA</span> 人類口語說「如果 x 是 1 或是 2」，直覺寫成 <code class=\"code-inline\">x == 1 or 2</code>。請記住，電腦沒有人類的語意理解能力，<strong>or 的兩側必須是獨立完整的布林運算式</strong>！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：OR 兩側要完整，省略變數全皆真！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷二：not 的結合性盲區",
+    "titleEn": "NOT Precedence Trap: not x == y",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2.7 APCS 考場地雷——not 運算子的結合盲區",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>",
+        "diff": false,
+        "mean": "x 為 10，y 為 20。",
+        "why": "測試比較運算與 not 的結合。",
+        "alt": "賦值變數。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">y</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": true,
+        "mean": "注意！比較運算子 (==) 優先於 not！先算 x == y 得 False，not False 算出 True！",
+        "why": "比較運算子高於邏輯運算子。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">y</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "若加括號先算 not x：not 10 得 False，False == 20 算出 False！",
+        "why": "不同括號造成完全相反的結果。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "True\nFalse",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "比較先於邏輯",
+        "type": "concept",
+        "text": "<strong>運算子總優先級階梯</strong>：<code class=\"code-inline\">算術 (+ - * /) &gt; 比較 (== &gt; &lt;) &gt; not &gt; and &gt; or</code>。先比完大小，才輪到 not 翻轉！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先比大小再 NOT，括號明確保平安！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.2 綜合驗收：邏輯指揮官",
+    "titleEn": "Graduation: Logic Commander Badge",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.2 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">is_student</span>, <span class=\"token-ident\">has_coupon</span>, <span class=\"token-ident\">is_vip</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>, <span class=\"token-keyword\">False</span>, <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "具備學生身分與 VIP，無優惠券。",
+        "why": "複雜邏輯驗收實境。",
+        "alt": "設定身分旗標。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">can_discount</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">is_vip</span> <span class=\"token-keyword\">or</span> <span class=\"token-op\">(</span><span class=\"token-ident\">is_student</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">has_coupon</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "VIP 直接享受折扣，或同時具備學生與優惠券！",
+        "why": "複合條件精準掌控。",
+        "alt": "can_discount 為 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"符合優惠資格:\"</span>, <span class=\"token-ident\">can_discount</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出判定結果，恭喜通關！",
+        "why": "輸出檢驗。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "符合優惠資格: True",
+    "completionCard": {
+      "badge": "🧭 邏輯指揮官：複合條件組合通關！",
+      "summary": "你已精通 and、or、not 三大邏輯運算子的優先級階層，能優雅組裝 XOR 互斥或，並徹底瓦解了 if x == 1 or 2 的口語奪命地雷！",
+      "nextUnit": "5.3 布林型態（bool）與真假值規則"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-2_logical_operators_and_or_not.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

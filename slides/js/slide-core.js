@@ -61,13 +61,13 @@ const courseCurriculum = [
     id: "ch5",
     title: "第五章 邏輯表示式、布林值與條件分支",
     sections: [
-      { id: "sec5-1", title: "5.1 比較運算子與連續比較", available: false },
-      { id: "sec5-2", title: "5.2 邏輯運算子（and, or, not）", available: false },
-      { id: "sec5-3", title: "5.3 布林型態（bool）與真假值規則", available: false },
-      { id: "sec5-4", title: "5.4 笛摩根定律的邏輯改寫", available: false },
-      { id: "sec5-5", title: "5.5 分支控制結構（if, if-else, if-elif-else）", available: false },
-      { id: "sec5-6", title: "5.6 巢狀 if 與短路求值（Short-circuit）", available: false },
-      { id: "sec5-7", title: "5.7 旗標變數（Flag）與狀態控制", available: false }
+      { id: "sec5-1", title: "5.1 比較運算子與連續比較", available: true, url: "PythAPCS123_5-1_comparison_operators_and_chained_comparisons.html" },
+      { id: "sec5-2", title: "5.2 邏輯運算子（and, or, not）", available: true, url: "PythAPCS123_5-2_logical_operators_and_or_not.html" },
+      { id: "sec5-3", title: "5.3 布林型態（bool）與真假值規則", available: true, url: "PythAPCS123_5-3_boolean_type_and_truth_values.html" },
+      { id: "sec5-4", title: "5.4 笛摩根定律的邏輯改寫", available: true, url: "PythAPCS123_5-4_demorgans_laws.html" },
+      { id: "sec5-5", title: "5.5 分支控制結構（if, if-else, if-elif-else）", available: true, url: "PythAPCS123_5-5_branching_if_elif_else.html" },
+      { id: "sec5-6", title: "5.6 巢狀 if 與短路求值（Short-circuit）", available: true, url: "PythAPCS123_5-6_nested_if_and_short_circuit.html" },
+      { id: "sec5-7", title: "5.7 旗標變數（Flag）與狀態控制", available: true, url: "PythAPCS123_5-7_flag_variables_and_state_control.html" }
     ]
   },
   {

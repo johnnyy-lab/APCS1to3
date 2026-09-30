@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.7 旗標變數（Flag）與狀態控制 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "什麼是旗標變數——程式記憶狀態的儀表板指示燈",
+    "titleEn": "What is a Flag: Status Indicators in Code",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.1 什麼是旗標變數——程式記憶狀態的儀表板指示燈",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">85</span>",
+        "diff": false,
+        "mean": "設定學生成績為 85 分。",
+        "why": "受檢驗之輸入數值。",
+        "alt": "成績 85。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">has_passed</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>      <span class=\"token-comment\"># 旗標變數初始設為 False</span>",
+        "diff": true,
+        "mean": "建立布林變數 has_passed 作為狀態旗標，預設未及格。",
+        "why": "初始化指示燈狀態為關閉。",
+        "alt": "初始化旗標為 False。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "檢查成績是否達標及格門檻。",
+        "why": "觸發條件判定。",
+        "alt": "及格檢查。"
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">has_passed</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>    <span class=\"token-comment\"># 條件成立，點亮指示燈</span>",
+        "diff": true,
+        "mean": "一旦滿足條件，將旗標改為 True（點亮綠燈）。",
+        "why": "狀態更新並鎖定。",
+        "alt": "旗標升起。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"是否及格:\"</span>, <span class=\"token-ident\">has_passed</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "在分支結構結束後，根據旗標狀態印出最終結果。",
+        "why": "延遲至適當時機統整輸出。",
+        "alt": "輸出旗標狀態。"
+      }
+    ],
+    "output": "是否及格: True",
+    "notes": [
+      {
+        "lines": [
+          2,
+          4
+        ],
+        "lineText": "旗標本質",
+        "type": "concept",
+        "text": "旗標（Flag）就像汽車儀表板上的故障燈或安全帶警示燈，用一個布林變數在整個程式執行流程中「記錄某件事是否曾經發生過」。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "邏輯解耦",
+        "type": "pedagogy",
+        "text": "將「條件判斷」與「結果輸出」拆開處理，能大幅提升程式架構的彈性與乾淨度。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "旗標的生命週期——歸零初始化、條件觸發與狀態鎖定",
+    "titleEn": "Lifecycle of a Flag: Init, Trigger, Latch",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.2 旗標的生命週期——歸零初始化、條件觸發與狀態鎖定",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">found</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>                 <span class=\"token-comment\"># 1. 歸零初始化（Default OFF）</span>",
+        "diff": false,
+        "mean": "第一階段：於檢驗開始前，給予明確的預設布林初值。",
+        "why": "生命週期起點，避免未宣告直接使用。",
+        "alt": "歸零初值。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">42</span>",
+        "diff": false,
+        "mean": "待檢查的數值 x 為 42。",
+        "why": "測試資料。",
+        "alt": "指定 x 為 42。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">%</span> <span class=\"token-number\">7</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>              <span class=\"token-comment\"># 2. 條件檢驗</span>",
+        "diff": false,
+        "mean": "第二階段：檢驗特定事件（42 是否能被 7 整除）。",
+        "why": "觸發條件判斷。",
+        "alt": "整除判定。"
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">found</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>              <span class=\"token-comment\"># 3. 狀態觸發與鎖定（Latch ON）</span>",
+        "diff": true,
+        "mean": "第三階段：事件發生，升起旗標；後續若無特別需求則不再復位降旗。",
+        "why": "單向狀態切換。",
+        "alt": "鎖定旗標為 True。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">found</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "第四階段：後續邏輯只需讀取 found 旗標狀態即可定奪分支。",
+        "why": "狀態消費與後續決策。",
+        "alt": "檢查旗標狀態。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"找到符合條件的數字！\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "旗標為真時印出成功訊息。",
+        "why": "結果呈現。",
+        "alt": "印出找到。"
+      }
+    ],
+    "output": "找到符合條件的數字！",
+    "notes": [
+      {
+        "lines": [
+          1,
+          4
+        ],
+        "lineText": "單向鎖存 (Latch)",
+        "type": "law",
+        "text": "在許多搜尋或驗證場景中，旗標常具備「只升不降」的鎖存性質：一旦有任何一次滿足條件就鎖定為 True，不再被後續判斷降為 False。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "單一出口原則——以旗標統籌多分支最終輸出",
+    "titleEn": "Single Exit Point: Centralized Decisions with Flags",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.3 單一出口原則——以旗標統籌多分支最終輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">age</span>, <span class=\"token-ident\">has_ticket</span>, <span class=\"token-ident\">is_vip</span> <span class=\"token-op\">=</span> <span class=\"token-number\">16</span>, <span class=\"token-keyword\">False</span>, <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "設定進場顧客的三項條件屬性。",
+        "why": "多重規則評估情境。",
+        "alt": "初始化客觀條件。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">can_enter</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>            <span class=\"token-comment\"># 預設不得入場</span>",
+        "diff": true,
+        "mean": "預設入場權限旗標為 False（零信任原則）。",
+        "why": "安全防禦式初始化。",
+        "alt": "預設禁止。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">is_vip</span><span class=\"token-op\">:</span>                     <span class=\"token-comment\"># 規則 A：VIP 免票直接入場</span>",
+        "diff": false,
+        "mean": "規則一：若身分為 VIP，給予通行資格。",
+        "why": "特許途徑。",
+        "alt": "VIP 判定。"
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-ident\">can_enter</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "更新入場旗標為 True。",
+        "why": "特許升旗。",
+        "alt": "許可入場。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">elif</span> <span class=\"token-ident\">has_ticket</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">age</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">18</span><span class=\"token-op\">:</span> <span class=\"token-comment\"># 規則 B：一般民眾須成年且持票</span>",
+        "diff": false,
+        "mean": "規則二：一般觀眾須同時持票且年滿 18 歲。",
+        "why": "常規途徑。",
+        "alt": "一般門檻。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">can_enter</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "滿足常規門檻，同樣更新旗標為 True。",
+        "why": "常規升旗。",
+        "alt": "許可入場。"
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-comment\"># 單一出口集中決策與輸出</span>",
+        "diff": true,
+        "mean": "全體分支判定完畢後，在程式碼唯一出口做出統整回應。",
+        "why": "提高維護性，杜絕隨處 print 的混亂。",
+        "alt": "集中判斷。"
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"入場許可\"</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">can_enter</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">\"拒絕進入\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "根據 can_enter 旗標印出單一出口決策結果。",
+        "why": "簡潔優雅的統一輸出。",
+        "alt": "三元運算子單一輸出。"
+      }
+    ],
+    "output": "入場許可",
+    "notes": [
+      {
+        "lines": [
+          7,
+          8
+        ],
+        "lineText": "單一出口 (Single Exit)",
+        "type": "law",
+        "text": "不在每個 if / elif 分支內急著寫 print，而是將決定記錄於旗標，最後由單一區塊負責輸出。這在 APCS 複雜題型中能確保輸出格式整齊不漏字。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "多旗標狀態組合——多項指標聯合會審",
+    "titleEn": "Combining Multiple Flags: Multi-Criteria Check",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.4 多旗標狀態組合——多項指標聯合會審",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">has_doc</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>               <span class=\"token-comment\"># 指標 1：文件齊備</span>",
+        "diff": false,
+        "mean": "設定第一個檢驗指標為已齊備。",
+        "why": "分項狀態一。",
+        "alt": "文件齊全。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">passed_exam</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>           <span class=\"token-comment\"># 指標 2：筆試合格</span>",
+        "diff": false,
+        "mean": "設定第二個檢驗指標為合格。",
+        "why": "分項狀態二。",
+        "alt": "考試合格。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">has_violation</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>         <span class=\"token-comment\"># 指標 3：無違規前科</span>",
+        "diff": false,
+        "mean": "設定第三個檢驗指標為無重大違規。",
+        "why": "分項狀態三（排除型）。",
+        "alt": "無違規紀錄。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">is_admitted</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">has_doc</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">passed_exam</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-keyword\">not</span> <span class=\"token-ident\">has_violation</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "總審查旗標 = 指標1 成立 and 指標2 成立 and 非指標3。",
+        "why": "多旗標邏輯運算合成總結指標。",
+        "alt": "旗標組合運算。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">is_admitted</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "檢查總審查旗標是否全員過關。",
+        "why": "最終門檻過濾。",
+        "alt": "核准判定。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"恭喜獲得正取資格！\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "滿足條件印出錄取賀詞。",
+        "why": "成功輸出。",
+        "alt": "印出錄取。"
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "任一指標未達標之備援分支。",
+        "why": "未通過處置。",
+        "alt": "未通過分支。"
+      },
+      {
+        "num": 8,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"審查未通過，資格不符。\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "印出資格不符通知。",
+        "why": "失敗輸出。",
+        "alt": "印出不符。"
+      }
+    ],
+    "output": "恭喜獲得正取資格！",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "合成旗標",
+        "type": "tip",
+        "text": "多項分項指標各自用一個布林旗標表示，最後用 and / or 運算合成一組「總決策旗標」，語義極其清爽，除錯時也能精準定位是哪一項指標沒通過。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "APCS 實作經典模式——c461 前哨戰：IMPOSSIBLE 無解防禦輸出",
+    "titleEn": "APCS Pattern: c461 IMPOSSIBLE Fallback Output",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.5 APCS 實作經典模式——c461 前哨戰：IMPOSSIBLE 無解防禦輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">matched</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>              <span class=\"token-comment\"># 旗標：記錄是否有任一規則成功配對</span>",
+        "diff": true,
+        "mean": "初始化 matched 旗標為 False，防範無任何解的狀況。",
+        "why": "APCS 經典無解輸出防禦模式。",
+        "alt": "matched 初始為 False。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span>, <span class=\"token-ident\">target</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>",
+        "diff": false,
+        "mean": "測試輸入：兩操作數皆為 0，預期結果為 1。",
+        "why": "模擬輸入資料。",
+        "alt": "輸入 0, 0, 1。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">y</span><span class=\"token-op\">)</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">target</span><span class=\"token-op\">:</span>      <span class=\"token-comment\"># 檢驗 AND</span>",
+        "diff": false,
+        "mean": "檢驗是否符合 AND 運算子結果。",
+        "why": "第一項候選檢驗。",
+        "alt": "檢驗 AND。"
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"AND\"</span><span class=\"token-op\">)</span>; <span class=\"token-ident\">matched</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "印出 AND 並將 matched 旗標升起為 True。",
+        "why": "配對成功，標記有解。",
+        "alt": "印出 AND 並標記 matched。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-keyword\">or</span> <span class=\"token-ident\">y</span><span class=\"token-op\">)</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">target</span><span class=\"token-op\">:</span>       <span class=\"token-comment\"># 檢驗 OR</span>",
+        "diff": false,
+        "mean": "檢驗是否符合 OR 運算子結果。",
+        "why": "第二項候選檢驗。",
+        "alt": "檢驗 OR。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"OR\"</span><span class=\"token-op\">)</span>; <span class=\"token-ident\">matched</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "印出 OR 並將 matched 旗標升起為 True。",
+        "why": "配對成功，標記有解。",
+        "alt": "印出 OR 並標記 matched。"
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">matched</span><span class=\"token-op\">:</span>              <span class=\"token-comment\"># 若全部候選皆未配對成功</span>",
+        "diff": true,
+        "mean": "檢驗旗標是否仍為 False，若是代表無任何運算子符合。",
+        "why": "防禦性兜底檢查。",
+        "alt": "若無任何配對。"
+      },
+      {
+        "num": 8,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"IMPOSSIBLE\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 IMPOSSIBLE 作為無解預設防禦輸出。",
+        "why": "APCS 真題標準防禦輸出要求。",
+        "alt": "印出 IMPOSSIBLE。"
+      }
+    ],
+    "output": "IMPOSSIBLE",
+    "notes": [
+      {
+        "lines": [
+          1,
+          7,
+          8
+        ],
+        "lineText": "APCS 必考結構",
+        "type": "law",
+        "text": "APCS 第一題實作題（如 c461 邏輯運算子）經常要求「若有多個答案請依序印出；若無解則印出 IMPOSSIBLE 或 -1」。這正是 flag 變數最強大且最標準的實戰舞台！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "APCS 考場地雷一：多筆測資忘記「旗標歸零」幽靈殘留",
+    "titleEn": "Pitfall 1: Forgetting Flag Reset in Multi-Testcases",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.6 APCS 考場地雷一：多筆測資忘記「旗標歸零」幽靈殘留",
+    "predictQuiz": {
+      "question": "在處理多筆測資時，若將 flag = False 寫在全域最外層迴圈之外，第二筆原本「無解」的測資會發生什麼事？",
+      "options": [
+        {
+          "text": "每次迴圈會自動將全域變數重設為預設值，完全不受影響",
+          "isCorrect": false,
+          "reason": "Python 不會自動重設變數，上一輪的值會完整殘留！"
+        },
+        {
+          "text": "旗標殘留上一輪的 True，導致原本無解的測資被誤判為有解",
+          "isCorrect": true,
+          "reason": "賓果！這就是最致命的「幽靈狀態殘留」，導致 APCS 慘遭 WA 扣分！"
+        },
+        {
+          "text": "程式會引發 UnboundLocalError 崩潰終止",
+          "isCorrect": false,
+          "reason": "變數仍然存在，不會報錯，只會默默產生錯誤的幽靈邏輯。"
+        },
+        {
+          "text": "旗標會自動轉型為整數 1",
+          "isCorrect": false,
+          "reason": "布林型態並不會莫名轉型。"
+        }
+      ]
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 致命錯誤：旗標放在迴圈或多筆處理之外，未於每輪歸零</span>",
+        "diff": true,
+        "mean": "致命陷阱：旗標未於新測資開始時重新初始化。",
+        "why": "幽靈殘留根源。",
+        "alt": "錯誤範例。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">has_found</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>              <span class=\"token-comment\"># 假設這是前一筆測資留下的殘存狀態！</span>",
+        "diff": true,
+        "mean": "上一筆測資執行後，has_found 被升起為 True。",
+        "why": "模擬殘存狀態。",
+        "alt": "殘存 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 處理全新的一筆資料（本筆資料實際上完全不符條件）</span>",
+        "diff": false,
+        "mean": "開始處理第二筆測資，且此測資不符合條件。",
+        "why": "新資料進入。",
+        "alt": "新測資流程。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">30</span>",
+        "diff": false,
+        "mean": "第二筆測資 score 為 30 分。",
+        "why": "不及格數值。",
+        "alt": "成績 30。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "條件式檢查不及格，不進入內部區塊。",
+        "why": "條件未觸發。",
+        "alt": "檢查未通過。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">has_found</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "此行未被執行。",
+        "why": "分支略過。",
+        "alt": "未執行。"
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"狀態判定:\"</span>, <span class=\"token-ident\">has_found</span><span class=\"token-op\">)</span>   <span class=\"token-comment\"># 💥 印出 True！幽靈狀態殺人！</span>",
+        "diff": true,
+        "mean": "由於沒歸零，印出殘留的 True，造成嚴重的邏輯誤判！",
+        "why": "慘遭 WA（Wrong Answer）。",
+        "alt": "印出幽靈狀態 True。"
+      }
+    ],
+    "output": "狀態判定: True",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          7
+        ],
+        "lineText": "考場第一地雷",
+        "type": "warning",
+        "text": "每當處理一組新的輸入或迴圈時，請立刻默念：「旗標歸零了嗎？」將 `flag = False` 放在「每組測資的最前端」，杜絕跨筆資料污染！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "APCS 考場地雷二：在多條件判斷中錯誤覆蓋已成立的旗標",
+    "titleEn": "Pitfall 2: Overwriting Triggered Flag with False",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7.7 APCS 考場地雷二：在多條件判斷中錯誤覆蓋已成立的旗標",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">passed_any</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>",
+        "diff": false,
+        "mean": "初始化旗標：記錄是否至少有一項通過。",
+        "why": "起點初始化。",
+        "alt": "初始 False。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 項目一合格，旗標升起</span>",
+        "diff": false,
+        "mean": "第一項合格，升起旗標。",
+        "why": "第一階段觸發。",
+        "alt": "第一項合格。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">passed_any</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "已成功鎖存為 True。",
+        "why": "狀態已成立。",
+        "alt": "升起旗標。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># 項目二不合格，❌ 錯誤寫法：直接用 else 把它改回 False！</span>",
+        "diff": true,
+        "mean": "陷阱：下一道檢驗不合格時，竟在 else 區塊將旗標強制打回 False！",
+        "why": "覆蓋前功盡棄。",
+        "alt": "錯誤邏輯覆蓋。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-number\">20</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "第二項檢驗條件不成立。",
+        "why": "條件為假。",
+        "alt": "條件不成立。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-ident\">passed_any</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "若成立升起（未執行）。",
+        "why": "略過。",
+        "alt": "未執行。"
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "進入不合格之 else 分支。",
+        "why": "進入錯誤覆蓋點。",
+        "alt": "進入 else。"
+      },
+      {
+        "num": 8,
+        "html": "    <span class=\"token-ident\">passed_any</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>          <span class=\"token-comment\"># 💥 前面好不容易升起的 True 被活生生洗掉！</span>",
+        "diff": true,
+        "mean": "致命覆蓋！將先前已成立的狀態抹殺，違背「只要任一項通過」的要求！",
+        "why": "破壞鎖存機制。",
+        "alt": "錯誤覆蓋為 False。"
+      }
+    ],
+    "output": "",
+    "notes": [
+      {
+        "lines": [
+          4,
+          7,
+          8
+        ],
+        "lineText": "單向鎖存律",
+        "type": "law",
+        "text": "若目標是記錄「是否有任一項發生（Existential Check）」，在不符合時「什麼都不要做（不要寫 else: flag = False）」，讓已為 True 的旗標好好保持下去！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.7 綜合驗收：旗標狀態控制與防禦輸出",
+    "titleEn": "Unit 5.7 Capstone: Flag State Control & Defensive Output",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.7 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># APCS 旗標終極防禦式輸出範式</span>",
+        "diff": false,
+        "mean": "展示完整且健全的 APCS 旗標實戰模板。",
+        "why": "標準考場模板示範。",
+        "alt": "防禦範式註解。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">has_sol</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>                 <span class=\"token-comment\"># 1. 測資前端嚴格歸零</span>",
+        "diff": true,
+        "mean": "步驟一：測資最前端嚴格歸零初始化。",
+        "why": "杜絕幽靈殘留。",
+        "alt": "初始化 has_sol。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">15</span>",
+        "diff": false,
+        "mean": "測試數值 val = 15。",
+        "why": "輸入數值。",
+        "alt": "val 為 15。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">val</span> <span class=\"token-op\">%</span> <span class=\"token-number\">3</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>              <span class=\"token-comment\"># 2. 獨立判斷檢驗 A</span>",
+        "diff": false,
+        "mean": "檢驗是否為 3 的倍數。",
+        "why": "候選條件一。",
+        "alt": "檢查 3 的倍數。"
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"DIV_3\"</span><span class=\"token-op\">)</span>; <span class=\"token-ident\">has_sol</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "印出並鎖定 has_sol = True。",
+        "why": "條件成立並升旗。",
+        "alt": "印出 DIV_3 並標記。"
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">val</span> <span class=\"token-op\">%</span> <span class=\"token-number\">5</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>              <span class=\"token-comment\"># 3. 獨立判斷檢驗 B</span>",
+        "diff": false,
+        "mean": "檢驗是否為 5 的倍數。",
+        "why": "候選條件二。",
+        "alt": "檢查 5 的倍數。"
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"DIV_5\"</span><span class=\"token-op\">)</span>; <span class=\"token-ident\">has_sol</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "印出並鎖定 has_sol = True。",
+        "why": "條件成立並升旗。",
+        "alt": "印出 DIV_5 並標記。"
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">has_sol</span><span class=\"token-op\">:</span>                 <span class=\"token-comment\"># 4. 單一出口防禦兜底</span>",
+        "diff": true,
+        "mean": "步驟四：若無任何條件成立，印出安全防禦預設值。",
+        "why": "防禦性輸出保障。",
+        "alt": "無解防禦檢查。"
+      },
+      {
+        "num": 9,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"NONE\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "輸出 NONE 兜底。",
+        "why": "防禦輸出。",
+        "alt": "印出 NONE。"
+      }
+    ],
+    "output": "DIV_3\nDIV_5",
+    "completionCard": {
+      "badge": "🚩 旗標掌控者：狀態記憶與單一出口防禦通關！",
+      "summary": "你已經全面精通旗標變數的四部曲生命週期（歸零、觸發、鎖存、消費），掌握了單一出口原則與多旗標合成架構，並能徹底消滅 APCS 考場的「多測資幽靈殘留」與「錯誤覆蓋打回」兩大地雷！",
+      "nextUnit": "6.1 while 迴圈基礎與計數器控制"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          8,
+          9
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-7",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-7_flag_variables_and_state_control.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

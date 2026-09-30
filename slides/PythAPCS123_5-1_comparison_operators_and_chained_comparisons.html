@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.1 比較運算子與連續比較 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "數值大小比較——大於、小於與等於",
+    "titleEn": "Numeric Comparisons: >, <, >=, <=",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.1 數值大小比較——大於（>）、小於（<）、大於等於（>=）、小於等於（<=）",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">85</span>",
+        "diff": false,
+        "mean": "設定考生分數為 85 分。",
+        "why": "準備進行及格門檻評判。",
+        "alt": "賦值變數 score。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "85 大於等於 60，條件成立，產生布林值 True。",
+        "why": ">= 為大於或等於運算子。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">score</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">60</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "85 小於 60 不成立，產生布林值 False。",
+        "why": "< 為小於運算子。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "True\nFalse",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "比較本質",
+        "type": "concept",
+        "text": "<strong>比較運算子的本質</strong>：比較式是向電腦提出的「是非題」，執行後的結果只有兩種：<code class=\"code-inline\">True</code>（真）或 <code class=\"code-inline\">False</code>（假）。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：比較問是非，結果出真假！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "嚴格相等與不相等——雙等號與驚嘆號",
+    "titleEn": "Equality and Inequality: == and !=",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.2 嚴格相等與不相等——雙等號（==）與驚嘆號等號（!=）",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">target</span> <span class=\"token-op\">=</span> <span class=\"token-number\">100</span>",
+        "diff": false,
+        "mean": "設定目標數值 100。",
+        "why": "單等號 = 是賦值輸送帶。",
+        "alt": "賦值變數 target。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">target</span> <span class=\"token-op\">==</span> <span class=\"token-number\">100</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 檢查是否完全相等</span>",
+        "diff": true,
+        "mean": "雙等號 == 評判左右兩邊是否相等，印出 True。",
+        "why": "== 是相等比較運算子。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">target</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">50</span><span class=\"token-op\">)</span>   <span class=\"token-comment\"># 檢查是否不相等</span>",
+        "diff": true,
+        "mean": "驚嘆號等號 != 評判左右是否不同，100 != 50 成立，印出 True。",
+        "why": "!= 代表不等於（Not Equal）。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True\nTrue",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雙等號",
+        "type": "concept",
+        "text": "<strong>雙等號 vs 單等號</strong>：初學者最易混淆！一個等號 <code class=\"code-inline\">=</code> 是「指派數值進箱子」，兩個等號 <code class=\"code-inline\">==</code> 才是「秤秤看兩邊是否一樣重」！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：單等號指派，雙等號比對！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "運算式與優先級——先算術後比較",
+    "titleEn": "Precedence: Arithmetic Before Comparison",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.3 運算式與運算優先級——先算術運算，再進行大小比較",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span> <span class=\"token-op\">+</span> <span class=\"token-number\">5</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">2</span> <span class=\"token-op\">*</span> <span class=\"token-number\">3</span>",
+        "diff": true,
+        "mean": "左邊 3+5=8，右邊 2*3=6，最後比對 8 > 6 得 True。",
+        "why": "算術運算子（+ - * /）優先順序高於比較運算子（> < ==）。",
+        "alt": "計算結果為 True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出最後真假值結果 True。",
+        "why": "驗證優先級順序。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "優先級秩序",
+        "type": "concept",
+        "text": "<strong>先算完再比大小</strong>：在 Python 算式中，算術運算（加減乘除）永遠先算完，左右兩側得到具體數值後，才會進行比較運算。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：算術先算完，比較殿後看！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "文字字串比較——字典序與 ASCII 編碼",
+    "titleEn": "String Comparison: Lexicographical Order",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.4 文字字串的比較——字典序（Lexicographical Order）與大小寫 ASCII",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"apple\"</span> <span class=\"token-op\">&lt;</span> <span class=\"token-string\">\"banana\"</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 依開頭字元順序比對</span>",
+        "diff": false,
+        "mean": "'a' 的 ASCII 為 97，'b' 為 98，97 < 98 為 True。",
+        "why": "字串由左至右逐字元比較字元編碼值。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"app\"</span> <span class=\"token-op\">&lt;</span> <span class=\"token-string\">\"apple\"</span><span class=\"token-op\">)</span>      <span class=\"token-comment\"># 前綴完全相同，短者較小</span>",
+        "diff": true,
+        "mean": "前 3 個字元皆為 app，較短的字串小於較長的字串，為 True。",
+        "why": "前綴相同時長度短者視為較小。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True\nTrue",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "字典序規則",
+        "type": "concept",
+        "text": "<strong>字典序比對法</strong>：就像翻英文字典一樣，先從第 1 個字元比對 ASCII 碼大小，若相同才比第 2 個；若前綴完全相同，較短的字串排在前面。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：字串照字典，逐字比字元！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "大小寫 ASCII 陷阱——大寫字母永遠小於小寫",
+    "titleEn": "Case Sensitivity: 'A' < 'a' in ASCII",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.4 文字字串的比較——字典序（Lexicographical Order）與大小寫 ASCII",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"Zoo\"</span> <span class=\"token-op\">&lt;</span> <span class=\"token-string\">\"apple\"</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 震驚！Zoo 竟然小於 apple？</span>",
+        "diff": true,
+        "mean": "'Z' 的 ASCII 為 90，'a' 的 ASCII 為 97，90 < 97 成立！",
+        "why": "ASCII 表中所有大寫字母 (65-90) 皆排在小寫字母 (97-122) 前方！",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">ord</span><span class=\"token-op\">(</span><span class=\"token-string\">\"Z\"</span><span class=\"token-op\">)</span>, <span class=\"token-builtin\">ord</span><span class=\"token-op\">(</span><span class=\"token-string\">\"a\"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 用 ord() 驗證 ASCII 密碼</span>",
+        "diff": false,
+        "mean": "印出兩者的整數編碼值：90 與 97。",
+        "why": "證明數字大小是比較的真正依據。",
+        "alt": "輸出 90 97。"
+      }
+    ],
+    "output": "True\n90 97",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "大小寫顛倒",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 考場排序大忌</span> 許多初學者以為 Z 在 A 後面所以比較大，但在 ASCII 中<strong>所有大寫字母（A-Z）編碼都在小寫（a-z）之前</strong>！因此任何大寫開頭字串都小於小寫開頭！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：大寫碼在前，小寫數更大！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "連續比較式——Python 獨家黑科技",
+    "titleEn": "Chained Comparisons: 1 < x < 10",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.5 Python 獨家黑科技——連續比較式（Chained Comparisons，如 1 < x < 9）",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span>",
+        "diff": false,
+        "mean": "設定 x 為 5。",
+        "why": "測試範圍判斷。",
+        "alt": "x = 5"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "Python 支援數學課本寫法！等價於 (1 < x) and (x < 10)。",
+        "why": "連續比較式（Chained Comparison）。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "其他語言（如 C/C++）必須寫 and，Python 寫法更加優雅！",
+        "why": "語法糖等價證明。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True\nTrue",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "數學連比",
+        "type": "concept",
+        "text": "<strong>優雅的範圍夾擊</strong>：在 C/Java 中寫 <code class=\"code-inline\">1 < x < 10</code> 會引發邏輯大錯，但 Python 原生支援<strong>連續比較式</strong>，自動拆解為 <code class=\"code-inline\">(1 < x) and (x < 10)</code>！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：連比像數學，左右夾擊通！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷一：單等號指派 vs 雙等號比對",
+    "titleEn": "Assignment vs Comparison: = vs ==",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.6 APCS 考場地雷——單等號賦值 vs 雙等號比對",
+    "predictQuiz": {
+      "question": "預測思考：在條件式中若寫 if x = 5:（把雙等號誤寫為單等號），執行時會發生什麼事？",
+      "options": [
+        "順利執行，Python 自動將 x 改為 5 並判定為 True",
+        "立即引發語法錯誤（SyntaxError），直譯器直接拒絕執行！"
+      ],
+      "correct": 1,
+      "explanation": "致命錯誤！在 Python 中，單等號 = 是敘述句（Statement），絕不可放在條件判斷運算式中！直譯器會直接丟出 SyntaxError: invalid syntax 拒絕執行！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>",
+        "diff": false,
+        "mean": "變數 x 儲存 10。",
+        "why": "準備測試條件判斷。",
+        "alt": "x = 10"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># ❌ 考場超級大雷：寫成單等號 if x = 5: 直接爆 SyntaxError！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "條件式內絕不可使用單等號賦值！",
+        "why": "語法嚴格禁止賦值出現在普通條件運算式中。",
+        "alt": "嚴禁單等號！"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ✅ 安全唯一正解：務必使用雙等號 == 進行平等比對</span>",
+        "diff": true,
+        "mean": "正確寫法：使用 == 進行相等判定。",
+        "why": "比較運算子產生布林值。",
+        "alt": "安全牌！"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">==</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 輸出 False，程式安全穩定</span>",
+        "diff": true,
+        "mean": "10 == 5 為 False，安全輸出不崩潰。",
+        "why": "合法布林運算。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "False",
+    "notes": [
+      {
+        "lines": [
+          2,
+          4
+        ],
+        "lineText": "語法大忌",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 考場崩潰紅線</span> C 語言中寫 <code class=\"code-inline\">if (x = 5)</code> 會偷偷賦值造成嚴重邏輯 Bug，而 Python 更加嚴格，直接判定為 <strong>SyntaxError 語法崩潰</strong>！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：條件用雙等，單等引崩潰！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷二：連續比較中的連鎖陷阱",
+    "titleEn": "Chained Trap: Unexpected Equality Check",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1.7 APCS 考場地雷——連續比較式中的連鎖判定陷阱",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-number\">10</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">5</span> <span class=\"token-op\">==</span> <span class=\"token-keyword\">True</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": true,
+        "mean": "你以為先算 10 > 5 得 True 再比 True == True？錯！",
+        "why": "Python 將它拆解為 (10 > 5) and (5 == True)！",
+        "alt": "輸出 False！"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 因為 5 == 1 為 False，所以整個算式變成 False！</span>",
+        "diff": false,
+        "mean": "True 在數值上等於 1，而 5 == 1 當然不成立！",
+        "why": "連續比較會把中間的運算元共享！",
+        "alt": "5 == True 是 False。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">(</span><span class=\"token-number\">10</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span> <span class=\"token-op\">==</span> <span class=\"token-keyword\">True</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># ✅ 解法：加小括號強制隔開</span>",
+        "diff": true,
+        "mean": "加了括號後，先算 (10 > 5) 得到 True，再比 True == True 得到 True！",
+        "why": "小括號中斷連續比較拆解。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "False\nTrue",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "連鎖共享",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 隱形毒藥</span> <code class=\"code-inline\">A &gt; B == C</code> 會被 Python 直譯為 <code class=\"code-inline\">(A &gt; B) and (B == C)</code>！中間的 <code class=\"code-inline\">B</code> 被兩邊共享，絕對不是「左邊算完再比右邊」！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：混用比較式，括號拆兩邊！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.1 綜合驗收：比較大師",
+    "titleEn": "Graduation: Comparison Master Badge",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.1 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>, <span class=\"token-ident\">c</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>",
+        "diff": false,
+        "mean": "多變數指派三數值。",
+        "why": "準備綜合驗收。",
+        "alt": "初始化變數。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">is_sorted</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">a</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">c</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "利用連續比較式一秒判斷三數是否由小排到大！",
+        "why": "連續比較實戰應用。",
+        "alt": "is_sorted 存入 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"排序驗證通過:\"</span>, <span class=\"token-ident\">is_sorted</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出驗證結果，成功通關！",
+        "why": "輸出確認結果。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "排序驗證通過: True",
+    "completionCard": {
+      "badge": "⚖️ 比較大師：數值與字串精準評判通關！",
+      "summary": "你已掌握了 Python 六大比較運算子、ASCII 字典序比對，以及超強大的「連續比較式」，更避開了單等號與連鎖比較的致命考場地雷！",
+      "nextUnit": "5.2 邏輯運算子（and, or, not）"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-1_comparison_operators_and_chained_comparisons.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

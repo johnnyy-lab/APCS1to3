@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.3 布林型態（bool）與真假值規則 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "布林型態本質——True 與 False 是整數的子類",
+    "titleEn": "Boolean Nature: Subclass of Integer",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.1 布林型態本質——True 與 False 的身世之謎與整數繼承特性",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-keyword\">True</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "True 在 Python 底層完全等價於整數 1！",
+        "why": "bool 繼承自 int。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-keyword\">False</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "False 在底層完全等價於整數 0！",
+        "why": "bool 繼承自 int。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-keyword\">True</span> <span class=\"token-op\">+</span> <span class=\"token-keyword\">True</span> <span class=\"token-op\">+</span> <span class=\"token-keyword\">False</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 1 + 1 + 0 = 2！</span>",
+        "diff": true,
+        "mean": "布林值可以直接進行數學相加：1 + 1 + 0 = 2！",
+        "why": "整數特性完全保留。",
+        "alt": "輸出 2。"
+      }
+    ],
+    "output": "True\nTrue\n2",
+    "notes": [
+      {
+        "lines": [
+          1,
+          3
+        ],
+        "lineText": "整數本質",
+        "type": "concept",
+        "text": "<strong>bool 是 int 的孩子</strong>：在 Python 歷史中，<code class=\"code-inline\">bool</code> 是直接繼承自 <code class=\"code-inline\">int</code> 的！<code class=\"code-inline\">True</code> 就是 <code class=\"code-inline\">1</code>，<code class=\"code-inline\">False</code> 就是 <code class=\"code-inline\">0</code>，完全可以參與算術！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：真為一假為零，布林能當數加！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "數值的真假值規則——非零為真，零為假",
+    "titleEn": "Truthiness of Numbers: Non-zero vs Zero",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.2 數值的真假值規則——非零為真、零為假",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-number\">100</span><span class=\"token-op\">)</span>, <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 正負非零數皆為真</span>",
+        "diff": false,
+        "mean": "100 與 -5 都是非零數值，轉為布林值皆為 True！",
+        "why": "任何非零數字都是 Truthy。",
+        "alt": "輸出 True True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">)</span>, <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-number\">0.0</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>    <span class=\"token-comment\"># 零值皆為假</span>",
+        "diff": true,
+        "mean": "不管是整數 0 還是浮點數 0.0，轉為布林值都是 False！",
+        "why": "零值代表虛無，是 Falsy。",
+        "alt": "輸出 False False。"
+      }
+    ],
+    "output": "True True\nFalse False",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "非零即真",
+        "type": "concept",
+        "text": "<strong>數值真假鐵律</strong>：在條件判斷中，只要數值「不是零」（包含負數、小數），一律當作 <code class=\"code-inline\">True</code>；只有數值恰好為「零」（<code class=\"code-inline\">0, 0.0</code>）時，才被判定為 <code class=\"code-inline\">False</code>！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：非零皆為真，唯零判定假！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "文字字串的真假值規則——真空為假，有字為真",
+    "titleEn": "Truthiness of Strings: Empty vs Non-Empty",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.3 文字字串的真假值規則——真空為假、有字為真",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-string\">\"hello\"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 有字元 → True</span>",
+        "diff": false,
+        "mean": "字串長度大於 0，判定為 True。",
+        "why": "非空容器/字串為 Truthy。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-string\">\" \"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>      <span class=\"token-comment\"># 空白鍵也是字元 → True！</span>",
+        "diff": true,
+        "mean": "長度為 1 的空白字元，依然是有字，判定為 True！",
+        "why": "只要 len > 0 就是真。",
+        "alt": "輸出 True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-string\">\"\"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>       <span class=\"token-comment\"># 空字串（長度 0）→ False！</span>",
+        "diff": true,
+        "mean": "完全沒有任何字元的空字串（len = 0），判定為 False！",
+        "why": "空容器/空字串為 Falsy。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "True\nTrue\nFalse",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "真空為假",
+        "type": "concept",
+        "text": "<strong>字串真假值標準</strong>：看的是「長度（len）」。長度為 0 的空字串 <code class=\"code-inline\">\"\"</code> 是假的；包含空格 <code class=\"code-inline\">\" \"</code> 長度為 1，它是真的！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "bool() 照妖鏡——探索萬物真假值本質",
+    "titleEn": "The bool() Function: Type Conversion",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.4 bool() 函數強制轉型——探索萬物的真假值本質",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">falsy_items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span>, <span class=\"token-number\">0.0</span>, <span class=\"token-string\">\"\"</span>, <span class=\"token-keyword\">None</span><span class=\"token-op\">]</span>",
+        "diff": false,
+        "mean": "Python 的四大典型虛無 Falsy 家族成員。",
+        "why": "認識常見假值。",
+        "alt": "假值清單。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-keyword\">None</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 空物件 None 轉為 False</span>",
+        "diff": true,
+        "mean": "None 代表什麼都沒有，轉 bool 為 False。",
+        "why": "None 是假值。",
+        "alt": "輸出 False。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>    <span class=\"token-comment\"># 空串列 [] 轉為 False</span>",
+        "diff": true,
+        "mean": "空串列裡面沒有任何元素，轉 bool 也是 False！",
+        "why": "空容器為 Falsy。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "False\nFalse",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "假值大集合",
+        "type": "concept",
+        "text": "<strong>Python 經典 Falsy 總結</strong>：<code class=\"code-inline\">0</code>, <code class=\"code-inline\">0.0</code>, 空字串 <code class=\"code-inline\">\"\"</code>, 空容器 <code class=\"code-inline\">[]</code>, 空值 <code class=\"code-inline\">None</code>。其餘只要有內容者，全都是 <code class=\"code-inline\">True</code>！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：零與空為假，其餘皆是真！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "布林值數值化黑科技——免條件分支計數神技",
+    "titleEn": "Boolean Arithmetic: Branchless Counting",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.5 布林值數值化運算黑科技——免條件分支的指標計數神技",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">scores</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">85</span>, <span class=\"token-number\">52</span>, <span class=\"token-number\">90</span>, <span class=\"token-number\">60</span>, <span class=\"token-number\">45</span><span class=\"token-op\">]</span>",
+        "diff": false,
+        "mean": "5 位學生的考試成績。",
+        "why": "統計及格（>=60）人數。",
+        "alt": "scores 清單。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">passed_count</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">s</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "s>=60 產生 True(1) 或 False(0)，sum 直接把 1 加總算及格人數！",
+        "why": "利用 True=1 免寫 if 計數。",
+        "alt": "算出及格人數。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"及格人數:\"</span>, <span class=\"token-ident\">passed_count</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出及格人數 3 人，程式碼極致簡潔且執行飛快！",
+        "why": "輸出結果 3。",
+        "alt": "輸出 3。"
+      }
+    ],
+    "output": "及格人數: 3",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "APCS 神技",
+        "type": "radar",
+        "text": "<strong>免分支加速法</strong>：在 APCS 中，利用 <code class=\"code-inline\">sum(條件)</code> 直接統計符合項目的數量，完全不需要寫複雜的 <code class=\"code-inline\">if count += 1</code>，既簡潔又防錯！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷一：字串 \"False\" 的真假值詐騙",
+    "titleEn": "The 'False' String Trap: bool('False') == True",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.6 APCS 考場地雷——字串 \"False\" 與 \"0\" 的真假值陷阱",
+    "predictQuiz": {
+      "question": "預測思考：在 Python 中執行 print(bool(\"False\"))，輸出會是 True 還是 False？",
+      "options": [
+        "False，因為內容清清楚楚寫著 False 啊！",
+        "True！因為 \"False\" 是一個非空字串（長度為 5），非空字串一律為 True！"
+      ],
+      "correct": 1,
+      "explanation": "字串詐騙大雷！bool() 轉型字串時，根本不關心文字內容是什麼，它只看「字串長度是不是 0」！\"False\" 長度是 5，\"0\" 長度是 1，通通是非空字串，全部回傳 True！只有完全沒有字的 \"\" 才是 False！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-string\">\"False\"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 💥 驚呆全場：竟然是 True！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "\"False\" 是長度為 5 的字串，有字就是真！",
+        "why": "字串只看長度，不讀文字語意。",
+        "alt": "輸出 True！"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-string\">\"0\"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>      <span class=\"token-comment\"># 💥 同樣是 True！因為長度為 1！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "\"0\" 是字串包含字元 '0'，非零長度，故為 True！",
+        "why": "不是數值 0，是文字 '0'。",
+        "alt": "輸出 True！"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">)</span>, <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-string\">\"\"</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># ✅ 真正的 False 只有這兩位！</span>",
+        "diff": true,
+        "mean": "純整數 0 與空字串 \"\" 才是真正的 False！",
+        "why": "正確的 Falsy 代表。",
+        "alt": "輸出 False False。"
+      }
+    ],
+    "output": "True\nTrue\nFalse False",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "假字串詐騙",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 考場字串大坑</span> 如果從檔案或使用者輸入讀取字串 <code class=\"code-inline\">s = \"False\"</code>，若直接用 <code class=\"code-inline\">bool(s)</code> 判斷，永遠會得到 <code class=\"code-inline\">True</code>！比對必須用 <code class=\"code-inline\">s == \"True\"</code>！"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：字串非空即為真，文字假亦算成真！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷二：小寫 true 與 false 報錯崩潰",
+    "titleEn": "NameError Trap: true vs True",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3.7 APCS 考場地雷——大小寫敏感 NameError 崩潰",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># C/Java 習慣寫小寫 true / false，在 Python 是致命禁忌！</span>",
+        "diff": false,
+        "mean": "Python 嚴格區分大小寫。",
+        "why": "語法常數規定。",
+        "alt": "大小寫規則。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">flag</span> <span class=\"token-op\">=</span> <span class=\"token-wavy-err\">true</span>   <span class=\"token-comment\"># 💥 NameError: name 'true' is not defined！</span>",
+        "diff": true,
+        "error": true,
+        "mean": "直譯器把小寫 true 當成未定義的變數名稱，立即拋出 NameError！",
+        "why": "Python 布林常數首字母必須大寫。",
+        "alt": "💥 程式崩潰！"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">flag</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>   <span class=\"token-comment\"># ✅ 正解：首字母大寫 True / False</span>",
+        "diff": true,
+        "mean": "只有大寫 T 的 True 與大寫 F 的 False 才是 Python 內建關鍵字！",
+        "why": "正規關鍵字常數。",
+        "alt": "正確寫法。"
+      }
+    ],
+    "output": "<span class=\"output-error\">NameError: name 'true' is not defined</span>",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "大小寫死穴",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 跨語言手滑</span> 習慣寫 C/C++、JavaScript 的考生極易打成小寫 <code class=\"code-inline\">true</code>。在 Python 裡只有首字母大寫的 <code class=\"code-inline\">True</code> 與 <code class=\"code-inline\">False</code>！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：真假頭文字要大，小寫未宣告崩塌！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.3 綜合驗收：真值審判官",
+    "titleEn": "Graduation: Truthiness Judge Badge",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.3 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">inputs</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span>, <span class=\"token-string\">\"code\"</span>, <span class=\"token-string\">\"\"</span>, <span class=\"token-number\">42</span>, <span class=\"token-keyword\">None</span><span class=\"token-op\">]</span>",
+        "diff": false,
+        "mean": "混合多種型態的資料陣列。",
+        "why": "過濾出所有有效真值元素。",
+        "alt": "資料清單。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">valid_count</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">inputs</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "bool(x) 抓出真假，sum 加總出非零有效元素個數！",
+        "why": "布林真假值綜合應用。",
+        "alt": "算出 valid_count。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"有效真值個數:\"</span>, <span class=\"token-ident\">valid_count</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 2（只有 'code' 和 42 是真值），完美通關！",
+        "why": "驗證成果。",
+        "alt": "輸出 2。"
+      }
+    ],
+    "output": "有效真值個數: 2",
+    "completionCard": {
+      "badge": "⚖️ 真值審判官：布林本質透視通關！",
+      "summary": "你已經徹底透視了 Python 布林型態繼承自整數的本質，能自由運用真假值規則簡化條件，並看穿了 \"False\" 字串與大小寫陷阱！",
+      "nextUnit": "5.4 笛摩根定律的邏輯改寫"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-3_boolean_type_and_truth_values.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

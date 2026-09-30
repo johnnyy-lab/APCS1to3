@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.5 分支控制結構（if, if-else, if-elif-else） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "單向選擇 if——冒號與縮排小鴨隊伍",
+    "titleEn": "One-Way if: Colon and Indented Block",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5.1 單向選擇 if 指令——冒號與縮排程式區塊的誕生",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">85</span>",
+        "diff": false,
+        "mean": "分數為 85。",
+        "why": "準備測試及格條件。",
+        "alt": "score = 85"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "如果分數大於等於 60，末尾的冒號 : 代表引領下屬區塊！",
+        "why": "if 條件式與冒號語法。",
+        "alt": "母雞帶隊。"
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"恭喜及格！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "縮排 4 格！只有條件成立時，這行才會執行！",
+        "why": "縮排區塊（Suite）。",
+        "alt": "印出恭喜及格！"
+      }
+    ],
+    "output": "恭喜及格！",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "母雞帶小鴨",
+        "type": "concept",
+        "text": "<strong>縮排的生命力</strong>：Python 以縮排（通常為 4 個空白）代替大括號。冒號 <code class=\"code-inline\">:</code> 是母雞，縮排的指令是小鴨，條件成立母雞才帶著小鴨一起出門！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：條件加冒號，下屬縮四格！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "雙向互斥 if-else——非此即彼的命運分水嶺",
+    "titleEn": "Two-Way if-else: Binary Decision",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5.2 雙向互斥選擇 if-else——非此即彼的命運分水嶺",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">45</span>",
+        "diff": false,
+        "mean": "分數為 45。",
+        "why": "不及格情境。",
+        "alt": "score = 45"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "45 >= 60 不成立（False），跳過此區塊！",
+        "why": "條件不成立。",
+        "alt": "條件為假。"
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"及格\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "被跳過，不執行。",
+        "why": "if 區塊跳過。",
+        "alt": "不執行。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "若條件不成立，必定轉進 else 分支！",
+        "why": "雙向互斥兜底分支。",
+        "alt": "進入 else 分支。"
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"不及格，再加油！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "執行 else 內部指令！",
+        "why": "執行不及格提示。",
+        "alt": "印出不及格，再加油！"
+      }
+    ],
+    "output": "不及格，再加油！",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "非此即彼",
+        "type": "concept",
+        "text": "<strong>互斥分水嶺</strong>：<code class=\"code-inline\">if</code> 與 <code class=\"code-inline\">else</code> 就像一條岔路，程式**永遠只會走其中一條**，絕對不可能兩邊都走，也絕對不可能兩邊都不走！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：非此即彼走一條，else 不帶條件！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "多向互斥 if-elif-else——階梯式分級審查",
+    "titleEn": "Multi-Way if-elif-else: Priority Ladder",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5.3 多向互斥選擇 if-elif-else——階梯式分級審查",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">85</span>",
+        "diff": false,
+        "mean": "成績為 85 分。",
+        "why": "測試等第分級。",
+        "alt": "score = 85"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">90</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "85 >= 90 為假，跳過 A 等第。",
+        "why": "第一階梯未達標。",
+        "alt": "未達 90。"
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"A\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "不執行。",
+        "why": "跳過。",
+        "alt": "跳過。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">elif</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">80</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "elif (else if)：85 >= 80 成立，立即進入執行 B！",
+        "why": "第二階梯達標。",
+        "alt": "達標 80。"
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"B\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 B，並「立刻跳出整個 if 架構」，後續全部略過！",
+        "why": "互斥結構單一出口。",
+        "alt": "輸出 B。"
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>",
+        "diff": false,
+        "mean": "因上方已有 elif 命中，後續 else 直接被略過！",
+        "why": "互斥不重複執行。",
+        "alt": "略過 else。"
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"C\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "不執行。",
+        "why": "略過。",
+        "alt": "略過。"
+      }
+    ],
+    "output": "B",
+    "notes": [
+      {
+        "lines": [
+          4,
+          5
+        ],
+        "lineText": "只進一扇門",
+        "type": "concept",
+        "text": "<strong>互斥鎖定特性</strong>：在 <code class=\"code-inline\">if-elif-else</code> 結構中，由上而下審查，**只要命中任何一個條件，執行完該區塊後立刻跳出整個結構**，絕不留戀！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：階梯審查自上落，命中一門即脫身！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "三元運算子——單行條件表達式簡寫",
+    "titleEn": "Ternary Operator: One-line Conditional Expression",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5.5 單行 if 簡寫語法——俐落優雅的競技程式快速寫法",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">75</span>",
+        "diff": false,
+        "mean": "分數為 75。",
+        "why": "準備快速指派等第。",
+        "alt": "score = 75"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">status</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"Pass\"</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">\"Fail\"</span>",
+        "diff": true,
+        "mean": "三元運算子：值A if 條件 else 值B。條件成立得 Pass，否則得 Fail！",
+        "why": "單行條件表達式（Conditional Expression）。",
+        "alt": "status 存入 Pass。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">status</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 Pass，一行搞定賦值與判斷！",
+        "why": "輸出結果。",
+        "alt": "輸出 Pass。"
+      }
+    ],
+    "output": "Pass",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "競技極速寫法",
+        "type": "good",
+        "text": "<strong>三元表達式</strong>：結構為 <code class=\"code-inline\">A if 條件 else B</code>。在 APCS 競賽中常用來取代 4 行的基礎 if-else，簡潔俐落且不失可讀性！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：真值放前面，條件居中放！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷一：獨立多重 if 造成的覆蓋慘案",
+    "titleEn": "Multiple ifs vs elif: Overwrite Catastrophe",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5.4 獨立多重 if vs 互斥 if-elif——破解初學者最常犯的覆蓋天坑",
+    "predictQuiz": {
+      "question": "預測思考：考生考了 95 分，用多個獨立 if（如 if s>=90: g='A'; if s>=60: g='Pass'）判斷，最後 grade 會是什麼？",
+      "options": [
+        "'A'，因為 95 分本來就是 A 等第",
+        "'Pass'！因為每個獨立 if 都會執行，後面 95>=60 成立，把前面的 'A' 殘忍覆蓋掉了！"
+      ],
+      "correct": 1,
+      "explanation": "初學者最痛失分點！獨立多重 if 是「每個人都檢查一遍」，不會中途跳出！95分在第一個 if 拿到 'A'，但在第二個 if (95 >= 60) 又成立，把 grade 重新改寫為 'Pass'！必須改用 if-elif-else 互斥結構，命中 A 之後立刻跳出！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">95</span>",
+        "diff": false,
+        "mean": "95 分的資優生。",
+        "why": "測試覆蓋陷阱。",
+        "alt": "score = 95"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">90</span><span class=\"token-op\">:</span> <span class=\"token-ident\">grade</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"A\"</span>     <span class=\"token-comment\"># 順利拿到 A</span>",
+        "diff": false,
+        "mean": "第 1 個 if 成立，grade 變成 'A'。",
+        "why": "95 >= 90 為真。",
+        "alt": "grade = 'A'"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-op\">:</span> <span class=\"token-ident\">grade</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"Pass\"</span>  <span class=\"token-comment\"># 💥 悲劇！獨立 if 再次觸發，A 被覆蓋成 Pass！</span>",
+        "diff": true,
+        "error": true,
+        "mean": "因為寫的是獨立 if，95 >= 60 也成立，grade 被無情覆蓋！",
+        "why": "獨立 if 不具互斥中斷性。",
+        "alt": "💥 覆蓋為 'Pass'！"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">grade</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出 Pass！資優生的 A 慘遭抹殺，痛失考卷分數！",
+        "why": "輸出錯誤結果。",
+        "alt": "輸出 Pass。"
+      }
+    ],
+    "output": "Pass",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "覆蓋天坑",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 覆蓋死穴</span> 分級審查請一律使用 <code class=\"code-inline\">if-elif-else</code>！如果全部寫成獨立的 <code class=\"code-inline\">if</code>，每一個條件都會輪流執行，後面的條件會把前面的正確結果<strong>完全抹殺覆蓋</strong>！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：分級用 elif，多 if 必覆蓋！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷二：漏掉冒號與縮排破版",
+    "titleEn": "Syntax Traps: Missing Colon and IndentationError",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5.7 APCS 考場地雷——漏掉冒號與縮排不一致",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">60</span><span class=\"token-wavy-err\"></span>   <span class=\"token-comment\"># 💥 忘了加冒號 : 直接報 SyntaxError！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "條件句末尾漏打冒號，直譯器立即中斷報錯！",
+        "why": "SyntaxError: expected ':'。",
+        "alt": "💥 漏冒號報錯！"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"及格\"</span><span class=\"token-op\">)</span>      <span class=\"token-comment\"># 💥 忘了縮排，IndentationError: expected an indented block！</span>",
+        "diff": true,
+        "error": true,
+        "mean": "if 下方的下屬區塊沒有縮排，Python 無法識別所屬範圍！",
+        "why": "IndentationError 縮排錯誤。",
+        "alt": "💥 縮排錯誤！"
+      }
+    ],
+    "output": "<span class=\"output-error\">SyntaxError: expected ':'</span>",
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "新手二大殺手",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 語法死穴</span> 在 Python 寫分支控制，請牢記兩件事：<strong>行尾必有冒號 <code class=\"code-inline\">:</code></strong>，<strong>下一行必縮排 4 格空白</strong>！漏掉任一個程式都無法啟動。"
+      },
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：判斷尾加冒號，下屬縮四格！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.5 綜合驗收：分支調度員",
+    "titleEn": "Graduation: Branching Dispatcher Badge",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.5 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">88</span>",
+        "diff": false,
+        "mean": "測試成績 88 分。",
+        "why": "綜合分級測試。",
+        "alt": "score = 88"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">90</span><span class=\"token-op\">:</span>   <span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"特優\"</span>",
+        "diff": false,
+        "mean": "未達標，跳過。",
+        "why": "第一階梯。",
+        "alt": "跳過。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">elif</span> <span class=\"token-ident\">score</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">80</span><span class=\"token-op\">:</span> <span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"優等\"</span>  <span class=\"token-comment\"># 命中 88>=80，精準鎖定優等！</span>",
+        "diff": true,
+        "mean": "88 >= 80 命中，指派「優等」並立刻跳出！",
+        "why": "elif 互斥保護。",
+        "alt": "res = '優等'"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>              <span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-string\">\"普通\"</span>",
+        "diff": false,
+        "mean": "略過。",
+        "why": "兜底分支。",
+        "alt": "略過。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"評定結果:\"</span>, <span class=\"token-ident\">res</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出「評定結果: 優等」，分支控制大功告成！",
+        "why": "驗證成功。",
+        "alt": "輸出 優等。"
+      }
+    ],
+    "output": "評定結果: 優等",
+    "completionCard": {
+      "badge": "🚦 分支調度員：條件路徑全掌控通關！",
+      "summary": "你已經精通了 if、if-else、if-elif-else 互斥階梯，並學會以三元表達式優雅簡寫，更避開了獨立 if 覆蓋與冒號縮排的初學者最大天坑！",
+      "nextUnit": "5.6 巢狀 if 與短路求值（Short-circuit）"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-5",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-5_branching_if_elif_else.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

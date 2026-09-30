@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 5.6 巢狀 if 與短路求值（Short-circuit） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "巢狀分支結構——俄羅斯套娃式的條件篩選",
+    "titleEn": "Nested if: Russian Doll Conditions",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.1 巢狀分支結構——多層次縮排與條件俄羅斯套娃",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">age</span>, <span class=\"token-ident\">has_id</span> <span class=\"token-op\">=</span> <span class=\"token-number\">20</span>, <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "年滿 20 歲且攜帶身分證。",
+        "why": "雙重過濾情境。",
+        "alt": "初始化狀態。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">age</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">18</span><span class=\"token-op\">:</span>          <span class=\"token-comment\"># 第一層外門：年齡審查</span>",
+        "diff": false,
+        "mean": "外層 if：通過成年檢驗，進入更深一層！",
+        "why": "外層條件成立。",
+        "alt": "成年通過。"
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">has_id</span><span class=\"token-op\">:</span>         <span class=\"token-comment\"># 第二層內門：證件審查（縮排 8 格！）</span>",
+        "diff": true,
+        "mean": "內層 if：在成年基礎上，再檢驗是否有證件！",
+        "why": "巢狀深入條件。",
+        "alt": "內層條件成立。"
+      },
+      {
+        "num": 4,
+        "html": "        <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"驗證成功，請進！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "雙重關卡全數通過，執行最終行動！",
+        "why": "核心執行句。",
+        "alt": "印出驗證成功。"
+      }
+    ],
+    "output": "驗證成功，請進！",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "層層過濾",
+        "type": "concept",
+        "text": "<strong>巢狀結構（Nested）</strong>：在 <code class=\"code-inline\">if</code> 的肚子裡面再塞進另一個 <code class=\"code-inline\">if</code>，就像俄羅斯套娃。每往內深入一層，程式碼就必須額外多縮排 4 格！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：巢狀如套娃，深一層縮四格！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "巢狀 if 與 and——多層縮排化為扁平條件",
+    "titleEn": "Refactoring: Flattening Nested ifs with AND",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.2 巢狀 if 與 and 複合條件——雙向轉換與可讀性權衡",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">age</span>, <span class=\"token-ident\">has_id</span> <span class=\"token-op\">=</span> <span class=\"token-number\">20</span>, <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "資料相同。",
+        "why": "重構示範。",
+        "alt": "賦值變數。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">age</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">18</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">has_id</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># 用 and 扁平化，單層縮排搞定！</span>",
+        "diff": true,
+        "mean": "利用 and 將兩層巢狀合而為一，消除過深縮排！",
+        "why": "提高代碼可讀性與維護性。",
+        "alt": "扁平條件。"
+      },
+      {
+        "num": 3,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"驗證成功，請進！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "維持 4 格縮排，簡潔明瞭。",
+        "why": "單層區塊。",
+        "alt": "輸出成功。"
+      }
+    ],
+    "output": "驗證成功，請進！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "扁平化原則",
+        "type": "good",
+        "text": "<strong>Python 之禪（Flat is better than nested）</strong>：若內層沒有單獨的 else 分支要處理，優先使用 <code class=\"code-inline\">and</code> 將條件拉平，能有效預防「箭頭型縮排代碼」！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "and 短路求值——左假即停，右側直接略過！",
+    "titleEn": "Short-Circuit with AND: Left False, Right Skipped",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.3 and 短路求值機制——除數防零檢查（b != 0 and a / b > 1）",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">False</span>",
+        "diff": false,
+        "mean": "左側運算元為 False。",
+        "why": "觸發 and 短路情境。",
+        "alt": "x = False"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-number\">1</span> <span class=\"token-op\">/</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 1/0 竟然沒有引發除以零崩潰！</span>",
+        "diff": true,
+        "mean": "因為 x 是 False，Python 知道結果必定為假，右側 1/0 根本不執行！",
+        "why": "短路求值（Short-Circuit Evaluation）。",
+        "alt": "短路保護成功。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 安全印出 False，未引發 ZeroDivisionError</span>",
+        "diff": true,
+        "mean": "印出 False，安全落地！",
+        "why": "輸出 False。",
+        "alt": "輸出 False。"
+      }
+    ],
+    "output": "False",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "短路本質",
+        "type": "concept",
+        "text": "<strong>and 短路求值</strong>：<code class=\"code-inline\">A and B</code> 中，若 <code class=\"code-inline\">A</code> 為假，全式必為假。Python 具備極致效能優化，**完全不會去碰右邊的 B**！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：AND 見假即停，右側全免算！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "or 短路求值——左真即停，右側直接放行！",
+    "titleEn": "Short-Circuit with OR: Left True, Right Skipped",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.4 or 短路求值機制——前真則後略與預設備援防呆",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-keyword\">True</span>",
+        "diff": false,
+        "mean": "左側運算元為 True。",
+        "why": "觸發 or 短路情境。",
+        "alt": "x = True"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">or</span> <span class=\"token-op\">(</span><span class=\"token-number\">1</span> <span class=\"token-op\">/</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>   <span class=\"token-comment\"># 1/0 同樣被完美略過！</span>",
+        "diff": true,
+        "mean": "因為 x 是 True，or 算式必定為真，右側的 1/0 炸彈直接被略過！",
+        "why": "or 短路求值。",
+        "alt": "短路保護成功。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 安全印出 True</span>",
+        "diff": true,
+        "mean": "印出 True，完全不報錯！",
+        "why": "輸出 True。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "True",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "or 短路本質",
+        "type": "concept",
+        "text": "<strong>or 短路求值</strong>：<code class=\"code-inline\">A or B</code> 中，若 <code class=\"code-inline\">A</code> 為真，全式必為真。Python **直接停下並回傳 True**，右邊的任何運算都不會執行！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：OR 見真即走，右側免運算！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "APCS 雙重防線——短路除數防零保命護甲",
+    "titleEn": "APCS Armor: Zero Division Guard with and",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.5 APCS 邊界條件防崩潰雙重防線——先合法驗證，再執行運算",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>, <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 測資出現極端值 b = 0！</span>",
+        "diff": false,
+        "mean": "除數 b 竟然是 0！",
+        "why": "APCS 經典崩潰邊界測資。",
+        "alt": "b = 0"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 🛡️ 先檢查合法性 (b != 0)，再執行危險運算 (a / b > 1)！</span>",
+        "diff": false,
+        "mean": "把合法性檢查排在最左邊第一棒！",
+        "why": "短路求值護甲。",
+        "alt": "防線建立。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">a</span> <span class=\"token-op\">/</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "b != 0 為 False，and 立即短路，a / b 根本不會被執行！",
+        "why": "防零護盾成功發揮作用。",
+        "alt": "短路不崩潰。"
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"商數大於 1\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "不執行。",
+        "why": "略過。",
+        "alt": "略過。"
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "順利降級進入 else！",
+        "why": "安全備援。",
+        "alt": "進入 else。"
+      },
+      {
+        "num": 6,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"除數為 0 或商數不大於 1，安全防禦！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出安全防禦，程式完全零崩潰！",
+        "why": "成功保命。",
+        "alt": "印出安全防禦。"
+      }
+    ],
+    "output": "除數為 0 或商數不大於 1，安全防禦！",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "保命鐵律",
+        "type": "radar",
+        "text": "<strong>先檢查合法，再執行運算</strong>：這是 APCS 避免 Runtime Error（RE）的最強護盾！利用短路求值特性，把防零、防越界等檢查**放在 and 的最左側**，就能 100% 擋下執行期崩潰！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷一：防護順序顛倒引發 RE 崩潰！",
+    "titleEn": "Fatal Inversion: ZeroDivisionError Crash",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.6 APCS 考場地雷——順序顛倒引發 ZeroDivisionError",
+    "predictQuiz": {
+      "question": "預測思考：當 b = 0 時，執行 if a / b > 1 and b != 0:（順序顛倒）會發生什麼事？",
+      "options": [
+        "順利避開，因為右邊有寫 b != 0 防護",
+        "立即拋出 ZeroDivisionError 崩潰！因為程式由左至右算，還沒看到防護就先除以零自爆了！"
+      ],
+      "correct": 1,
+      "explanation": "順序顛倒等於沒有防護！Python 是由左至右執行的，在看到 b != 0 之前，左邊的 a / b 早就先執行了，除以 0 當場引發 ZeroDivisionError 崩潰，得 0 分！防護檢查必須放在最左邊！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>, <span class=\"token-number\">0</span>",
+        "diff": false,
+        "mean": "除數 b 為 0。",
+        "why": "致命陷阱示範。",
+        "alt": "b = 0"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 💥 順序顛倒！先把炸彈踩爆，才想去拿盾牌！</span>",
+        "diff": false,
+        "error": true,
+        "mean": "左邊先執行 a / b，當場引發除以零崩潰！",
+        "why": "尚未短路就已爆炸。",
+        "alt": "大雷！"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">a</span> <span class=\"token-op\">/</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">&gt;</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># 💥 ZeroDivisionError: division by zero！</span>",
+        "diff": true,
+        "error": true,
+        "mean": "直譯器執行 a / b，拋出 ZeroDivisionError 中斷！",
+        "why": "Runtime Error 零分。",
+        "alt": "💥 崩潰！"
+      },
+      {
+        "num": 4,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"成功\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "永遠執行不到。",
+        "why": "程式已死。",
+        "alt": "未執行。"
+      }
+    ],
+    "output": "<span class=\"output-error\">ZeroDivisionError: division by zero</span>",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "致命順序",
+        "type": "wa",
+        "text": "<span class=\"tag-wa-alert\">💥 考場 RE 慘劇</span> 很多考生在心裡覺得「我有檢查 <code class=\"code-inline\">b != 0</code> 啊！」，但寫在後面完全是馬後炮！**盾牌必須拿在胸前（最左邊）**，才能擋住後面的子彈！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：防護放最左，先查合法性！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "考場致命地雷二：串列索引越界防護順序",
+    "titleEn": "Index Guard: Preventing IndexError with and",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6.7 APCS 考場地雷——串列索引越界防護順序",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">arr</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span><span class=\"token-op\">]</span>",
+        "diff": false,
+        "mean": "長度為 3 的串列（有效索引 0, 1, 2）。",
+        "why": "測試索引查詢。",
+        "alt": "arr 清單。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span>  <span class=\"token-comment\"># 超出範圍的危險索引</span>",
+        "diff": false,
+        "mean": "索引 5 顯然越界！",
+        "why": "越界值。",
+        "alt": "idx = 5"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ✅ 完美防護：先檢查 idx < len(arr)，短路保護 arr[idx]！</span>",
+        "diff": false,
+        "mean": "左邊 5 < 3 為假，右側 arr[5] 直接被短路略過！",
+        "why": "防範 IndexError 必勝寫法。",
+        "alt": "短路防護。"
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">arr</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">arr</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">99</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "短路停止，絕不觸碰非法索引 arr[5]！",
+        "why": "安全過濾。",
+        "alt": "安全。"
+      },
+      {
+        "num": 5,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"找到\"</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "mean": "不執行。",
+        "why": "略過。",
+        "alt": "略過。"
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>",
+        "diff": true,
+        "mean": "安全進入 else 區塊！",
+        "why": "防護成功。",
+        "alt": "進入 else。"
+      },
+      {
+        "num": 7,
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"索引越界，短路成功防禦！\"</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出防禦訊息，完美通過！",
+        "why": "輸出確認。",
+        "alt": "印出防禦成功。"
+      }
+    ],
+    "output": "索引越界，短路成功防禦！",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "越界防禦",
+        "type": "good",
+        "text": "<strong>APCS 實作常備技</strong>：比對陣列元素前，務必寫 <code class=\"code-inline\">i &lt; len(arr) and arr[i] == target</code>，先鎖定索引合法性，再讀取記憶體！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先比長度再取值，越界不爆免死牌！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 5.6 綜合驗收：短路防護大師",
+    "titleEn": "Graduation: Short-Circuit Guard Master",
+    "chapter": "第五章 邏輯表示式、布林值與條件分支",
+    "section": "5.6 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">data</span>, <span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">100</span>, <span class=\"token-number\">200</span><span class=\"token-op\">]</span>, <span class=\"token-number\">1</span>",
+        "diff": false,
+        "mean": "清單與查詢索引 1。",
+        "why": "綜合防線驗收。",
+        "alt": "初始化資料。"
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">is_target</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">data</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-ident\">data</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">200</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "合法性檢查與數值核對兼備！",
+        "why": "短路雙重防護實戰。",
+        "alt": "算出 is_target = True。"
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">\"目標命中且安全:\"</span>, <span class=\"token-ident\">is_target</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "mean": "印出目標命中且安全: True，通關！",
+        "why": "輸出結果。",
+        "alt": "輸出 True。"
+      }
+    ],
+    "output": "目標命中且安全: True",
+    "completionCard": {
+      "badge": "🛡️ 短路防護大師：防崩潰雙重防線通關！",
+      "summary": "你已經精通了巢狀 if 的展開與扁平化，徹底掌握了 and/or 短路求值的底層機制，並學會以「左側防護盾」完美瓦解除以零與索引越界兩大考場死穴！",
+      "nextUnit": "5.7 旗標變數（Flag）與狀態控制"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec5-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_5-6_nested_if_and_short_circuit.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

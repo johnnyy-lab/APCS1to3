@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.8 網格射線投射與 APCS g596：十字連線與障礙物遮蔽 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.8 網格射線投射與 APCS g596：十字連線與障礙物遮蔽
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.1 單一方向前進模型（步進 while 迴圈）",
+    "titleZh": "射線投射核心——沿固定方向步進探索，直到觸發終止！",
+    "titleEn": "Raycasting Concept: Marching in Fixed Direction Until Stop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 1, 5",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>",
+        "alt": "1 列 5 行網格",
+        "why": "網格長寬",
+        "mean": "定義 1x5 尺寸"
+      },
+      {
+        "num": 2,
+        "code": "r, c = 0, 1  # 從 (0, 1) 向右發射射線",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 從 (0, 1) 向右發射射線</span>",
+        "alt": "發射起點",
+        "why": "發射起點",
+        "mean": "起點 (0, 1)"
+      },
+      {
+        "num": 3,
+        "code": "dr, dc = 0, 1  # 向右方向向量",
+        "html": "<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 向右方向向量</span>",
+        "alt": "向右向量",
+        "why": "向右向量",
+        "mean": "向右位移 (0, 1)"
+      },
+      {
+        "num": 4,
+        "code": "nr, nc = r + dr, c + dc",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "邁出第一步避開起點本身",
+        "diff": true,
+        "why": "跨出起點",
+        "mean": "邁出第一步"
+      },
+      {
+        "num": 5,
+        "code": "path = []",
+        "html": "<span class=\"token-ident\">path</span> = []",
+        "alt": "記錄經過座標",
+        "why": "記錄路徑",
+        "mean": "路徑清單"
+      },
+      {
+        "num": 6,
+        "code": "while 0 <= nr < R and 0 <= nc < C:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "邊界內持續推進",
+        "why": "邊界推進迴圈",
+        "mean": "在邊界內推進"
+      },
+      {
+        "num": 7,
+        "code": "    path.append((nr, nc))",
+        "html": "    <span class=\"token-ident\">path</span>.<span class=\"token-ident\">append</span>((<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>))",
+        "alt": "加入路徑",
+        "why": "記錄點",
+        "mean": "記錄路徑點"
+      },
+      {
+        "num": 8,
+        "code": "    nr += dr; nc += dc",
+        "html": "    <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "向前步進",
+        "diff": true,
+        "why": "向前步進",
+        "mean": "步進前進"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"射線投射經過座標: {path}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"射線投射經過座標: {path}\"</span>)",
+        "alt": "印出經過座標",
+        "why": "輸出路徑",
+        "mean": "輸出射線軌跡"
+      }
+    ],
+    "output": "射線投射經過座標: [(0, 2), (0, 3), (0, 4)]",
+    "memoryState": [
+      {
+        "name": "起點",
+        "val": "(0, 1)",
+        "diff": false
+      },
+      {
+        "name": "投射路徑",
+        "val": "(0,2) -> (0,3) -> (0,4)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "射線步進邊界即止"
+      },
+      {
+        "type": "point",
+        "text": "射線投射（Raycasting）與單步鄰居不同，它是沿著單一方向利用 while 迴圈不斷步進，直到撞到邊界或障礙物為止。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.2 射線邊界終止（Boundary Stop）",
+    "titleZh": "邊界自動終止——超出 0 <= nr < R and 0 <= nc < C 即停止！",
+    "titleEn": "Boundary Termination: Stopping Automatically When Out of Bounds",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "3x3 網格",
+        "why": "網格尺寸",
+        "mean": "定義 3x3"
+      },
+      {
+        "num": 2,
+        "code": "r, c = 0, 1  # 位於最頂列",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 位於最頂列</span>",
+        "alt": "位於頂列",
+        "why": "頂列起點",
+        "mean": "起點 (0, 1)"
+      },
+      {
+        "num": 3,
+        "code": "dr, dc = -1, 0  # 向上發射射線",
+        "html": "<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = -<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 向上發射射線</span>",
+        "alt": "向上發射",
+        "why": "向上向量",
+        "mean": "向上位移 (-1, 0)"
+      },
+      {
+        "num": 4,
+        "code": "nr, nc = r + dr, c + dc",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "nr = -1 第一步即出界",
+        "diff": true,
+        "why": "步進至邊界外",
+        "mean": "步進到 (-1, 1)"
+      },
+      {
+        "num": 5,
+        "code": "steps = 0",
+        "html": "<span class=\"token-ident\">steps</span> = <span class=\"token-number\">0</span>",
+        "alt": "步數計數器",
+        "why": "計數",
+        "mean": "步數歸零"
+      },
+      {
+        "num": 6,
+        "code": "while 0 <= nr < R and 0 <= nc < C:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "判斷為 False 迴圈不執行",
+        "why": "邊界哨兵阻擋",
+        "mean": "檢查邊界"
+      },
+      {
+        "num": 7,
+        "code": "    steps += 1; nr += dr; nc += dc",
+        "html": "    <span class=\"token-ident\">steps</span> += <span class=\"token-number\">1</span>; <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "步進累加",
+        "why": "步進",
+        "mean": "步進"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"向上射線總前進步數: {steps} 步 (立即被邊界擋下)\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"向上射線總前進步數: {steps} 步 (立即被邊界擋下)\"</span>)",
+        "alt": "印出前進步數 0",
+        "why": "輸出成果",
+        "mean": "輸出前進 0 步"
+      }
+    ],
+    "output": "向上射線總前進步數: 0 步 (立即被邊界擋下)",
+    "memoryState": [
+      {
+        "name": "(nr, nc)",
+        "val": "(-1, 1) 超出上界",
+        "diff": true
+      },
+      {
+        "name": "steps",
+        "val": "0",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "起步即界安全零步"
+      },
+      {
+        "type": "point",
+        "text": "因為第一步就在 while 判斷前計算出 nr, nc，若起點已經在邊緣，while 條件直接為 False，步數為 0，安全無虞。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.3 射線遇障礙物阻擋（Obstacle Stop）",
+    "titleZh": "障礙物阻擋機制——途中撞見障礙物立即觸發中斷！",
+    "titleEn": "Obstacle Stop: Immediately Break When Hitting an Obstacle",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[0, 1, 0, 2, 0]]  # 1 為起點, 2 為障礙物",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">0</span>]]  <span class=\"token-comment\"># 1 為起點, 2 為障礙物</span>",
+        "alt": "定義包含障礙物的網格",
+        "why": "網格定義",
+        "mean": "定義 1x5 網格"
+      },
+      {
+        "num": 2,
+        "code": "r, c = 0, 1",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>",
+        "alt": "起點 (0, 1)",
+        "why": "起點",
+        "mean": "起點 (0, 1)"
+      },
+      {
+        "num": 3,
+        "code": "dr, dc = 0, 1  # 向右發射",
+        "html": "<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 向右發射</span>",
+        "alt": "向右向量",
+        "why": "方向向量",
+        "mean": "向右發射"
+      },
+      {
+        "num": 4,
+        "code": "nr, nc = r + dr, c + dc",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "第一步",
+        "why": "起步",
+        "mean": "跨出第一步"
+      },
+      {
+        "num": 5,
+        "code": "hit_obstacle = False",
+        "html": "<span class=\"token-ident\">hit_obstacle</span> = <span class=\"token-keyword\">False</span>",
+        "alt": "撞障礙物旗標",
+        "why": "旗標初始化",
+        "mean": "預設未撞"
+      },
+      {
+        "num": 6,
+        "code": "while 0 <= nr < 1 and 0 <= nc < 5:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-number\">1</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-number\">5</span>:",
+        "alt": "邊界檢驗",
+        "why": "邊界迴圈",
+        "mean": "邊界推進"
+      },
+      {
+        "num": 7,
+        "code": "    if grid[nr][nc] == 2:  # 遇到障礙物",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] == <span class=\"token-number\">2</span>:  <span class=\"token-comment\"># 遇到障礙物</span>",
+        "alt": "檢測障礙物",
+        "diff": true,
+        "why": "障礙物檢測",
+        "mean": "遇障礙物判定"
+      },
+      {
+        "num": 8,
+        "code": "        hit_obstacle = True; break",
+        "html": "        <span class=\"token-ident\">hit_obstacle</span> = <span class=\"token-keyword\">True</span>; <span class=\"token-keyword\">break</span>",
+        "alt": "標記並立即 break 停止射線",
+        "diff": true,
+        "why": "阻擋中斷",
+        "mean": "撞障礙物即跳出"
+      },
+      {
+        "num": 9,
+        "code": "    nr += dr; nc += dc",
+        "html": "    <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "步進",
+        "why": "推進",
+        "mean": "向前推進"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"是否被障礙物阻擋: {hit_obstacle}, 阻擋座標: ({nr}, {nc})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"是否被障礙物阻擋: {hit_obstacle}, 阻擋座標: ({nr}, {nc})\"</span>)",
+        "alt": "印出阻擋成果",
+        "why": "輸出成果",
+        "mean": "輸出阻擋資訊"
+      }
+    ],
+    "output": "是否被障礙物阻擋: True, 阻擋座標: (0, 3)",
+    "memoryState": [
+      {
+        "name": "(0, 2)",
+        "val": "空白格 (通過)",
+        "diff": false
+      },
+      {
+        "name": "(0, 3)",
+        "val": "數值 2 (障礙物阻擋中斷)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "遇障礙物立即中斷"
+      },
+      {
+        "type": "point",
+        "text": "射線前進途中遇到障礙物時，射線能量被吸收阻擋，必須立即 break，後方的格子完全不會被射線穿透。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.4 十字四向雷射掃描（Cross Laser Scanner）",
+    "titleZh": "十字雷射掃描——四個方向獨立發射射線探測！",
+    "titleEn": "Cross Laser Scanner: Radiating 4 Independent Rays",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "尺寸 3x3",
+        "why": "尺寸",
+        "mean": "尺寸 3x3"
+      },
+      {
+        "num": 2,
+        "code": "r, c = 1, 1  # 位於中心 (1, 1)",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 位於中心 (1, 1)</span>",
+        "alt": "中心點",
+        "why": "中心發射源",
+        "mean": "中心 (1, 1)"
+      },
+      {
+        "num": 3,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "四向十字方向",
+        "why": "方向清單",
+        "mean": "四向向量"
+      },
+      {
+        "num": 4,
+        "code": "rays = []",
+        "html": "<span class=\"token-ident\">rays</span> = []",
+        "alt": "儲存四條射線路徑",
+        "why": "射線集合",
+        "mean": "射線清單"
+      },
+      {
+        "num": 5,
+        "code": "for dr, dc in dirs:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "逐一發射各方向射線",
+        "why": "方向迴圈",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 6,
+        "code": "    single_ray = []",
+        "html": "    <span class=\"token-ident\">single_ray</span> = []",
+        "alt": "單一方向射線軌跡",
+        "why": "單射線緩衝",
+        "mean": "單射線清單"
+      },
+      {
+        "num": 7,
+        "code": "    nr, nc = r + dr, c + dc",
+        "html": "    <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "跨出起點",
+        "why": "起步",
+        "mean": "跨出起點"
+      },
+      {
+        "num": 8,
+        "code": "    while 0 <= nr < R and 0 <= nc < C:",
+        "html": "    <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "沿當前方向直通到底",
+        "why": "步進迴圈",
+        "mean": "射線推進"
+      },
+      {
+        "num": 9,
+        "code": "        single_ray.append((nr, nc))",
+        "html": "        <span class=\"token-ident\">single_ray</span>.<span class=\"token-ident\">append</span>((<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>))",
+        "alt": "收集路徑",
+        "why": "記錄點",
+        "mean": "記錄路徑"
+      },
+      {
+        "num": 10,
+        "code": "        nr += dr; nc += dc",
+        "html": "        <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "步進",
+        "why": "步進",
+        "mean": "步進"
+      },
+      {
+        "num": 11,
+        "code": "    rays.append(single_ray)",
+        "html": "    <span class=\"token-ident\">rays</span>.<span class=\"token-ident\">append</span>(<span class=\"token-ident\">single_ray</span>)",
+        "alt": "加入射線集合",
+        "diff": true,
+        "why": "收集單方向射線",
+        "mean": "存入射線集合"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"十字四向發射完畢，各射線長度: {[len(ray) for ray in rays]}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"十字四向發射完畢，各射線長度: {[len(ray) for ray in rays]}\"</span>)",
+        "alt": "印出各射線長度 [1, 1, 1, 1]",
+        "why": "輸出成果",
+        "mean": "印出射線規格"
+      }
+    ],
+    "output": "十字四向發射完畢，各射線長度: [1, 1, 1, 1]",
+    "memoryState": [
+      {
+        "name": "上/下/左/右射線",
+        "val": "各前進 1 步到達邊界",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "外向方向內向步進"
+      },
+      {
+        "type": "point",
+        "text": "十字雷射結構為：外層 for dr, dc 選擇發射角度，內層 while 持續步進直奔邊緣，完美涵蓋上下左右四條直線。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.5 兩柱連線阻擋幾何判定",
+    "titleZh": "兩柱連線判定——射線撞見第二根柱子才成功拉線！",
+    "titleEn": "Pillar Connection: Linking Line Only When Hitting a Second Pillar",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 0, 0, 1, 0]]  # 1 代表柱子，0 代表空地",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>]]  <span class=\"token-comment\"># 1 代表柱子，0 代表空地</span>",
+        "alt": "定義兩根柱子在 (0,0) 與 (0,3)",
+        "why": "網格定義",
+        "mean": "定義柱子網格"
+      },
+      {
+        "num": 2,
+        "code": "r, c = 0, 0  # 從第一根柱子出發",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 從第一根柱子出發</span>",
+        "alt": "起點柱子",
+        "why": "出發柱子",
+        "mean": "第一根柱子 (0,0)"
+      },
+      {
+        "num": 3,
+        "code": "dr, dc = 0, 1  # 向右探測",
+        "html": "<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 向右探測</span>",
+        "alt": "向右向量",
+        "why": "探測方向",
+        "mean": "向右探測"
+      },
+      {
+        "num": 4,
+        "code": "nr, nc = r + dr, c + dc",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "第一步",
+        "why": "起步",
+        "mean": "邁出第一步"
+      },
+      {
+        "num": 5,
+        "code": "connected_col = -1",
+        "html": "<span class=\"token-ident\">connected_col</span> = -<span class=\"token-number\">1</span>",
+        "alt": "相連柱子欄位初值",
+        "why": "初始化連線目標",
+        "mean": "預設無相連柱"
+      },
+      {
+        "num": 6,
+        "code": "while 0 <= nr < 1 and 0 <= nc < 5:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-number\">1</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-number\">5</span>:",
+        "alt": "推進探測",
+        "why": "探測迴圈",
+        "mean": "推進探測"
+      },
+      {
+        "num": 7,
+        "code": "    if grid[nr][nc] == 1:  # 成功找到第二根柱子！",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] == <span class=\"token-number\">1</span>:  <span class=\"token-comment\"># 成功找到第二根柱子！</span>",
+        "alt": "找到柱子",
+        "diff": true,
+        "why": "命中目標柱子",
+        "mean": "找到第二柱"
+      },
+      {
+        "num": 8,
+        "code": "        connected_col = nc; break",
+        "html": "        <span class=\"token-ident\">connected_col</span> = <span class=\"token-ident\">nc</span>; <span class=\"token-keyword\">break</span>",
+        "alt": "記錄柱子座標並中斷",
+        "diff": true,
+        "why": "成功鎖定連線",
+        "mean": "釘選柱子座標"
+      },
+      {
+        "num": 9,
+        "code": "    nr += dr; nc += dc",
+        "html": "    <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "步進",
+        "why": "步進",
+        "mean": "步進"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"成功相連到第 {connected_col} 行柱子，拉起連線！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"成功相連到第 {connected_col} 行柱子，拉起連線！\"</span>)",
+        "alt": "印出連線目標柱",
+        "why": "輸出結果",
+        "mean": "輸出連線成功"
+      }
+    ],
+    "output": "成功相連到第 3 行柱子，拉起連線！",
+    "memoryState": [
+      {
+        "name": "起點柱",
+        "val": "行 0",
+        "diff": false
+      },
+      {
+        "name": "終點柱",
+        "val": "行 3",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "雙柱相望拉起連線"
+      },
+      {
+        "type": "point",
+        "text": "APCS g596 圍籬連線規則：射線在碰到邊界前若先遇到另一根柱子，兩者中間的空地才會被拉上連線；若一路射出邊界則無法成線。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.6 區間連線動態標記與填入",
+    "titleZh": "區間連線填入——將兩柱之間的空格標記為連線格！",
+    "titleEn": "Line Segment Fill: Marking Interval Cells as Wire",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "row = [\"柱\", \"空\", \"空\", \"柱\", \"空\"]",
+        "html": "<span class=\"token-ident\">row</span> = [<span class=\"token-string\">\"柱\"</span>, <span class=\"token-string\">\"空\"</span>, <span class=\"token-string\">\"空\"</span>, <span class=\"token-string\">\"柱\"</span>, <span class=\"token-string\">\"空\"</span>]",
+        "alt": "初始列",
+        "why": "初始狀態",
+        "mean": "定義初始列"
+      },
+      {
+        "num": 2,
+        "code": "c1, c2 = 0, 3  # 兩根柱子位於 0 與 3",
+        "html": "<span class=\"token-ident\">c1</span>, <span class=\"token-ident\">c2</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">3</span>  <span class=\"token-comment\"># 兩根柱子位於 0 與 3</span>",
+        "alt": "柱子位置",
+        "why": "兩柱下標",
+        "mean": "柱子下標 0 與 3"
+      },
+      {
+        "num": 3,
+        "code": "for c in range(c1 + 1, c2):  # 走訪區間中間格",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">c1</span> + <span class=\"token-number\">1</span>, <span class=\"token-ident\">c2</span>):  <span class=\"token-comment\"># 走訪區間中間格</span>",
+        "alt": "走訪中間空地",
+        "why": "區間走訪",
+        "mean": "走訪兩柱中間"
+      },
+      {
+        "num": 4,
+        "code": "    if row[c] == \"空\":",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">row</span>[<span class=\"token-ident\">c</span>] == <span class=\"token-string\">\"空\"</span>:",
+        "alt": "若為空地",
+        "why": "空地條件",
+        "mean": "檢查是否為空"
+      },
+      {
+        "num": 5,
+        "code": "        row[c] = \"線\"",
+        "html": "        <span class=\"token-ident\">row</span>[<span class=\"token-ident\">c</span>] = <span class=\"token-string\">\"線\"</span>",
+        "alt": "標記為連線",
+        "diff": true,
+        "why": "填入連線標記",
+        "mean": "標記為線"
+      },
+      {
+        "num": 6,
+        "code": "print(\"拉線後結果:\", row)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"拉線後結果:\"</span>, <span class=\"token-ident\">row</span>)",
+        "alt": "印出拉線成果",
+        "why": "輸出成果",
+        "mean": "輸出填線成果"
+      }
+    ],
+    "output": "拉線後結果: ['柱', '線', '線', '柱', '空']",
+    "memoryState": [
+      {
+        "name": "row[1], row[2]",
+        "val": "'線' (成功連線)",
+        "diff": true
+      },
+      {
+        "name": "row[4]",
+        "val": "'空' (未在兩柱間)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "開區間填中間連線"
+      },
+      {
+        "type": "point",
+        "text": "兩柱之間拉線的下標範圍是 range(c1 + 1, c2) 的開區間，既不覆蓋兩端的柱子，又能精確填滿中間的所有空地。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.7 射線途中被既有連線穿透或跨越判定",
+    "titleZh": "射線穿透性規則——射線能穿過連線，但被柱子擋下！",
+    "titleEn": "Penetration Rule: Rays Pass Through Wires, Blocked by Pillars",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 狀態碼：0: 空地, 1: 柱子, 2: 連線",
+        "html": "<span class=\"token-comment\"># 狀態碼：0: 空地, 1: 柱子, 2: 連線</span>",
+        "alt": "狀態定義",
+        "why": "狀態定義",
+        "mean": "狀態編碼定義"
+      },
+      {
+        "num": 2,
+        "code": "row = [1, 2, 2, 1]  # 柱、線、線、柱",
+        "html": "<span class=\"token-ident\">row</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">1</span>]  <span class=\"token-comment\"># 柱、線、線、柱</span>",
+        "alt": "一維狀態列",
+        "why": "測試列",
+        "mean": "定義狀態列"
+      },
+      {
+        "num": 3,
+        "code": "target_found = False",
+        "html": "<span class=\"token-ident\">target_found</span> = <span class=\"token-keyword\">False</span>",
+        "alt": "尋找柱子旗標",
+        "why": "旗標",
+        "mean": "預設未找到柱"
+      },
+      {
+        "num": 4,
+        "code": "for c in range(1, len(row)):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">row</span>)):",
+        "alt": "從起點後方前進",
+        "why": "走訪推進",
+        "mean": "向後探測"
+      },
+      {
+        "num": 5,
+        "code": "    if row[c] == 1:  # 遇到柱子停下",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">row</span>[<span class=\"token-ident\">c</span>] == <span class=\"token-number\">1</span>:  <span class=\"token-comment\"># 遇到柱子停下</span>",
+        "alt": "撞到柱子",
+        "diff": true,
+        "why": "柱子阻擋條件",
+        "mean": "遇柱停下"
+      },
+      {
+        "num": 6,
+        "code": "        target_found = True; break",
+        "html": "        <span class=\"token-ident\">target_found</span> = <span class=\"token-keyword\">True</span>; <span class=\"token-keyword\">break</span>",
+        "alt": "成功找到",
+        "why": "中斷",
+        "mean": "標記找到"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"射線穿透中間連線，成功抵達目標柱: {target_found}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"射線穿透中間連線，成功抵達目標柱: {target_found}\"</span>)",
+        "alt": "印出穿透成果",
+        "why": "輸出成果",
+        "mean": "輸出穿透驗證"
+      }
+    ],
+    "output": "射線穿透中間連線，成功抵達目標柱: True",
+    "memoryState": [
+      {
+        "name": "中途狀態 2 (連線)",
+        "val": "不阻擋射線，射線繼續前行",
+        "diff": false
+      },
+      {
+        "name": "目標狀態 1 (柱子)",
+        "val": "阻擋射線並完成探測",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "穿透連線阻於柱子"
+      },
+      {
+        "type": "point",
+        "text": "注意 APCS g596 的物理模型：現有的圍籬線不會阻擋新射線前進，只有實體的「柱子」才會擋住射線。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.8 網格被覆蓋面積計數統計",
+    "titleZh": "覆蓋面積統計——精準統計柱子與連線格總數！",
+    "titleEn": "Coverage Statistics: Counting All Cells with Pillars or Wires",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[\"柱\", \"線\", \"柱\"],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-string\">\"柱\"</span>, <span class=\"token-string\">\"線\"</span>, <span class=\"token-string\">\"柱\"</span>],",
+        "alt": "網格列 0",
+        "why": "定義列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [\"空\", \"空\", \"線\"],",
+        "html": "        [<span class=\"token-string\">\"空\"</span>, <span class=\"token-string\">\"空\"</span>, <span class=\"token-string\">\"線\"</span>],",
+        "alt": "網格列 1",
+        "why": "定義列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "        [\"空\", \"空\", \"柱\"]]",
+        "html": "        [<span class=\"token-string\">\"空\"</span>, <span class=\"token-string\">\"空\"</span>, <span class=\"token-string\">\"柱\"</span>]]",
+        "alt": "網格列 2",
+        "why": "定義列 2",
+        "mean": "定義列 2"
+      },
+      {
+        "num": 4,
+        "code": "covered = sum(1 for row in grid for x in row if x != \"空\")",
+        "html": "<span class=\"token-ident\">covered</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-number\">1</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> != <span class=\"token-string\">\"空\"</span>)",
+        "alt": "生成式過濾非空格累加面積",
+        "diff": true,
+        "why": "推導式覆蓋統計",
+        "mean": "統計非空總數"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"網格中被柱子或連線覆蓋之格數: {covered}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"網格中被柱子或連線覆蓋之格數: {covered}\"</span>)",
+        "alt": "印出覆蓋格數 5",
+        "why": "輸出成果",
+        "mean": "印出總覆蓋格數"
+      }
+    ],
+    "output": "網格中被柱子或連線覆蓋之格數: 5",
+    "memoryState": [
+      {
+        "name": "柱子數",
+        "val": "3",
+        "diff": false
+      },
+      {
+        "name": "連線數",
+        "val": "2",
+        "diff": false
+      },
+      {
+        "name": "總覆蓋面積",
+        "val": "5 格",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "非空統計覆蓋面積"
+      },
+      {
+        "type": "point",
+        "text": "g596 題目要求每一步輸出當前被佔用的總格數，sum(1 for row in grid for x in row if x != 空) 簡潔快速不拖泥帶水。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.9 射線步進忘記累加座標死循環地雷",
+    "titleZh": "【即時預測】步進遺漏死循環——忘寫 nr += dr, nc += dc 卡死當機！",
+    "titleEn": "Exam Pitfall: Missing Step Update Causes Infinite Loop",
+    "predictQuiz": {
+      "question": "在 while 迴圈內發射射線時，若忘記在迴圈結尾更新座標 (nr += dr, nc += dc)，會發生何種後果？",
+      "options": [
+        "A: 正常執行，Python 會自動推進座標",
+        "B: 程式卡死在同一格陷入無窮死循環 (TLE)",
+        "C: 迴圈只會執行一次就自動結束",
+        "D: 觸發 StopIteration 例外"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "while 的終止仰賴座標推進到邊界外。若忘記寫 nr += dr; nc += dc，座標永遠不變，0 <= nr < R 恆為 True，程式立刻原地當機超時！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "尺寸",
+        "why": "尺寸",
+        "mean": "尺寸 3x3"
+      },
+      {
+        "num": 2,
+        "code": "nr, nc = 1, 1",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>",
+        "alt": "座標",
+        "why": "座標",
+        "mean": "座標 (1, 1)"
+      },
+      {
+        "num": 3,
+        "code": "dr, dc = 0, 1",
+        "html": "<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>",
+        "alt": "向右",
+        "why": "方向",
+        "mean": "向右向量"
+      },
+      {
+        "num": 4,
+        "code": "loop_count = 0",
+        "html": "<span class=\"token-ident\">loop_count</span> = <span class=\"token-number\">0</span>",
+        "alt": "防禦計數",
+        "why": "計數",
+        "mean": "循環計數"
+      },
+      {
+        "num": 5,
+        "code": "while 0 <= nr < R and 0 <= nc < C:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "步進迴圈",
+        "why": "推進迴圈",
+        "mean": "邊界迴圈"
+      },
+      {
+        "num": 6,
+        "code": "    loop_count += 1",
+        "html": "    <span class=\"token-ident\">loop_count</span> += <span class=\"token-number\">1</span>",
+        "alt": "計數遞增",
+        "why": "計數",
+        "mean": "計數加一"
+      },
+      {
+        "num": 7,
+        "code": "    if loop_count > 3:  # 模擬防禦中斷以免卡死測試",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">loop_count</span> > <span class=\"token-number\">3</span>:  <span class=\"token-comment\"># 模擬防禦中斷以免卡死測試</span>",
+        "alt": "模擬防禦中斷",
+        "why": "安全中斷",
+        "mean": "防護中斷"
+      },
+      {
+        "num": 8,
+        "code": "        print(\"偵測到死循環！座標原地踏步並未位移！\"); break",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"偵測到死循環！座標原地踏步並未位移！\"</span>); <span class=\"token-keyword\">break</span>",
+        "alt": "印出死循環警示",
+        "diff": true,
+        "why": "印出死循環警示",
+        "mean": "印出死循環警告"
+      },
+      {
+        "num": 9,
+        "code": "    # 若忘記寫 nr += dr; nc += dc 就會陷入無窮迴圈",
+        "html": "    <span class=\"token-comment\"># 若忘記寫 nr += dr; nc += dc 就會陷入無窮迴圈</span>",
+        "alt": "註解提醒",
+        "why": "註解提示",
+        "mean": "遺漏步進提醒"
+      }
+    ],
+    "output": "偵測到死循環！座標原地踏步並未位移！",
+    "memoryState": [
+      {
+        "name": "(nr, nc)",
+        "val": "恆等於 (1, 1) 原地踏步",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "步進位移切莫遺忘"
+      },
+      {
+        "type": "point",
+        "text": "射線的核心驅動力就是 nr += dr 與 nc += dc，寫完 while 內部邏輯的第一反應，必須檢查結尾是否有加上座標遞增！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.10 射線起點未邁步被自己阻擋地雷",
+    "titleZh": "起步即擋地雷——未先邁步導致射線撞見自己立刻被擋下！",
+    "titleEn": "Self-Collision Hazard: Forgetting First Step Blocks on Origin",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [1, 0, 0, 1]  # 柱子在 0 和 3",
+        "html": "<span class=\"token-ident\">grid</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>]  <span class=\"token-comment\"># 柱子在 0 和 3</span>",
+        "alt": "柱子配置",
+        "why": "測試網格",
+        "mean": "定義柱子列"
+      },
+      {
+        "num": 2,
+        "code": "c = 0  # 從第 0 格柱子出發",
+        "html": "<span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 從第 0 格柱子出發</span>",
+        "alt": "出發柱",
+        "why": "出發柱",
+        "mean": "出發柱 0"
+      },
+      {
+        "num": 3,
+        "code": "nc = c  # 錯誤：未先邁出第一步 (nc = c + dc)",
+        "html": "<span class=\"token-ident\">nc</span> = <span class=\"token-ident\">c</span>  <span class=\"token-comment\"># 錯誤：未先邁出第一步 (nc = c + dc)</span>",
+        "alt": "錯誤初值直接等於起點",
+        "diff": true,
+        "why": "自我碰撞錯誤示範",
+        "mean": "未跨出第一步"
+      },
+      {
+        "num": 4,
+        "code": "if grid[nc] == 1:",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nc</span>] == <span class=\"token-number\">1</span>:",
+        "alt": "立刻檢查到起點自己就是柱子",
+        "why": "誤判自我阻擋",
+        "mean": "撞上自己"
+      },
+      {
+        "num": 5,
+        "code": "    print(\"錯誤悲劇: 射線在第 0 格被自己撞毀，完全無法射出！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"錯誤悲劇: 射線在第 0 格被自己撞毀，完全無法射出！\"</span>)",
+        "alt": "印出自我碰撞警示",
+        "diff": true,
+        "why": "印出警示",
+        "mean": "輸出自己撞毀"
+      }
+    ],
+    "output": "錯誤悲劇: 射線在第 0 格被自己撞毀，完全無法射出！",
+    "memoryState": [
+      {
+        "name": "nc 初值",
+        "val": "0 (自己)",
+        "diff": true
+      },
+      {
+        "name": "正確初值",
+        "val": "c + dc = 1 (邁出第一步)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "先跨一步避開自己"
+      },
+      {
+        "type": "point",
+        "text": "從障礙物或柱子發射射線時，nr, nc 初值必須先加上 dr, dc 邁出第一步，絕不能從起點本身直接開始判定。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.11 柱子拔除連線未清空地雷",
+    "titleZh": "連線殘留地雷——柱子被拔除後所屬連線必須重新評估！",
+    "titleEn": "Stale Wire Hazard: Lines Must Be Re-evaluated Upon Pillar Removal",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS g596 核心規則：拔除柱子時，連線必須全部重算！",
+        "html": "<span class=\"token-comment\"># APCS g596 核心規則：拔除柱子時，連線必須全部重算！</span>",
+        "alt": "重算規則提示",
+        "why": "規則提示",
+        "mean": "重算規則提示"
+      },
+      {
+        "num": 2,
+        "code": "pillars = {(0, 0), (0, 3)}  # 柱子集合",
+        "html": "<span class=\"token-ident\">pillars</span> = {(<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">3</span>)}  <span class=\"token-comment\"># 柱子集合</span>",
+        "alt": "柱子座標集合",
+        "why": "集合維護",
+        "mean": "柱子集合"
+      },
+      {
+        "num": 3,
+        "code": "pillars.remove((0, 3))       # 拔除 (0, 3) 柱子",
+        "html": "<span class=\"token-ident\">pillars</span>.<span class=\"token-ident\">remove</span>((<span class=\"token-number\">0</span>, <span class=\"token-number\">3</span>))       <span class=\"token-comment\"># 拔除 (0, 3) 柱子</span>",
+        "alt": "拔除柱子",
+        "diff": true,
+        "why": "移除元素",
+        "mean": "拔除柱子 (0, 3)"
+      },
+      {
+        "num": 4,
+        "code": "print(\"拔除柱子後剩餘柱子集合:\", pillars)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"拔除柱子後剩餘柱子集合:\"</span>, <span class=\"token-ident\">pillars</span>)",
+        "alt": "印出剩餘集合",
+        "why": "輸出剩餘柱子",
+        "mean": "印出剩餘柱"
+      },
+      {
+        "num": 5,
+        "code": "print(\"最佳策略: 每次操作依據現存柱子重新鋪設連線，杜絕殘留！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"最佳策略: 每次操作依據現存柱子重新鋪設連線，杜絕殘留！\"</span>)",
+        "alt": "印出重建策略",
+        "diff": true,
+        "why": "輸出解題心法",
+        "mean": "輸出重建策略"
+      }
+    ],
+    "output": "拔除柱子後剩餘柱子集合: {(0, 0)}\n最佳策略: 每次操作依據現存柱子重新鋪設連線，杜絕殘留！",
+    "memoryState": [
+      {
+        "name": "柱子集合",
+        "val": "只剩 (0, 0)",
+        "diff": true
+      },
+      {
+        "name": "連線狀態",
+        "val": "兩柱之間連線瞬間崩解消失",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "集合存柱重畫連線"
+      },
+      {
+        "type": "point",
+        "text": "g596 網格規模極小（最大 100x100），用 set 儲存柱子座標，每次變動後將連線清空重新鋪設，是最萬無一失的免 Bug 寫法！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.12 十字重疊交會點重複計數地雷",
+    "titleZh": "十字交會重複計數地雷——橫線與直線在交叉點重複累加！",
+    "titleEn": "Cross Intersection Hazard: Counting Shared Cells Multiple Times",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 橫線經過座標",
+        "html": "<span class=\"token-comment\"># 橫線經過座標</span>",
+        "alt": "橫線註解",
+        "why": "註解提示",
+        "mean": "橫線提示"
+      },
+      {
+        "num": 2,
+        "code": "h_line = {(1, 0), (1, 1), (1, 2)}",
+        "html": "<span class=\"token-ident\">h_line</span> = {(<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>)}",
+        "alt": "橫線集合",
+        "why": "橫線點集",
+        "mean": "橫線集合"
+      },
+      {
+        "num": 3,
+        "code": "# 直線經過座標",
+        "html": "<span class=\"token-comment\"># 直線經過座標</span>",
+        "alt": "直線註解",
+        "why": "註解提示",
+        "mean": "直線提示"
+      },
+      {
+        "num": 4,
+        "code": "v_line = {(0, 1), (1, 1), (2, 1)}",
+        "html": "<span class=\"token-ident\">v_line</span> = {(<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">1</span>)}",
+        "alt": "直線集合",
+        "why": "直線點集",
+        "mean": "直線集合"
+      },
+      {
+        "num": 5,
+        "code": "union_set = h_line | v_line  # 使用 set 聯集自動去重複！",
+        "html": "<span class=\"token-ident\">union_set</span> = <span class=\"token-ident\">h_line</span> | <span class=\"token-ident\">v_line</span>  <span class=\"token-comment\"># 使用 set 聯集自動去重複！</span>",
+        "alt": "集合聯集自動去重",
+        "diff": true,
+        "why": "集合聯集去重",
+        "mean": "聯集自動去重"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"正確覆蓋格數 (去重): {len(union_set)} (若直接相加會誤判為 {len(h_line)+len(v_line)})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"正確覆蓋格數 (去重): {len(union_set)} (若直接相加會誤判為 {len(h_line)+len(v_line)})\"</span>)",
+        "alt": "印出聯集格數 5",
+        "why": "輸出去重成果",
+        "mean": "輸出正確格數"
+      }
+    ],
+    "output": "正確覆蓋格數 (去重): 5 (若直接相加會誤判為 6)",
+    "memoryState": [
+      {
+        "name": "交叉點 (1, 1)",
+        "val": "在兩條線上皆存在",
+        "diff": false
+      },
+      {
+        "name": "len(union_set)",
+        "val": "5 (成功去重)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "集合聯集交會去重"
+      },
+      {
+        "type": "point",
+        "text": "統計幾何覆蓋時，交叉點會被橫向與縱向各算一次，利用 set 集合或在網格矩陣中直接標記，可完美避免交叉點膨脹重複！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.13 綜合實戰一：十字雷射掃描偵測四周敵方目標",
+    "titleZh": "綜合實戰一——十字雷射掃描：精準鎖定四周首座敵堡",
+    "titleEn": "Capstone 1: Cross Laser Detecting First Enemy Castle",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[\".\", \"E\", \".\"],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-string\">\".\"</span>, <span class=\"token-string\">\"E\"</span>, <span class=\"token-string\">\".\"</span>],",
+        "alt": "網格列 0 (E 為敵堡)",
+        "why": "地圖列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [\".\", \"P\", \".\"],",
+        "html": "        [<span class=\"token-string\">\".\"</span>, <span class=\"token-string\">\"P\"</span>, <span class=\"token-string\">\".\"</span>],",
+        "alt": "網格列 1 (P 為玩家)",
+        "why": "地圖列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "        [\".\", \".\", \"E\"]]  # 敵人在 (2,2) 斜向非十字",
+        "html": "        [<span class=\"token-string\">\".\"</span>, <span class=\"token-string\">\".\"</span>, <span class=\"token-string\">\"E\"</span>]]  <span class=\"token-comment\"># 敵人在 (2,2) 斜向非十字</span>",
+        "alt": "網格列 2",
+        "why": "地圖列 2",
+        "mean": "定義列 2"
+      },
+      {
+        "num": 4,
+        "code": "R, C = 3, 3; r, c = 1, 1",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>; <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>",
+        "alt": "玩家位於 (1, 1)",
+        "why": "玩家位置",
+        "mean": "玩家座標 (1, 1)"
+      },
+      {
+        "num": 5,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "十字方向",
+        "why": "十字方向",
+        "mean": "十字四向"
+      },
+      {
+        "num": 6,
+        "code": "detected = []",
+        "html": "<span class=\"token-ident\">detected</span> = []",
+        "alt": "被偵測敵堡座標",
+        "why": "結果清單",
+        "mean": "敵堡清單"
+      },
+      {
+        "num": 7,
+        "code": "for dr, dc in dirs:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "四向發射",
+        "why": "方向迴圈",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 8,
+        "code": "    nr, nc = r + dr, c + dc",
+        "html": "    <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "起步",
+        "why": "起步",
+        "mean": "起步"
+      },
+      {
+        "num": 9,
+        "code": "    while 0 <= nr < R and 0 <= nc < C:",
+        "html": "    <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "射線推進",
+        "why": "步進",
+        "mean": "射線推進"
+      },
+      {
+        "num": 10,
+        "code": "        if grid[nr][nc] == \"E\":",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] == <span class=\"token-string\">\"E\"</span>:",
+        "alt": "命中敵堡",
+        "diff": true,
+        "why": "敵堡命中判定",
+        "mean": "命中敵堡"
+      },
+      {
+        "num": 11,
+        "code": "            detected.append((nr, nc)); break",
+        "html": "            <span class=\"token-ident\">detected</span>.<span class=\"token-ident\">append</span>((<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>)); <span class=\"token-keyword\">break</span>",
+        "alt": "記錄並結束該方向射線",
+        "diff": true,
+        "why": "中斷該射線",
+        "mean": "記錄敵堡並跳出"
+      },
+      {
+        "num": 12,
+        "code": "        nr += dr; nc += dc",
+        "html": "        <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "步進",
+        "why": "步進",
+        "mean": "步進"
+      },
+      {
+        "num": 13,
+        "code": "print(f\"十字掃描命中敵方座標: {detected}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"十字掃描命中敵方座標: {detected}\"</span>)",
+        "alt": "印出命中敵堡 [(0, 1)]",
+        "why": "輸出成果",
+        "mean": "輸出命中敵堡"
+      }
+    ],
+    "output": "十字掃描命中敵方座標: [(0, 1)]",
+    "memoryState": [
+      {
+        "name": "向上射線",
+        "val": "命中 (0, 1)",
+        "diff": true
+      },
+      {
+        "name": "(2, 2) 敵堡",
+        "val": "斜向，不在十字線上",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "十字雷射命中即鎖"
+      },
+      {
+        "type": "point",
+        "text": "四向射線投射完美鎖定直線上遇到的「第一個」目標，並透過 break 及時停止，斜向與障礙物後方的目標均被安全忽略。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8.14 綜合實戰二：APCS g596 動態圍籬滿分模擬實戰",
+    "titleZh": "綜合實戰二——APCS g596 圍籬模擬：動態連線與覆蓋滿分通關！",
+    "titleEn": "Capstone 2: APCS g596 Wire Fence Dynamic Simulation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "3x3 網格",
+        "why": "尺寸",
+        "mean": "尺寸 3x3"
+      },
+      {
+        "num": 2,
+        "code": "pillars = {(0, 0), (0, 2), (2, 2)}  # 三根柱子",
+        "html": "<span class=\"token-ident\">pillars</span> = {(<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">2</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>)}  <span class=\"token-comment\"># 三根柱子</span>",
+        "alt": "柱子座標",
+        "why": "柱子集合",
+        "mean": "定義三根柱子"
+      },
+      {
+        "num": 3,
+        "code": "covered = set(pillars)  # 柱子本身計入覆蓋",
+        "html": "<span class=\"token-ident\">covered</span> = <span class=\"token-builtin\">set</span>(<span class=\"token-ident\">pillars</span>)  <span class=\"token-comment\"># 柱子本身計入覆蓋</span>",
+        "alt": "覆蓋集合",
+        "why": "覆蓋初始化",
+        "mean": "柱子計入覆蓋"
+      },
+      {
+        "num": 4,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "十字四向",
+        "why": "四向向量",
+        "mean": "四向清單"
+      },
+      {
+        "num": 5,
+        "code": "for r, c in pillars:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">pillars</span>:",
+        "alt": "從每根柱子發射探測射線",
+        "why": "柱子迴圈",
+        "mean": "走訪每根柱"
+      },
+      {
+        "num": 6,
+        "code": "    for dr, dc in dirs:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "四向探測",
+        "why": "方向迴圈",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 7,
+        "code": "        nr, nc = r + dr, c + dc",
+        "html": "        <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "起步",
+        "why": "起步",
+        "mean": "起步"
+      },
+      {
+        "num": 8,
+        "code": "        while 0 <= nr < R and 0 <= nc < C:",
+        "html": "        <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "射線推進",
+        "why": "推進迴圈",
+        "mean": "推進射線"
+      },
+      {
+        "num": 9,
+        "code": "            if (nr, nc) in pillars:",
+        "html": "            <span class=\"token-keyword\">if</span> (<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>) <span class=\"token-keyword\">in</span> <span class=\"token-ident\">pillars</span>:",
+        "alt": "命中另一根柱子",
+        "why": "柱子命中",
+        "mean": "命中目標柱"
+      },
+      {
+        "num": 10,
+        "code": "                # 將途中經過的空格全部加入覆蓋集合",
+        "html": "                <span class=\"token-comment\"># 將途中經過的空格全部加入覆蓋集合</span>",
+        "alt": "提示",
+        "why": "提示",
+        "mean": "連線加入提示"
+      },
+      {
+        "num": 11,
+        "code": "                step_r, step_c = r + dr, c + dc",
+        "html": "                <span class=\"token-ident\">step_r</span>, <span class=\"token-ident\">step_c</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "重新從起點出發填線",
+        "diff": true,
+        "why": "拉線填入",
+        "mean": "起點重填連線"
+      },
+      {
+        "num": 12,
+        "code": "                while (step_r, step_c) != (nr, nc):",
+        "html": "                <span class=\"token-keyword\">while</span> (<span class=\"token-ident\">step_r</span>, <span class=\"token-ident\">step_c</span>) != (<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>):",
+        "alt": "填滿兩柱中間所有格",
+        "diff": true,
+        "why": "填滿區間",
+        "mean": "填滿中間格"
+      },
+      {
+        "num": 13,
+        "code": "                    covered.add((step_r, step_c))",
+        "html": "                    <span class=\"token-ident\">covered</span>.<span class=\"token-ident\">add</span>((<span class=\"token-ident\">step_r</span>, <span class=\"token-ident\">step_c</span>))",
+        "alt": "加入覆蓋集合",
+        "diff": true,
+        "why": "加入覆蓋",
+        "mean": "加入覆蓋集"
+      },
+      {
+        "num": 14,
+        "code": "                    step_r += dr; step_c += dc",
+        "html": "                    <span class=\"token-ident\">step_r</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">step_c</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "步進",
+        "why": "步進",
+        "mean": "步進"
+      },
+      {
+        "num": 15,
+        "code": "                break",
+        "html": "                <span class=\"token-keyword\">break</span>",
+        "alt": "結束該方向射線",
+        "why": "中斷",
+        "mean": "跳出射線"
+      },
+      {
+        "num": 16,
+        "code": "            nr += dr; nc += dc",
+        "html": "            <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "推進",
+        "why": "推進",
+        "mean": "推進"
+      },
+      {
+        "num": 17,
+        "code": "print(f\"APCS g596 圍籬覆蓋總格數: {len(covered)}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"APCS g596 圍籬覆蓋總格數: {len(covered)}\"</span>)",
+        "alt": "印出總覆蓋格數 5",
+        "why": "輸出成果",
+        "mean": "輸出總覆蓋數"
+      }
+    ],
+    "output": "APCS g596 圍籬覆蓋總格數: 5",
+    "memoryState": [
+      {
+        "name": "柱子 3 格",
+        "val": "(0,0), (0,2), (2,2)",
+        "diff": false
+      },
+      {
+        "name": "連線 2 格",
+        "val": "(0,1), (1,2)",
+        "diff": true
+      },
+      {
+        "name": "len(covered)",
+        "val": "5 格",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "圍籬射線滿分通關"
+      },
+      {
+        "type": "point",
+        "text": "這就是 APCS g596 的 AC 核心架構！利用集合存柱、射線找目標柱、回填中間連線，邏輯直觀清晰且絕不漏算或重複計數！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.8 綜合驗收與通關簽到",
+    "titleZh": "單元結業通關——網格射線投射與 APCS g596 完全精通！",
+    "titleEn": "Unit Completion: Mastering Raycasting and APCS g596",
+    "completionCard": {
+      "badge": "射線掃描宗師",
+      "summary": "你已徹底掌握單向步進、邊界終止、障礙物阻擋、十字雷射掃描與 APCS g596 圍籬動態模擬！",
+      "nextUnit": "9.9 邊界防禦與網格模擬：APCS f313 人口遷移"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3; r, c, dr, dc = 0, 0, 1, 1",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>; <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>, <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>",
+        "alt": "對角射線測試",
+        "why": "斜向射線設定",
+        "mean": "定義對角射線"
+      },
+      {
+        "num": 2,
+        "code": "ray = []",
+        "html": "<span class=\"token-ident\">ray</span> = []",
+        "alt": "射線清單",
+        "why": "清單初始化",
+        "mean": "射線清單"
+      },
+      {
+        "num": 3,
+        "code": "nr, nc = r + dr, c + dc",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "起步",
+        "why": "起步",
+        "mean": "起步"
+      },
+      {
+        "num": 4,
+        "code": "while 0 <= nr < R and 0 <= nc < C:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "推進迴圈",
+        "why": "推進迴圈",
+        "mean": "推進射線"
+      },
+      {
+        "num": 5,
+        "code": "    ray.append((nr, nc)); nr += dr; nc += dc",
+        "html": "    <span class=\"token-ident\">ray</span>.<span class=\"token-ident\">append</span>((<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>)); <span class=\"token-ident\">nr</span> += <span class=\"token-ident\">dr</span>; <span class=\"token-ident\">nc</span> += <span class=\"token-ident\">dc</span>",
+        "alt": "收集並步進",
+        "diff": true,
+        "why": "收集步進",
+        "mean": "記錄並推進"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"通關驗收: 對角射線軌跡={ray}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"通關驗收: 對角射線軌跡={ray}\"</span>)",
+        "alt": "印出結業驗收軌跡 [(1,1), (2,2)]",
+        "diff": true,
+        "why": "印出驗收結果",
+        "mean": "輸出結業證明"
+      }
+    ],
+    "output": "通關驗收: 對角射線軌跡=[(1, 1), (2, 2)]",
+    "memoryState": [
+      {
+        "name": "對角射線",
+        "val": "[(1, 1), (2, 2)]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "射線投射登峰造極"
+      },
+      {
+        "type": "point",
+        "text": "恭喜完成單元 9-8！下一單元我們將迎來第九章的壓軸終局大作：邊界外擴填補技巧（Padding）與 APCS f313 人口遷移多輪模擬！"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-8",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-8_grid_raycasting_and_apcs_g596.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

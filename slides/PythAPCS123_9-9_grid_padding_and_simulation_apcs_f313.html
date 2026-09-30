@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.9 邊界防禦與網格模擬：APCS f313 人口遷移 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.9 邊界防禦與網格模擬：APCS f313 人口遷移
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.1 網格動態模擬痛點：邊界繁瑣與數據污染",
+    "titleZh": "網格動態模擬痛點——邊界頻繁出界與原地修改髒讀！",
+    "titleEn": "Simulation Hazards: Tedious Bounds and In-place Dirty Reads",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 痛點一：每次存取鄰格都必須寫長長的 0 <= nr < R",
+        "html": "<span class=\"token-comment\"># 痛點一：每次存取鄰格都必須寫長長的 0 <= nr < R</span>",
+        "alt": "痛點一提示",
+        "why": "痛點一",
+        "mean": "邊界痛點"
+      },
+      {
+        "num": 2,
+        "code": "# 痛點二：一邊計算擴散一邊改 grid，後面的格子讀到錯誤的新值！",
+        "html": "<span class=\"token-comment\"># 痛點二：一邊計算擴散一邊改 grid，後面的格子讀到錯誤的新值！</span>",
+        "alt": "痛點二提示",
+        "why": "痛點二",
+        "mean": "污染痛點"
+      },
+      {
+        "num": 3,
+        "code": "grid = [[10, 20], [30, 40]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>], [<span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>]]",
+        "alt": "模擬初始網格",
+        "why": "初始狀態",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 4,
+        "code": "print(\"初始狀態快照:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"初始狀態快照:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "印出快照",
+        "why": "輸出快照",
+        "mean": "輸出初始狀態"
+      }
+    ],
+    "output": "初始狀態快照: [[10, 20], [30, 40]]",
+    "memoryState": [
+      {
+        "name": "核心解法一",
+        "val": "加框法 (Padding) 免除邊界檢查",
+        "diff": true
+      },
+      {
+        "name": "核心解法二",
+        "val": "快照 / 增量矩陣 (Delta) 杜絕髒讀",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "加框免界增量防染"
+      },
+      {
+        "type": "point",
+        "text": "高階網格模擬有兩大制勝法寶：外圍加框（Padding）免去繁瑣邊界檢查，增量矩陣（Delta Grid）徹底杜絕原地修改髒讀！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.2 網格外圍加框法（Grid Padding）防護牆",
+    "titleZh": "網格外圍加框法——包覆外圍防護牆，四周永不出界！",
+    "titleEn": "Grid Padding: Wrapping Outer Shield to Eliminate Bounds Check",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "原 2x2 網格",
+        "why": "原網格",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "長寬",
+        "why": "尺寸",
+        "mean": "尺寸 2x2"
+      },
+      {
+        "num": 3,
+        "code": "# 構造外圍全是 -1 的防護加框網格 (尺寸變為 4x4)",
+        "html": "<span class=\"token-comment\"># 構造外圍全是 -1 的防護加框網格 (尺寸變為 4x4)</span>",
+        "alt": "構造提示",
+        "why": "構造提示",
+        "mean": "加框提示"
+      },
+      {
+        "num": 4,
+        "code": "pad = -1",
+        "html": "<span class=\"token-ident\">pad</span> = -<span class=\"token-number\">1</span>",
+        "alt": "填充值 -1",
+        "why": "填充數值",
+        "mean": "防護牆數值 -1"
+      },
+      {
+        "num": 5,
+        "code": "padded = [[pad] * (C + 2)] + [[pad] + row + [pad] for row in grid] + [[pad] * (C + 2)]",
+        "html": "<span class=\"token-ident\">padded</span> = [[<span class=\"token-ident\">pad</span>] * (<span class=\"token-ident\">C</span> + <span class=\"token-number\">2</span>)] + [[<span class=\"token-ident\">pad</span>] + <span class=\"token-ident\">row</span> + [<span class=\"token-ident\">pad</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>] + [[<span class=\"token-ident\">pad</span>] * (<span class=\"token-ident\">C</span> + <span class=\"token-number\">2</span>)]",
+        "alt": "一行代碼加框包裹網格",
+        "diff": true,
+        "why": "一行推導加框矩陣",
+        "mean": "推導加框網格"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"加框後矩陣尺寸: {len(padded)}x{len(padded[0])}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"加框後矩陣尺寸: {len(padded)}x{len(padded[0])}\"</span>)",
+        "alt": "印出尺寸 4x4",
+        "why": "輸出尺寸",
+        "mean": "輸出加框尺寸"
+      },
+      {
+        "num": 7,
+        "code": "for row in padded:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">padded</span>:",
+        "alt": "走訪每一列",
+        "why": "印出矩陣",
+        "mean": "走訪加框列"
+      },
+      {
+        "num": 8,
+        "code": "    print(row)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">row</span>)",
+        "alt": "印出各列",
+        "why": "輸出列",
+        "mean": "印出列元素"
+      }
+    ],
+    "output": "加框後矩陣尺寸: 4x4\n[-1, -1, -1, -1]\n[-1, 1, 2, -1]\n[-1, 3, 4, -1]\n[-1, -1, -1, -1]",
+    "memoryState": [
+      {
+        "name": "原資料",
+        "val": "置於內部 (1..2, 1..2)",
+        "diff": true
+      },
+      {
+        "name": "外圍一圈",
+        "val": "全是 -1 防護牆",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "外圍加框永不出界"
+      },
+      {
+        "type": "point",
+        "text": "加框後原陣列被包裹在內部，任何格子朝四周探索都不可能越界 IndexError，只需判斷數值是否為 -1 即可！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.3 加框座標映射：(r, c) 到 (r+1, c+1)",
+    "titleZh": "加框座標映射——原座標 (r, c) 等價加框 (r+1, c+1)！",
+    "titleEn": "Coordinate Mapping: Original (r, c) to Padded (r+1, c+1)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 原網格中的 (0, 0) 在加框網格中下標為 (1, 1)",
+        "html": "<span class=\"token-comment\"># 原網格中的 (0, 0) 在加框網格中下標為 (1, 1)</span>",
+        "alt": "座標對應說明",
+        "why": "說明",
+        "mean": "映射說明"
+      },
+      {
+        "num": 2,
+        "code": "R, C = 2, 2",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>",
+        "alt": "原長寬",
+        "why": "長寬",
+        "mean": "原尺寸 2x2"
+      },
+      {
+        "num": 3,
+        "code": "print(\"走訪加框內部核心的迴圈寫法:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"走訪加框內部核心的迴圈寫法:\"</span>)",
+        "alt": "輸出提示",
+        "why": "提示",
+        "mean": "輸出迴圈提示"
+      },
+      {
+        "num": 4,
+        "code": "for r in range(1, R + 1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">R</span> + <span class=\"token-number\">1</span>):",
+        "alt": "列標從 1 走訪到 R (避開 0 與 R+1)",
+        "diff": true,
+        "why": "加框走訪範圍",
+        "mean": "列從 1 到 R"
+      },
+      {
+        "num": 5,
+        "code": "    for c in range(1, C + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">C</span> + <span class=\"token-number\">1</span>):",
+        "alt": "行標從 1 走訪到 C (避開 0 與 C+1)",
+        "diff": true,
+        "why": "加框走訪範圍",
+        "mean": "行從 1 到 C"
+      },
+      {
+        "num": 6,
+        "code": "        print(f\"加框格 ({r},{c}) 對應原格 ({r-1},{c-1})\", end=\" | \")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"加框格 ({r},{c}) 對應原格 ({r-1},{c-1})\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" | \"</span>)",
+        "alt": "印出座標對應",
+        "why": "輸出映射",
+        "mean": "印出座標映射"
+      },
+      {
+        "num": 7,
+        "code": "    print()",
+        "html": "    <span class=\"token-builtin\">print</span>()",
+        "alt": "換行",
+        "why": "換行",
+        "mean": "換行"
+      }
+    ],
+    "output": "走訪加框內部核心的迴圈寫法:\n加框格 (1,1) 對應原格 (0,0) | 加框格 (1,2) 對應原格 (0,1) | \n加框格 (2,1) 對應原格 (1,0) | 加框格 (2,2) 對應原格 (1,1) | ",
+    "memoryState": [
+      {
+        "name": "原座標",
+        "val": "r in range(0, R), c in range(0, C)",
+        "diff": false
+      },
+      {
+        "name": "加框座標",
+        "val": "r in range(1, R+1), c in range(1, C+1)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "加框內部一到長寬"
+      },
+      {
+        "type": "point",
+        "text": "走訪加框矩陣時，迴圈範圍設定為 range(1, R + 1) 與 range(1, C + 1)，外層第 0 列/行與第 R+1 列/行作為靜態護城河，永不被主動走訪。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.4 雙緩衝快照模型（Double Buffering）",
+    "titleZh": "雙緩衝快照模型——當前狀態只讀不寫，計算寫入新矩陣！",
+    "titleEn": "Double Buffering: Read-Only Current State, Write to Next State",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [10, 20]",
+        "html": "<span class=\"token-ident\">grid</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]",
+        "alt": "當前狀態 (唯讀)",
+        "why": "當前唯讀狀態",
+        "mean": "唯讀原陣列"
+      },
+      {
+        "num": 2,
+        "code": "next_grid = [0, 0]  # 新狀態緩衝區",
+        "html": "<span class=\"token-ident\">next_grid</span> = [<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>]  <span class=\"token-comment\"># 新狀態緩衝區</span>",
+        "alt": "新狀態緩衝",
+        "why": "緩衝區初始化",
+        "mean": "初始化新狀態"
+      },
+      {
+        "num": 3,
+        "code": "# 規則：每格下一刻數值為當前 grid 的兩倍",
+        "html": "<span class=\"token-comment\"># 規則：每格下一刻數值為當前 grid 的兩倍</span>",
+        "alt": "規則說明",
+        "why": "規則提示",
+        "mean": "更新規則說明"
+      },
+      {
+        "num": 4,
+        "code": "for i in range(len(grid)):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>)):",
+        "alt": "走訪當前狀態",
+        "why": "迭代狀態",
+        "mean": "走訪唯讀陣列"
+      },
+      {
+        "num": 5,
+        "code": "    next_grid[i] = grid[i] * 2  # 僅寫入 next_grid",
+        "html": "    <span class=\"token-ident\">next_grid</span>[<span class=\"token-ident\">i</span>] = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">i</span>] * <span class=\"token-number\">2</span>  <span class=\"token-comment\"># 僅寫入 next_grid</span>",
+        "alt": "寫入新緩衝區，原陣列不受影響",
+        "diff": true,
+        "why": "寫入新緩衝區",
+        "mean": "寫入新陣列"
+      },
+      {
+        "num": 6,
+        "code": "grid = next_grid  # 輪次結束時指派覆蓋更新",
+        "html": "<span class=\"token-ident\">grid</span> = <span class=\"token-ident\">next_grid</span>  <span class=\"token-comment\"># 輪次結束時指派覆蓋更新</span>",
+        "alt": "整批狀態切換",
+        "diff": true,
+        "why": "整批狀態指派",
+        "mean": "更新當前狀態"
+      },
+      {
+        "num": 7,
+        "code": "print(\"輪次結束狀態推進:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"輪次結束狀態推進:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "印出推進後成果",
+        "why": "輸出成果",
+        "mean": "輸出推進成果"
+      }
+    ],
+    "output": "輪次結束狀態推進: [20, 40]",
+    "memoryState": [
+      {
+        "name": "計算期間 grid",
+        "val": "[10, 20] 保持穩定純讀取",
+        "diff": false
+      },
+      {
+        "name": "更新後 grid",
+        "val": "[20, 40]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "雙緩衝區讀寫分離"
+      },
+      {
+        "type": "point",
+        "text": "雙緩衝區（Double Buffering）保證本輪所有格子的計算基準完全相同，只有在整輪計算完全結束後，才統一將新狀態指派給舊狀態。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.5 增量矩陣架構（Delta Grid）設計",
+    "titleZh": "增量矩陣架構——淨流動累計，模擬結算最高效！",
+    "titleEn": "Delta Grid Architecture: Net Flow Accumulation for Efficiency",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 2, 2",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>",
+        "alt": "長寬",
+        "why": "長寬",
+        "mean": "長寬 2x2"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[100, 50], [80, 20]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">100</span>, <span class=\"token-number\">50</span>], [<span class=\"token-number\">80</span>, <span class=\"token-number\">20</span>]]",
+        "alt": "人口網格",
+        "why": "人口網格",
+        "mean": "人口初始網格"
+      },
+      {
+        "num": 3,
+        "code": "delta = [[0] * C for _ in range(R)]  # 增量矩陣初值全 0",
+        "html": "<span class=\"token-ident\">delta</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]  <span class=\"token-comment\"># 增量矩陣初值全 0</span>",
+        "alt": "增量矩陣初始化",
+        "diff": true,
+        "why": "初始化增量矩陣",
+        "mean": "開全 0 增量矩陣"
+      },
+      {
+        "num": 4,
+        "code": "# (0,0) 流向 (0,1) 共 10 人",
+        "html": "<span class=\"token-comment\"># (0,0) 流向 (0,1) 共 10 人</span>",
+        "alt": "流動提示",
+        "why": "流動提示",
+        "mean": "流動提示"
+      },
+      {
+        "num": 5,
+        "code": "delta[0][0] -= 10  # 來源減少 10",
+        "html": "<span class=\"token-ident\">delta</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] -= <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 來源減少 10</span>",
+        "alt": "來源端減 10",
+        "diff": true,
+        "why": "流出減量",
+        "mean": "來源減 10"
+      },
+      {
+        "num": 6,
+        "code": "delta[0][1] += 10  # 目的增加 10",
+        "html": "<span class=\"token-ident\">delta</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">1</span>] += <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 目的增加 10</span>",
+        "alt": "目的端加 10",
+        "diff": true,
+        "why": "流入增量",
+        "mean": "目的加 10"
+      },
+      {
+        "num": 7,
+        "code": "print(\"增量矩陣 delta:\", delta)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"增量矩陣 delta:\"</span>, <span class=\"token-ident\">delta</span>)",
+        "alt": "印出增量成果",
+        "why": "輸出成果",
+        "mean": "輸出增量成果"
+      }
+    ],
+    "output": "增量矩陣 delta: [[-10, 10], [0, 0]]",
+    "memoryState": [
+      {
+        "name": "delta[0][0]",
+        "val": "-10 (淨流出 10)",
+        "diff": true
+      },
+      {
+        "name": "delta[0][1]",
+        "val": "+10 (淨流入 10)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "出處減少入處增加"
+      },
+      {
+        "type": "point",
+        "text": "增量矩陣（Delta Grid）的魅力在於：任何流動都是 A 扣除、B 增加，流動總和必定守恆為 0，且完全不影響目前各格的原始讀取值！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.6 APCS f313 擴散公式與整數截斷規則",
+    "titleZh": "f313 擴散公式——每格向每個合法鄰居輸出 P // k！",
+    "titleEn": "f313 Migration Rule: Export P // k to Each Valid Neighbor",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "P = 47   # 當前人口數",
+        "html": "<span class=\"token-ident\">P</span> = <span class=\"token-number\">47</span>   <span class=\"token-comment\"># 當前人口數</span>",
+        "alt": "人口數 47",
+        "why": "人口常數",
+        "mean": "人口 P=47"
+      },
+      {
+        "num": 2,
+        "code": "k = 10   # 擴散除數",
+        "html": "<span class=\"token-ident\">k</span> = <span class=\"token-number\">10</span>   <span class=\"token-comment\"># 擴散除數</span>",
+        "alt": "擴散常數 k=10",
+        "why": "擴散常數",
+        "mean": "常數 k=10"
+      },
+      {
+        "num": 3,
+        "code": "flow = P // k  # 向單一相鄰合法城鎮擴散的人口",
+        "html": "<span class=\"token-ident\">flow</span> = <span class=\"token-ident\">P</span> // <span class=\"token-ident\">k</span>  <span class=\"token-comment\"># 向單一相鄰合法城鎮擴散的人口</span>",
+        "alt": "單向擴散人口：整數除法",
+        "diff": true,
+        "why": "單向擴散計算",
+        "mean": "單向流出人口"
+      },
+      {
+        "num": 4,
+        "code": "valid_neighbors = 3  # 假設周邊有 3 個合法城鎮 (非 -1)",
+        "html": "<span class=\"token-ident\">valid_neighbors</span> = <span class=\"token-number\">3</span>  <span class=\"token-comment\"># 假設周邊有 3 個合法城鎮 (非 -1)</span>",
+        "alt": "周邊合法城鎮數",
+        "why": "合法城鎮計數",
+        "mean": "合法鄰格數 3"
+      },
+      {
+        "num": 5,
+        "code": "total_out = flow * valid_neighbors",
+        "html": "<span class=\"token-ident\">total_out</span> = <span class=\"token-ident\">flow</span> * <span class=\"token-ident\">valid_neighbors</span>",
+        "alt": "自身總流出量",
+        "diff": true,
+        "why": "自身總流出",
+        "mean": "總流出人口"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"單向流出: {flow}, 總共流出: {total_out}, 剩餘留存: {P - total_out}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"單向流出: {flow}, 總共流出: {total_out}, 剩餘留存: {P - total_out}\"</span>)",
+        "alt": "印出流動計算成果",
+        "why": "輸出成果",
+        "mean": "輸出人口分流成果"
+      }
+    ],
+    "output": "單向流出: 4, 總共流出: 12, 剩餘留存: 35",
+    "memoryState": [
+      {
+        "name": "flow",
+        "val": "47 // 10 = 4 (向下整除)",
+        "diff": true
+      },
+      {
+        "name": "總流出",
+        "val": "4 * 3 = 12 人",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "除法整除乘鄰流出"
+      },
+      {
+        "type": "point",
+        "text": "注意 APCS f313 規定是先算出 flow = P // k，再乘以合法鄰居數量得到總流出量，而不是 (P * 鄰居數) // k，兩者整除截斷時機完全不同！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.7 增量矩陣合併結算",
+    "titleZh": "增量合併結算——雙重迴圈 grid[r][c] += delta[r][c] 完成輪次！",
+    "titleEn": "Delta Merge Settlement: Consolidating Net Population Changes",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[100, 50], [80, 20]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">100</span>, <span class=\"token-number\">50</span>], [<span class=\"token-number\">80</span>, <span class=\"token-number\">20</span>]]",
+        "alt": "原人口矩陣",
+        "why": "原矩陣",
+        "mean": "定義人口矩陣"
+      },
+      {
+        "num": 2,
+        "code": "delta = [[-10, 10], [5, -5]]",
+        "html": "<span class=\"token-ident\">delta</span> = [[-<span class=\"token-number\">10</span>, <span class=\"token-number\">10</span>], [<span class=\"token-number\">5</span>, -<span class=\"token-number\">5</span>]]",
+        "alt": "累積之增量矩陣",
+        "why": "增量矩陣",
+        "mean": "定義增量矩陣"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "尺寸",
+        "why": "長寬",
+        "mean": "尺寸 2x2"
+      },
+      {
+        "num": 4,
+        "code": "for r in range(R):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>):",
+        "alt": "走訪列",
+        "why": "列走訪",
+        "mean": "走訪列 r"
+      },
+      {
+        "num": 5,
+        "code": "    for c in range(C):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>):",
+        "alt": "走訪行",
+        "why": "行走訪",
+        "mean": "走訪行 c"
+      },
+      {
+        "num": 6,
+        "code": "        grid[r][c] += delta[r][c]  # 結算合併增量",
+        "html": "        <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] += <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>]  <span class=\"token-comment\"># 結算合併增量</span>",
+        "alt": "原矩陣累加增量",
+        "diff": true,
+        "why": "增量結算",
+        "mean": "合併增量"
+      },
+      {
+        "num": 7,
+        "code": "print(\"第一輪擴散後新人口狀態:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第一輪擴散後新人口狀態:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "印出合併後成果",
+        "why": "輸出成果",
+        "mean": "輸出結算成果"
+      }
+    ],
+    "output": "第一輪擴散後新人口狀態: [[90, 60], [85, 15]]",
+    "memoryState": [
+      {
+        "name": "(0,0)",
+        "val": "100 - 10 = 90",
+        "diff": true
+      },
+      {
+        "name": "(0,1)",
+        "val": "50 + 10 = 60",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "輪末結算增量合併"
+      },
+      {
+        "type": "point",
+        "text": "在整輪所有格子的流出流入全數登記進 delta 後，最後只需一個簡短的雙迴圈將 delta 累加回原 grid，就完美完成了本輪的狀態推進。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.8 全網格極值統計與無效格排除",
+    "titleZh": "有效格極值統計——過濾 -1 障礙物，精確找出最大最小值！",
+    "titleEn": "Valid Extreme Statistics: Filtering Out -1 Obstacle Cells",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[90, -1], [85, 15]]  # -1 為非城鎮荒地",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">90</span>, -<span class=\"token-number\">1</span>], [<span class=\"token-number\">85</span>, <span class=\"token-number\">15</span>]]  <span class=\"token-comment\"># -1 為非城鎮荒地</span>",
+        "alt": "包含 -1 的網格",
+        "why": "荒地網格",
+        "mean": "定義包含荒地網格"
+      },
+      {
+        "num": 2,
+        "code": "valid_cells = [x for row in grid for x in row if x != -1]",
+        "html": "<span class=\"token-ident\">valid_cells</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> != -<span class=\"token-number\">1</span>]",
+        "alt": "推導式過濾出所有有效城鎮",
+        "diff": true,
+        "why": "過濾有效城鎮清單",
+        "mean": "過濾有效格清單"
+      },
+      {
+        "num": 3,
+        "code": "min_pop = min(valid_cells)",
+        "html": "<span class=\"token-ident\">min_pop</span> = <span class=\"token-builtin\">min</span>(<span class=\"token-ident\">valid_cells</span>)",
+        "alt": "最小人口",
+        "why": "最小人口",
+        "mean": "最小人口 min"
+      },
+      {
+        "num": 4,
+        "code": "max_pop = max(valid_cells)",
+        "html": "<span class=\"token-ident\">max_pop</span> = <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">valid_cells</span>)",
+        "alt": "最大人口",
+        "why": "最大人口",
+        "mean": "最大人口 max"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"最小城鎮人口: {min_pop}, 最大城鎮人口: {max_pop}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最小城鎮人口: {min_pop}, 最大城鎮人口: {max_pop}\"</span>)",
+        "alt": "印出極值成果",
+        "why": "輸出成果",
+        "mean": "輸出極值結果"
+      }
+    ],
+    "output": "最小城鎮人口: 15, 最大城鎮人口: 90",
+    "memoryState": [
+      {
+        "name": "若未過濾 -1",
+        "val": "min 會被誤判為 -1 (全錯！)",
+        "diff": true
+      },
+      {
+        "name": "有效清單",
+        "val": "[90, 85, 15]",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "過濾荒地極值顯現"
+      },
+      {
+        "type": "point",
+        "text": "APCS f313 最終要求輸出城鎮最小與最大人口，荒地 -1 絕不可計入極小值比對，先推導出 valid_cells 再 min/max 最安全！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.9 原地修改導致數據雪崩式連鎖污染地雷",
+    "titleZh": "【即時預測】原地修改連鎖污染——先算的人口被改，後算的人口全盲！",
+    "titleEn": "Exam Pitfall: In-place Mutation Corrupts Successive Grid Calculations",
+    "predictQuiz": {
+      "question": "在進行人口遷移模擬時，若走訪到 (0,0) 時直接執行 grid[0][0] -= flow 原地扣除人口，對後續鄰格 (0,1) 的擴散計算會造成何種結果？",
+      "options": [
+        "A: 運算結果完全不受影響",
+        "B: 鄰格 (0,1) 讀取到了已被改變的「未來數值」，產生嚴重的數據偏差",
+        "C: 引發 TypeError",
+        "D: Python 自動進行時間旅行回滾"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "同一輪擴散必須基於「同一個時間點的快照」。若原地扣除，原為 100 變成了 90，後面的格子讀到的就不是原始人口，導致整張地圖的流動量全盤錯亂！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [100, 100]",
+        "html": "<span class=\"token-ident\">grid</span> = [<span class=\"token-number\">100</span>, <span class=\"token-number\">100</span>]",
+        "alt": "兩座城鎮各 100 人",
+        "why": "初始兩城",
+        "mean": "定義兩城鎮"
+      },
+      {
+        "num": 2,
+        "code": "# 錯誤示範：第 0 格原地修改扣除 10 人",
+        "html": "<span class=\"token-comment\"># 錯誤示範：第 0 格原地修改扣除 10 人</span>",
+        "alt": "錯誤示範提示",
+        "why": "提示",
+        "mean": "錯誤示範提示"
+      },
+      {
+        "num": 3,
+        "code": "grid[0] -= 10  # 原地修改！",
+        "html": "<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>] -= <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 原地修改！</span>",
+        "alt": "原地扣除",
+        "diff": true,
+        "why": "致命原地修改",
+        "mean": "原地扣除"
+      },
+      {
+        "num": 4,
+        "code": "dirty_read = grid[0]  # 後面的格子讀到已污染的值 90",
+        "html": "<span class=\"token-ident\">dirty_read</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>]  <span class=\"token-comment\"># 後面的格子讀到已污染的值 90</span>",
+        "alt": "讀到髒數據",
+        "diff": true,
+        "why": "髒讀發生",
+        "mean": "讀到被改值"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"後續城鎮讀取到的污染人口: {dirty_read} (原本應為 100)\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"後續城鎮讀取到的污染人口: {dirty_read} (原本應為 100)\"</span>)",
+        "alt": "印出髒讀結果",
+        "why": "輸出警示",
+        "mean": "輸出髒讀警告"
+      }
+    ],
+    "output": "後續城鎮讀取到的污染人口: 90 (原本應為 100)",
+    "memoryState": [
+      {
+        "name": "期望讀取值",
+        "val": "100 (快照基準)",
+        "diff": false
+      },
+      {
+        "name": "實際髒讀值",
+        "val": "90 (已被修改！)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "快照唯讀增量記錄"
+      },
+      {
+        "type": "point",
+        "text": "這就是為什麼所有細胞自動機與模擬題必須使用增量矩陣（Delta）或雙緩衝區，杜絕就地修改是拿滿分的第一鐵律！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.10 荒地 -1 誤算入擴散地雷",
+    "titleZh": "荒地參與擴散地雷——荒地 -1 絕不能流出也不能流入！",
+    "titleEn": "Wasteland Hazard: -1 Cells Neither Export Nor Receive Population",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "cell_val = -1",
+        "html": "<span class=\"token-ident\">cell_val</span> = -<span class=\"token-number\">1</span>",
+        "alt": "荒地格",
+        "why": "荒地數值",
+        "mean": "荒地格 -1"
+      },
+      {
+        "num": 2,
+        "code": "# 擴散前第一道安全檢查：若本身是荒地，直接跳過！",
+        "html": "<span class=\"token-comment\"># 擴散前第一道安全檢查：若本身是荒地，直接跳過！</span>",
+        "alt": "跳過提示",
+        "why": "提示",
+        "mean": "跳過提示"
+      },
+      {
+        "num": 3,
+        "code": "should_skip = (cell_val == -1)",
+        "html": "<span class=\"token-ident\">should_skip</span> = (<span class=\"token-ident\">cell_val</span> == -<span class=\"token-number\">1</span>)",
+        "alt": "荒地跳過判斷",
+        "diff": true,
+        "why": "荒地跳過條件",
+        "mean": "判斷荒地跳過"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"目前格子數值為 {cell_val}, 是否直接跳過不計算擴散: {should_skip}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"目前格子數值為 {cell_val}, 是否直接跳過不計算擴散: {should_skip}\"</span>)",
+        "alt": "印出跳過結果",
+        "why": "輸出成果",
+        "mean": "輸出跳過判定"
+      }
+    ],
+    "output": "目前格子數值為 -1, 是否直接跳過不計算擴散: True",
+    "memoryState": [
+      {
+        "name": "荒地 -1",
+        "val": "無人口，不輸出，也不接受流入",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "荒地負一跳過不理"
+      },
+      {
+        "type": "point",
+        "text": "在走訪每格時，開頭第一行先寫 if grid[r][c] == -1: continue，在看相鄰格時也要檢查 if neighbor != -1，雙向防禦保證荒地純潔性。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.11 多輪次模擬 delta 忘記重置清空地雷",
+    "titleZh": "增量殘留地雷——每輪模擬前 delta 必須全矩陣重新歸零！",
+    "titleEn": "Delta Accumulation Trap: Delta Must Be Reset Every Round",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 2, 2",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>",
+        "alt": "尺寸",
+        "why": "尺寸",
+        "mean": "尺寸 2x2"
+      },
+      {
+        "num": 2,
+        "code": "for round_num in range(1, 3):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">round_num</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">3</span>):",
+        "alt": "多輪次模擬迴圈",
+        "why": "輪次迴圈",
+        "mean": "進行兩輪模擬"
+      },
+      {
+        "num": 3,
+        "code": "    # 鐵律：每輪最開頭必須重新初始化全新的 delta！",
+        "html": "    <span class=\"token-comment\"># 鐵律：每輪最開頭必須重新初始化全新的 delta！</span>",
+        "alt": "歸零提醒",
+        "why": "歸零提醒",
+        "mean": "重置增量提示"
+      },
+      {
+        "num": 4,
+        "code": "    delta = [[0] * C for _ in range(R)]",
+        "html": "    <span class=\"token-ident\">delta</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "每輪歸零全新初始化",
+        "diff": true,
+        "why": "每輪重新歸零",
+        "mean": "重新建立 0 矩陣"
+      },
+      {
+        "num": 5,
+        "code": "    delta[0][0] += round_num * 10",
+        "html": "    <span class=\"token-ident\">delta</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] += <span class=\"token-ident\">round_num</span> * <span class=\"token-number\">10</span>",
+        "alt": "模擬本輪增量",
+        "why": "模擬計算",
+        "mean": "本輪增量"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"第 {round_num} 輪 delta[0][0]: {delta[0][0]}\", end=\" | \")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"第 {round_num} 輪 delta[0][0]: {delta[0][0]}\"</span>, <span class=\"token-ident\">end</span>=<span class=\"token-string\">\" | \"</span>)",
+        "alt": "印出本輪增量",
+        "why": "輸出成果",
+        "mean": "印出當輪增量"
+      },
+      {
+        "num": 7,
+        "code": "print()",
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "alt": "換行",
+        "why": "換行",
+        "mean": "換行"
+      }
+    ],
+    "output": "第 1 輪 delta[0][0]: 10 | 第 2 輪 delta[0][0]: 20 | ",
+    "memoryState": [
+      {
+        "name": "第 2 輪 delta[0][0]",
+        "val": "20 (乾淨歸零後計算)",
+        "diff": true
+      },
+      {
+        "name": "若未在迴圈內重置",
+        "val": "10 + 20 = 30 (疊加污染！)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "每輪模擬增量歸零"
+      },
+      {
+        "type": "point",
+        "text": "多輪次模擬（例如 APCS f313 模擬 m 天）中，增量矩陣必須寫在天數迴圈內部，天數一換立刻全新歸零，防止上一天的流動殘留。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.12 整除流動為 0 仍持續計算浪費時間",
+    "titleZh": "除法零流動剪枝——當 P < k 時 flow 為 0 即可跳過！",
+    "titleEn": "Zero-Flow Pruning: Skip Neighbors When P // k is Zero",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "P, k = 8, 10  # 人口少於 k",
+        "html": "<span class=\"token-ident\">P</span>, <span class=\"token-ident\">k</span> = <span class=\"token-number\">8</span>, <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 人口少於 k</span>",
+        "alt": "人口 8, 除數 10",
+        "why": "參數設定",
+        "mean": "P=8, k=10"
+      },
+      {
+        "num": 2,
+        "code": "flow = P // k  # 8 // 10 = 0",
+        "html": "<span class=\"token-ident\">flow</span> = <span class=\"token-ident\">P</span> // <span class=\"token-ident\">k</span>  <span class=\"token-comment\"># 8 // 10 = 0</span>",
+        "alt": "整除為 0",
+        "diff": true,
+        "why": "整除得 0",
+        "mean": "流出為 0"
+      },
+      {
+        "num": 3,
+        "code": "if flow == 0:",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">flow</span> == <span class=\"token-number\">0</span>:",
+        "alt": "流動為 0 剪枝",
+        "diff": true,
+        "why": "零流動剪枝",
+        "mean": "檢查流出是否為 0"
+      },
+      {
+        "num": 4,
+        "code": "    print(f\"人口 {P} 小於除數 {k}，流出量為 0，直接跳過四向探索！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"人口 {P} 小於除數 {k}，流出量為 0，直接跳過四向探索！\"</span>)",
+        "alt": "印出剪枝訊息",
+        "why": "輸出剪枝",
+        "mean": "印出剪枝通知"
+      }
+    ],
+    "output": "人口 8 小於除數 10，流出量為 0，直接跳過四向探索！",
+    "memoryState": [
+      {
+        "name": "flow",
+        "val": "0 (無人口可擴散)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "零流剪枝加速迴圈"
+      },
+      {
+        "type": "point",
+        "text": "當城鎮人口不足 k 時，flow = P // k 必為 0，此時直接 continue 略過四鄰居探測，既完全不影響結果，又能大幅降低運算耗時。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.13 綜合實戰一：加框矩陣單輪擴散純淨實戰",
+    "titleZh": "綜合實戰一——加框免邊界單輪擴散：簡潔優雅極速 AC",
+    "titleEn": "Capstone 1: Padded Single-Round Diffusion with Zero Bounds Check",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[20, 0], [0, 0]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">20</span>, <span class=\"token-number\">0</span>], [<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>]]",
+        "alt": "初始 2x2",
+        "why": "初始網格",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "R, C, k = 2, 2, 10",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span>, <span class=\"token-ident\">k</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">10</span>",
+        "alt": "長寬與除數",
+        "why": "參數",
+        "mean": "設定 R=2, C=2, k=10"
+      },
+      {
+        "num": 3,
+        "code": "pad = -1",
+        "html": "<span class=\"token-ident\">pad</span> = -<span class=\"token-number\">1</span>",
+        "alt": "防護牆",
+        "why": "防護牆",
+        "mean": "防護牆 -1"
+      },
+      {
+        "num": 4,
+        "code": "M = [[pad]*(C+2)] + [[pad]+row+[pad] for row in grid] + [[pad]*(C+2)]",
+        "html": "<span class=\"token-ident\">M</span> = [[<span class=\"token-ident\">pad</span>]*(<span class=\"token-ident\">C</span>+<span class=\"token-number\">2</span>)] + [[<span class=\"token-ident\">pad</span>]+<span class=\"token-ident\">row</span>+[<span class=\"token-ident\">pad</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>] + [[<span class=\"token-ident\">pad</span>]*(<span class=\"token-ident\">C</span>+<span class=\"token-number\">2</span>)]",
+        "alt": "加框 4x4",
+        "why": "加框",
+        "mean": "產生 4x4 加框矩陣"
+      },
+      {
+        "num": 5,
+        "code": "delta = [[0]*(C+2) for _ in range(R+2)]",
+        "html": "<span class=\"token-ident\">delta</span> = [[<span class=\"token-number\">0</span>]*(<span class=\"token-ident\">C</span>+<span class=\"token-number\">2</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>+<span class=\"token-number\">2</span>)]",
+        "alt": "加框增量矩陣",
+        "why": "加框增量",
+        "mean": "初始化 4x4 增量"
+      },
+      {
+        "num": 6,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "四向",
+        "why": "方向",
+        "mean": "四向向量"
+      },
+      {
+        "num": 7,
+        "code": "for r in range(1, R+1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">R</span>+<span class=\"token-number\">1</span>):",
+        "alt": "走訪內部列",
+        "why": "列",
+        "mean": "走訪內部列"
+      },
+      {
+        "num": 8,
+        "code": "    for c in range(1, C+1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">C</span>+<span class=\"token-number\">1</span>):",
+        "alt": "走訪內部行",
+        "why": "行",
+        "mean": "走訪內部行"
+      },
+      {
+        "num": 9,
+        "code": "        if M[r][c] > 0:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">M</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] > <span class=\"token-number\">0</span>:",
+        "alt": "有城鎮且有流動潛力",
+        "why": "人口大於 0",
+        "mean": "有居民"
+      },
+      {
+        "num": 10,
+        "code": "            flow = M[r][c] // k",
+        "html": "            <span class=\"token-ident\">flow</span> = <span class=\"token-ident\">M</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] // <span class=\"token-ident\">k</span>",
+        "alt": "單向流動",
+        "why": "流出計算",
+        "mean": "算流出"
+      },
+      {
+        "num": 11,
+        "code": "            if flow > 0:",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">flow</span> > <span class=\"token-number\">0</span>:",
+        "alt": "流動大於 0",
+        "why": "流出大於 0",
+        "mean": "流動有效"
+      },
+      {
+        "num": 12,
+        "code": "                for dr, dc in dirs:",
+        "html": "                <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "四向探索（完全無需檢查邊界！）",
+        "why": "免邊界四向走訪",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 13,
+        "code": "                    if M[r+dr][c+dc] != pad:  # 只需比對不是牆",
+        "html": "                    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">M</span>[<span class=\"token-ident\">r</span>+<span class=\"token-ident\">dr</span>][<span class=\"token-ident\">c</span>+<span class=\"token-ident\">dc</span>] != <span class=\"token-ident\">pad</span>:  <span class=\"token-comment\"># 只需比對不是牆</span>",
+        "alt": "非牆即為合法城鎮",
+        "diff": true,
+        "why": "只比對非牆",
+        "mean": "鄰居非牆"
+      },
+      {
+        "num": 14,
+        "code": "                        delta[r][c] -= flow",
+        "html": "                        <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] -= <span class=\"token-ident\">flow</span>",
+        "alt": "自身流出",
+        "why": "自身扣除",
+        "mean": "自身扣除"
+      },
+      {
+        "num": 15,
+        "code": "                        delta[r+dr][c+dc] += flow",
+        "html": "                        <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>+<span class=\"token-ident\">dr</span>][<span class=\"token-ident\">c</span>+<span class=\"token-ident\">dc</span>] += <span class=\"token-ident\">flow</span>",
+        "alt": "鄰居流入",
+        "why": "鄰居增加",
+        "mean": "鄰居增加"
+      },
+      {
+        "num": 16,
+        "code": "res = [[M[r][c] + delta[r][c] for c in range(1, C+1)] for r in range(1, R+1)]",
+        "html": "<span class=\"token-ident\">res</span> = [[<span class=\"token-ident\">M</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] + <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">C</span>+<span class=\"token-number\">1</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">R</span>+<span class=\"token-number\">1</span>)]",
+        "alt": "推導回原尺寸矩陣",
+        "diff": true,
+        "why": "去框推導還原",
+        "mean": "去框結算矩陣"
+      },
+      {
+        "num": 17,
+        "code": "print(\"加框法單輪擴散結算:\", res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"加框法單輪擴散結算:\"</span>, <span class=\"token-ident\">res</span>)",
+        "alt": "印出結算成果",
+        "why": "輸出成果",
+        "mean": "輸出結算結果"
+      }
+    ],
+    "output": "加框法單輪擴散結算: [[16, 2], [2, 0]]",
+    "memoryState": [
+      {
+        "name": "(0,0) 人口 20",
+        "val": "流出給右(2)、下(2)，自身餘 16",
+        "diff": true
+      },
+      {
+        "name": "(0,1) 與 (1,0)",
+        "val": "各接收 2 人",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "加框只比非牆極簡"
+      },
+      {
+        "type": "point",
+        "text": "看！整段四向走訪程式碼完全沒有任何 0 <= nr < R 邊界判斷，只比對 M[r+dr][c+dc] != pad，優雅流暢且不可能報 IndexError！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9.14 綜合實戰二：APCS f313 人口遷移多輪次動態模擬滿分實戰",
+    "titleZh": "綜合實戰二——APCS f313 人口遷移：多輪動態模擬滿分通關！",
+    "titleEn": "Capstone 2: APCS f313 Full Population Migration Simulator",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C, k, m = 2, 3, 10, 1  # 2x3, k=10, 模擬 m=1 輪",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span>, <span class=\"token-ident\">k</span>, <span class=\"token-ident\">m</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">10</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 2x3, k=10, 模擬 m=1 輪</span>",
+        "alt": "題目參數",
+        "why": "參數設定",
+        "mean": "設定 APCS 題意參數"
+      },
+      {
+        "num": 2,
+        "code": "grid = [[10, 20, 30],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>],",
+        "alt": "初始列 0",
+        "why": "初始列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 3,
+        "code": "        [40, -1, 60]]  # (1, 1) 為荒地 -1",
+        "html": "        [<span class=\"token-number\">40</span>, -<span class=\"token-number\">1</span>, <span class=\"token-number\">60</span>]]  <span class=\"token-comment\"># (1, 1) 為荒地 -1</span>",
+        "alt": "初始列 1 帶荒地",
+        "why": "初始列 1",
+        "mean": "定義列 1 帶荒地"
+      },
+      {
+        "num": 4,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "四向",
+        "why": "方向",
+        "mean": "四向向量"
+      },
+      {
+        "num": 5,
+        "code": "for _ in range(m):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">m</span>):",
+        "alt": "模擬 m 天",
+        "why": "天數迴圈",
+        "mean": "模擬 m 輪"
+      },
+      {
+        "num": 6,
+        "code": "    delta = [[0] * C for _ in range(R)]",
+        "html": "    <span class=\"token-ident\">delta</span> = [[<span class=\"token-number\">0</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "每輪全新 delta",
+        "why": "歸零增量",
+        "mean": "重置增量矩陣"
+      },
+      {
+        "num": 7,
+        "code": "    for r in range(R):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>):",
+        "alt": "走訪列",
+        "why": "走訪列",
+        "mean": "走訪列"
+      },
+      {
+        "num": 8,
+        "code": "        for c in range(C):",
+        "html": "        <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>):",
+        "alt": "走訪行",
+        "why": "走訪行",
+        "mean": "走訪行"
+      },
+      {
+        "num": 9,
+        "code": "            if grid[r][c] == -1: continue",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] == -<span class=\"token-number\">1</span>: <span class=\"token-keyword\">continue</span>",
+        "alt": "排除荒地自身",
+        "why": "荒地過濾",
+        "mean": "排除自身荒地"
+      },
+      {
+        "num": 10,
+        "code": "            flow = grid[r][c] // k",
+        "html": "            <span class=\"token-ident\">flow</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] // <span class=\"token-ident\">k</span>",
+        "alt": "單向流動量",
+        "why": "計算流出量",
+        "mean": "計算單向流動"
+      },
+      {
+        "num": 11,
+        "code": "            if flow == 0: continue",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">flow</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">continue</span>",
+        "alt": "剪枝",
+        "why": "零流動剪枝",
+        "mean": "零流動剪枝"
+      },
+      {
+        "num": 12,
+        "code": "            for dr, dc in dirs:",
+        "html": "            <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "四向擴散",
+        "why": "方向迴圈",
+        "mean": "四向走訪"
+      },
+      {
+        "num": 13,
+        "code": "                nr, nc = r + dr, c + dc",
+        "html": "                <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "新座標",
+        "why": "計算鄰格",
+        "mean": "算新座標"
+      },
+      {
+        "num": 14,
+        "code": "                if 0 <= nr < R and 0 <= nc < C and grid[nr][nc] != -1:",
+        "html": "                <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] != -<span class=\"token-number\">1</span>:",
+        "alt": "合法且非荒地",
+        "diff": true,
+        "why": "合法且非荒地判定",
+        "mean": "合法城鎮判定"
+      },
+      {
+        "num": 15,
+        "code": "                    delta[r][c] -= flow",
+        "html": "                    <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] -= <span class=\"token-ident\">flow</span>",
+        "alt": "自身扣除",
+        "why": "扣除自身",
+        "mean": "扣除自身"
+      },
+      {
+        "num": 16,
+        "code": "                    delta[nr][nc] += flow",
+        "html": "                    <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] += <span class=\"token-ident\">flow</span>",
+        "alt": "鄰格增加",
+        "why": "增加鄰格",
+        "mean": "增加鄰格"
+      },
+      {
+        "num": 17,
+        "code": "    for r in range(R):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>):",
+        "alt": "結算合併列",
+        "why": "結算合併",
+        "mean": "結算列"
+      },
+      {
+        "num": 18,
+        "code": "        for c in range(C):",
+        "html": "        <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>):",
+        "alt": "結算合併行",
+        "why": "結算合併",
+        "mean": "結算行"
+      },
+      {
+        "num": 19,
+        "code": "            grid[r][c] += delta[r][c]",
+        "html": "            <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] += <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>]",
+        "alt": "結算更新",
+        "diff": true,
+        "why": "更新人口",
+        "mean": "累加增量"
+      },
+      {
+        "num": 20,
+        "code": "towns = [x for row in grid for x in row if x != -1]",
+        "html": "<span class=\"token-ident\">towns</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> != -<span class=\"token-number\">1</span>]",
+        "alt": "過濾有效城鎮",
+        "why": "萃取城鎮",
+        "mean": "過濾有效格"
+      },
+      {
+        "num": 21,
+        "code": "print(f\"{min(towns)}\\n{max(towns)}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{min(towns)}\\n{max(towns)}\"</span>)",
+        "alt": "輸出最小與最大人口",
+        "diff": true,
+        "why": "依題意輸出答案",
+        "mean": "印出 min 與 max"
+      }
+    ],
+    "output": "14\n57",
+    "memoryState": [
+      {
+        "name": "最小城鎮人口",
+        "val": "14",
+        "diff": true
+      },
+      {
+        "name": "最大城鎮人口",
+        "val": "57",
+        "diff": true
+      },
+      {
+        "name": "總人口數",
+        "val": "160 人完全守恆！",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "人口遷移滿分通關"
+      },
+      {
+        "type": "point",
+        "text": "APCS f313 完整 AC 實況！增量矩陣 delta 完美守恆人口總數，避免原地修改與荒地污染，最終 min/max 一擊必殺！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.9 綜合驗收與通關簽到",
+    "titleZh": "單元結業通關——網格加框與動態模擬完全通關！",
+    "titleEn": "Unit Completion: Mastering Grid Padding and Simulation",
+    "completionCard": {
+      "badge": "網格模擬大宗師",
+      "summary": "你已精通網格加框法、雙緩衝快照、增量矩陣架構、APCS f313 人口遷移，徹底征服二維矩陣全部高階考點！",
+      "nextUnit": "第 10 章 字典（Dict）與集合（Set）：極速哈希映射與查找"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "結業矩陣",
+        "why": "結業網格",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "delta = [[1, -1], [-1, 1]]",
+        "html": "<span class=\"token-ident\">delta</span> = [[<span class=\"token-number\">1</span>, -<span class=\"token-number\">1</span>], [-<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>]]",
+        "alt": "增量結算矩陣",
+        "why": "增量結算",
+        "mean": "定義增量矩陣"
+      },
+      {
+        "num": 3,
+        "code": "res = [[grid[r][c] + delta[r][c] for c in range(2)] for r in range(2)]",
+        "html": "<span class=\"token-ident\">res</span> = [[<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] + <span class=\"token-ident\">delta</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>)]",
+        "alt": "結算合併推導式",
+        "why": "結算推導",
+        "mean": "推導結算結果"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"通關驗收: 第九章全章大滿貫達成！結算矩陣={res}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"通關驗收: 第九章全章大滿貫達成！結算矩陣={res}\"</span>)",
+        "alt": "印出第九章全章結業通關宣告",
+        "diff": true,
+        "why": "印出全章通關宣告",
+        "mean": "輸出全章大滿貫"
+      }
+    ],
+    "output": "通關驗收: 第九章全章大滿貫達成！結算矩陣=[[2, 1], [2, 5]]",
+    "memoryState": [
+      {
+        "name": "第九章全章狀態",
+        "val": "9-1 到 9-9 全部 15 頁滿版通關！",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "九章圓滿大滿貫成"
+      },
+      {
+        "type": "point",
+        "text": "恭喜！你已徹底征服第 9 章二維矩陣的全部 9 個核心單元，從座標定位、初始化陷阱、行列統計、對角幾何、b266 翻轉、e287 導航、g596 射線到 f313 模擬，實力已臻 APCS 滿級分境地！"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-9",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-9_grid_padding_and_simulation_apcs_f313.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

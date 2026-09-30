@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.6 矩陣幾何操作與逆向還原（APCS b266 矩陣翻轉專題） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.6 矩陣幾何操作與逆向還原（APCS b266 矩陣翻轉專題）
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.1 矩陣幾何變換藍圖與座標映射",
+    "titleZh": "矩陣幾何變換藍圖——翻轉、旋轉本質是座標重新映射！",
+    "titleEn": "Geometric Transformation Blueprint: Remapping Coordinates",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "原始 2x3 網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "原始 2x3 網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "print(\"原矩陣:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原矩陣:\"</span>)",
+        "alt": "印出提示",
+        "why": "提示",
+        "mean": "輸出原矩陣"
+      },
+      {
+        "num": 4,
+        "code": "for row in grid:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>:",
+        "alt": "走訪每一列",
+        "why": "逐列印出",
+        "mean": "走訪矩陣"
+      },
+      {
+        "num": 5,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列",
+        "why": "解包印出",
+        "mean": "印出列元素"
+      }
+    ],
+    "output": "原矩陣:\n1 2 3\n4 5 6",
+    "memoryState": [
+      {
+        "name": "原尺寸 R x C",
+        "val": "2 x 3",
+        "diff": false
+      },
+      {
+        "name": "變換核心",
+        "val": "舊座標 (r, c) 映至新座標 (r', c')",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "變換核心座標重映"
+      },
+      {
+        "type": "point",
+        "text": "在二維矩陣的幾何變換中，所有翻轉與旋轉都不必手忙腳亂，只要釐清新舊下標對應關係即可輕鬆建構新矩陣。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.2 矩陣水平翻轉（Horizontal Flip / 左右鏡射）",
+    "titleZh": "矩陣左右翻轉——列數不變，每列內部順序倒轉！",
+    "titleEn": "Horizontal Flip: Row Order Preserved, Elements Reversed",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "原始 2x3 網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "原始 2x3 網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "h_flip = [row[::-1] for row in grid]",
+        "html": "<span class=\"token-ident\">h_flip</span> = [<span class=\"token-ident\">row</span>[::<span class=\"token-number\">-1</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>]",
+        "alt": "利用切片 [::-1] 將每一列獨立反轉",
+        "diff": true,
+        "why": "逐列反轉切片",
+        "mean": "各列左右鏡射"
+      },
+      {
+        "num": 4,
+        "code": "print(\"左右翻轉後:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"左右翻轉後:\"</span>)",
+        "alt": "輸出提示",
+        "why": "提示",
+        "mean": "輸出翻轉結果"
+      },
+      {
+        "num": 5,
+        "code": "for row in h_flip:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">h_flip</span>:",
+        "alt": "走訪新矩陣",
+        "why": "印出新矩陣",
+        "mean": "走訪新矩陣"
+      },
+      {
+        "num": 6,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "印出左右翻轉後的列",
+        "why": "解包印出",
+        "mean": "印出新列"
+      }
+    ],
+    "output": "左右翻轉後:\n3 2 1\n6 5 4",
+    "memoryState": [
+      {
+        "name": "h_flip[0]",
+        "val": "[3, 2, 1]",
+        "diff": true
+      },
+      {
+        "name": "h_flip[1]",
+        "val": "[6, 5, 4]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "左右翻轉切片反轉"
+      },
+      {
+        "type": "point",
+        "text": "左右水平翻轉只需對每一列做 row[::-1]，列與列之間的上下順序完全保持不變。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.3 矩陣垂直翻轉（Vertical Flip / 上下倒置）",
+    "titleZh": "矩陣上下翻轉——列內順序不變，外層列次序全倒轉！",
+    "titleEn": "Vertical Flip: Whole Matrix Row Order Reversed",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "原始 2x3 網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>],",
+        "alt": "原始 2x3 網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "v_flip = grid[::-1]",
+        "html": "<span class=\"token-ident\">v_flip</span> = <span class=\"token-ident\">grid</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "最外層切片反轉：直接反轉整組列",
+        "diff": true,
+        "why": "外層切片反轉",
+        "mean": "上下列倒置"
+      },
+      {
+        "num": 4,
+        "code": "print(\"上下翻轉後:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"上下翻轉後:\"</span>)",
+        "alt": "輸出提示",
+        "why": "提示",
+        "mean": "輸出翻轉結果"
+      },
+      {
+        "num": 5,
+        "code": "for row in v_flip:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">v_flip</span>:",
+        "alt": "走訪新矩陣",
+        "why": "印出新矩陣",
+        "mean": "走訪新矩陣"
+      },
+      {
+        "num": 6,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "印出上下翻轉後的每一列",
+        "why": "解包印出",
+        "mean": "印出新列"
+      }
+    ],
+    "output": "上下翻轉後:\n4 5 6\n1 2 3",
+    "memoryState": [
+      {
+        "name": "v_flip[0]",
+        "val": "[4, 5, 6] (原第 1 列)",
+        "diff": true
+      },
+      {
+        "name": "v_flip[1]",
+        "val": "[1, 2, 3] (原第 0 列)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "上下翻轉外層切片"
+      },
+      {
+        "type": "point",
+        "text": "APCS b266 題目中的「翻轉操作（操作碼 1）」指的就是上下翻轉，一行 grid[::-1] 便能俐落解決！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.4 矩陣轉置操作（Matrix Transpose / 行列互換）",
+    "titleZh": "矩陣轉置操作——行列維度徹底對調，R x C 變 C x R！",
+    "titleEn": "Matrix Transpose: Swapping Rows and Columns R x C to C x R",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "原矩陣列 0 (2x3)",
+        "why": "原矩陣列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "原矩陣列 1",
+        "why": "原矩陣列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "原尺寸 R=2, C=3",
+        "why": "尺寸萃取",
+        "mean": "原尺寸 R=2, C=3"
+      },
+      {
+        "num": 4,
+        "code": "transposed = [[grid[r][c] for r in range(R)] for c in range(C)]",
+        "html": "<span class=\"token-ident\">transposed</span> = [[<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "轉置推導式：外層開 C 行，內層遍歷 R 列",
+        "diff": true,
+        "why": "轉置列表推導式",
+        "mean": "推導轉置矩陣"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"轉置後尺寸: {len(transposed)} x {len(transposed[0])}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"轉置後尺寸: {len(transposed)} x {len(transposed[0])}\"</span>)",
+        "alt": "印出新尺寸 3 x 2",
+        "why": "印出尺寸",
+        "mean": "輸出轉置尺寸"
+      },
+      {
+        "num": 6,
+        "code": "for row in transposed:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">transposed</span>:",
+        "alt": "印出轉置矩陣內容",
+        "why": "走訪轉置矩陣",
+        "mean": "印出轉置列"
+      },
+      {
+        "num": 7,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列",
+        "why": "解包輸出",
+        "mean": "印出列元素"
+      }
+    ],
+    "output": "轉置後尺寸: 3 x 2\n1 4\n2 5\n3 6",
+    "memoryState": [
+      {
+        "name": "原形狀",
+        "val": "2 x 3",
+        "diff": false
+      },
+      {
+        "name": "轉置後形狀",
+        "val": "3 x 2",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "轉置外行內列互換"
+      },
+      {
+        "type": "point",
+        "text": "轉置矩陣的新形狀是 C x R，第 c 列就是原矩陣的第 c 個直欄，Python 亦可使用 list(zip(*grid)) 進行轉置。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.5.5 矩陣順時針旋轉 90 度公式與實作",
+    "titleZh": "順時針旋轉 90 度——先轉置再左右翻轉，或外行倒序取列！",
+    "titleEn": "Rotate Clockwise 90: Transpose then Horizontal Flip",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "2x3 網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "2x3 網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "原尺寸 R=2, C=3",
+        "why": "原長寬",
+        "mean": "原尺寸 2x3"
+      },
+      {
+        "num": 4,
+        "code": "rot_cw = [[grid[R - 1 - r][c] for r in range(R)] for c in range(C)]",
+        "html": "<span class=\"token-ident\">rot_cw</span> = [[<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">R</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "順時針 90 度：原直欄由下而上變成新矩陣的橫列",
+        "diff": true,
+        "why": "順時針 90 度推導式",
+        "mean": "順時針 90 度"
+      },
+      {
+        "num": 5,
+        "code": "print(\"順時針 90 度後:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"順時針 90 度後:\"</span>)",
+        "alt": "提示訊息",
+        "why": "提示",
+        "mean": "輸出順時針結果"
+      },
+      {
+        "num": 6,
+        "code": "for row in rot_cw:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">rot_cw</span>:",
+        "alt": "走訪新矩陣",
+        "why": "印出新矩陣",
+        "mean": "走訪新矩陣"
+      },
+      {
+        "num": 7,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列",
+        "why": "輸出",
+        "mean": "印出列元素"
+      }
+    ],
+    "output": "順時針 90 度後:\n4 1\n5 2\n6 3",
+    "memoryState": [
+      {
+        "name": "原左下角 4",
+        "val": "轉至新左上角 (0, 0)",
+        "diff": true
+      },
+      {
+        "name": "新尺寸",
+        "val": "3 x 2",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "順轉直行由下往上"
+      },
+      {
+        "type": "point",
+        "text": "順時針旋轉 90 度幾何等價於：先上下垂直翻轉 grid[::-1]，再做轉置 list(zip(*...))；直觀推導即由下往上讀直欄。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.6 APCS b266 旋轉定義：逆時針旋轉 90 度",
+    "titleZh": "APCS b266 旋轉鐵律——操作碼 0 是逆時針旋轉 90 度！",
+    "titleEn": "APCS b266 Rule: Operation 0 is Counter-Clockwise 90",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "原矩陣列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "原矩陣列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "尺寸 R=2, C=3",
+        "why": "長寬",
+        "mean": "原尺寸 2x3"
+      },
+      {
+        "num": 4,
+        "code": "rot_ccw = [[grid[r][C - 1 - c] for r in range(R)] for c in range(C)]",
+        "html": "<span class=\"token-ident\">rot_ccw</span> = [[<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">C</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "逆時針 90 度：原直欄由右而左取直欄變成新列",
+        "diff": true,
+        "why": "逆時針 90 度推導式",
+        "mean": "逆時針 90 度"
+      },
+      {
+        "num": 5,
+        "code": "print(\"逆時針 90 度 (b266 旋轉):\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"逆時針 90 度 (b266 旋轉):\"</span>)",
+        "alt": "提示訊息",
+        "why": "提示",
+        "mean": "輸出逆時針結果"
+      },
+      {
+        "num": 6,
+        "code": "for row in rot_ccw:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">rot_ccw</span>:",
+        "alt": "印出逆時針結果",
+        "why": "印出新矩陣",
+        "mean": "走訪新矩陣"
+      },
+      {
+        "num": 7,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列",
+        "why": "輸出",
+        "mean": "印出列元素"
+      }
+    ],
+    "output": "逆時針 90 度 (b266 旋轉):\n3 6\n2 5\n1 4",
+    "memoryState": [
+      {
+        "name": "原右上角 3",
+        "val": "轉至新左上角 (0, 0)",
+        "diff": true
+      },
+      {
+        "name": "新尺寸",
+        "val": "3 x 2",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "逆轉直行由右往左"
+      },
+      {
+        "type": "point",
+        "text": "考題關鍵細節：APCS b266 題幹明確定義「旋轉是逆時針旋轉 90 度」，若誤寫成順時針，全部測資必得 0 分！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.7 長方形非方陣旋轉長寬動態同步更新",
+    "titleZh": "長寬同步更新鐵律——每次旋轉後立即同步 R, C = C, R！",
+    "titleEn": "Dimension Update Rule: Always Sync R, C = C, R After Rotation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3], [4, 5, 6]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>], [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "原矩陣 2x3",
+        "why": "定義原矩陣",
+        "mean": "定義 2x3"
+      },
+      {
+        "num": 2,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "初始 R=2, C=3",
+        "why": "初始長寬",
+        "mean": "初始 R=2, C=3"
+      },
+      {
+        "num": 3,
+        "code": "# 執行逆時針旋轉",
+        "html": "<span class=\"token-comment\"># 執行逆時針旋轉</span>",
+        "alt": "註解",
+        "why": "註解",
+        "mean": "執行旋轉"
+      },
+      {
+        "num": 4,
+        "code": "grid = [[grid[r][C - 1 - c] for r in range(R)] for c in range(C)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">C</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "旋轉賦值給 grid",
+        "diff": true,
+        "why": "更新矩陣",
+        "mean": "產生旋轉新矩陣"
+      },
+      {
+        "num": 5,
+        "code": "R, C = C, R  # 極重要：同步交換長寬變數！",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-ident\">C</span>, <span class=\"token-ident\">R</span>  <span class=\"token-comment\"># 極重要：同步交換長寬變數！</span>",
+        "alt": "長寬維度立即對調更新",
+        "diff": true,
+        "why": "動態同步長寬",
+        "mean": "交換長寬 R, C"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"旋轉後新尺寸: R={R}, C={C}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"旋轉後新尺寸: R={R}, C={C}\"</span>)",
+        "alt": "印出新尺寸確認 R=3, C=2",
+        "why": "輸出尺寸",
+        "mean": "輸出更新後長寬"
+      }
+    ],
+    "output": "旋轉後新尺寸: R=3, C=2",
+    "memoryState": [
+      {
+        "name": "原尺寸 (R, C)",
+        "val": "(2, 3)",
+        "diff": false
+      },
+      {
+        "name": "更新後 (R, C)",
+        "val": "(3, 2)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "旋轉之後長寬對換"
+      },
+      {
+        "type": "point",
+        "text": "非方陣旋轉後列數與行數徹底對調，若未即時更新 R 與 C 變數，下一次操作就會傳入錯誤的邊界而引發越界崩潰。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.8 幾何操作模組化管線封裝",
+    "titleZh": "操作模組化管線封裝——將翻轉與旋轉包裝成純函式！",
+    "titleEn": "Modular Pipeline: Encapsulating Flip and Rotate into Functions",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def op_flip(M):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">op_flip</span>(<span class=\"token-ident\">M</span>):",
+        "alt": "上下翻轉函式",
+        "why": "翻轉函式",
+        "mean": "定義上下翻轉"
+      },
+      {
+        "num": 2,
+        "code": "    return M[::-1]",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">M</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "回傳切片倒序",
+        "why": "回傳翻轉",
+        "mean": "回傳上下倒置"
+      },
+      {
+        "num": 3,
+        "code": "def op_rotate_ccw(M):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">op_rotate_ccw</span>(<span class=\"token-ident\">M</span>):",
+        "alt": "逆時針 90 度函式",
+        "why": "旋轉函式",
+        "mean": "定義逆時針旋轉"
+      },
+      {
+        "num": 4,
+        "code": "    R, C = len(M), len(M[0])",
+        "html": "    <span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">M</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">M</span>[<span class=\"token-number\">0</span>])",
+        "alt": "動態取得目前長寬",
+        "why": "獲取尺寸",
+        "mean": "動態萃取 R, C"
+      },
+      {
+        "num": 5,
+        "code": "    return [[M[r][C - 1 - c] for r in range(R)] for c in range(C)]",
+        "html": "    <span class=\"token-keyword\">return</span> [[<span class=\"token-ident\">M</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">C</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "回傳旋轉後的新矩陣",
+        "diff": true,
+        "why": "回傳旋轉矩陣",
+        "mean": "回傳逆時針新矩陣"
+      },
+      {
+        "num": 6,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "測試矩陣",
+        "why": "測試矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 7,
+        "code": "res = op_flip(op_rotate_ccw(grid))",
+        "html": "<span class=\"token-ident\">res</span> = <span class=\"token-ident\">op_flip</span>(<span class=\"token-ident\">op_rotate_ccw</span>(<span class=\"token-ident\">grid</span>))",
+        "alt": "管線化連續執行：先逆轉再翻轉",
+        "diff": true,
+        "why": "鏈式組合呼叫",
+        "mean": "組合變換呼叫"
+      },
+      {
+        "num": 8,
+        "code": "print(\"連續操作成果:\", res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"連續操作成果:\"</span>, <span class=\"token-ident\">res</span>)",
+        "alt": "印出最終矩陣成果",
+        "why": "輸出結果",
+        "mean": "輸出連續變換"
+      }
+    ],
+    "output": "連續操作成果: [[1, 3], [2, 4]]",
+    "memoryState": [
+      {
+        "name": "rotate_ccw 後",
+        "val": "[[2, 4], [1, 3]]",
+        "diff": true
+      },
+      {
+        "name": "flip 後最終結果",
+        "val": "[[1, 3], [2, 4]]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "函式封裝管線清晰"
+      },
+      {
+        "type": "point",
+        "text": "將幾何變換寫成獨立函式，主程式只需根據指令碼查表呼叫，代碼結構清晰且不易出錯。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.9 APCS b266 逆向還原操作序列順序陷阱",
+    "titleZh": "【即時預測】APCS b266 逆向還原順序——還原最初矩陣必須反著做！",
+    "titleEn": "Exam Pitfall: Inverse Reconstruction Must Process in Reverse Order",
+    "predictQuiz": {
+      "question": "APCS b266 給定矩陣在經過一連串操作 [A, B, C] 後的「最終狀態」，若要逆向還原出「原始狀態」，指令序列的處理順序應該為何？",
+      "options": [
+        "A: 照原順序依序還原：先解 A，再解 B，最後解 C",
+        "B: 必須倒序處理：先解 C 的逆操作，再解 B，最後解 A",
+        "C: 幾何變換順序可任意對調，不影響最終還原結果",
+        "D: 只要做最後一個操作 C 即可還原"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "生活常識：穿襪子後穿鞋子，還原必須「先脫鞋子、再脫襪子」！矩陣變換不具交換律，逆向還原必須用 reversed(ops) 倒著取出最後發生的操作並套用其逆變換。"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "ops = [0, 1, 0]  # 先旋轉，再翻轉，再旋轉",
+        "html": "<span class=\"token-ident\">ops</span> = [<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>]  <span class=\"token-comment\"># 先旋轉，再翻轉，再旋轉</span>",
+        "alt": "給定三個變換步驟",
+        "why": "操作歷史",
+        "mean": "操作清單"
+      },
+      {
+        "num": 2,
+        "code": "rev_ops = list(reversed(ops))",
+        "html": "<span class=\"token-ident\">rev_ops</span> = <span class=\"token-builtin\">list</span>(<span class=\"token-builtin\">reversed</span>(<span class=\"token-ident\">ops</span>))",
+        "alt": "關鍵心法：倒序還原序列",
+        "diff": true,
+        "why": "反轉指令歷史",
+        "mean": "反轉操作序列"
+      },
+      {
+        "num": 3,
+        "code": "print(\"正向施加順序:\", ops)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正向施加順序:\"</span>, <span class=\"token-ident\">ops</span>)",
+        "alt": "印出原始正向順序",
+        "why": "印出正向",
+        "mean": "印出正向清單"
+      },
+      {
+        "num": 4,
+        "code": "print(\"逆向還原執行順序:\", rev_ops)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"逆向還原執行順序:\"</span>, <span class=\"token-ident\">rev_ops</span>)",
+        "alt": "印出逆向還原順序",
+        "diff": true,
+        "why": "印出逆向",
+        "mean": "印出倒序清單"
+      }
+    ],
+    "output": "正向施加順序: [0, 1, 0]\n逆向還原執行順序: [0, 1, 0]",
+    "memoryState": [
+      {
+        "name": "正向",
+        "val": "Step1 -> Step2 -> Step3",
+        "diff": false
+      },
+      {
+        "name": "逆向還原",
+        "val": "Step3_inv -> Step2_inv -> Step1_inv",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "脫鞋脫襪倒序還原"
+      },
+      {
+        "type": "point",
+        "text": "APCS b266 給的是變換後的結果要求找回原狀，所有考生最容易死在順著做，切記 reversed(ops) 才是解題靈魂！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.10 逆時針旋轉的逆操作辨析",
+    "titleZh": "旋轉逆操作辨析——逆時針 90 度的逆操作是「順時針 90 度」！",
+    "titleEn": "Inverse Operation: Inverse of CCW 90 is Clockwise 90",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "原矩陣",
+        "why": "原矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "def rot_ccw(M):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">rot_ccw</span>(<span class=\"token-ident\">M</span>):",
+        "alt": "正向操作：逆時針 90 度",
+        "why": "逆時針",
+        "mean": "逆時針函式"
+      },
+      {
+        "num": 3,
+        "code": "    R, C = len(M), len(M[0])",
+        "html": "    <span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">M</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">M</span>[<span class=\"token-number\">0</span>])",
+        "alt": "尺寸",
+        "why": "尺寸",
+        "mean": "長寬 R, C"
+      },
+      {
+        "num": 4,
+        "code": "    return [[M[r][C - 1 - c] for r in range(R)] for c in range(C)]",
+        "html": "    <span class=\"token-keyword\">return</span> [[<span class=\"token-ident\">M</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">C</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "逆時針旋轉",
+        "why": "逆時針",
+        "mean": "逆時針變換"
+      },
+      {
+        "num": 5,
+        "code": "def rot_cw(M):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">rot_cw</span>(<span class=\"token-ident\">M</span>):",
+        "alt": "逆操作：順時針 90 度",
+        "diff": true,
+        "why": "順時針（還原）",
+        "mean": "順時針還原函式"
+      },
+      {
+        "num": 6,
+        "code": "    R, C = len(M), len(M[0])",
+        "html": "    <span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">M</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">M</span>[<span class=\"token-number\">0</span>])",
+        "alt": "尺寸",
+        "why": "尺寸",
+        "mean": "長寬 R, C"
+      },
+      {
+        "num": 7,
+        "code": "    return [[M[R - 1 - r][c] for r in range(R)] for c in range(C)]",
+        "html": "    <span class=\"token-keyword\">return</span> [[<span class=\"token-ident\">M</span>[<span class=\"token-ident\">R</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "順時針旋轉",
+        "why": "順時針",
+        "mean": "順時針變換"
+      },
+      {
+        "num": 8,
+        "code": "transformed = rot_ccw(grid)",
+        "html": "<span class=\"token-ident\">transformed</span> = <span class=\"token-ident\">rot_ccw</span>(<span class=\"token-ident\">grid</span>)",
+        "alt": "正向逆時針轉",
+        "why": "正向變換",
+        "mean": "執行正向旋轉"
+      },
+      {
+        "num": 9,
+        "code": "restored = rot_cw(transformed)",
+        "html": "<span class=\"token-ident\">restored</span> = <span class=\"token-ident\">rot_cw</span>(<span class=\"token-ident\">transformed</span>)",
+        "alt": "逆向順時針轉成功還原！",
+        "diff": true,
+        "why": "逆向還原",
+        "mean": "順轉還原成功"
+      },
+      {
+        "num": 10,
+        "code": "print(\"還原成果與原矩陣相等:\", restored == grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"還原成果與原矩陣相等:\"</span>, <span class=\"token-ident\">restored</span> == <span class=\"token-ident\">grid</span>)",
+        "alt": "驗證是否完全相等",
+        "why": "驗證還原",
+        "mean": "比對還原相等"
+      }
+    ],
+    "output": "還原成果與原矩陣相等: True",
+    "memoryState": [
+      {
+        "name": "原矩陣",
+        "val": "[[1, 2], [3, 4]]",
+        "diff": false
+      },
+      {
+        "name": "restored",
+        "val": "[[1, 2], [3, 4]]",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "逆轉還原順轉相抵"
+      },
+      {
+        "type": "point",
+        "text": "正向操作若是逆時針旋轉 90 度，則還原時必須執行其反向動作——「順時針旋轉 90 度」；而上下翻轉的逆操作則是翻轉自己。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.11 原地修改髒讀覆蓋地雷",
+    "titleZh": "原地覆蓋地雷——邊讀邊寫直接破壞尚未搬移的舊資料！",
+    "titleEn": "In-place Overwrite Trap: Mutating While Reading Dirty State",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "原始 2x2",
+        "why": "原始矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "# 錯誤示範：企圖原地翻轉但直接指派覆蓋",
+        "html": "<span class=\"token-comment\"># 錯誤示範：企圖原地翻轉但直接指派覆蓋</span>",
+        "alt": "錯誤示範註解",
+        "why": "註解提示",
+        "mean": "錯誤註解"
+      },
+      {
+        "num": 3,
+        "code": "temp = [row[:] for row in grid]  # 正確做法：必須建立副本或新陣列",
+        "html": "<span class=\"token-ident\">temp</span> = [<span class=\"token-ident\">row</span>[:] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>]  <span class=\"token-comment\"># 正確做法：必須建立副本或新陣列</span>",
+        "alt": "建立獨立深拷貝副本",
+        "diff": true,
+        "why": "防護性拷貝",
+        "mean": "建立深拷貝副本"
+      },
+      {
+        "num": 4,
+        "code": "grid[0] = temp[1]",
+        "html": "<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>] = <span class=\"token-ident\">temp</span>[<span class=\"token-number\">1</span>]",
+        "alt": "安全覆蓋第 0 列",
+        "why": "安全賦值",
+        "mean": "改第 0 列"
+      },
+      {
+        "num": 5,
+        "code": "grid[1] = temp[0]",
+        "html": "<span class=\"token-ident\">grid</span>[<span class=\"token-number\">1</span>] = <span class=\"token-ident\">temp</span>[<span class=\"token-number\">0</span>]",
+        "alt": "安全覆蓋第 1 列",
+        "why": "安全賦值",
+        "mean": "改第 1 列"
+      },
+      {
+        "num": 6,
+        "code": "print(\"安全翻轉成功:\", grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"安全翻轉成功:\"</span>, <span class=\"token-ident\">grid</span>)",
+        "alt": "印出安全翻轉成果",
+        "diff": true,
+        "why": "印出結果",
+        "mean": "輸出安全翻轉"
+      }
+    ],
+    "output": "安全翻轉成功: [[3, 4], [1, 2]]",
+    "memoryState": [
+      {
+        "name": "若無 temp 副本",
+        "val": "grid[1] = grid[0] 導致兩列皆為 [3, 4]",
+        "diff": true
+      },
+      {
+        "name": "有 temp 副本",
+        "val": "成功交換兩列",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "幾何變換生成新陣"
+      },
+      {
+        "type": "point",
+        "text": "在 Python 中做二維幾何變換，最推薦一律使用列表推導式產出「全新矩陣」回傳，不僅程式碼極簡，更能 100% 杜絕原地覆蓋的髒讀地雷。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.12 翻轉兩次還原恆等性簡化心法",
+    "titleZh": "翻轉兩次等同未動——偶數次自抵消的高效剪枝！",
+    "titleEn": "Involution Property: Even Number of Flips Cancel Out",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "原矩陣",
+        "why": "原矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "flip_1 = grid[::-1]",
+        "html": "<span class=\"token-ident\">flip_1</span> = <span class=\"token-ident\">grid</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "第 1 次翻轉",
+        "why": "第一次翻轉",
+        "mean": "翻轉一次"
+      },
+      {
+        "num": 3,
+        "code": "flip_2 = flip_1[::-1]",
+        "html": "<span class=\"token-ident\">flip_2</span> = <span class=\"token-ident\">flip_1</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "第 2 次翻轉：負負得正回到原樣",
+        "diff": true,
+        "why": "第二次翻轉自抵消",
+        "mean": "翻轉兩次復原"
+      },
+      {
+        "num": 4,
+        "code": "print(\"翻轉兩次完全等於原矩陣:\", flip_2 == grid)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"翻轉兩次完全等於原矩陣:\"</span>, <span class=\"token-ident\">flip_2</span> == <span class=\"token-ident\">grid</span>)",
+        "alt": "印出驗證結果 True",
+        "why": "印出驗證",
+        "mean": "比對相等"
+      }
+    ],
+    "output": "翻轉兩次完全等於原矩陣: True",
+    "memoryState": [
+      {
+        "name": "翻轉 1 次",
+        "val": "上下倒置",
+        "diff": true
+      },
+      {
+        "name": "翻轉 2 次",
+        "val": "原封不動 (Self-inverse)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "翻轉自我互為逆算"
+      },
+      {
+        "type": "point",
+        "text": "上下翻轉具備對合性（Involution）：flip(flip(M)) == M，因此翻轉的逆操作就是它自己，代碼完全不用另寫逆向版本！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.13 綜合實戰一：長方形非方陣連續幾何變換",
+    "titleZh": "綜合實戰一——非方陣連續變換：翻轉後順時針旋轉",
+    "titleEn": "Capstone 1: Chained Transformations on Non-Square Matrix",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "2x3 原矩陣列 0",
+        "why": "定義列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6]]",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>]]",
+        "alt": "2x3 原矩陣列 1",
+        "why": "定義列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "# 步驟一：上下翻轉",
+        "html": "<span class=\"token-comment\"># 步驟一：上下翻轉</span>",
+        "alt": "步驟一提示",
+        "why": "步驟一",
+        "mean": "步驟一翻轉"
+      },
+      {
+        "num": 4,
+        "code": "step1 = grid[::-1]",
+        "html": "<span class=\"token-ident\">step1</span> = <span class=\"token-ident\">grid</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "執行上下翻轉",
+        "why": "上下翻轉",
+        "mean": "翻轉"
+      },
+      {
+        "num": 5,
+        "code": "# 步驟二：順時針旋轉 90 度",
+        "html": "<span class=\"token-comment\"># 步驟二：順時針旋轉 90 度</span>",
+        "alt": "步驟二提示",
+        "why": "步驟二",
+        "mean": "步驟二順轉"
+      },
+      {
+        "num": 6,
+        "code": "R1, C1 = len(step1), len(step1[0])",
+        "html": "<span class=\"token-ident\">R1</span>, <span class=\"token-ident\">C1</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">step1</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">step1</span>[<span class=\"token-number\">0</span>])",
+        "alt": "動態取得 step1 尺寸",
+        "why": "萃取尺寸",
+        "mean": "取 R1, C1"
+      },
+      {
+        "num": 7,
+        "code": "step2 = [[step1[R1 - 1 - r][c] for r in range(R1)] for c in range(C1)]",
+        "html": "<span class=\"token-ident\">step2</span> = [[<span class=\"token-ident\">step1</span>[<span class=\"token-ident\">R1</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R1</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C1</span>)]",
+        "alt": "執行順時針 90 度",
+        "diff": true,
+        "why": "順時針 90 度",
+        "mean": "順轉 90 度"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"最終形狀: {len(step2)}x{len(step2[0])}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最終形狀: {len(step2)}x{len(step2[0])}\"</span>)",
+        "alt": "印出最終形狀 3x2",
+        "why": "印出尺寸",
+        "mean": "輸出尺寸"
+      },
+      {
+        "num": 9,
+        "code": "for row in step2:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">step2</span>:",
+        "alt": "走訪每一列",
+        "why": "逐列印出",
+        "mean": "走訪新矩陣"
+      },
+      {
+        "num": 10,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "印出內容",
+        "why": "輸出",
+        "mean": "印出列元素"
+      }
+    ],
+    "output": "最終形狀: 3x2\n1 4\n2 5\n3 6",
+    "memoryState": [
+      {
+        "name": "step1 (翻轉)",
+        "val": "[[4, 5, 6], [1, 2, 3]]",
+        "diff": true
+      },
+      {
+        "name": "step2 (順轉)",
+        "val": "[[1, 4], [2, 5], [3, 6]]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "連續變換分步鎖定"
+      },
+      {
+        "type": "point",
+        "text": "面對連續複合幾何變換，切勿企圖寫成一個超複雜數學公式，分步儲存或管線化調用才是保證 100% 答對的最佳解法。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6.14 綜合實戰二：APCS b266 滿分逆向還原演算法",
+    "titleZh": "綜合實戰二——APCS b266 矩陣翻轉：倒序逆解滿分通關！",
+    "titleEn": "Capstone 2: APCS b266 Full-Score Inverse Solver",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "final_grid = [[1, 1],",
+        "html": "<span class=\"token-ident\">final_grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>],",
+        "alt": "題意給定之最終矩陣列 0",
+        "why": "最終狀態列 0",
+        "mean": "定義最終列 0"
+      },
+      {
+        "num": 2,
+        "code": "              [3, 1],",
+        "html": "              [<span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>],",
+        "alt": "最終矩陣列 1",
+        "why": "最終狀態列 1",
+        "mean": "定義最終列 1"
+      },
+      {
+        "num": 3,
+        "code": "              [1, 2]]",
+        "html": "              [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>]]",
+        "alt": "最終矩陣列 2 (尺寸 3x2)",
+        "why": "最終狀態列 2",
+        "mean": "定義最終列 2"
+      },
+      {
+        "num": 4,
+        "code": "ops = [0, 1]  # 正向經歷了：0(逆時針旋轉) -> 1(翻轉)",
+        "html": "<span class=\"token-ident\">ops</span> = [<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>]  <span class=\"token-comment\"># 正向經歷了：0(逆時針旋轉) -> 1(翻轉)</span>",
+        "alt": "正向操作序列",
+        "why": "操作歷史",
+        "mean": "定義操作紀錄"
+      },
+      {
+        "num": 5,
+        "code": "cur = final_grid",
+        "html": "<span class=\"token-ident\">cur</span> = <span class=\"token-ident\">final_grid</span>",
+        "alt": "從最終狀態出發",
+        "why": "初始指派",
+        "mean": "從終態開始"
+      },
+      {
+        "num": 6,
+        "code": "for op in reversed(ops):  # 核心：倒著還原！",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span>(<span class=\"token-ident\">ops</span>):  <span class=\"token-comment\"># 核心：倒著還原！</span>",
+        "alt": "逆向走訪操作紀錄",
+        "diff": true,
+        "why": "倒序還原迴圈",
+        "mean": "倒序走訪操作"
+      },
+      {
+        "num": 7,
+        "code": "    if op == 1:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> == <span class=\"token-number\">1</span>:",
+        "alt": "操作碼 1 是翻轉，其逆操作仍是翻轉",
+        "why": "翻轉逆操作判斷",
+        "mean": "判斷操作 1"
+      },
+      {
+        "num": 8,
+        "code": "        cur = cur[::-1]",
+        "html": "        <span class=\"token-ident\">cur</span> = <span class=\"token-ident\">cur</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "上下翻轉還原",
+        "why": "執行翻轉還原",
+        "mean": "上下倒置"
+      },
+      {
+        "num": 9,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span>:",
+        "alt": "操作碼 0 是逆時針旋轉，其逆操作是順時針旋轉",
+        "why": "旋轉逆操作分支",
+        "mean": "操作 0 分支"
+      },
+      {
+        "num": 10,
+        "code": "        R, C = len(cur), len(cur[0])",
+        "html": "        <span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">cur</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">cur</span>[<span class=\"token-number\">0</span>])",
+        "alt": "萃取尺寸",
+        "why": "萃取當前尺寸",
+        "mean": "取 R, C"
+      },
+      {
+        "num": 11,
+        "code": "        cur = [[cur[R - 1 - r][c] for r in range(R)] for c in range(C)]",
+        "html": "        <span class=\"token-ident\">cur</span> = [[<span class=\"token-ident\">cur</span>[<span class=\"token-ident\">R</span> - <span class=\"token-number\">1</span> - <span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">C</span>)]",
+        "alt": "順時針旋轉還原逆時針",
+        "diff": true,
+        "why": "執行順時針還原",
+        "mean": "順轉還原"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"{len(cur)} {len(cur[0])}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{len(cur)} {len(cur[0])}\"</span>)",
+        "alt": "輸出還原後最初尺寸 2 3",
+        "why": "依題意輸出尺寸",
+        "mean": "印出長寬"
+      },
+      {
+        "num": 13,
+        "code": "for row in cur:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">cur</span>:",
+        "alt": "走訪還原後的原始矩陣",
+        "why": "印出還原成果",
+        "mean": "走訪原矩陣"
+      },
+      {
+        "num": 14,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "解包印出每一列",
+        "why": "印出原始列",
+        "mean": "印出解包列"
+      }
+    ],
+    "output": "2 3\n1 3 1\n1 1 2",
+    "memoryState": [
+      {
+        "name": "還原後尺寸",
+        "val": "2 x 3",
+        "diff": true
+      },
+      {
+        "name": "原始陣列內容",
+        "val": "[[1, 3, 1], [1, 1, 2]]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "倒序逆解滿分通關"
+      },
+      {
+        "type": "point",
+        "text": "這就是 APCS b266 滿分 AC 核心邏輯！掌握 reversed(ops) 搭配操作 1 (翻轉) 與操作 0 (順時針還原逆時針)，整題十行內搞定！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.6 綜合驗收與通關簽到",
+    "titleZh": "單元結業通關——矩陣幾何變換與 APCS b266 完全精通！",
+    "titleEn": "Unit Completion: Mastering Matrix Transformations & APCS b266",
+    "completionCard": {
+      "badge": "矩陣變換操盤手",
+      "summary": "你已徹底掌握左右水平翻轉、上下垂直翻轉、矩陣轉置、順/逆時針 90 度旋轉，並成功逆解 APCS b266 考古真題！",
+      "nextUnit": "9.7 網格導航與方向向量：四向八向移動與 APCS e287"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "驗收矩陣 2x2",
+        "why": "定義驗收矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "flipped = grid[::-1]",
+        "html": "<span class=\"token-ident\">flipped</span> = <span class=\"token-ident\">grid</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "驗收翻轉",
+        "why": "執行翻轉",
+        "mean": "上下倒置"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"通關驗收: 原={grid}, 上下翻轉={flipped}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"通關驗收: 原={grid}, 上下翻轉={flipped}\"</span>)",
+        "alt": "印出通關結業成果",
+        "diff": true,
+        "why": "印出驗收成就",
+        "mean": "輸出結業證明"
+      }
+    ],
+    "output": "通關驗收: 原=[[1, 2], [3, 4]], 上下翻轉=[[3, 4], [1, 2]]",
+    "memoryState": [
+      {
+        "name": "原矩陣",
+        "val": "[[1, 2], [3, 4]]",
+        "diff": false
+      },
+      {
+        "name": "flipped",
+        "val": "[[3, 4], [1, 2]]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "幾何變換逆解通關"
+      },
+      {
+        "type": "point",
+        "text": "恭喜完成單元 9-6！下一單元我們將進入二維網格實戰的另一大支柱：網格導航與方向向量（四向八向移動、APCS e287 機器人走棋盤）！"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-6_matrix_geometric_transformations_and_apcs_b266.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 9.7 網格導航與方向向量：四向八向移動與 APCS e287 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 9.7 網格導航與方向向量：四向八向移動與 APCS e287
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.1 網格導航核心：座標位移與新位置映射",
+    "titleZh": "網格導航核心——從 (r, c) 加上 (dr, dc) 抵達新格！",
+    "titleEn": "Grid Navigation: Adding Offsets (dr, dc) to Current (r, c)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "r, c = 2, 2  # 目前位於 (2, 2)",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>  <span class=\"token-comment\"># 目前位於 (2, 2)</span>",
+        "alt": "起始座標 (2, 2)",
+        "why": "起始位置",
+        "mean": "目前位置 (2, 2)"
+      },
+      {
+        "num": 2,
+        "code": "dr, dc = -1, 0  # 向上移動一步 (列-1, 行不變)",
+        "html": "<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> = -<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 向上移動一步 (列-1, 行不變)</span>",
+        "alt": "向上位移向量",
+        "why": "向北位移",
+        "mean": "向上位移 (-1, 0)"
+      },
+      {
+        "num": 3,
+        "code": "nr, nc = r + dr, c + dc",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "相加得到新座標",
+        "diff": true,
+        "why": "新座標計算",
+        "mean": "相加得新位置"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"原座標: ({r}, {c}) 向上移動後新座標: ({nr}, {nc})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"原座標: ({r}, {c}) 向上移動後新座標: ({nr}, {nc})\"</span>)",
+        "alt": "印出新舊座標",
+        "why": "輸出位置",
+        "mean": "輸出位移前後"
+      }
+    ],
+    "output": "原座標: (2, 2) 向上移動後新座標: (1, 2)",
+    "memoryState": [
+      {
+        "name": "(r, c)",
+        "val": "(2, 2)",
+        "diff": false
+      },
+      {
+        "name": "(nr, nc)",
+        "val": "(1, 2)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "新格等於舊格加位"
+      },
+      {
+        "type": "point",
+        "text": "在二維網格中，所有移動都是將目前座標 (r, c) 加上方向偏移量 (dr, dc) 得到新座標 (nr, nc)。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.2 四向位移向量十字羅盤",
+    "titleZh": "四向十字羅盤——上、下、左、右方向向量定義！",
+    "titleEn": "4-Direction Compass: Up, Down, Left, Right Offsets",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 上: (-1, 0), 下: (1, 0), 左: (0, -1), 右: (0, 1)",
+        "html": "<span class=\"token-comment\"># 上: (-1, 0), 下: (1, 0), 左: (0, -1), 右: (0, 1)</span>",
+        "alt": "四向定義提示",
+        "why": "提示",
+        "mean": "四向定義"
+      },
+      {
+        "num": 2,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "方向向量陣列",
+        "diff": true,
+        "why": "方向陣列定義",
+        "mean": "四向向量清單"
+      },
+      {
+        "num": 3,
+        "code": "names = [\"上\", \"下\", \"左\", \"右\"]",
+        "html": "<span class=\"token-ident\">names</span> = [<span class=\"token-string\">\"上\"</span>, <span class=\"token-string\">\"下\"</span>, <span class=\"token-string\">\"左\"</span>, <span class=\"token-string\">\"右\"</span>]",
+        "alt": "方向中文名稱",
+        "why": "名稱對應",
+        "mean": "方向名稱"
+      },
+      {
+        "num": 4,
+        "code": "for (dr, dc), name in zip(dirs, names):",
+        "html": "<span class=\"token-keyword\">for</span> (<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span>), <span class=\"token-ident\">name</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span>(<span class=\"token-ident\">dirs</span>, <span class=\"token-ident\">names</span>):",
+        "alt": "遍歷四向向量",
+        "why": "遍歷方向",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 5,
+        "code": "    print(f\"{name}: dr={dr:+2d}, dc={dc:+2d}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{name}: dr={dr:+2d}, dc={dc:+2d}\"</span>)",
+        "alt": "格式化印出帶正負號的方向向量",
+        "why": "輸出向量",
+        "mean": "輸出位移量"
+      }
+    ],
+    "output": "上: dr=-1, dc=+0\n下: dr=+1, dc=+0\n左: dr=+0, dc=-1\n右: dr=+0, dc=+1",
+    "memoryState": [
+      {
+        "name": "上/下 (列變換)",
+        "val": "dr = -1 / +1",
+        "diff": false
+      },
+      {
+        "name": "左/右 (行變換)",
+        "val": "dc = -1 / +1",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "負上一上左負右一"
+      },
+      {
+        "type": "point",
+        "text": "牢記二維陣列下標規律：往上列數變小 (dr=-1)，往下變大 (dr=+1)；往左行數變小 (dc=-1)，往右變大 (dc=+1)。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.3 合法邊界防禦哨兵（Boundary Guard）",
+    "titleZh": "邊界防禦哨兵——鏈式比對 0 <= nr < R and 0 <= nc < C！",
+    "titleEn": "Boundary Guard: Python Chained Comparison for Safety",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 3, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>",
+        "alt": "尺寸 3x3",
+        "why": "邊界尺寸",
+        "mean": "長寬 3x3"
+      },
+      {
+        "num": 2,
+        "code": "def in_bounds(nr, nc):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">in_bounds</span>(<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>):",
+        "alt": "邊界判定哨兵函式",
+        "why": "邊界防禦函式",
+        "mean": "定義邊界檢查"
+      },
+      {
+        "num": 3,
+        "code": "    return 0 <= nr < R and 0 <= nc < C",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>",
+        "alt": "利用 Python 鏈式比對優雅檢查四面邊界",
+        "diff": true,
+        "why": "鏈式比對",
+        "mean": "四面合法檢驗"
+      },
+      {
+        "num": 4,
+        "code": "tests = [(0, 0), (-1, 0), (2, 2), (3, 2)]",
+        "html": "<span class=\"token-ident\">tests</span> = [(<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>), (-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>), (<span class=\"token-number\">3</span>, <span class=\"token-number\">2</span>)]",
+        "alt": "測試點",
+        "why": "測試座標",
+        "mean": "測試座標點"
+      },
+      {
+        "num": 5,
+        "code": "for r, c in tests:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">tests</span>:",
+        "alt": "走訪測試點",
+        "why": "走訪點",
+        "mean": "走訪測試點"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"座標 ({r}, {c}) 是否合法: {in_bounds(r, c)}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"座標 ({r}, {c}) 是否合法: {in_bounds(r, c)}\"</span>)",
+        "alt": "印出合法性檢驗結果",
+        "why": "輸出檢驗",
+        "mean": "輸出合法結果"
+      }
+    ],
+    "output": "座標 (0, 0) 是否合法: True\n座標 (-1, 0) 是否合法: False\n座標 (2, 2) 是否合法: True\n座標 (3, 2) 是否合法: False",
+    "memoryState": [
+      {
+        "name": "(-1, 0)",
+        "val": "nr < 0 -> False",
+        "diff": true
+      },
+      {
+        "name": "(3, 2)",
+        "val": "nr >= R -> False",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "鏈式比對哨兵防守"
+      },
+      {
+        "type": "point",
+        "text": "Python 獨有的 0 <= nr < R and 0 <= nc < C 寫法極度緊湊高效，在踩入鄰格前必須先經此哨兵把關！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.4 方向向量迴圈走訪四相鄰鄰居",
+    "titleZh": "四鄰走訪鐵律——for dr, dc in dirs 優雅遍歷鄰居！",
+    "titleEn": "4-Neighbor Traversal: Elegant Loop with Direction Vectors",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2, 3],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>],",
+        "alt": "3x3 網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [4, 5, 6],",
+        "html": "        [<span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>],",
+        "alt": "3x3 網格列 1 (中心為 5)",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "        [7, 8, 9]]",
+        "html": "        [<span class=\"token-number\">7</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">9</span>]]",
+        "alt": "3x3 網格列 2",
+        "why": "網格列 2",
+        "mean": "定義列 2"
+      },
+      {
+        "num": 4,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "長寬",
+        "why": "萃取尺寸",
+        "mean": "尺寸 R, C"
+      },
+      {
+        "num": 5,
+        "code": "r, c = 1, 1  # 檢查中心點 (1, 1)",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 檢查中心點 (1, 1)</span>",
+        "alt": "指定中心點",
+        "why": "中心點",
+        "mean": "中心座標 (1, 1)"
+      },
+      {
+        "num": 6,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "四向方向向量",
+        "why": "四向向量",
+        "mean": "方向清單"
+      },
+      {
+        "num": 7,
+        "code": "neighbors = []",
+        "html": "<span class=\"token-ident\">neighbors</span> = []",
+        "alt": "收集合法鄰居數值",
+        "why": "鄰居清單",
+        "mean": "初始化鄰居清單"
+      },
+      {
+        "num": 8,
+        "code": "for dr, dc in dirs:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "遍歷四個方向",
+        "why": "方向迴圈",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 9,
+        "code": "    nr, nc = r + dr, c + dc",
+        "html": "    <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "產生鄰居座標",
+        "why": "新座標",
+        "mean": "算鄰居座標"
+      },
+      {
+        "num": 10,
+        "code": "    if 0 <= nr < R and 0 <= nc < C:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span>:",
+        "alt": "邊界防禦",
+        "why": "邊界檢驗",
+        "mean": "邊界過濾"
+      },
+      {
+        "num": 11,
+        "code": "        neighbors.append(grid[nr][nc])",
+        "html": "        <span class=\"token-ident\">neighbors</span>.<span class=\"token-ident\">append</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>])",
+        "alt": "加入合法鄰居數值",
+        "diff": true,
+        "why": "收集合法值",
+        "mean": "存入鄰格值"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"中心 (1,1) 的四相鄰數值: {neighbors}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"中心 (1,1) 的四相鄰數值: {neighbors}\"</span>)",
+        "alt": "印出四鄰數值 [2, 8, 4, 6]",
+        "why": "輸出成果",
+        "mean": "輸出鄰居結果"
+      }
+    ],
+    "output": "中心 (1,1) 的四相鄰數值: [2, 8, 4, 6]",
+    "memoryState": [
+      {
+        "name": "上/下/左/右",
+        "val": "2, 8, 4, 6",
+        "diff": true
+      },
+      {
+        "name": "neighbors",
+        "val": "[2, 8, 4, 6]",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "方向迴圈鄰居全搜"
+      },
+      {
+        "type": "point",
+        "text": "透過方向陣列將原本繁雜的四段 if 複製貼上程式碼濃縮為單一迴圈，簡潔好維護且絕不手殘漏寫。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.5 八向相鄰擴展（8-Neighbors / 踩地雷九宮格）",
+    "titleZh": "八向相鄰擴展——九宮格斜向位移向量生成！",
+    "titleEn": "8-Neighbors: 3x3 Surrounding Offsets for Minesweeper",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 雙迴圈推導生成 8 向向量 (排除 (0,0) 本身)",
+        "html": "<span class=\"token-comment\"># 雙迴圈推導生成 8 向向量 (排除 (0,0) 本身)</span>",
+        "alt": "推導生成提示",
+        "why": "提示",
+        "mean": "8 向推導提示"
+      },
+      {
+        "num": 2,
+        "code": "dirs8 = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if not (dr == 0 and dc == 0)]",
+        "html": "<span class=\"token-ident\">dirs8</span> = [(<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span> <span class=\"token-keyword\">in</span> (-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> (-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>) <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> (<span class=\"token-ident\">dr</span> == <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">dc</span> == <span class=\"token-number\">0</span>)]",
+        "alt": "一行生成 8 個周圍相鄰方向向量",
+        "diff": true,
+        "why": "一行推導 8 向向量",
+        "mean": "生成 8 向向量"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"8 向向量總數: {len(dirs8)}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"8 向向量總數: {len(dirs8)}\"</span>)",
+        "alt": "印出向量總數 8",
+        "why": "印出總數",
+        "mean": "印出 8 向長度"
+      },
+      {
+        "num": 4,
+        "code": "print(\"左上/上/右上:\", dirs8[0:3])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"左上/上/右上:\"</span>, <span class=\"token-ident\">dirs8</span>[<span class=\"token-number\">0</span>:<span class=\"token-number\">3</span>])",
+        "alt": "印出前三個斜向與正向向量",
+        "why": "印出切片",
+        "mean": "輸出前三方向"
+      }
+    ],
+    "output": "8 向向量總數: 8\n左上/上/右上: [(-1, -1), (-1, 0), (-1, 1)]",
+    "memoryState": [
+      {
+        "name": "dirs8 長度",
+        "val": "8 個方向",
+        "diff": true
+      },
+      {
+        "name": "排除",
+        "val": "(0, 0) 自己",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "八向推導排除中心"
+      },
+      {
+        "type": "point",
+        "text": "踩地雷遊戲與周邊遮罩運算中，八方向向量可由 dr, dc in (-1, 0, 1) 的笛卡兒積扣除 (0, 0) 本身一鍵生成。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.6 走訪標記矩陣（Visited Grid）初始化與更新",
+    "titleZh": "走訪標記矩陣——防止重複走訪與無窮死循環！",
+    "titleEn": "Visited Matrix: Prevent Cycles and Duplicate Visits",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 2, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>",
+        "alt": "尺寸 2x3",
+        "why": "網格長寬",
+        "mean": "定義 2x3"
+      },
+      {
+        "num": 2,
+        "code": "visited = [[False] * C for _ in range(R)]",
+        "html": "<span class=\"token-ident\">visited</span> = [[<span class=\"token-keyword\">False</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "推導式安全初始化全 False 標記矩陣",
+        "diff": true,
+        "why": "安全獨立列初始化",
+        "mean": "初始化走訪矩陣"
+      },
+      {
+        "num": 3,
+        "code": "visited[0][0] = True  # 起點標記為已走過",
+        "html": "<span class=\"token-ident\">visited</span>[<span class=\"token-number\">0</span>][<span class=\"token-number\">0</span>] = <span class=\"token-keyword\">True</span>  <span class=\"token-comment\"># 起點標記為已走過</span>",
+        "alt": "單點標記",
+        "why": "標記起點",
+        "mean": "標記 (0,0) 已訪"
+      },
+      {
+        "num": 4,
+        "code": "for row in visited:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">visited</span>:",
+        "alt": "印出走訪矩陣",
+        "why": "印出狀態",
+        "mean": "走訪標記列"
+      },
+      {
+        "num": 5,
+        "code": "    print(row)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">row</span>)",
+        "alt": "印出各列狀態",
+        "why": "輸出列",
+        "mean": "輸出走訪列"
+      }
+    ],
+    "output": "[True, False, False]\n[False, False, False]",
+    "memoryState": [
+      {
+        "name": "visited[0][0]",
+        "val": "True",
+        "diff": true
+      },
+      {
+        "name": "visited[1][0]",
+        "val": "False (不受牽連)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "走訪標記推導獨立"
+      },
+      {
+        "type": "point",
+        "text": "標記矩陣切記要用列表推導式 [[False] * C for _ in range(R)]，絕不可用乘法複製，否則改一格整行被標為 True。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.7 貪婪挑選未走過之最小相鄰格",
+    "titleZh": "貪婪挑選最小相鄰格——四向比較並篩選最佳下一步！",
+    "titleEn": "Greedy Selection: Pick Smallest Unvisited Neighbor",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[9, 3, 5],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">9</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">5</span>],",
+        "alt": "網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [2, 8, 4]]",
+        "html": "        [<span class=\"token-number\">2</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "R, C = 2, 3",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>",
+        "alt": "尺寸",
+        "why": "長寬",
+        "mean": "尺寸 2x3"
+      },
+      {
+        "num": 4,
+        "code": "r, c = 0, 1  # 目前在 (0, 1) 數值為 3",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 目前在 (0, 1) 數值為 3</span>",
+        "alt": "目前位置",
+        "why": "當前座標",
+        "mean": "目前位置 (0, 1)"
+      },
+      {
+        "num": 5,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "四向向量",
+        "why": "方向陣列",
+        "mean": "四向陣列"
+      },
+      {
+        "num": 6,
+        "code": "min_val = float('inf')",
+        "html": "<span class=\"token-ident\">min_val</span> = <span class=\"token-builtin\">float</span>(<span class=\"token-string\">'inf'</span>)",
+        "alt": "最小值初始設為無限大",
+        "why": "初始化極小值",
+        "mean": "初值設無限大"
+      },
+      {
+        "num": 7,
+        "code": "next_r, next_c = -1, -1",
+        "html": "<span class=\"token-ident\">next_r</span>, <span class=\"token-ident\">next_c</span> = -<span class=\"token-number\">1</span>, -<span class=\"token-number\">1</span>",
+        "alt": "下一步座標",
+        "why": "初始化下一步",
+        "mean": "預設無下一步"
+      },
+      {
+        "num": 8,
+        "code": "for dr, dc in dirs:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "掃描四向",
+        "why": "掃描鄰居",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 9,
+        "code": "    nr, nc = r + dr, c + dc",
+        "html": "    <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "新座標",
+        "why": "計算座標",
+        "mean": "算新座標"
+      },
+      {
+        "num": 10,
+        "code": "    if 0 <= nr < R and 0 <= nc < C and grid[nr][nc] < min_val:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] < <span class=\"token-ident\">min_val</span>:",
+        "alt": "合法且數值更小",
+        "diff": true,
+        "why": "貪婪更新條件",
+        "mean": "更小鄰格比對"
+      },
+      {
+        "num": 11,
+        "code": "        min_val = grid[nr][nc]; next_r, next_c = nr, nc",
+        "html": "        <span class=\"token-ident\">min_val</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>]; <span class=\"token-ident\">next_r</span>, <span class=\"token-ident\">next_c</span> = <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>",
+        "alt": "更新最小鄰格",
+        "diff": true,
+        "why": "更新最佳下一步",
+        "mean": "釘選最佳下一步"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"最佳下一步座標: ({next_r}, {next_c}), 數值: {min_val}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最佳下一步座標: ({next_r}, {next_c}), 數值: {min_val}\"</span>)",
+        "alt": "印出最佳下一步 (0, 2) 的 5",
+        "why": "輸出結果",
+        "mean": "印出最佳下一步"
+      }
+    ],
+    "output": "最佳下一步座標: (0, 2), 數值: 5",
+    "memoryState": [
+      {
+        "name": "鄰居比較",
+        "val": "下(8), 左(9), 右(5)",
+        "diff": false
+      },
+      {
+        "name": "最佳選擇",
+        "val": "右 (0, 2) 數值 5",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "貪婪比對極小前進"
+      },
+      {
+        "type": "point",
+        "text": "APCS e287 機器人移動準則：每次都挑選四周相鄰且未走訪過、數值最小的格子前進，這正是標準的局部貪婪決策。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.8 全局最小點作為起點定位鎖定",
+    "titleZh": "全域極小值起點定位——搜尋整個網格作為導航出發點！",
+    "titleEn": "Global Minimum Starting Point: Locating the Initial Cell",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[45, 12, 33],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">45</span>, <span class=\"token-number\">12</span>, <span class=\"token-number\">33</span>],",
+        "alt": "網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [78,  3, 56]]",
+        "html": "        [<span class=\"token-number\">78</span>,  <span class=\"token-number\">3</span>, <span class=\"token-number\">56</span>]]",
+        "alt": "網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "min_r, min_c = 0, 0",
+        "html": "<span class=\"token-ident\">min_r</span>, <span class=\"token-ident\">min_c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>",
+        "alt": "初始起點座標",
+        "why": "初始座標",
+        "mean": "初值座標 (0,0)"
+      },
+      {
+        "num": 4,
+        "code": "for r in range(len(grid)):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>)):",
+        "alt": "走訪各列",
+        "why": "遍歷列",
+        "mean": "走訪各列"
+      },
+      {
+        "num": 5,
+        "code": "    for c in range(len(grid[0])):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])):",
+        "alt": "走訪各行",
+        "why": "遍歷行",
+        "mean": "走訪各行"
+      },
+      {
+        "num": 6,
+        "code": "        if grid[r][c] < grid[min_r][min_c]:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] < <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">min_r</span>][<span class=\"token-ident\">min_c</span>]:",
+        "alt": "尋找全域最小值",
+        "why": "比較條件",
+        "mean": "比對更小值"
+      },
+      {
+        "num": 7,
+        "code": "            min_r, min_c = r, c",
+        "html": "            <span class=\"token-ident\">min_r</span>, <span class=\"token-ident\">min_c</span> = <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>",
+        "alt": "更新起點座標",
+        "diff": true,
+        "why": "更新極小座標",
+        "mean": "更新起點 (r, c)"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"全網格起點鎖定: ({min_r}, {min_c}), 數值: {grid[min_r][min_c]}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"全網格起點鎖定: ({min_r}, {min_c}), 數值: {grid[min_r][min_c]}\"</span>)",
+        "alt": "印出起點成果",
+        "why": "輸出起點",
+        "mean": "印出全域起點"
+      }
+    ],
+    "output": "全網格起點鎖定: (1, 1), 數值: 3",
+    "memoryState": [
+      {
+        "name": "(min_r, min_c)",
+        "val": "(1, 1)",
+        "diff": true
+      },
+      {
+        "name": "數值",
+        "val": "3",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "全域尋幽鎖定起點"
+      },
+      {
+        "type": "point",
+        "text": "APCS e287 規定機器人必須從「整個矩陣數值最小的格子」出發，先用 O(RC) 雙重迴圈找出全域最小值是出發的第一步。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.9 邊界防禦與陣列存取順序顛倒地雷",
+    "titleZh": "【即時預測】短路求值地雷——先存取 grid 再查邊界必釀崩潰！",
+    "titleEn": "Exam Pitfall: Short-Circuit Order Trap Causes Fatal IndexError",
+    "predictQuiz": {
+      "question": "下列條件判斷式中，先寫 grid[nr][nc] == 0 再寫 0 <= nr < R，當 nr=-1 越界時會發生什麼事？",
+      "options": [
+        "A: 正常執行，Python 會自動容錯",
+        "B: 觸發 IndexError 崩潰，無法到達後方的邊界檢查",
+        "C: 條件自動判為 False，程式繼續運行",
+        "D: 觸發 ValueError"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "Python 的 and 運算子是「由左至右短路求值」。若將 grid[nr][nc] 寫在前面，越界時 Python 會立刻在左側炸開 IndexError，根本沒有機會執行右側的邊界判定！必須永遠「先檢查邊界合法，再存取元素」。"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "2x2 矩陣",
+        "why": "矩陣",
+        "mean": "定義 2x2"
+      },
+      {
+        "num": 2,
+        "code": "R, C = 2, 2",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>",
+        "alt": "長寬",
+        "why": "長寬",
+        "mean": "長寬 2x2"
+      },
+      {
+        "num": 3,
+        "code": "nr, nc = 5, 0  # 嚴重越界下標",
+        "html": "<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-number\">5</span>, <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 嚴重越界下標</span>",
+        "alt": "越界下標 nr=5",
+        "why": "越界座標",
+        "mean": "越界座標 (5, 0)"
+      },
+      {
+        "num": 4,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "測試順序顛倒",
+        "why": "異常捕捉",
+        "mean": "嘗試執行"
+      },
+      {
+        "num": 5,
+        "code": "    # 錯誤順序：先存取 grid 再檢查邊界",
+        "html": "    <span class=\"token-comment\"># 錯誤順序：先存取 grid 再檢查邊界</span>",
+        "alt": "錯誤順序提示",
+        "why": "註解提示",
+        "mean": "錯誤順序註解"
+      },
+      {
+        "num": 6,
+        "code": "    if grid[nr][nc] == 0 and (0 <= nr < R):",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] == <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> (<span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span>):",
+        "alt": "左側先存取 grid[5][0] 立刻爆掉",
+        "diff": true,
+        "why": "短路求值顛倒地雷",
+        "mean": "先取值後判界"
+      },
+      {
+        "num": 7,
+        "code": "        print(\"通過\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"通過\"</span>)",
+        "alt": "不可達程式碼",
+        "why": "不可達",
+        "mean": "印出通過"
+      },
+      {
+        "num": 8,
+        "code": "except IndexError:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-builtin\">IndexError</span>:",
+        "alt": "捕獲 IndexError",
+        "why": "捕捉越界異常",
+        "mean": "捕捉越界例外"
+      },
+      {
+        "num": 9,
+        "code": "    print(\"致命地雷: 先存取 grid 導致 IndexError 崩潰！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"致命地雷: 先存取 grid 導致 IndexError 崩潰！\"</span>)",
+        "alt": "印出警示訊息",
+        "diff": true,
+        "why": "輸出警示",
+        "mean": "印出順序錯誤"
+      }
+    ],
+    "output": "致命地雷: 先存取 grid 導致 IndexError 崩潰！",
+    "memoryState": [
+      {
+        "name": "短路求值原則",
+        "val": "先檢查合法，才可存取！",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "先判邊界後取數值"
+      },
+      {
+        "type": "point",
+        "text": "考場鐵律請牢記心頭：0 <= nr < R and 0 <= nc < C 必須置於 and 最左側，利用短路求值為後續存取築起安全護盾！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.10 笛卡兒座標系與矩陣下標符號混淆地雷",
+    "titleZh": "座標系混淆地雷——數學笛卡兒向上是加，陣列向上是減！",
+    "titleEn": "Coordinate Confusion: Cartesian Up (+1) vs Grid Up (-1)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 笛卡兒幾何座標：向上 y 遞增 (+1)",
+        "html": "<span class=\"token-comment\"># 笛卡兒幾何座標：向上 y 遞增 (+1)</span>",
+        "alt": "笛卡兒說明",
+        "why": "註解提示",
+        "mean": "笛卡兒說明"
+      },
+      {
+        "num": 2,
+        "code": "# 二維矩陣網格：向上列標 r 遞減 (-1)",
+        "html": "<span class=\"token-comment\"># 二維矩陣網格：向上列標 r 遞減 (-1)</span>",
+        "alt": "矩陣網格說明",
+        "why": "註解提示",
+        "mean": "矩陣說明"
+      },
+      {
+        "num": 3,
+        "code": "correct_up = (-1, 0)",
+        "html": "<span class=\"token-ident\">correct_up</span> = (-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>)",
+        "alt": "正確的向上向量",
+        "diff": true,
+        "why": "正確向上向量",
+        "mean": "正確向上 (-1, 0)"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"網格向上正確向量: {correct_up}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"網格向上正確向量: {correct_up}\"</span>)",
+        "alt": "印出向量",
+        "why": "輸出",
+        "mean": "輸出正確向上"
+      }
+    ],
+    "output": "網格向上正確向量: (-1, 0)",
+    "memoryState": [
+      {
+        "name": "網格向上",
+        "val": "dr = -1 (列號變小)",
+        "diff": true
+      },
+      {
+        "name": "網格向下",
+        "val": "dr = +1 (列號變大)",
+        "diff": false
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "網格向上列號必減"
+      },
+      {
+        "type": "point",
+        "text": "許多初學者習慣笛卡兒座標 (x, y)，誤以為向上是 +1，在二維矩陣中第 0 列在最上方，因此往上移動列下標必須減 1。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.11 走訪無路可走未設中斷造成死循環",
+    "titleZh": "終止條件遺漏地雷——無合法鄰居未中斷導致 while 死循環！",
+    "titleEn": "Termination Hazard: Missing Break on Dead End Causes Infinite Loop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬導航終止檢驗",
+        "html": "<span class=\"token-comment\"># 模擬導航終止檢驗</span>",
+        "alt": "提示",
+        "why": "提示",
+        "mean": "終止檢驗提示"
+      },
+      {
+        "num": 2,
+        "code": "has_valid_next = False",
+        "html": "<span class=\"token-ident\">has_valid_next</span> = <span class=\"token-keyword\">False</span>",
+        "alt": "四周皆無更小或未訪鄰格",
+        "why": "旗標",
+        "mean": "無合法下一步"
+      },
+      {
+        "num": 3,
+        "code": "step_count = 0",
+        "html": "<span class=\"token-ident\">step_count</span> = <span class=\"token-number\">0</span>",
+        "alt": "步數計數器",
+        "why": "計數器",
+        "mean": "步數歸零"
+      },
+      {
+        "num": 4,
+        "code": "while True:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-keyword\">True</span>:",
+        "alt": "導航主迴圈",
+        "why": "主迴圈",
+        "mean": "無限迴圈"
+      },
+      {
+        "num": 5,
+        "code": "    step_count += 1",
+        "html": "    <span class=\"token-ident\">step_count</span> += <span class=\"token-number\">1</span>",
+        "alt": "步數加 1",
+        "why": "步數遞增",
+        "mean": "步數加一"
+      },
+      {
+        "num": 6,
+        "code": "    if not has_valid_next:  # 關鍵防護：若無路可走立即中斷！",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">has_valid_next</span>:  <span class=\"token-comment\"># 關鍵防護：若無路可走立即中斷！</span>",
+        "alt": "無路可走防護判斷",
+        "diff": true,
+        "why": "死胡同中斷條件",
+        "mean": "檢查死胡同"
+      },
+      {
+        "num": 7,
+        "code": "        print(f\"無路可走，在第 {step_count} 步安全中斷退出！\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"無路可走，在第 {step_count} 步安全中斷退出！\"</span>)",
+        "alt": "印出安全退出訊息",
+        "why": "印出訊息",
+        "mean": "印出中斷"
+      },
+      {
+        "num": 8,
+        "code": "        break",
+        "html": "        <span class=\"token-keyword\">break</span>",
+        "alt": "跳出迴圈",
+        "diff": true,
+        "why": "跳出迴圈",
+        "mean": "跳出迴圈"
+      }
+    ],
+    "output": "無路可走，在第 1 步安全中斷退出！",
+    "memoryState": [
+      {
+        "name": "has_valid_next",
+        "val": "False",
+        "diff": false
+      },
+      {
+        "name": "狀態",
+        "val": "成功 break 退出",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "死胡同無路即退出"
+      },
+      {
+        "type": "point",
+        "text": "APCS 網格尋路題目必須嚴格設定終止條件：若掃描完四向發現沒有任何合法且未走訪的鄰格時，必須立刻 break 結束模擬。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.12 貪婪選擇數值相同時的方向優先權地雷",
+    "titleZh": "鄰格等值判定地雷——嚴格小於還是包含等於？",
+    "titleEn": "Tie-Breaker Pitfall: Strict Less Than vs Non-Strict Equality",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS e287 題幹明定：所有數字保證互不相同！",
+        "html": "<span class=\"token-comment\"># APCS e287 題幹明定：所有數字保證互不相同！</span>",
+        "alt": "題意保證提示",
+        "why": "提示",
+        "mean": "題意保證提示"
+      },
+      {
+        "num": 2,
+        "code": "# 因此比對時使用嚴格小於 < 即可，無需複雜 Tie-breaker",
+        "html": "<span class=\"token-comment\"># 因此比對時使用嚴格小於 < 即可，無需複雜 Tie-breaker</span>",
+        "alt": "嚴格小於提示",
+        "why": "提示",
+        "mean": "嚴格小於提示"
+      },
+      {
+        "num": 3,
+        "code": "best_val, cur_val = 10, 8",
+        "html": "<span class=\"token-ident\">best_val</span>, <span class=\"token-ident\">cur_val</span> = <span class=\"token-number\">10</span>, <span class=\"token-number\">8</span>",
+        "alt": "測試數值",
+        "why": "數值設定",
+        "mean": "測試數值 10 與 8"
+      },
+      {
+        "num": 4,
+        "code": "is_better = cur_val < best_val",
+        "html": "<span class=\"token-ident\">is_better</span> = <span class=\"token-ident\">cur_val</span> < <span class=\"token-ident\">best_val</span>",
+        "alt": "嚴格小於比對",
+        "diff": true,
+        "why": "嚴格小於判斷",
+        "mean": "比對更小"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"是否為更佳鄰格: {is_better}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"是否為更佳鄰格: {is_better}\"</span>)",
+        "alt": "印出比對成果",
+        "why": "輸出",
+        "mean": "印出比對結果"
+      }
+    ],
+    "output": "是否為更佳鄰格: True",
+    "memoryState": [
+      {
+        "name": "is_better",
+        "val": "True",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "審題詳讀互異保證"
+      },
+      {
+        "type": "point",
+        "text": "審題是競賽得分之母：APCS e287 保證所有格子的數值互不相同，省去了處理平手優先權的煩惱，安心使用 < 即可。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.13 綜合實戰一：踩地雷 8 鄰居周邊地雷統計器",
+    "titleZh": "綜合實戰一——踩地雷 8 鄰居掃描：周圍地雷計數演算法",
+    "titleEn": "Capstone 1: Minesweeper 8-Neighbors Mine Counter",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "minefield = [[1, 0, 0],",
+        "html": "<span class=\"token-ident\">minefield</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>],",
+        "alt": "地雷網格列 0 (1代表地雷)",
+        "why": "地雷網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "             [0, 0, 1],",
+        "html": "             [<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>],",
+        "alt": "地雷網格列 1",
+        "why": "地雷網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "             [0, 1, 0]]",
+        "html": "             [<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>]]",
+        "alt": "地雷網格列 2",
+        "why": "地雷網格列 2",
+        "mean": "定義列 2"
+      },
+      {
+        "num": 4,
+        "code": "R, C = len(minefield), len(minefield[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">minefield</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">minefield</span>[<span class=\"token-number\">0</span>])",
+        "alt": "長寬",
+        "why": "尺寸",
+        "mean": "尺寸 R, C"
+      },
+      {
+        "num": 5,
+        "code": "dirs8 = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if not (dr == 0 and dc == 0)]",
+        "html": "<span class=\"token-ident\">dirs8</span> = [(<span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span> <span class=\"token-keyword\">in</span> (-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> (-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>) <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> (<span class=\"token-ident\">dr</span> == <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">dc</span> == <span class=\"token-number\">0</span>)]",
+        "alt": "八向向量",
+        "why": "8 向陣列",
+        "mean": "八向向量清單"
+      },
+      {
+        "num": 6,
+        "code": "r, c = 1, 1  # 計算中心 (1, 1) 周邊地雷數",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 計算中心 (1, 1) 周邊地雷數</span>",
+        "alt": "中心格",
+        "why": "目標格",
+        "mean": "中心格 (1, 1)"
+      },
+      {
+        "num": 7,
+        "code": "count = sum(minefield[r+dr][c+dc] for dr, dc in dirs8 if 0 <= r+dr < R and 0 <= c+dc < C)",
+        "html": "<span class=\"token-ident\">count</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">minefield</span>[<span class=\"token-ident\">r</span>+<span class=\"token-ident\">dr</span>][<span class=\"token-ident\">c</span>+<span class=\"token-ident\">dc</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs8</span> <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">r</span>+<span class=\"token-ident\">dr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">c</span>+<span class=\"token-ident\">dc</span> < <span class=\"token-ident\">C</span>)",
+        "alt": "一行生成式掃描 8 鄰居地雷加總",
+        "diff": true,
+        "why": "推導式八向地雷加總",
+        "mean": "推導周圍地雷和"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"中心格 ({r}, {c}) 周邊 8 鄰居共有地雷: {count} 顆\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"中心格 ({r}, {c}) 周邊 8 鄰居共有地雷: {count} 顆\"</span>)",
+        "alt": "印出計算結果 3 顆",
+        "why": "輸出成果",
+        "mean": "輸出地雷統計"
+      }
+    ],
+    "output": "中心格 (1, 1) 周邊 8 鄰居共有地雷: 3 顆",
+    "memoryState": [
+      {
+        "name": "(0,0), (1,2), (2,1)",
+        "val": "三個位置有地雷",
+        "diff": false
+      },
+      {
+        "name": "count",
+        "val": "3",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "八向掃描雷數立現"
+      },
+      {
+        "type": "point",
+        "text": "透過 sum(minefield[r+dr][c+dc] for dr, dc in dirs8 if 邊界合法)，一行代碼即可精確統計九宮格內任意元素的出現次數。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7.14 綜合實戰二：APCS e287 機器人的路徑完整模擬實戰",
+    "titleZh": "綜合實戰二——APCS e287 機器人的路徑：貪婪尋路滿分通關！",
+    "titleEn": "Capstone 2: APCS e287 Robot Pathfinding Simulation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[3, 2, 1],",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">3</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">1</span>],",
+        "alt": "模擬 3x3 網格列 0",
+        "why": "網格列 0",
+        "mean": "定義列 0"
+      },
+      {
+        "num": 2,
+        "code": "        [6, 5, 4],",
+        "html": "        [<span class=\"token-number\">6</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">4</span>],",
+        "alt": "模擬 3x3 網格列 1",
+        "why": "網格列 1",
+        "mean": "定義列 1"
+      },
+      {
+        "num": 3,
+        "code": "        [9, 8, 7]]",
+        "html": "        [<span class=\"token-number\">9</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">7</span>]]",
+        "alt": "模擬 3x3 網格列 2",
+        "why": "網格列 2",
+        "mean": "定義列 2"
+      },
+      {
+        "num": 4,
+        "code": "R, C = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "尺寸 R=3, C=3",
+        "why": "萃取尺寸",
+        "mean": "尺寸 3x3"
+      },
+      {
+        "num": 5,
+        "code": "# 1. 鎖定全域最小值起點 (0, 2) 數值 1",
+        "html": "<span class=\"token-comment\"># 1. 鎖定全域最小值起點 (0, 2) 數值 1</span>",
+        "alt": "步驟一",
+        "why": "步驟一",
+        "mean": "起點為 (0, 2)"
+      },
+      {
+        "num": 6,
+        "code": "r, c = 0, 2",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">2</span>",
+        "alt": "起點 (0, 2)",
+        "why": "出發點",
+        "mean": "起點 (0, 2)"
+      },
+      {
+        "num": 7,
+        "code": "visited = [[False] * C for _ in range(R)]",
+        "html": "<span class=\"token-ident\">visited</span> = [[<span class=\"token-keyword\">False</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "初始化走訪矩陣",
+        "why": "走訪矩陣",
+        "mean": "初始化走訪表"
+      },
+      {
+        "num": 8,
+        "code": "visited[r][c] = True",
+        "html": "<span class=\"token-ident\">visited</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] = <span class=\"token-keyword\">True</span>",
+        "alt": "起點標記",
+        "why": "標記起點",
+        "mean": "標記起點已訪"
+      },
+      {
+        "num": 9,
+        "code": "total_sum = grid[r][c]",
+        "html": "<span class=\"token-ident\">total_sum</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>]",
+        "alt": "路徑點數累加",
+        "why": "累加總和",
+        "mean": "累加起點數值"
+      },
+      {
+        "num": 10,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "四向向量",
+        "why": "四向定義",
+        "mean": "四向清單"
+      },
+      {
+        "num": 11,
+        "code": "while True:",
+        "html": "<span class=\"token-keyword\">while</span> <span class=\"token-keyword\">True</span>:",
+        "alt": "貪婪導航循環",
+        "why": "模擬循環",
+        "mean": "導航循環"
+      },
+      {
+        "num": 12,
+        "code": "    best_val, nr_next, nc_next = float('inf'), -1, -1",
+        "html": "    <span class=\"token-ident\">best_val</span>, <span class=\"token-ident\">nr_next</span>, <span class=\"token-ident\">nc_next</span> = <span class=\"token-builtin\">float</span>(<span class=\"token-string\">'inf'</span>), -<span class=\"token-number\">1</span>, -<span class=\"token-number\">1</span>",
+        "alt": "初始化最佳下一步",
+        "why": "預設最佳",
+        "mean": "初始化最佳鄰居"
+      },
+      {
+        "num": 13,
+        "code": "    for dr, dc in dirs:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "掃描四向",
+        "why": "掃描方向",
+        "mean": "走訪四向"
+      },
+      {
+        "num": 14,
+        "code": "        nr, nc = r + dr, c + dc",
+        "html": "        <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "鄰居座標",
+        "why": "計算座標",
+        "mean": "算新座標"
+      },
+      {
+        "num": 15,
+        "code": "        if 0 <= nr < R and 0 <= nc < C and not visited[nr][nc]:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nr</span> < <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <= <span class=\"token-ident\">nc</span> < <span class=\"token-ident\">C</span> <span class=\"token-keyword\">and</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">visited</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>]:",
+        "alt": "合法且未走訪",
+        "why": "合法未訪檢驗",
+        "mean": "邊界且未訪"
+      },
+      {
+        "num": 16,
+        "code": "            if grid[nr][nc] < best_val:",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>] < <span class=\"token-ident\">best_val</span>:",
+        "alt": "比對更小數值",
+        "why": "貪婪更小",
+        "mean": "比對更小"
+      },
+      {
+        "num": 17,
+        "code": "                best_val, nr_next, nc_next = grid[nr][nc], nr, nc",
+        "html": "                <span class=\"token-ident\">best_val</span>, <span class=\"token-ident\">nr_next</span>, <span class=\"token-ident\">nc_next</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>], <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>",
+        "alt": "記錄最佳下一步",
+        "why": "更新最佳",
+        "mean": "釘選最佳"
+      },
+      {
+        "num": 18,
+        "code": "    if nr_next == -1: break",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">nr_next</span> == -<span class=\"token-number\">1</span>: <span class=\"token-keyword\">break</span>",
+        "alt": "死胡同無路可走則結束",
+        "diff": true,
+        "why": "終止退出條件",
+        "mean": "無路則跳出"
+      },
+      {
+        "num": 19,
+        "code": "    r, c = nr_next, nc_next",
+        "html": "    <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-ident\">nr_next</span>, <span class=\"token-ident\">nc_next</span>",
+        "alt": "移動至新位置",
+        "why": "推進座標",
+        "mean": "移動到新格"
+      },
+      {
+        "num": 20,
+        "code": "    visited[r][c] = True",
+        "html": "    <span class=\"token-ident\">visited</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] = <span class=\"token-keyword\">True</span>",
+        "alt": "標記新格已訪",
+        "why": "標記已訪",
+        "mean": "標記已訪"
+      },
+      {
+        "num": 21,
+        "code": "    total_sum += best_val",
+        "html": "    <span class=\"token-ident\">total_sum</span> += <span class=\"token-ident\">best_val</span>",
+        "alt": "累加分數",
+        "diff": true,
+        "why": "累加路徑點數",
+        "mean": "累加總點數"
+      },
+      {
+        "num": 22,
+        "code": "print(f\"APCS e287 機器人走過點數總和: {total_sum}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"APCS e287 機器人走過點數總和: {total_sum}\"</span>)",
+        "alt": "印出最終點數總和 45 (全走訪)",
+        "why": "輸出最終答案",
+        "mean": "輸出累計總分"
+      }
+    ],
+    "output": "APCS e287 機器人走過點數總和: 45",
+    "memoryState": [
+      {
+        "name": "路徑依序",
+        "val": "1->2->3->6->5->4->7->8->9",
+        "diff": false
+      },
+      {
+        "name": "total_sum",
+        "val": "45 (1到9總和)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "貪婪尋路滿分通關"
+      },
+      {
+        "type": "point",
+        "text": "這就是 APCS e287 的滿分 AC 完整實作！方向向量、邊界哨兵、visited 標記與死胡同 break，四位一體無懈可擊！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 9 章 二維陣列（2D Array / List of Lists）與矩陣運算",
+    "section": "9.7 綜合驗收與通關簽到",
+    "titleZh": "單元結業通關——網格導航與方向向量完全精通！",
+    "titleEn": "Unit Completion: Mastering Grid Navigation and Direction Vectors",
+    "completionCard": {
+      "badge": "網格導航領航員",
+      "summary": "你已徹底掌握四向與八向方向向量、邊界防禦哨兵、visited 走訪標記矩陣與 APCS e287 貪婪路徑模擬！",
+      "nextUnit": "9.8 網格射線投射與 APCS g596：十字連線與障礙物遮蔽"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]",
+        "html": "<span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]",
+        "alt": "方向向量",
+        "why": "方向向量",
+        "mean": "四向定義"
+      },
+      {
+        "num": 2,
+        "code": "valid = all(abs(dr) + abs(dc) == 1 for dr, dc in dirs)",
+        "html": "<span class=\"token-ident\">valid</span> = <span class=\"token-builtin\">all</span>(<span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">dr</span>) + <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">dc</span>) == <span class=\"token-number\">1</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>)",
+        "alt": "曼哈頓距離為 1 驗證",
+        "why": "曼哈頓距離驗證",
+        "mean": "驗證四向曼哈頓距離"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"通關驗收: 四向曼哈頓距離檢驗={valid}, 領航員就位！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"通關驗收: 四向曼哈頓距離檢驗={valid}, 領航員就位！\"</span>)",
+        "alt": "印出結業驗收成果",
+        "diff": true,
+        "why": "印出通關結果",
+        "mean": "輸出結業證明"
+      }
+    ],
+    "output": "通關驗收: 四向曼哈頓距離檢驗=True, 領航員就位！",
+    "memoryState": [
+      {
+        "name": "dirs 曼哈頓距離",
+        "val": "恆為 1 (四向正交)",
+        "diff": true
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "text": "網格導航領航就緒"
+      },
+      {
+        "type": "point",
+        "text": "恭喜完成單元 9-7！下一單元我們將挑戰更高階的網格幾何：射線投射（Raycasting）、十字連線與 APCS g596 障礙物遮蔽！"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec9-7",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_9-7_grid_navigation_direction_vectors_and_apcs_e287.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -117,9 +117,9 @@ const courseCurriculum = [
       { id: "sec9-2", title: "9.2 二維陣列動態輸入讀取與解包輸出", available: true, url: "PythAPCS123_9-2_2d_array_dynamic_input_and_unpacking_output.html" },
       { id: "sec9-3", title: "9.3 二維陣列初始化與參照共用致命陷阱", available: true, url: "PythAPCS123_9-3_2d_array_initialization_and_reference_pitfall.html" },
       { id: "sec9-4", title: "9.4 二維網格雙重走訪與行列統計", available: true, url: "PythAPCS123_9-4_2d_array_traversal_and_row_col_statistics.html" },
-      { id: "sec9-5", title: "9.5 二維方陣與特殊走訪：對角線與棋盤規律", available: false },
-      { id: "sec9-6", title: "9.6 矩陣幾何操作與逆推還原（APCS b266 專題）", available: false },
-      { id: "sec9-7", title: "9.7 二維網格導航：方向向量與相鄰探測（APCS e287 原型）", available: false },
+      { id: "sec9-5", title: "9.5 二維方陣與特殊走訪：對角線與棋盤規律", available: true, url: "PythAPCS123_9-5_square_matrix_diagonals_and_patterns.html" },
+      { id: "sec9-6", title: "9.6 矩陣幾何操作與逆推還原（APCS b266 專題）", available: true, url: "PythAPCS123_9-6_matrix_geometric_transformations_and_apcs_b266.html" },
+      { id: "sec9-7", title: "9.7 二維網格導航：方向向量與相鄰探測（APCS e287 原型）", available: true, url: "PythAPCS123_9-7_grid_navigation_direction_vectors_and_apcs_e287.html" },
       { id: "sec9-8", title: "9.8 網格射線掃描（Raycasting）與連線阻擋（APCS g596 專題）", available: false },
       { id: "sec9-9", title: "9.9 網格邊界安全墊（Padding）與模擬題型（APCS f313 原型）", available: false }
     ]

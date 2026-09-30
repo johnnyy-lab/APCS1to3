@@ -48,13 +48,13 @@ const courseCurriculum = [
     id: "ch4",
     title: "第四章 標準輸出入（I/O）與測資處理技巧",
     sections: [
-      { id: "sec4-1", title: "4.1 標準輸出 print() 基本語法", available: false },
-      { id: "sec4-2", title: "4.2 print() 分隔符號參數 sep", available: false },
-      { id: "sec4-3", title: "4.3 print() 結尾符號參數 end", available: false },
-      { id: "sec4-4", title: "4.4 變數與運算式綜合輸出", available: false },
-      { id: "sec4-5", title: "4.5 標準輸入 input() 基本讀取", available: false },
-      { id: "sec4-6", title: "4.6 單行多數值切割與映射（split, map）", available: false },
-      { id: "sec4-7", title: "4.7 連續多行固定筆數讀取", available: false }
+      { id: "sec4-1", title: "4.1 標準輸出 print() 基本語法", available: true, url: "PythAPCS123_4-1_standard_output_print.html" },
+      { id: "sec4-2", title: "4.2 print() 分隔符號參數 sep", available: true, url: "PythAPCS123_4-2_print_separator_sep.html" },
+      { id: "sec4-3", title: "4.3 print() 結尾符號參數 end", available: true, url: "PythAPCS123_4-3_print_end_parameter.html" },
+      { id: "sec4-4", title: "4.4 變數與運算式綜合輸出", available: true, url: "PythAPCS123_4-4_variable_and_expression_output.html" },
+      { id: "sec4-5", title: "4.5 標準輸入 input() 基本讀取", available: true, url: "PythAPCS123_4-5_standard_input_input.html" },
+      { id: "sec4-6", title: "4.6 單行多數值切割與映射（split, map）", available: true, url: "PythAPCS123_4-6_single_line_multiple_inputs_split_map.html" },
+      { id: "sec4-7", title: "4.7 連續多行固定筆數讀取", available: true, url: "PythAPCS123_4-7_multiline_fixed_inputs.html" }
     ]
   },
   {

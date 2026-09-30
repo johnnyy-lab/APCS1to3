@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 4.1 標準輸出 print() 基本語法 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "print() 電腦的發聲大喇叭",
+    "titleEn": "print(): The Standard Output Loudspeaker",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.1 print() 的初體驗——電腦的發聲大喇叭與字串輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：使用雙引號輸出經典英文招呼語</span>",
+        "diff": false,
+        "mean": "以 # 開頭的單行註解，電腦不執行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"Hello, World!\"</span>)",
+        "diff": true,
+        "mean": "將雙引號內的文字原封不動播報輸出至螢幕。",
+        "why": "print() 是 Python 的標準輸出函數，有如接在機器人嘴上的擴音大喇叭。",
+        "alt": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">'Hello, World!'</span>)"
+      }
+    ],
+    "output": "Hello, World!",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "觀念",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">print()</code> 是 Python 最核心的內建輸出函數，能將小括號中的資料送往標準輸出（stdout）顯示在螢幕上。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "必考",
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考點透視</strong>：線上評判系統（OJ）一律透過標準輸出比對答案，<code class=\"code-inline\">print()</code> 是所有實作題交卷的唯一發聲管道！"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "字串使用成對引號包覆",
+    "titleEn": "Strings Enclosed in Matching Quotes",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.1 print() 的初體驗——電腦的發聲大喇叭與字串輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 雙引號或單引號效果完全一致</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"Hello, World!\"</span>)",
+        "diff": false,
+        "mean": "輸出英文招呼語。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">'歡迎來到 APCS 程式世界！'</span>)",
+        "diff": true,
+        "mean": "使用單引號包覆中文文字，同樣順利輸出。",
+        "why": "Python 支援單引號與雙引號，效果完全相同，只要前後成對即可。",
+        "alt": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"歡迎來到 APCS 程式世界！\"</span>)"
+      }
+    ],
+    "output": "Hello, World!\n歡迎來到 APCS 程式世界！",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "引號就像文字專用包裹箱，告訴 Python：「箱內文字請當成純文字訊息，不要當成指令去執行！」"
+      },
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「成對引號包字串」"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "將字串變數交由大喇叭播報",
+    "titleEn": "Printing String Variables",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.1 print() 的初體驗——電腦的發聲大喇叭與字串輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">greeting</span> <span class=\"token-op\">=</span> <span class=\"token-str\">\"你好，親愛的程式小勇士！\"</span>",
+        "diff": true,
+        "mean": "將字串存入名為 greeting 的變數置物箱中。",
+        "why": "先用變數保存文字，後續可重複引用。",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">greeting</span>)",
+        "diff": true,
+        "mean": "將變數 greeting 傳給 print()，印出置物箱裡的內容。",
+        "why": "變數名牌不加引號，Python 會自動取出箱內數值並廣播輸出。",
+        "alt": ""
+      }
+    ],
+    "output": "你好，親愛的程式小勇士！",
+    "memoryState": [
+      {
+        "name": "greeting",
+        "val": "\"你好，親愛的程式小勇士！\"",
+        "diff": true,
+        "type": "str",
+        "badgeText": "字串"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "觀念",
+        "type": "concept",
+        "text": "傳遞變數給 <code class=\"code-inline\">print()</code> 時**絕不可加引號**！若寫成 <code class=\"code-inline\">print(\"greeting\")</code>，只會印出單字 greeting 本身。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "輸出整數與浮點數",
+    "titleEn": "Printing Integers and Floats",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.2 print() 輸出數值與即時算術——讓喇叭播報運算結果",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 數值型態不需引號包覆</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">100</span>)",
+        "diff": true,
+        "mean": "直接輸出整數 100。",
+        "why": "數值型態本質即為數據，不加引號直接送給大喇叭播報。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">3.14159</span>)",
+        "diff": true,
+        "mean": "直接輸出浮點數（小數）3.14159。",
+        "why": "浮點數亦同，直接完整輸出小數數值。",
+        "alt": ""
+      }
+    ],
+    "output": "100\n3.14159",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "型態",
+        "type": "concept",
+        "text": "數字（整數 <code class=\"code-inline\">int</code> 與小數 <code class=\"code-inline\">float</code>）直接放入括號即可印出，無須手動轉型為字串。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "print() 內部的即時算術求值",
+    "titleEn": "Expression Evaluation Inside print()",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.2 print() 輸出數值與即時算術——讓喇叭播報運算結果",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 小括號內部算式會先求值再輸出</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">25</span> <span class=\"token-op\">+</span> <span class=\"token-number\">75</span>)",
+        "diff": true,
+        "mean": "內部先計算 25 + 75 得到 100，再交給 print() 印出。",
+        "why": "函數引數具有求值優先權，算式先運算成單一結果再傳入。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">100</span> <span class=\"token-op\">-</span> <span class=\"token-number\">8</span> <span class=\"token-op\">*</span> <span class=\"token-number\">5</span>)",
+        "diff": true,
+        "mean": "遵守先乘除後加減：8 * 5 = 40，100 - 40 = 60，印出 60。",
+        "why": "括號內部運算嚴格遵守算術運算子優先順序。",
+        "alt": ""
+      }
+    ],
+    "output": "100\n60",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">print()</code> 小括號自帶「即時運算功能」：先將內部表示式計算完畢，再將最終值廣播輸出。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "純文字 \"5 + 3\" vs 算式 5 + 3",
+    "titleEn": "Literal String vs Evaluated Expression",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.2 print() 輸出數值與即時算術——讓喇叭播報運算結果",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 引號有無造成截然不同的輸出行為</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"5 + 3\"</span>)",
+        "diff": true,
+        "mean": "包了引號就是純文字，大喇叭原音重現印出 5 + 3。",
+        "why": "字串不會被當作數學算式計算。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">5</span> <span class=\"token-op\">+</span> <span class=\"token-number\">3</span>)",
+        "diff": true,
+        "mean": "沒包引號是數學算式，計算得出 8 再印出。",
+        "why": "直譯器會先計算表示式數值再輸出。",
+        "alt": ""
+      }
+    ],
+    "output": "5 + 3\n8",
+    "predictQuiz": {
+      "question": "預測思考：print(\"5 + 3\") 與 print(5 + 3) 輸出有何不同？",
+      "options": [
+        "第一行印出文字 5 + 3，第二行印出計算結果 8",
+        "兩行都會印出計算結果 8"
+      ],
+      "correct": 0,
+      "explanation": "引號包起來代表純文字字串；不加引號則是運算式，直譯器會先計算 5 + 3 得到 8 再輸出！"
+    },
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "必考",
+        "type": "radar",
+        "text": "<strong>🎯 APCS 觀念題必考</strong>：一眼看穿引號玄機！<code class=\"code-inline\">\"5 + 3\"</code> 是長度為 5 的字串，<code class=\"code-inline\">5 + 3</code> 則是數值 8。"
+      },
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「有引號照唸無引號先算」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "逗號串聯多個輸出項目",
+    "titleEn": "Joining Multiple Arguments with Comma",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.3 逗號 , 串聯多個項目——預設單一空格隔開的神奇魔術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">side_a</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">side_b</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">side_c</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">side_a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">side_b</span><span class=\"token-op\">,</span> <span class=\"token-ident\">side_c</span>)",
+        "diff": true,
+        "mean": "以半形逗號分隔三個引數，一行輸出 3 4 5。",
+        "why": "print() 支援任意多個引數，各項目間預設以單一半形空格隔開。",
+        "alt": ""
+      }
+    ],
+    "output": "3 4 5",
+    "memoryState": [
+      {
+        "name": "side_a",
+        "val": "3",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "side_b",
+        "val": "4",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "side_c",
+        "val": "5",
+        "diff": false,
+        "type": "int"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">print()</code> 允許傳入多個引數，各項目之間必須以**半形逗號 `,`** 分隔。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「逗號串聯預設空」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "文字、變數與算式混合輸出",
+    "titleEn": "Mixed Arguments Without Type Conversion",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.3 逗號 , 串聯多個項目——預設單一空格隔開的神奇魔術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">item</span> <span class=\"token-op\">=</span> <span class=\"token-str\">\"蘋果\"</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">price</span> <span class=\"token-op\">=</span> <span class=\"token-number\">25</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">6</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">item</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"共\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">count</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"顆，總計\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">price</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">count</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"元\"</span>)",
+        "diff": true,
+        "mean": "文字、變數、算式混搭，print() 自動計算並依序印出。",
+        "why": "逗號串聯免手動呼叫 str() 轉型，且各項目間自動插入單一空格。",
+        "alt": ""
+      }
+    ],
+    "output": "蘋果 共 6 顆，總計 150 元",
+    "memoryState": [
+      {
+        "name": "item",
+        "val": "\"蘋果\"",
+        "diff": false,
+        "type": "str"
+      },
+      {
+        "name": "price",
+        "val": "25",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "count",
+        "val": "6",
+        "diff": false,
+        "type": "int"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "技巧",
+        "type": "concept",
+        "text": "逗號串聯各引數時，Python 會自動將整數與算式結果轉換為可視文字，完全不需要手動寫 <code class=\"code-inline\">str()</code> 轉型！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "每次 print() 自動換行",
+    "titleEn": "Automatic Newline on Every Call",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.4 print() 的自動換行特質——每喊一次話就移至新的一行",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 連續多次呼叫 print()，每句自成一行</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"床前明月光，\"</span>)",
+        "diff": true,
+        "mean": "印出第一句詩，結尾自動換行。",
+        "why": "每次 print() 預設自帶換行符號 \\n。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"疑是地上霜。\"</span>)",
+        "diff": true,
+        "mean": "在第二行開頭印出第二句詩，結尾再次自動換行。",
+        "why": "游標已移至下一行開頭。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"舉頭望明月，低頭思故鄉。\"</span>)",
+        "diff": true,
+        "mean": "在第三行印出詩句後再次換行。",
+        "why": "一行指令獨佔一整行輸出。",
+        "alt": ""
+      }
+    ],
+    "output": "床前明月光，\n疑是地上霜。\n舉頭望明月，低頭思故鄉。",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3,
+          4
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">print()</code> 播報完畢後，預設會默默追加一個不可見的**換行符號（`\\n`）**，將游標推至下一行開頭。"
+      },
+      {
+        "lines": [
+          2,
+          3,
+          4
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「每次印完必換行」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "空括號 print() 產生空白行",
+    "titleEn": "Blank Line with Empty print()",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.5 不帶引數的 print()——空白行與段落視覺排版術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"--- 購物明細 ---\"</span>)",
+        "diff": false,
+        "mean": "印出明細標題。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"商品 A: 100 元\"</span>)",
+        "diff": false,
+        "mean": "印出商品項目。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>()",
+        "diff": true,
+        "mean": "不帶任何引數，直接輸出一個純粹的換行符號（\\n）。",
+        "why": "在畫面上空出整整一行，達到乾淨視覺區隔的效果。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"--- 總計結算 ---\"</span>)",
+        "diff": false,
+        "mean": "印出結算區塊標題。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"應付總額: 100 元\"</span>)",
+        "diff": false,
+        "mean": "印出應付總額。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "--- 購物明細 ---\n商品 A: 100 元\n\n--- 總計結算 ---\n應付總額: 100 元",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "技巧",
+        "type": "concept",
+        "text": "呼叫 <code class=\"code-inline\">print()</code> 卻不傳遞任何引數時，Python 只執行最後的「換行動作」，藉此優雅地產生一個空白行（Blank Line）。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "大小寫錯誤與遺漏引號",
+    "titleEn": "NameError Traps: Print vs print & Missing Quotes",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.1 print() 的初體驗——電腦的發聲大喇叭與字串輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 1：首字大寫 Print</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># Print(\"Hello\")  # NameError: name 'Print' is not defined</span>",
+        "diff": true,
+        "mean": "大寫 Print 會引發 NameError，電腦認不出此名稱。",
+        "why": "Python 嚴格區分大小寫，內建函數一律全小寫。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 2：字串忘了加引號</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># print(Hello)    # NameError: name 'Hello' is not defined</span>",
+        "diff": true,
+        "mean": "未加引號會被當作變數搜尋，找不到即崩潰報錯。",
+        "why": "字串必須以成對引號包覆。",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># ✅ 正確寫法：全小寫 print 且加上成對引號</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"Hello\"</span>)",
+        "diff": true,
+        "mean": "全小寫函數名搭配成對引號，安全印出 Hello。",
+        "why": "語法完全合規的標準寫法。",
+        "alt": ""
+      }
+    ],
+    "output": "Hello",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：在 Python 魔法王國中，大小寫住在不同套房！首字大寫 <code class=\"code-inline\">Print()</code> 會引發 <code class=\"code-inline\">NameError</code>！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：字串漏掉引號會被當作「變數名牌」搜尋，找不到該變數時同樣噴出 <code class=\"code-inline\">NameError</code>！"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "正解",
+        "type": "syntax",
+        "text": "安全寫法：函數名稱一律全小寫，字串文字一律成對引號包裹。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "OJ 評判紅線：切勿擅自多印空行",
+    "titleEn": "Strict Presentation Rule in Online Judge",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1.5 不帶引數的 print()——空白行與段落視覺排版術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 題目要求：輸出整數 100</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：擅自加入空白行美化版面</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># print(100)</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># print()       # 導致 Presentation Error 或 WA！</span>",
+        "diff": true,
+        "mean": "多印了題目未要求的空行，被評判系統判定格式錯誤。",
+        "why": "OJ 評判程式嚴格比對每行換行字元。",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># ✅ OJ 通關安全寫法：純淨輸出題目指定格式</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">100</span>)",
+        "diff": true,
+        "mean": "只印出題目所要求的數值，不帶多餘空行。",
+        "why": "純淨輸出是 APCS / OJ 競技的最高原則。",
+        "alt": ""
+      }
+    ],
+    "output": "100",
+    "notes": [
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "紅線",
+        "type": "wa",
+        "text": "<strong>💥 爆零紅線</strong>：在 APCS / ZeroJudge 等自動評判題庫中，除非題目明文要求，否則**絕對禁止擅自加上 <code class=\"code-inline\">print()</code> 空行**，否則會被直接判斷為 WA！"
+      },
+      {
+        "lines": [
+          6
+        ],
+        "lineText": "必考",
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考點透視</strong>：精準控管輸出行數，題目要幾行就印幾行，多一行少一行都是致命失分。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 4.1 綜合驗收",
+    "titleEn": "Section 4.1 Completion",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.1 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 4.1！</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"標準輸出小廣播員，通關成功！\"</span>)",
+        "diff": true,
+        "mean": "輸出通關喝采訊息！",
+        "why": "恭喜全面掌握 print() 的核心輸出技巧！",
+        "alt": ""
+      }
+    ],
+    "output": "標準輸出小廣播員，通關成功！",
+    "completionCard": {
+      "badge": "🏆 單元 4.1 通關：標準輸出小廣播員！",
+      "summary": "太棒了！你已徹底掌握 print() 的字串與數值播報、逗號多項目空白串聯、自動換行本質與空行排版術！",
+      "nextUnit": "4.2 print() 分隔符號參數 sep"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec4-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_4-1_standard_output_print.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

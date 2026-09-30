@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 4.6 單行多數值切割與映射（split, map） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "字串的魔法剪刀 split()",
+    "titleEn": "String Slicing with split()",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.1 字串的魔法剪刀——split() 空白切割與多變數同時接收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入 \"Alice Bob\"</span>",
+        "diff": false,
+        "mean": "同一行由空格隔開的兩個名字。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">s1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">s2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>()",
+        "diff": true,
+        "mean": "input() 讀入整行字串，.split() 剪成兩段，同時賦值給 s1 與 s2。",
+        "why": "多元賦值解包（Unpacking）。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"學生1:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">s1</span>)",
+        "diff": false,
+        "mean": "印出學生1名字。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"學生2:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">s2</span>)",
+        "diff": false,
+        "mean": "印出學生2名字。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "學生1: Alice\n學生2: Bob",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "剪刀機制",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">split()</code> 就像一把剪刀，預設會以「空白」將整行字串咔嚓剪開成多個小片段。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "解包語法",
+        "type": "syntax",
+        "text": "左邊用逗號並列宣告 <code class=\"code-inline\">s1, s2</code>，剪開的兩段文字會同時填入對應的變數中。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "切割後的型態依然是字串",
+    "titleEn": "split() Yields String Tokens",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.1 字串的魔法剪刀——split() 空白切割與多變數同時接收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入 \"10 20\"</span>",
+        "diff": false,
+        "mean": "單行輸入兩個看似數字的內容。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>()",
+        "diff": false,
+        "mean": "切分成 x 與 y 兩個片段。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"型態:\"</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">x</span>)<span class=\"token-op\">,</span> <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">y</span>))",
+        "diff": true,
+        "mean": "檢驗型態：兩者皆為 &lt;class 'str'&gt; 字串！",
+        "why": "split 只負責切，不負責轉型。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"字串相加:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">y</span>)",
+        "diff": true,
+        "mean": "印出文字接龍 '1020'！",
+        "why": "印證尚未轉型為數值。",
+        "alt": ""
+      }
+    ],
+    "output": "型態: <class 'str'> <class 'str'>\n字串相加: 1020",
+    "notes": [
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "核心本質",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">split()</code> 只是字串方法，切出來的碎塊依然是純字串，直接相加依舊是文字拼接！"
+      },
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「空白剪刀切字串依舊是文字」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "map(int, ...) 自動化整數輸送帶",
+    "titleEn": "Transforming with map(int, ...)",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.2 自動化加工輸送帶——map(int, ...) 一次將多個字串變整數",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入 \"10 20\"</span>",
+        "diff": false,
+        "mean": "單行輸入兩數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "工廠輸送帶：把 split() 切出的每個文字依序送進 int() 加工成整數，並解包給 a, b！",
+        "why": "一次完成「讀取、切割、轉型、解包」四大步驟！",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"正確總和:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">a</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">b</span>)",
+        "diff": false,
+        "mean": "數值相加：順利計算 10 + 20 = 30。",
+        "why": "成功獲得真正數值。",
+        "alt": ""
+      }
+    ],
+    "output": "正確總和: 30",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "心智模型",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">map(int, ...)</code> 就像自動化加工輸送帶：輸送帶上一個個字串走過去，全被蓋上整數章，搖身一變成為 int！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "語法特徵",
+        "type": "syntax",
+        "text": "注意第一個參數是函數名稱 <code class=\"code-inline\">int</code>（不加括號），第二個參數是資料來源集合。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "單行三整數極值與全距實戰",
+    "titleEn": "Three Integers and Range Calculation",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.3 單行讀入三個及以上整數——三數運算、極值與全距實戰",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入 \"15 42 28\"</span>",
+        "diff": false,
+        "mean": "單行三個整數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y</span><span class=\"token-op\">,</span> <span class=\"token-ident\">z</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "左邊宣告 3 個變數，一次性接收單行切出的 3 個整數。",
+        "why": "三變數平行解包。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">max_val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y</span><span class=\"token-op\">,</span> <span class=\"token-ident\">z</span>)",
+        "diff": false,
+        "mean": "找出三數中的最大值 42。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">min_val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span>(<span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y</span><span class=\"token-op\">,</span> <span class=\"token-ident\">z</span>)",
+        "diff": false,
+        "mean": "找出三數中的最小值 15。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"極差全距:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">max_val</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">min_val</span>)",
+        "diff": true,
+        "mean": "計算最大與最小值的差距 27 並輸出。",
+        "why": "APCS 經典入門統計運算。",
+        "alt": ""
+      }
+    ],
+    "output": "極差全距: 27",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "擴展性",
+        "type": "concept",
+        "text": "無論單行有 2 個、3 個還是 4 個數字，只要左側變數個數與輸入數字完全一致，<code class=\"code-inline\">map(int, input().split())</code> 都能完美支援！"
+      },
+      {
+        "lines": [
+          3,
+          4,
+          5
+        ],
+        "lineText": "統計利器",
+        "type": "syntax",
+        "text": "結合 <code class=\"code-inline\">max()</code> 與 <code class=\"code-inline\">min()</code>，幾行程式就能算出數值波動範圍（全距）。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "四整數平面矩形與座標讀取",
+    "titleEn": "Four Integers for Coordinates",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.3 單行讀入三個及以上整數——三數運算、極值與全距實戰",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入矩形對角兩頂點座標 \"2 3 8 7\"</span>",
+        "diff": false,
+        "mean": "幾何圖形單行四座標。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">x1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">x2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "一行直接將四個數字賦值給 x1, y1, x2, y2。",
+        "why": "四維向量快速拆解。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">w</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">x2</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>)",
+        "diff": false,
+        "mean": "以絕對值求出寬度 abs(8 - 2) = 6。",
+        "why": "防止負向座標差值。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">y2</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">y1</span>)",
+        "diff": false,
+        "mean": "以絕對值求出高度 abs(7 - 3) = 4。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"矩形面積:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">w</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">h</span>)",
+        "diff": true,
+        "mean": "計算並輸出面積 24。",
+        "why": "俐落完成幾何解題。",
+        "alt": ""
+      }
+    ],
+    "output": "矩形面積: 24",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "幾何結構",
+        "type": "concept",
+        "text": "在 APCS 幾何題型中，頂點座標 (x1, y1, x2, y2) 經常排在同一行，單行解包是最乾淨的架構。"
+      },
+      {
+        "lines": [
+          3,
+          4
+        ],
+        "lineText": "防護",
+        "type": "syntax",
+        "text": "搭配 <code class=\"code-inline\">abs()</code> 可以完全忽略點的先後順序，無論從左到右或從右到左皆能算出正確邊長。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "map(float, ...) 小數精準映射",
+    "titleEn": "Float Mapping with map(float, ...)",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.4 單行多浮點數映射——map(float, ...) 與精準實數運算",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入三角形底與高 \"7.5 4.2\"</span>",
+        "diff": false,
+        "mean": "單行輸入兩小數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">base</span><span class=\"token-op\">,</span> <span class=\"token-ident\">height</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">float</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "將 map 的第一個加工模具換成 float，一次產出浮點數。",
+        "why": "支援小數解析。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">area</span> <span class=\"token-op\">=</span> (<span class=\"token-ident\">base</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">height</span>) <span class=\"token-op\">/</span> <span class=\"token-num\">2</span>",
+        "diff": false,
+        "mean": "計算三角形面積 (7.5 * 4.2) / 2 = 15.75。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"三角形面積:\"</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">round</span>(<span class=\"token-ident\">area</span><span class=\"token-op\">,</span> <span class=\"token-num\">2</span>))",
+        "diff": false,
+        "mean": "四捨五入取兩位印出 15.75。",
+        "why": "實數運算精準輸出。",
+        "alt": ""
+      }
+    ],
+    "output": "三角形面積: 15.75",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "靈活置換",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">map</code> 具有高度通用性：要轉整數就傳 <code class=\"code-inline\">int</code>，要轉小數就傳 <code class=\"code-inline\">float</code>，語法結構完全對稱。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "安全防線",
+        "type": "syntax",
+        "text": "若題意中數值可能出現小數點，千萬不能用 int，改用 float 才不會觸發 ValueError。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "APCS 滿分一行流神級模板",
+    "titleEn": "APCS Single-Line Idiom Template",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.5 APCS / OJ 競技實戰——一行流解析多數值與易錯陷阱防禦",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 競賽通用一行流：單行讀入 N 與 M</span>",
+        "diff": false,
+        "mean": "APCS 題庫最常出現的開場設定行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "極速解包為 n 與 m，乾淨俐落。",
+        "why": "極限效率一行流標準寫法。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">n</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">m</span>)",
+        "diff": false,
+        "mean": "輸出運算結果 50。",
+        "why": "假定輸入 5 10。",
+        "alt": ""
+      }
+    ],
+    "output": "50",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "肌肉記憶",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">map(int, input().split())</code> 是所有競賽選手共同的肌肉記憶，出現頻率高達 90% 以上！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「一行流解雙變數」"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "變數個數與數值數量不符 ValueError",
+    "titleEn": "Pitfall: Variable Count Mismatch",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.5 APCS / OJ 競技實戰——一行流解析多數值與易錯陷阱防禦",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定測資單行只有兩個數字 \"10 20\"</span>",
+        "diff": false,
+        "mean": "實際只有兩項數據。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 致命地雷：a, b, c = map(int, input().split())</span>",
+        "diff": false,
+        "mean": "宣告了 3 個變數，但實際只切出 2 個數字！",
+        "why": "ValueError: not enough values to unpack (expected 3, got 2)",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "合規寫法：左邊變數個數必須與輸入完全相等。",
+        "why": "嚴格一對一配對賦值。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"變數與輸入個數完全相等:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span>)",
+        "diff": false,
+        "mean": "安全印出 10 20。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "變數與輸入個數完全相等: 10 20",
+    "predictQuiz": {
+      "question": "預測思考：輸入 '10 20' 卻執行 a, b, c = map(int, input().split()) 會怎樣？",
+      "options": [
+        "自動將 c 設為 0 並順利執行",
+        "直譯器噴出 ValueError 解包數量不符崩潰"
+      ],
+      "correct": 1,
+      "explanation": "Python 解包賦值非常嚴格，左側宣告 3 個變數就必須剛好有 3 個數值，缺少數值會直接噴 ValueError: not enough values to unpack！"
+    },
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：左側變數數量多於輸入（not enough values to unpack）或少於輸入（too many values to unpack）都會立刻拋出 ValueError！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "審題原則",
+        "type": "syntax",
+        "text": "題目單行有幾個數，就精確宣告幾個變數；若數量未知或超長，後續章節會教使用串列（list）接收。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "漏打 .split() 導致 int 炸空白",
+    "titleEn": "Pitfall: Omitting .split()",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.5 APCS / OJ 競技實戰——一行流解析多數值與易錯陷阱防禦",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定單行輸入 \"10 20\"</span>",
+        "diff": false,
+        "mean": "包含空格的單行字串。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 致命手滑：a, b = map(int, input())  -> 漏打 .split()!</span>",
+        "diff": false,
+        "mean": "未切割字串，map 會將 input() 當作字元序列逐字拆解！",
+        "why": "遇到空格字元 ' ' 丟給 int() 必噴 ValueError!",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "合規寫法：千萬不可忘記加上 .split()！",
+        "why": "先切出完整詞彙，再丟給 int 轉型。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"牢記寫上 .split():\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span>)",
+        "diff": false,
+        "mean": "安全成功印出 10 20。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "牢記寫上 .split(): 10 20",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：沒加 <code class=\"code-inline\">.split()</code> 時，字串會被當成一個個單獨字元拆開，中間的空格字元 <code class=\"code-inline\">' '</code> 轉成整數會瞬間噴出 ValueError 崩潰！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "鐵律",
+        "type": "syntax",
+        "text": "口訣心法：只要單行有多個數字，<code class=\"code-inline\">input()</code> 後方必定緊跟著 <code class=\"code-inline\">.split()</code>。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "小數測資誤用 int 模具當機",
+    "titleEn": "Pitfall: int() on Float Inputs",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.5 APCS / OJ 競技實戰——一行流解析多數值與易錯陷阱防禦",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定輸入為小數 \"3.5 7.8\"</span>",
+        "diff": false,
+        "mean": "測資包含小數點。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># 致命地雷：a, b = map(int, input().split())</span>",
+        "diff": false,
+        "mean": "誤把包含小數點的字串丟進 int 模具！",
+        "why": "ValueError: invalid literal for int() with base 10: '3.5'",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">float</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "合規寫法：遇到小數將模具換成 float！",
+        "why": "成功解析小數點。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"小數輸入正確採用 float:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span>)",
+        "diff": false,
+        "mean": "印出小數 3.5 7.8。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "小數輸入正確採用 float: 3.5 7.8",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：審題時務必留意測資範圍，如果題目說明數值包含浮點數，絕不可慣性套用 <code class=\"code-inline\">map(int, ...)</code>！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "規則",
+        "type": "syntax",
+        "text": "整數用 <code class=\"code-inline\">map(int, ...)</code>，小數用 <code class=\"code-inline\">map(float, ...)</code>，分工清清楚楚。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "一行流括號加提示文字 WA 爆零",
+    "titleEn": "Pitfall: Prompt in Single-Line Input",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.5 APCS / OJ 競技實戰——一行流解析多數值與易錯陷阱防禦",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 致命地雷：a, b = map(int, input(\"請輸入兩數:\").split())</span>",
+        "diff": false,
+        "mean": "初學者在 input 內偷塞提示字元。",
+        "why": "OJ 會將提示字列入輸出，判定 Wrong Answer!",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "競技合規寫法：input() 小括號內永遠保持真空純淨！",
+        "why": "絕不干擾 OJ 二進位輸出比對。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">a</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">b</span>)",
+        "diff": false,
+        "mean": "印出純總和 30 滿分通過！",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "30",
+    "notes": [
+      {
+        "lines": [
+          1
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：任何在 <code class=\"code-inline\">input()</code> 括號內的字串都會被裁判系統捕捉視為錯誤輸出，導致整道題目直接拿 0 分！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "鐵律",
+        "type": "syntax",
+        "text": "線上題庫只看答案，不看人情；括號保持全空是每一位考生的第一戒律。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "連續多空格自動容錯的強大特性",
+    "titleEn": "Feature: Tolerating Multiple Spaces",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6.5 APCS / OJ 競技實戰——一行流解析多數值與易錯陷阱防禦",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 假定測資包含多餘空格：\"10    20\"（中間有 4 個空格）</span>",
+        "diff": false,
+        "mean": "不規則的多重空格測資。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "不帶參數的 split() 自動合併所有連續空白，視為單一分隔！",
+        "why": "超強韌的自動容錯能力。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"自動忽略連續多餘空格:\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span>)",
+        "diff": false,
+        "mean": "順利解析為整數 10 與 20。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "自動忽略連續多餘空格: 10 20",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "容錯性",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">split()</code> 括號留空時，會將任何長度的連續空格、跳格（Tab）視為單一邊界，具備極強韌的容錯能力！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "反例警告",
+        "type": "syntax",
+        "text": "千萬不要寫成 <code class=\"code-inline\">.split(' ')</code>（帶單空格字串），那樣會切出多個空字串 <code class=\"code-inline\">''</code>，轉 int 必定噴錯！"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單行多數值切割映射大滿貫",
+    "titleEn": "Mastery Review: split and map",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.6 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 單行讀入國文、英文、數學三科成績 \"85 95 85\"</span>",
+        "diff": false,
+        "mean": "單行三科分數輸入。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">ch</span><span class=\"token-op\">,</span> <span class=\"token-ident\">en</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ma</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span>(<span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span>().<span class=\"token-ident\">split</span>())",
+        "diff": true,
+        "mean": "一行神級解析三科整數成績。",
+        "why": "一行流標準模板。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">avg</span> <span class=\"token-op\">=</span> (<span class=\"token-ident\">ch</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">en</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">ma</span>) <span class=\"token-op\">/</span> <span class=\"token-num\">3</span>",
+        "diff": false,
+        "mean": "計算三科平均成績。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"最高分:\"</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">ch</span><span class=\"token-op\">,</span> <span class=\"token-ident\">en</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ma</span>)<span class=\"token-op\">,</span> <span class=\"token-str\">\"平均:\"</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">round</span>(<span class=\"token-ident\">avg</span><span class=\"token-op\">,</span> <span class=\"token-num\">1</span>))",
+        "diff": true,
+        "mean": "輸出最高分 95 與四捨五入平均 88.3。",
+        "why": "圓滿通關！",
+        "alt": ""
+      }
+    ],
+    "output": "最高分: 95 平均: 88.3",
+    "completionCard": {
+      "badge": "🏆 單元 4.6 通關：切割映射神刀手！",
+      "summary": "恭喜！你已徹底精通 split() 剪刀、map 輸送帶加工、單行多整數/小數一行流、多空格自動容錯與 ValueError 嚴密防禦！",
+      "nextUnit": "4.7 連續多行固定筆數讀取"
+    },
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「一行流神刀手解題快狠準」"
+      },
+      {
+        "lines": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec4-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_4-6_single_line_multiple_inputs_split_map.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

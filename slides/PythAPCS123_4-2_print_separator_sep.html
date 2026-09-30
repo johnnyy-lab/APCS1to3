@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 4.2 print() 分隔符號參數 sep | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "揭開預設空格的秘密",
+    "titleEn": "Unveiling the Default Space Separator",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.1 認識分隔參數 sep——揭開預設半形空格的秘密",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：不寫 sep，預設以半形空格分隔各項目</span>",
+        "diff": false,
+        "mean": "最常見的多項目輸出方式。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"小明\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"小華\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"小強\"</span>)",
+        "diff": false,
+        "mean": "印出三個人名，各項目之間天然帶有一個半形空格。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 範例 2：明確寫出 sep=' '，效果完全相同</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"小明\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"小華\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"小強\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">' '</span>)",
+        "diff": true,
+        "mean": "指定 sep 為單一空格，輸出結果與範例 1 完全一模一樣。",
+        "why": "sep 參數的預設值本來就是一個半形空格 ' '。",
+        "alt": ""
+      }
+    ],
+    "output": "小明 小華 小強\n小明 小華 小強",
+    "notes": [
+      {
+        "lines": [
+          2,
+          4
+        ],
+        "lineText": "觀念",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">print()</code> 串聯多引數時，預設在項目之間插入一個半形空白字元，底層原理其實就是 <code class=\"code-inline\">sep=' '</code>。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">sep</code> 是 separator（分隔符號）的縮寫，用來自訂項目與項目之間的間隔內容。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "單一項目時 sep 不生效",
+    "titleEn": "sep Only Works Between Multiple Items",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.1 認識分隔參數 sep——揭開預設半形空格的秘密",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># sep 的作用是插在「兩個項目之間」的縫隙</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"單獨一人\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'---'</span>)",
+        "diff": true,
+        "mean": "只有一個引數，螢幕只會印出「單獨一人」，完全看不到 ---。",
+        "why": "單一項目沒有中間縫隙可供填入分隔字元。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"隊員甲\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"隊員乙\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'---'</span>)",
+        "diff": true,
+        "mean": "兩個引數時，--- 順利插在兩者中間，印出隊員甲---隊員乙。",
+        "why": "項目大於等於兩個時，sep 才會正式啟動分隔。",
+        "alt": ""
+      }
+    ],
+    "output": "單獨一人\n隊員甲---隊員乙",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "觀念",
+        "type": "concept",
+        "text": "小括號內若只有「一個」項目，由於沒有任何中間縫隙，<code class=\"code-inline\">sep</code> 完全不會發揮作用！"
+      },
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「分隔只夾項目間」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "逗號 CSV 與連字號電話排版",
+    "titleEn": "Comma CSV and Hyphen Separators",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.2 自訂常用標點符號分隔——逗號、連字號與斜線",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：以逗號分隔（CSV 資料格式）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"蘋果\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"香蕉\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"芒果\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">','</span>)",
+        "diff": true,
+        "mean": "以逗號分隔各項水果，輸出 CSV 標準格式。",
+        "why": "逗號分隔值（CSV）為業界最通用的資料交換格式。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 範例 2：以連字號 - 串聯電話號碼區碼</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"0912\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"345\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"678\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'-'</span>)",
+        "diff": true,
+        "mean": "以連字號串聯三段號碼，印出標準手機格式 0912-345-678。",
+        "why": "利用 sep='-' 省去多次字串相加與拼接符號。",
+        "alt": ""
+      }
+    ],
+    "output": "蘋果,香蕉,芒果\n0912-345-678",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "實務",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">sep=','</code> 即為大名鼎鼎的 CSV（Comma-Separated Values）資料格式，廣泛應用於試算表與資料庫匯出。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "技巧",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">sep='-'</code> 適用於市話手機、零件序號（如 SN-2026-A1）與各類編號分段排版。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "日期斜線與時間冒號排版",
+    "titleEn": "Date Slash and Time Colon Formats",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.2 自訂常用標點符號分隔——逗號、連字號與斜線",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">year</span><span class=\"token-op\">,</span> <span class=\"token-ident\">month</span><span class=\"token-op\">,</span> <span class=\"token-ident\">day</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2026</span><span class=\"token-op\">,</span> <span class=\"token-number\">9</span><span class=\"token-op\">,</span> <span class=\"token-number\">15</span>",
+        "diff": false,
+        "mean": "多變數同時賦值，建立年月日整數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">year</span><span class=\"token-op\">,</span> <span class=\"token-ident\">month</span><span class=\"token-op\">,</span> <span class=\"token-ident\">day</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'/'</span>)",
+        "diff": true,
+        "mean": "以斜線分隔各數字，印出標準日期 2026/9/15。",
+        "why": "數值變數直接以斜線隔開，免手動轉型。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">hour</span><span class=\"token-op\">,</span> <span class=\"token-ident\">minute</span><span class=\"token-op\">,</span> <span class=\"token-ident\">second</span> <span class=\"token-op\">=</span> <span class=\"token-number\">14</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">,</span> <span class=\"token-number\">45</span>",
+        "diff": false,
+        "mean": "建立時分秒整數變數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">hour</span><span class=\"token-op\">,</span> <span class=\"token-ident\">minute</span><span class=\"token-op\">,</span> <span class=\"token-ident\">second</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">':'</span>)",
+        "diff": true,
+        "mean": "以冒號分隔時分秒，印出電子時鐘格式 14:30:45。",
+        "why": "常用於競賽題庫中精確時間戳記的輸出。",
+        "alt": ""
+      }
+    ],
+    "output": "2026/9/15\n14:30:45",
+    "memoryState": [
+      {
+        "name": "year",
+        "val": "2026",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "month",
+        "val": "9",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "day",
+        "val": "15",
+        "diff": false,
+        "type": "int"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          2,
+          4
+        ],
+        "lineText": "技巧",
+        "type": "concept",
+        "text": "善用 <code class=\"code-inline\">sep='/'</code> 與 <code class=\"code-inline\">sep=':'</code> 能一行印出規範日期與時間，無須手動型態轉型串接加號。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "空字串 sep='' 無縫緊密黏合",
+    "titleEn": "Seamless Concatenation with Empty String",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.3 消除間隔的無縫緊密黏合——空字串 sep=''",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">100</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"考試成績：\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">score</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"分\"</span>)",
+        "diff": false,
+        "mean": "預設空格：輸出「考試成績： 100 分」，數字兩側有多餘空格。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"考試成績：\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">score</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"分\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "空字串黏合：輸出「考試成績：100分」，文字與數字緊密貼合！",
+        "why": "sep='' 將項目間的分隔字元設為長度 0，徹底消除多餘空格。",
+        "alt": ""
+      }
+    ],
+    "output": "考試成績： 100 分\n考試成績：100分",
+    "notes": [
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "空字串 <code class=\"code-inline\">sep=''</code>（長度為 0）宛如透明超強力膠水，將文字與數值無縫緊貼，完全消除中間預設空格！"
+      },
+      {
+        "lines": [
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「空字串無縫黏合」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "金額符號與位數拼合",
+    "titleEn": "Currency Symbols and Digit Merging",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.3 消除間隔的無縫緊密黏合——空字串 sep=''",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-ident\">price</span> <span class=\"token-op\">=</span> <span class=\"token-number\">450</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"$\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">price</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "錢幣符號與整數無縫相連，印出 $450。",
+        "why": "免寫 str(price) 轉型加號，既簡潔又安全。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-ident\">d1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d3</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">9</span>",
+        "diff": false,
+        "mean": "百位、十位與個位數三個獨立整數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">d1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d3</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "把三個數字字元無縫緊貼，印出完整的 389。",
+        "why": "APCS 題目常見將個別計算出來的位數拼合為一組整數輸出。",
+        "alt": ""
+      }
+    ],
+    "output": "$450\n389",
+    "memoryState": [
+      {
+        "name": "price",
+        "val": "450",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "d1",
+        "val": "3",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "d2",
+        "val": "8",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "d3",
+        "val": "9",
+        "diff": false,
+        "type": "int"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "免轉型",
+        "type": "concept",
+        "text": "過去若寫 <code class=\"code-inline\">'$' + price</code> 會因整數與字串相加報錯；使用 <code class=\"code-inline\">sep=''</code> 則安全免寫 <code class=\"code-inline\">str()</code>！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "技巧",
+        "type": "syntax",
+        "text": "在 APCS 拆解或拼裝百位、十位與個位數時，<code class=\"code-inline\">sep=''</code> 是一行拼接數字的極簡利器。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "流程箭頭與對戰看板排版",
+    "titleEn": "Multi-Character Strings: Arrows and VS",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.4 趣味多字元與文字字串分隔——流程箭頭與對戰排版",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：流程圖動線導覽（注意箭頭前後空格）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"森林入口\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"精靈之泉\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"龍之巢穴\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">' -> '</span>)",
+        "diff": true,
+        "mean": "使用 ' -> ' 作為間隔，印出清晰流程圖動線。",
+        "why": "sep 支援任意長度字串，前後帶空格讓閱讀更舒適。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 範例 2：球賽對決看板</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"紅衫巨龍隊\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"藍甲飛鷹隊\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">' vs '</span>)",
+        "diff": true,
+        "mean": "以 ' vs ' 分隔兩支隊伍，營造比賽對抗氣氛。",
+        "why": "文字分隔符號大幅提升程式終端機的視覺排版水準。",
+        "alt": ""
+      }
+    ],
+    "output": "森林入口 -> 精靈之泉 -> 龍之巢穴\n紅衫巨龍隊 vs 藍甲飛鷹隊",
+    "notes": [
+      {
+        "lines": [
+          2,
+          4
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">sep</code> 可傳入**任意長度的文字字串**！前後保留空格（如 <code class=\"code-inline\">' -> '</code>）能讓排版呼吸感倍增。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "除錯",
+        "type": "radar",
+        "text": "<strong>🎯 APCS 實戰技巧</strong>：在演算法偵錯追蹤數值變化時，常用 <code class=\"code-inline\">sep=' -> '</code> 印出狀態轉移路徑！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "一行化分行輸出：sep='\\n'",
+    "titleEn": "Vertical Output in One Line: sep='\\n'",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.5 特殊跳脫分隔符號——換行符號 sep='\\n' 與跳格 sep='\\t'",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：一行指令，分三行垂直輸出公告</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"【旗美公告】\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"1. 週三全校大掃除\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"2. 週五社團成果發表\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "利用 sep='\\n' 在每項之間插入換行，一次印出上下三行。",
+        "why": "\\n 為 Newline 跳脫控制字元，每遇見一次游標就換至新行。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># 範例 2：三個數值一次分行印出</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">=</span> <span class=\"token-number\">100</span><span class=\"token-op\">,</span> <span class=\"token-number\">200</span><span class=\"token-op\">,</span> <span class=\"token-number\">300</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "一行將三個整數分別垂直印在獨立的三行上。",
+        "why": "極度簡潔的高效輸出語法。",
+        "alt": ""
+      }
+    ],
+    "output": "【旗美公告】\n1. 週三全校大掃除\n2. 週五社團成果發表\n100\n200\n300",
+    "notes": [
+      {
+        "lines": [
+          2,
+          5
+        ],
+        "lineText": "神技",
+        "type": "syntax",
+        "text": "反斜線 <code class=\"code-inline\">\\n</code> 代表換行字元。搭配 <code class=\"code-inline\">sep='\\n'</code>，可將多個引數一次分行印出，省去寫多行 <code class=\"code-inline\">print()</code>！"
+      },
+      {
+        "lines": [
+          2,
+          5
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「換行是反斜線n」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "跳格對齊報表：sep='\\t'",
+    "titleEn": "Tabulated Table Alignment: sep='\\t'",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.5 特殊跳脫分隔符號——換行符號 sep='\\n' 與跳格 sep='\\t'",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># \\t 為 Tab 定位跳格字元，讓欄位自動對齊</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"姓名\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"國文\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"數學\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\t'</span>)",
+        "diff": true,
+        "mean": "印出表頭欄位，以 Tab 鍵寬度隔開。",
+        "why": "\\t 能自動跳至下一個定位欄位，保持表格平整。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"小明\"</span><span class=\"token-op\">,</span> <span class=\"token-number\">95</span><span class=\"token-op\">,</span> <span class=\"token-number\">88</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\t'</span>)",
+        "diff": true,
+        "mean": "印出小明的分數，上下欄位精準垂直對齊。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"小美\"</span><span class=\"token-op\">,</span> <span class=\"token-number\">100</span><span class=\"token-op\">,</span> <span class=\"token-number\">92</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\t'</span>)",
+        "diff": true,
+        "mean": "印出小美分數，即使名字與分數長度不同也能齊頭整列。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "姓名\t國文\t數學\n小明\t95\t88\n小美\t100\t92",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3,
+          4
+        ],
+        "lineText": "排版",
+        "type": "concept",
+        "text": "反斜線 <code class=\"code-inline\">\\t</code> 代表 Tab 定位鍵，會自動推至下一個制表欄位，能快速排印出整齊的統計報表。"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "符號未包引號與參數位置地雷",
+    "titleEn": "SyntaxError: Missing Quotes and Parameter Position",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.2 自訂常用標點符號分隔——逗號、連字號與斜線",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 1：符號忘了加引號，被誤判為減法運算子</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># print(10, 20, sep=-)     # SyntaxError: invalid syntax</span>",
+        "diff": true,
+        "mean": "減號未加引號，Python 判定為未完成的數學式，直接報錯崩潰！",
+        "why": "符號一律為字串，必須加上引號。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 2：具名參數插在一般資料中間</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># print(\"得分:\", sep='', 100) # SyntaxError: positional argument follows keyword argument</span>",
+        "diff": true,
+        "mean": "參數順序違規，關鍵字引數後方絕不能再擺放位置引數。",
+        "why": "sep 必須擺在括號內所有資料的最後面。",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># ✅ 正確寫法：包引號且 sep 放在最後</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"得分:\"</span><span class=\"token-op\">,</span> <span class=\"token-number\">100</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "全合規寫法：符號包引號且置於尾端，安全輸出 得分:100。",
+        "why": "語法安全防範第一準則。",
+        "alt": ""
+      }
+    ],
+    "output": "得分:100",
+    "predictQuiz": {
+      "question": "預測思考：執行 print(10, 20, sep=-) 會發生什麼事？",
+      "options": [
+        "順利以減號隔開印出 10-20",
+        "直譯器噴出 SyntaxError: invalid syntax"
+      ],
+      "correct": 1,
+      "explanation": "減號 - 未加引號會被當成數學減法運算子，因為後方缺少運算元而引發語法錯誤 SyntaxError！必須寫成 sep='-'！"
+    },
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 踩雷警報</strong>：符號也是字串，絕不能忘記加單引號或雙引號！"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "規則",
+        "type": "syntax",
+        "text": "<strong>💥 語法規則</strong>：在 Python 函數呼叫中，具名參數（如 <code class=\"code-inline\">sep=...</code>）必須放在所有一般引數的最後面！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "斜線搞反地雷：/n vs \\n",
+    "titleEn": "Escape Character Trap: Slash / vs Backslash \\",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.5 特殊跳脫分隔符號——換行符號 sep='\\n' 與跳格 sep='\\t'",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：斜線方向搞反，誤打成正斜線 /n</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># print(\"甲\", \"乙\", \"丙\", sep='/n')  # 印出：甲/n乙/n丙（完全沒換行！）</span>",
+        "diff": true,
+        "mean": "打成正斜線 /n，Python 會當成普通文字印出 /n，毫無換行效果！",
+        "why": "正斜線是除法，反斜線才是跳脫控制。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ✅ 正解：使用 Enter 鍵上方的反斜線 \\n</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"甲\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"乙\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"丙\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "正確使用反斜線 \\n，順利將三個項目分行垂直輸出。",
+        "why": "APCS 必背特殊字元常識。",
+        "alt": ""
+      }
+    ],
+    "output": "甲\n乙\n丙",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 初學必踩大坑</strong>：<code class=\"code-inline\">/</code> 是除法正斜線，<code class=\"code-inline\">/n</code> 只是一般文字！唯有反斜線 <code class=\"code-inline\">\\n</code> 才是真正的跳脫換行控制字元！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "全形符號與空白誤植的 WA 陷阱",
+    "titleEn": "Full-width Punctuation and Space vs Empty String",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2.2 自訂常用標點符號分隔——逗號、連字號與斜線",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 1：輸入法忘記切換，誤打成全形逗號（比對失敗 WA！）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># print(1, 2, 3, sep='，')   # 全形逗號 '，' != 半形逗號 ','</span>",
+        "diff": true,
+        "mean": "全形逗號在螢幕上看很像，但在 OJ 字元比對下會立即判定 WA！",
+        "why": "全形與半形 ASCII 編碼完全不同。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 2：想無縫黏合，卻在引號內誤敲了空白鍵</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># print(\"分數:\", 100, sep=' ') # 長度為 1 的空白，依然留有空格！</span>",
+        "diff": true,
+        "mean": "引號裡多敲空白鍵，導致依然維持空格分隔。",
+        "why": "空字串 '' 長度為 0，空白字串 ' ' 長度為 1。",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># ✅ OJ 通關正解：半形符號或純粹長度為 0 的空字串</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"分數:\"</span><span class=\"token-op\">,</span> <span class=\"token-number\">100</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "純淨長度為 0 的空字串，完美無縫通關！",
+        "why": "落實細節檢驗，杜絕低級失分。",
+        "alt": ""
+      }
+    ],
+    "output": "分數:100",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "紅線",
+        "type": "wa",
+        "text": "<strong>💥 爆零紅線</strong>：OJ 比對 ASCII 編碼，全形標點（如中文逗號 <code class=\"code-inline\">，</code>）會直接被判定 WA！請務必使用英文半形。"
+      },
+      {
+        "lines": [
+          4
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "空字串是 <code class=\"code-inline\">sep=''</code>（長度為 0），切勿手滑按到空白鍵變成 <code class=\"code-inline\">sep=' '</code>。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 4.2 綜合驗收",
+    "titleEn": "Section 4.2 Completion",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.2 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 4.2！</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"分隔排版魔術師\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"通關成功！\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">' ★ '</span>)",
+        "diff": true,
+        "mean": "以星星裝飾分隔符號輸出通關祝賀！",
+        "why": "恭喜全面征服 sep 參數的高效排版技巧！",
+        "alt": ""
+      }
+    ],
+    "output": "分隔排版魔術師 ★ 通關成功！",
+    "completionCard": {
+      "badge": "🏆 單元 4.2 通關：分隔排版魔術師！",
+      "summary": "太棒了！你已徹底掌握 sep 參數的預設空格機制、自訂標點符號、空字串無縫黏合、多字元裝飾與特殊跳脫換行！",
+      "nextUnit": "4.3 print() 結尾符號參數 end"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec4-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_4-2_print_separator_sep.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 4.3 print() 結尾符號參數 end | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "揭開自動換行的秘密",
+    "titleEn": "Understanding the Default end='\\n' Parameter",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.1 認識結尾參數 end——揭開自動換行 \\n 的秘密",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：不寫 end（預設 end='\\n'，每次輸出自動換行）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第一行訊息：晴空萬里。\"</span>)",
+        "diff": false,
+        "mean": "印出訊息後，游標自動跳至下一行開頭。",
+        "why": "預設結尾符號就是換行跳脫字元 \\n。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第二行訊息：微風徐徐。\"</span>)",
+        "diff": false,
+        "mean": "在第二行印出第二句訊息，再次換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># 範例 2：明確寫出 end='\\n'，效果完全相同</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第一行訊息：晴空萬里。\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "明確指定 end='\\n'，效果與未寫完全相同。",
+        "why": "end 參數的預設值本來就是 '\\n'。",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第二行訊息：微風徐徐。\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "再次指定 end='\\n'，完整驗證預設換行特質。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "第一行訊息：晴空萬里。\n第二行訊息：微風徐徐。\n第一行訊息：晴空萬里。\n第二行訊息：微風徐徐。",
+    "notes": [
+      {
+        "lines": [
+          2,
+          5
+        ],
+        "lineText": "觀念",
+        "type": "concept",
+        "text": "<code class=\"code-inline\">print()</code> 播報完畢後，預設會在末端輸出一個換行跳脫字元，底層本質就是 <code class=\"code-inline\">end='\\n'</code>。"
+      },
+      {
+        "lines": [
+          5
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">end</code> 代表結尾收尾字元，負責在小括號內所有資料印完後，追加輸出指定符號。"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "titleZh": "sep 中間切開 vs end 屁股收尾",
+    "titleEn": "sep for In-between vs end for Trailing",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.1 認識結尾參數 end——揭開自動換行 \\n 的秘密",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># sep 控制項目「之間」，end 控制整句「結尾」</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"甲\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"乙\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"丙\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'-'</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "甲乙丙之間由 sep='-' 連接，句尾由 end='\\n' 換行。",
+        "why": "sep 絕不會出現在最後一項的後面。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"丁\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"戊\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"己\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">'-'</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n'</span>)",
+        "diff": true,
+        "mean": "丁戊己同理，分行輸出 甲-乙-丙 與 丁-戊-己。",
+        "why": "清晰劃分兩大參數的核心職責。",
+        "alt": ""
+      }
+    ],
+    "output": "甲-乙-丙\n丁-戊-己",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「sep在中間end在末端」"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "觀念",
+        "type": "concept",
+        "text": "逗號分隔的各項目由 <code class=\"code-inline\">sep</code> 填補；當最後一個項目印完時，由 <code class=\"code-inline\">end</code> 負責收尾。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "空字串 end='' 取消換行",
+    "titleEn": "Cancel Newline with Empty String end=''",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.2 取消換行緊密相連——空字串 end='' 接續輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># end='' 讓游標原地等待，下一個 print 接在同一行</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"載入中\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "印出「載入中」後游標原地立正等待，完全不換行！",
+        "why": "長度為 0 的空字串拔除了預設的換行符號 \\n。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"...完成！\"</span>)",
+        "diff": true,
+        "mean": "直接從游標停留處緊貼接續輸出，形成「載入中...完成！」。",
+        "why": "兩個獨立的 print() 成功合體於同一行！",
+        "alt": ""
+      }
+    ],
+    "output": "載入中...完成！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "指定 <code class=\"code-inline\">end=''</code>（長度為 0 的空字串）會拔除預設換行，讓游標停在當前位置，使下一次輸出的內容無縫接在同一行後面！"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「end空字串同列接續」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "分段組裝長句與編號",
+    "titleEn": "Segmented Line Assembly",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.2 取消換行緊密相連——空字串 end='' 接續輸出",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"本次測驗得分：\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "先輸出標籤前綴，取消換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-ident\">score</span> <span class=\"token-op\">=</span> <span class=\"token-number\">95</span>",
+        "diff": false,
+        "mean": "計算或取得分數變數。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">score</span>)",
+        "diff": true,
+        "mean": "在同一行接續印出 95 並正常換行，輸出「本次測驗得分：95」。",
+        "why": "最後一個 print 恢復預設換行，保持終端機整潔。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"A\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "印出英文字母 A，不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">7</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "接續印出數字 7，不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">9</span>)",
+        "diff": true,
+        "mean": "接續印出數字 9 並換行，三步驟成功拼合編號 A79！",
+        "why": "無須在記憶體中反覆串接字串，執行效率極高。",
+        "alt": ""
+      }
+    ],
+    "output": "本次測驗得分：95\nA79",
+    "memoryState": [
+      {
+        "name": "score",
+        "val": "95",
+        "diff": false,
+        "type": "int"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          1,
+          3
+        ],
+        "lineText": "技巧",
+        "type": "concept",
+        "text": "先輸出提示標籤，再接續印出動態運算數值，免去繁瑣的字串加法與型態轉型。"
+      },
+      {
+        "lines": [
+          4,
+          5,
+          6
+        ],
+        "lineText": "拼裝",
+        "type": "syntax",
+        "text": "連續使用 <code class=\"code-inline\">end=''</code> 可逐步拼合各個字元與代碼，最後一個 <code class=\"code-inline\">print()</code> 恢復預設換行。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "橫向並列輸出：end=' '",
+    "titleEn": "Horizontal Spaced Output with end=' '",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.3 自訂結尾間隔符號——空格 end=' ' 與標點符號收尾",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 多次呼叫 print()，橫向並列以空格隔開</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">' '</span>)",
+        "diff": true,
+        "mean": "印出 10 後，在結尾輸出一個空格，不換行。",
+        "why": "游標停留在空格後方。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">' '</span>)",
+        "diff": true,
+        "mean": "在同一行接續印出 20 與一個空格，不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">30</span>)",
+        "diff": true,
+        "mean": "接續印出 30，最後恢復預設換行，一行印出 10 20 30！",
+        "why": "APCS 數列輸出的經典模式。",
+        "alt": ""
+      }
+    ],
+    "output": "10 20 30",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3,
+          4
+        ],
+        "lineText": "考點",
+        "type": "radar",
+        "text": "<strong>🎯 APCS 必備神技</strong>：在後續迴圈（Loop）逐次計算出答案時，一律利用 <code class=\"code-inline\">end=' '</code> 將數值橫向排成一行，最後再換行！"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "自訂步驟箭頭與符號收尾",
+    "titleEn": "Step Arrows and Trailing Punctuation",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.3 自訂結尾間隔符號——空格 end=' ' 與標點符號收尾",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 範例 1：步驟流程接續箭頭</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第一步: 備料\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">' -> '</span>)",
+        "diff": true,
+        "mean": "結尾追加箭頭符號與空格，不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第二步: 熱鍋\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">' -> '</span>)",
+        "diff": true,
+        "mean": "接續印出第二步與箭頭，不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第三步: 出菜！\"</span>)",
+        "diff": true,
+        "mean": "印出第三步並換行，串聯出完整的步驟動線！",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># 範例 2：橫向逗號串聯清單</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"蘋果\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">','</span>)",
+        "diff": true,
+        "mean": "結尾以逗號隔開不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"香蕉\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">','</span>)",
+        "diff": true,
+        "mean": "接續印出香蕉與逗號，不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 8,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"芒果\"</span>)",
+        "diff": true,
+        "mean": "印出最後一項芒果並換行，輸出「蘋果,香蕉,芒果」。",
+        "why": "",
+        "alt": ""
+      }
+    ],
+    "output": "第一步: 備料 -> 第二步: 熱鍋 -> 第三步: 出菜！\n蘋果,香蕉,芒果",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3,
+          6,
+          7
+        ],
+        "lineText": "語法",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">end</code> 可以是任何標點符號或帶空格的字串，靈活掌控多次輸出的接合點。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "雙重換行與段落間距：end='\\n\\n'",
+    "titleEn": "Double Newline and Paragraph Spacing",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.4 結尾的雙重換行與段落拉開——end='\\n\\n' 大段落排版術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 使用 end='\\n\\n' 自動在標題下方空出整整一行空白行</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"【旗美高中段考英雄榜】\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n\\n'</span>)",
+        "diff": true,
+        "mean": "印完標題後連續執行兩次換行動作。",
+        "why": "第一個 \\n 結束當前行，第二個 \\n 製造出一行乾淨的空白行。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"第一名：王小明同學\"</span>)",
+        "diff": true,
+        "mean": "隔開一個空白行後印出內文，視覺層次分明舒適。",
+        "why": "免去多寫一行空括號 print() 的繁瑣。",
+        "alt": ""
+      }
+    ],
+    "output": "【旗美高中段考英雄榜】\n\n第一名：王小明同學",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "技巧",
+        "type": "concept",
+        "text": "第一個 <code class=\"code-inline\">\\n</code> 結束當前行，第二個 <code class=\"code-inline\">\\n</code> 再推一行，優雅創造空行段落。"
+      },
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "口訣",
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：「雙重反斜n空一行」"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "end 內建裝飾分隔線",
+    "titleEn": "Built-in Decorative Divider with end",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.4 結尾的雙重換行與段落拉開——end='\\n\\n' 大段落排版術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 在 end 中直接包入換行與裝飾線</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"訂單明細確認中...\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'\\n====================\\n'</span>)",
+        "diff": true,
+        "mean": "文字印完後，先換行印出 20 個等號分隔線，再換行迎接下段訊息。",
+        "why": "一行指令包辦訊息與裝飾線輸出。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"訂單已成立，感謝您的購買！\"</span>)",
+        "diff": true,
+        "mean": "在分隔線下方俐落印出結算感謝詞。",
+        "why": "大幅精簡排版程式碼。",
+        "alt": ""
+      }
+    ],
+    "output": "訂單明細確認中...\n====================\n訂單已成立，感謝您的購買！",
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "排版",
+        "type": "concept",
+        "text": "利用 <code class=\"code-inline\">end='\\n=====...\\n'</code> 可省去一行額外的裝飾線 <code class=\"code-inline\">print()</code>，程式碼精簡洗鍊。"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "titleZh": "雙劍合璧：sep 與 end 同時登場",
+    "titleEn": "sep and end Precision Formatting",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.5 綜合雙劍合璧——sep 與 end 同時登場的精密排版術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 逗號隔開各數值，句尾加上句點且不換行</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">', '</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'.'</span>)",
+        "diff": true,
+        "mean": "以逗號空格隔開各數值，句尾以句點收尾且不換行，輸出「10, 20, 30.」。",
+        "why": "sep 與 end 分工合作，同時調度中間與末尾。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\" (共計 3 筆資料)\"</span>)",
+        "diff": true,
+        "mean": "接續在句點後面輸出統計備註並換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span>",
+        "diff": false,
+        "mean": "座標變數賦值。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"座標點：(\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "印出左括號不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">y</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">', '</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">')\\n'</span>)",
+        "diff": true,
+        "mean": "xy 之間用逗號隔開，結尾加上右括號並換行，輸出「座標點：(5, 12)」。",
+        "why": "極致的格式化控制技巧。",
+        "alt": ""
+      }
+    ],
+    "output": "10, 20, 30. (共計 3 筆資料)\n座標點：(5, 12)",
+    "memoryState": [
+      {
+        "name": "x",
+        "val": "5",
+        "diff": false,
+        "type": "int"
+      },
+      {
+        "name": "y",
+        "val": "12",
+        "diff": false,
+        "type": "int"
+      }
+    ],
+    "notes": [
+      {
+        "lines": [
+          2,
+          6
+        ],
+        "lineText": "雙劍合璧",
+        "type": "syntax",
+        "text": "<code class=\"code-inline\">sep</code> 掌管項目間的間隔，<code class=\"code-inline\">end</code> 掌管整句最後的收尾，兩者分工明確、天衣無縫！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "誤將 end 當成 sep 的末端逗號地雷",
+    "titleEn": "The Misplaced Comma Trap: end vs sep",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.1 認識結尾參數 end——揭開自動換行 \\n 的秘密",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 誤解：以為 end=',' 會插在文字中間</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># print(\"蘋果\", \"香蕉\", end=',')  # 輸出：蘋果 香蕉,（逗號只出現在最後！）</span>",
+        "diff": true,
+        "mean": "end 絕不插在項目中間！輸出會變成「蘋果 香蕉,」，中間依然留著空格！",
+        "why": "end 只負責整個 print 的最後結尾收尾。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># ✅ 正解：項目中間請使用 sep=','</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"蘋果\"</span><span class=\"token-op\">,</span> <span class=\"token-str\">\"香蕉\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sep</span><span class=\"token-op\">=</span><span class=\"token-str\">','</span>)",
+        "diff": true,
+        "mean": "正確使用 sep=','，項目之間成功以逗號隔開，輸出「蘋果,香蕉」。",
+        "why": "正確理解 sep 與 end 的分工。",
+        "alt": ""
+      }
+    ],
+    "output": "蘋果,香蕉",
+    "predictQuiz": {
+      "question": "預測思考：執行 print(\"A\", \"B\", end=',') 會印出什麼？",
+      "options": [
+        "A,B（中間隔開逗號）",
+        "A B,（中間仍為空格，逗號出現在末端）"
+      ],
+      "correct": 1,
+      "explanation": "end 只負責整批資料印完後的「最後收尾」！項目中間依然會維持 sep 的預設半形空格，因此會印出 A B,！若想在中間分隔請使用 sep=','！"
+    },
+    "notes": [
+      {
+        "lines": [
+          2
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 經典新手陷阱</strong>：<code class=\"code-inline\">end</code> 絕不會插在項目之間！項目之間的分隔請一律使用 <code class=\"code-inline\">sep</code>！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "end 拼字錯誤與 TypeError",
+    "titleEn": "TypeError: Invalid Keyword Argument for print()",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.1 認識結尾參數 end——揭開自動換行 \\n 的秘密",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷：拼寫錯誤 ends 或 ending</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># print(\"Hello\", ends='')   # TypeError: 'ends' is an invalid keyword argument for print()</span>",
+        "diff": true,
+        "mean": "自創複數 ends，Python 無法辨識該參數名稱，噴出 TypeError！",
+        "why": "Python 嚴格檢查關鍵字引數名稱。",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># print(\"Hello\", ending='') # TypeError: 'ending' is an invalid keyword argument for print()</span>",
+        "diff": true,
+        "mean": "拼寫為 ending 同樣報錯崩潰！",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># ✅ 正解：標準參數名稱 end（全小寫單數）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"Hello\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">''</span>)",
+        "diff": true,
+        "mean": "使用標準參數 end，語法安全合規。",
+        "why": "牢記標準全小寫單數 end。",
+        "alt": ""
+      }
+    ],
+    "output": "Hello",
+    "notes": [
+      {
+        "lines": [
+          2,
+          3
+        ],
+        "lineText": "雷區",
+        "type": "wa",
+        "text": "<strong>💥 語法報錯</strong>：Python 內建參數名稱極度精準，不可自創複數 <code class=\"code-inline\">ends</code> 或 <code class=\"code-inline\">ending</code>，否則直接噴出 <code class=\"code-inline\">TypeError</code>！"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "titleZh": "OJ 評判紅線：換行過多或過少皆為 WA",
+    "titleEn": "Strict Newline Rules in APCS / Online Judge",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3.4 結尾的雙重換行與段落拉開——end='\\n\\n' 大段落排版術",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 題目要求：輸出答案整數 42 並正常換行</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 1：最後忘記換行（部分 OJ 會判 PE 或 WA）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-comment\"># print(42, end='')</span>",
+        "diff": true,
+        "mean": "遺漏換行，與評測終端提示擠在同行導致格式錯誤。",
+        "why": "絕大多數題目要求單行答案行尾必須有 \\n。",
+        "alt": ""
+      },
+      {
+        "num": 4,
+        "html": "<span class=\"token-comment\"># ❌ 踩雷 2：擅自加上雙重換行拉開空行（導致 Presentation Error / WA！）</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 5,
+        "html": "<span class=\"token-comment\"># print(42, end='\\n\\n')</span>",
+        "diff": true,
+        "mean": "多餘的空白行會被 OJ 比對視為答案不符。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 6,
+        "html": "<span class=\"token-comment\"># ✅ OJ 通關安全寫法：回歸預設 print(42) 或 end='\\n'</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 7,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-number\">42</span>)",
+        "diff": true,
+        "mean": "純淨輸出整數 42 搭配單一換行，安全滿分通關！",
+        "why": "恪守題目輸出規範，不隨意加減換行。",
+        "alt": ""
+      }
+    ],
+    "output": "42",
+    "notes": [
+      {
+        "lines": [
+          3,
+          5
+        ],
+        "lineText": "紅線",
+        "type": "wa",
+        "text": "<strong>💥 爆零紅線</strong>：自動評判系統逐字元比對換行符號！少換行或多空行都會導致 Presentation Error 或 WA！最後輸出務必回歸標準換行。"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "titleZh": "單元 4.3 綜合驗收",
+    "titleEn": "Section 4.3 Completion",
+    "chapter": "第四章 標準輸出入（I/O）與測資處理技巧",
+    "section": "4.3 綜合驗收",
+    "codeLines": [
+      {
+        "num": 1,
+        "html": "<span class=\"token-comment\"># 恭喜完成單元 4.3！</span>",
+        "diff": false,
+        "mean": "",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 2,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"行尾排版總指揮\"</span><span class=\"token-op\">,</span> <span class=\"token-ident\">end</span><span class=\"token-op\">=</span><span class=\"token-str\">'：'</span>)",
+        "diff": true,
+        "mean": "以全形冒號收尾不換行。",
+        "why": "",
+        "alt": ""
+      },
+      {
+        "num": 3,
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-str\">\"通關成功！\"</span>)",
+        "diff": true,
+        "mean": "接續在同一行輸出通關喝采並換行！",
+        "why": "恭喜全面掌握 end 參數的核心換行排版技巧！",
+        "alt": ""
+      }
+    ],
+    "output": "行尾排版總指揮：通關成功！",
+    "completionCard": {
+      "badge": "🏆 單元 4.3 通關：行尾排版總指揮！",
+      "summary": "太棒了！你已徹底掌握 end 參數的預設換行特質、空字串無縫接續、空格橫向並列、雙換行段落以及 sep 與 end 的雙劍合璧！",
+      "nextUnit": "4.4 變數與運算式綜合輸出"
+    },
+    "notes": [
+      {
+        "lines": [
+          1,
+          2,
+          3
+        ],
+        "lineText": "實戰",
+        "type": "concept",
+        "text": "🚀 前往 Colab 動手練！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec4-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_4-3_print_end_parameter.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 8.2 串列切片語法與切片賦值 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 8.2 串列切片語法與切片賦值
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.1 串列切片提取：a[start:stop] 左閉右開子串列",
+    "titleZh": "串列切片提取——a[start:stop] 左閉右開子串列",
+    "titleEn": "List Slicing: a[start:stop] Half-open Intervals",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [10, 20, 30, 40, 50, 60]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>, <span class=\"token-number\">60</span>]",
+        "alt": "宣告包含 6 個整數的串列 nums",
+        "why": "切片示範清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "sub = nums[1:4]",
+        "html": "<span class=\"token-ident\">sub</span> = <span class=\"token-ident\">nums</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">4</span>]",
+        "alt": "切片提取索引 1 到 3 的子串列",
+        "diff": true,
+        "why": "左閉右開切片取值",
+        "mean": "提取索引 1, 2, 3"
+      },
+      {
+        "num": 3,
+        "code": "print(\"原串列:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原串列:\"</span>, <span class=\"token-ident\">nums</span>)",
+        "alt": "印出完整原串列 nums",
+        "why": "驗證原串列不受影響",
+        "mean": "輸出原串列"
+      },
+      {
+        "num": 4,
+        "code": "print(\"切片 nums[1:4]:\", sub)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"切片 nums[1:4]:\"</span>, <span class=\"token-ident\">sub</span>)",
+        "alt": "印出切片所得子串列 sub",
+        "diff": true,
+        "why": "檢視切片子串列",
+        "mean": "輸出 20, 30, 40"
+      }
+    ],
+    "output": "原串列: [10, 20, 30, 40, 50, 60]\n切片 nums[1:4]: [20, 30, 40]",
+    "indexRuler": {
+      "title": "📐 切片區間尺標：nums 串列",
+      "hint": "nums[1:4] 包含索引 1, 2, 3（長度 4 - 1 = 3），不包含索引 4",
+      "showLegend": true,
+      "activeIndex": 1,
+      "diffIndices": [
+        1,
+        2,
+        3
+      ],
+      "items": [
+        "10",
+        "20",
+        "30",
+        "40",
+        "50",
+        "60"
+      ]
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>左閉右開鐵律（Half-Open Interval）</strong>：語法 <code>a[start:stop]</code> 會截取從索引 <code>start</code> 開始、到 <code>stop - 1</code> 為止的所有元素。包含起點，<strong>不包含終點</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>切片長度速算法</strong>：切片產生的子串列長度恆等於 <code>stop - start</code>（例如 $4 - 1 = 3$，剛好取得 3 個元素）。切片提取會產生全新獨立串列，原串列絲毫不受影響！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：切片包頭不包尾，長度相減就是它"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.2 省略起終點與步進跳步切片：a[:k]、a[k:] 與 a[::2]",
+    "titleZh": "省略起終點切片——a[:k] 前段截取與 a[k:] 後段截取",
+    "titleEn": "Omitting Boundaries: a[:k] Prefix & a[k:] Suffix Slices",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30, 40, 50]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告包含 5 個元素的串列 a",
+        "why": "省略切片範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "prefix = a[:3]",
+        "html": "<span class=\"token-ident\">prefix</span> = <span class=\"token-ident\">a</span>[:<span class=\"token-number\">3</span>]",
+        "alt": "省略起點，截取前 3 個元素",
+        "diff": true,
+        "why": "省略起點從頭開始",
+        "mean": "提取 a[0:3]"
+      },
+      {
+        "num": 3,
+        "code": "suffix = a[2:]",
+        "html": "<span class=\"token-ident\">suffix</span> = <span class=\"token-ident\">a</span>[<span class=\"token-number\">2</span>:]",
+        "alt": "省略終點，截取從索引 2 到末尾的元素",
+        "diff": true,
+        "why": "省略終點直到尾端",
+        "mean": "提取 a[2:5]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"前 3 個元素 a[:3]:\", prefix)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"前 3 個元素 a[:3]:\"</span>, <span class=\"token-ident\">prefix</span>)",
+        "diff": true,
+        "alt": "印出前段子串列",
+        "why": "展示前段截取",
+        "mean": "輸出 10, 20, 30"
+      },
+      {
+        "num": 5,
+        "code": "print(\"從索引 2 到尾 a[2:]:\", suffix)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"從索引 2 到尾 a[2:]:\"</span>, <span class=\"token-ident\">suffix</span>)",
+        "diff": true,
+        "alt": "印出後段子串列",
+        "why": "展示後段截取",
+        "mean": "輸出 30, 40, 50"
+      }
+    ],
+    "output": "前 3 個元素 a[:3]: [10, 20, 30]\n從索引 2 到尾 a[2:]: [30, 40, 50]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>邊界省略預設值</strong>：冒號左側省略（<code>a[:k]</code>）代表<strong>從頭開始（預設 0）</strong>，俐落截取前 $k$ 個項目；冒號右側省略（<code>a[k:]</code>）代表<strong>直達最末端（預設 len(a)）</strong>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>頭尾無縫互補</strong>：對於任意整數 $k$，<code>a[:k] + a[k:]</code> 重新拼接後必定剛好還原成原串列 <code>a</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：左省從頭起，右省到底連"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.2 省略起終點與步進跳步切片：a[:k]、a[k:] 與 a[::2]",
+    "titleZh": "全切片 a[:]——秒造全新獨立副本（淺拷貝）",
+    "titleEn": "Full Slice a[:]: Creating Independent Shallow Copies",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "original = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">original</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告原始串列 original",
+        "why": "淺拷貝範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "clone = original[:]",
+        "html": "<span class=\"token-ident\">clone</span> = <span class=\"token-ident\">original</span>[:]",
+        "alt": "以全切片 original[:] 複製獨立副本",
+        "diff": true,
+        "why": "利用全切片複製副本",
+        "mean": "獨立拷貝"
+      },
+      {
+        "num": 3,
+        "code": "clone[0] = 99",
+        "html": "<span class=\"token-ident\">clone</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">99</span>",
+        "alt": "修改副本的第一個元素",
+        "diff": true,
+        "why": "修改副本測試獨立性",
+        "mean": "修改 clone[0]"
+      },
+      {
+        "num": 4,
+        "code": "print(\"原串列 original:\", original)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原串列 original:\"</span>, <span class=\"token-ident\">original</span>)",
+        "alt": "印出 original，確認未被波及",
+        "why": "驗證原始串列完好",
+        "mean": "輸出 1, 2, 3"
+      },
+      {
+        "num": 5,
+        "code": "print(\"副本 clone:\", clone)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"副本 clone:\"</span>, <span class=\"token-ident\">clone</span>)",
+        "alt": "印出被修改的副本 clone",
+        "why": "確認副本成功更新",
+        "mean": "輸出 99, 2, 3"
+      }
+    ],
+    "output": "原串列 original: [1, 2, 3]\n副本 clone: [99, 2, 3]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>全切片（Full Slice）克隆術</strong>：<code>a[:]</code> 起點與終點皆省略，代表從頭到尾完整截取。這會建造一份<strong>記憶體位址全新</strong>的一維淺拷貝副本，徹底斬斷變數指針參照！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：若寫 <code>clone = original</code> 只是多貼一張名牌（共享同一箱），修改一個另一個也會變；但 <code>original[:]</code> 才能真正獨立複製！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：冒號全切片，全新獨立箱"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.2 省略起終點與步進跳步切片：a[:k]、a[k:] 與 a[::2]",
+    "titleZh": "等差跳步切片——a[start:stop:step] 隔格抽取",
+    "titleEn": "Strided Slicing: a[start:stop:step] with Step Intervals",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">9</span>]",
+        "alt": "宣告 0 到 9 的十整數串列",
+        "why": "步進跳步示範資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "evens = nums[::2]",
+        "html": "<span class=\"token-ident\">evens</span> = <span class=\"token-ident\">nums</span>[::<span class=\"token-number\">2</span>]",
+        "alt": "步長為 2，抽取偶數索引元素",
+        "diff": true,
+        "why": "步長為 2 跳格抽取",
+        "mean": "偶數索引切片"
+      },
+      {
+        "num": 3,
+        "code": "odds = nums[1::2]",
+        "html": "<span class=\"token-ident\">odds</span> = <span class=\"token-ident\">nums</span>[<span class=\"token-number\">1</span>::<span class=\"token-number\">2</span>]",
+        "alt": "從索引 1 起步長為 2，抽取奇數索引元素",
+        "diff": true,
+        "why": "從 1 開始步長為 2",
+        "mean": "奇數索引切片"
+      },
+      {
+        "num": 4,
+        "code": "print(\"偶數索引 nums[::2]:\", evens)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"偶數索引 nums[::2]:\"</span>, <span class=\"token-ident\">evens</span>)",
+        "alt": "印出偶數索引結果",
+        "diff": true,
+        "why": "檢視偶數索引結果",
+        "mean": "輸出 0, 2, 4, 6, 8"
+      },
+      {
+        "num": 5,
+        "code": "print(\"奇數索引 nums[1::2]:\", odds)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"奇數索引 nums[1::2]:\"</span>, <span class=\"token-ident\">odds</span>)",
+        "alt": "印出奇數索引結果",
+        "diff": true,
+        "why": "檢視奇數索引結果",
+        "mean": "輸出 1, 3, 5, 7, 9"
+      }
+    ],
+    "output": "偶數索引 nums[::2]: [0, 2, 4, 6, 8]\n奇數索引 nums[1::2]: [1, 3, 5, 7, 9]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>三參數切片語法</strong>：<code>a[start:stop:step]</code> 中的第三個參數 <code>step</code> 代表步進值。預設值為 1；若設為 2 則代表每跳兩格取一個元素。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>奇偶索引快速分流</strong>：<code>nums[::2]</code> 從 0 開始每跳兩步，精準取出偶數索引；<code>nums[1::2]</code> 從 1 開始每跳兩步，精準取出奇數索引！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：雙冒號接步長，跳格取值最神速"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.3 串列反轉切片：a[::-1] 與逆序呈現",
+    "titleZh": "串列反轉切片——a[::-1] 負步進逆序神技",
+    "titleEn": "Reverse Slicing: a[::-1] for Instant Inversion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [60, 75, 88, 92, 100]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">60</span>, <span class=\"token-number\">75</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">100</span>]",
+        "alt": "宣告從小到大排序的分數串列",
+        "why": "反轉測試資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "reversed_scores = scores[::-1]",
+        "html": "<span class=\"token-ident\">reversed_scores</span> = <span class=\"token-ident\">scores</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "以負步進 -1 截取逆序子串列",
+        "diff": true,
+        "why": "負步長實現極速反轉",
+        "mean": "反轉串列"
+      },
+      {
+        "num": 3,
+        "code": "print(\"原順序:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"原順序:\"</span>, <span class=\"token-ident\">scores</span>)",
+        "alt": "印出原始正向順序",
+        "why": "確認原串列未受影響",
+        "mean": "輸出原串列"
+      },
+      {
+        "num": 4,
+        "code": "print(\"反轉後:\", reversed_scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"反轉後:\"</span>, <span class=\"token-ident\">reversed_scores</span>)",
+        "alt": "印出逆序反轉後的新串列",
+        "diff": true,
+        "why": "檢視反轉新串列",
+        "mean": "輸出 100 到 60"
+      }
+    ],
+    "output": "原順序: [60, 75, 88, 92, 100]\n反轉後: [100, 92, 88, 75, 60]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>負步進倒車雷達</strong>：當 <code>step = -1</code> 且起終點省略時，Python 自動將起點定於末尾（索引 -1）、終點定於最前端，以倒車方式逆向走訪！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>不傷及本體</strong>：<code>scores[::-1]</code> 會回傳一個<strong>全新的反轉副本</strong>，原串列 <code>scores</code> 完好如初（若要原地反轉，請用 8.3 將學的 <code>scores.reverse()</code>）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：負一步長倒著走，串列反轉不用愁"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.4 串列切片就地替換賦值：a[start:stop] = [...] 動態伸縮",
+    "titleZh": "切片就地替換賦值——a[start:stop] = [...] 區間整批更新",
+    "titleEn": "Slice Assignment: Batch In-Place Element Replacement",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30, 40, 50]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告長度為 5 的串列 a",
+        "why": "切片賦值示範資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "print(\"替換前:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"替換前:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出替換前的 a",
+        "why": "記錄初始狀態",
+        "mean": "輸出原串列"
+      },
+      {
+        "num": 3,
+        "code": "a[1:3] = [88, 99]",
+        "html": "<span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">3</span>] = [<span class=\"token-number\">88</span>, <span class=\"token-number\">99</span>]",
+        "alt": "將索引 1 到 2 區間就地替換為 [88, 99]",
+        "diff": true,
+        "why": "切片就地批量賦值",
+        "mean": "就地更新 2 格"
+      },
+      {
+        "num": 4,
+        "code": "print(\"替換後 a[1:3]=[88,99]:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"替換後 a[1:3]=[88,99]:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出替換後的 a",
+        "diff": true,
+        "why": "驗證就地替換結果",
+        "mean": "輸出 10, 88, 99, 40, 50"
+      }
+    ],
+    "output": "替換前: [10, 20, 30, 40, 50]\n替換後 a[1:3]=[88,99]: [10, 88, 99, 40, 50]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>切片賦值的魔力</strong>：串列是可變的，因此能直接將另一個串列賦值給指定切片區間 <code>a[start:stop]</code>，直接就地批量替換該區間的元素！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：字串（str）切片賦值會直接噴 SyntaxError，但串列（list）切片賦值是 100% 合法且極度高效的原地修改手段！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：切片左閉右開換，批量更新最俐落"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.4 串列切片就地替換賦值：a[start:stop] = [...] 動態伸縮",
+    "titleZh": "切片動態伸縮——替換長度不必與切片長度相同！",
+    "titleEn": "Dynamic Slice Resizing: Length Expansion & Contraction",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30, 40, 50]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告長度為 5 的串列 a",
+        "why": "動態伸縮示範",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 替換長度大於切片長度：長度變長！",
+        "html": "<span class=\"token-comment\"># 2 格換 3 格：串列變長！</span>",
+        "alt": "註解：說明長度擴展",
+        "why": "提示長度增加",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "a[1:3] = [100, 200, 300]",
+        "html": "<span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">3</span>] = [<span class=\"token-number\">100</span>, <span class=\"token-number\">200</span>, <span class=\"token-number\">300</span>]",
+        "alt": "用 3 個元素替換 2 格切片區間",
+        "diff": true,
+        "why": "擴展替換元素",
+        "mean": "長度由 5 變 6"
+      },
+      {
+        "num": 4,
+        "code": "print(\"擴展後:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"擴展後:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出擴展後的 a",
+        "diff": true,
+        "why": "展示長度擴展結果",
+        "mean": "輸出 10, 100, 200, 300, 40, 50"
+      },
+      {
+        "num": 5,
+        "code": "# 替換長度小於切片長度：長度縮短！",
+        "html": "<span class=\"token-comment\"># 3 格換 1 格：串列縮短！</span>",
+        "alt": "註解：說明長度縮減",
+        "why": "提示長度縮減",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "a[1:4] = [999]",
+        "html": "<span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">4</span>] = [<span class=\"token-number\">999</span>]",
+        "alt": "用 1 個元素替換 3 格切片區間",
+        "diff": true,
+        "why": "壓縮替換元素",
+        "mean": "長度由 6 變 4"
+      },
+      {
+        "num": 7,
+        "code": "print(\"壓縮後:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"壓縮後:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出壓縮後的 a",
+        "diff": true,
+        "why": "展示長度壓縮結果",
+        "mean": "輸出 10, 999, 40, 50"
+      }
+    ],
+    "output": "擴展後: [10, 100, 200, 300, 40, 50]\n壓縮後: [10, 999, 40, 50]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>動態伸縮特性</strong>：普通單步切片賦值時，等號右側串列長度<strong>不必等於</strong>左側切片長度！Python 會自動擴充或擠壓串列，宛如可伸縮手風琴。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>原地重組無須拷貝</strong>：動態伸縮完全在原串列的記憶體容器內就地進行，不會產生多餘的變數指針，效率驚人。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：切片賦值彈性大，多塞少放自動縮"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.4 串列切片就地替換賦值：a[start:stop] = [...] 動態伸縮",
+    "titleZh": "切片零長度插入——a[k:k] = [...] 無痛中途插隊",
+    "titleEn": "Zero-Length Slice Insertion: a[k:k] In-Place Injection",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 40, 50]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告串列 a 缺少 20 與 30",
+        "why": "零長度插入示範",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "print(\"插入前:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"插入前:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出插入前狀態",
+        "why": "確認初始資料",
+        "mean": "輸出 10, 40, 50"
+      },
+      {
+        "num": 3,
+        "code": "a[1:1] = [20, 30]",
+        "html": "<span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">1</span>] = [<span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "在索引 1 的縫隙插入 [20, 30]",
+        "diff": true,
+        "why": "零長度切片無痛插隊",
+        "mean": "縫隙插入兩元素"
+      },
+      {
+        "num": 4,
+        "code": "print(\"在縫隙 1:1 插入後:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"在縫隙 1:1 插入後:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出插入補齊後的串列",
+        "diff": true,
+        "why": "展示插入成果",
+        "mean": "輸出 10, 20, 30, 40, 50"
+      }
+    ],
+    "output": "插入前: [10, 40, 50]\n在縫隙 1:1 插入後: [10, 20, 30, 40, 50]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>零長度切片的縫隙魔法</strong>：當起終點相同（<code>a[k:k]</code>）時，切片長度為 0，代表<strong>索引 k 前方的縫隙</strong>。對其賦值等價於「把整批新元素塞進縫隙」，不覆蓋任何舊元素！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>比 insert 更加強大</strong>：內建的 <code>a.insert(1, x)</code> 一次只能塞 1 個元素；而 <code>a[1:1] = [20, 30, 40]</code> 能一次性批量塞入整批數值！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：同點切片是縫隙，整批塞入不覆蓋"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.5 切片清空與區間刪除：a[:] = [] 的就地洗牌術",
+    "titleZh": "切片清空與區間刪除——a[:] = [] 與 del a[start:stop]",
+    "titleEn": "Slice Deletion & Clearing: a[:] = [] In-Place Reset",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30, 40, 50]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告串列 a",
+        "why": "刪除與清空範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "del a[1:3]",
+        "html": "<span class=\"token-keyword\">del</span> <span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">3</span>]",
+        "alt": "刪除索引 1 到 2 區間",
+        "diff": true,
+        "why": "del 關鍵字刪除切片",
+        "mean": "刪除 20 與 30"
+      },
+      {
+        "num": 3,
+        "code": "print(\"刪除 a[1:3] 後:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"刪除 a[1:3] 後:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出刪除後的 a",
+        "diff": true,
+        "why": "檢視區間刪除成果",
+        "mean": "輸出 10, 40, 50"
+      },
+      {
+        "num": 4,
+        "code": "a[:] = []",
+        "html": "<span class=\"token-ident\">a</span>[:] = []",
+        "alt": "全切片賦值空串列就地清空",
+        "diff": true,
+        "why": "全切片賦值清空本體",
+        "mean": "清空為空串列"
+      },
+      {
+        "num": 5,
+        "code": "print(\"全切片清空 a[:] = []:\", a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"全切片清空 a[:] = []:\"</span>, <span class=\"token-ident\">a</span>)",
+        "alt": "印出清空後的 a",
+        "diff": true,
+        "why": "確認串列已為空",
+        "mean": "輸出 []"
+      }
+    ],
+    "output": "刪除 a[1:3] 後: [10, 40, 50]\n全切片清空 a[:] = []: []",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>兩種切片刪除手段</strong>：1. <code>del a[start:stop]</code> 能直接移除該區間元素；2. <code>a[start:stop] = []</code> 將空串列塞入該切片，效果完全相同。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>真正的洗牌術 <code>a[:] = []</code></strong>：若多個函式共享 <code>a</code>，執行 <code>a[:] = []</code> 能保留原本的記憶體容器物件，所有參照者同步感知清空！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：全切片賦值空串列，原箱洗空不換箱"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.1 串列切片提取：a[start:stop] 左閉右開子串列",
+    "titleZh": "切片自動容錯機制——越界不拋 IndexError！",
+    "titleEn": "Slice Tolerance: Automatic Boundary Clamping",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "宣告長度為 3 的串列 nums",
+        "why": "容錯特性示範",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 單一索引 nums[99] 會噴 IndexError",
+        "html": "<span class=\"token-comment\"># 單一索引 nums[99] 會噴 IndexError</span>",
+        "alt": "註解：單索引會報錯",
+        "why": "對比單索引行為",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 但切片具有極高的自動容錯邊界截斷特性！",
+        "html": "<span class=\"token-comment\"># 切片具有極高自動容錯特性！</span>",
+        "alt": "註解：切片自動容錯",
+        "why": "強調切片特點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "print(\"超大終點 nums[1:100]:\", nums[1:100])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"超大終點 nums[1:100]:\"</span>, <span class=\"token-ident\">nums</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">100</span>])",
+        "alt": "終點超出範圍，自動截斷至尾端",
+        "diff": true,
+        "why": "超大終點切片",
+        "mean": "輸出 20, 30"
+      },
+      {
+        "num": 5,
+        "code": "print(\"空交集切片 nums[5:10]:\", nums[5:10])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"空交集切片 nums[5:10]:\"</span>, <span class=\"token-ident\">nums</span>[<span class=\"token-number\">5</span>:<span class=\"token-number\">10</span>])",
+        "alt": "起點超出範圍，安全回傳空串列",
+        "diff": true,
+        "why": "完全超出範圍切片",
+        "mean": "輸出 []"
+      }
+    ],
+    "output": "超大終點 nums[1:100]: [20, 30]\n空交集切片 nums[5:10]: []",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>溫柔的自動邊界截斷（Clamping）</strong>：切片與單一索引不同！當 <code>stop</code> 超過長度時，Python 會自動收斂到串列末尾；若起終點完全落在範圍外，直接安全回傳 <code>[]</code>。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：單一存取 <code>nums[5]</code> 引發 IndexError 崩潰；但切片 <code>nums[5:10]</code> 絕不報錯，優雅回傳空串列 <code>[]</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：單取超界噴錯誤，切片超界自動縮"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.4 串列切片就地替換賦值：a[start:stop] = [...] 動態伸縮",
+    "titleZh": "考場致命地雷一：切片賦值右側必須是可迭代物件",
+    "titleEn": "Exam Pitfall 1: TypeError - Can Only Assign an Iterable",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30, 40]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>]",
+        "alt": "宣告串列 a",
+        "why": "地雷示範串列",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 踩雷：切片賦值右側直接給單一數值 99，未用中括號包起！",
+        "html": "<span class=\"token-comment\"># 踩雷：右側直接給單一整數 99</span>",
+        "alt": "註解：提示未包裝錯誤",
+        "why": "標註地雷語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "a[1:3] = 99",
+        "html": "<span class=\"token-ident\">a</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">3</span>] = <span class=\"token-number\"><span class=\"token-wavy-err\">99</span></span>",
+        "alt": "錯誤寫法：嘗試將整數 99 賦值給切片",
+        "diff": true,
+        "error": true,
+        "why": "引發 TypeError 賦值錯誤",
+        "mean": "拋出例外"
+      }
+    ],
+    "output": "<span class=\"output-error\">TypeError: must assign iterable to extended slice</span>",
+    "predictQuiz": {
+      "question": "預測思考：執行 a[1:3] = 99（右側為單一整數）會發生什麼事？",
+      "options": [
+        "Python 自動將 99 填入索引 1 與 2",
+        "引發 TypeError：必須將可迭代物件賦值給切片"
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "切片代表「一段區間」，等號右側必須是串列或元組等可迭代物件（Iterable）！正確寫法必須加上中括號：a[1:3] = [99]！"
+    },
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 語法死穴：右側必須可迭代</strong>：初學者最常誤寫 <code>a[1:2] = 5</code>，直譯器會立即拋出 <code>TypeError: can only assign an iterable</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>正解防禦</strong>：即使只想替換成單一元素，也務必用中括號包成串列：<code>a[1:2] = [5]</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：切片賦值右邊，必須加上中括號"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.2 省略起終點與步進跳步切片：a[:k]、a[k:] 與 a[::2]",
+    "titleZh": "考場致命地雷二：帶步進切片賦值長度必須嚴格相等！",
+    "titleEn": "Exam Pitfall 2: Extended Slice Assignment Length Mismatch",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "a = [10, 20, 30, 40, 50, 60]",
+        "html": "<span class=\"token-ident\">a</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>, <span class=\"token-number\">60</span>]",
+        "alt": "宣告包含 6 個整數的串列 a",
+        "why": "步進切片賦值範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# a[::2] 包含 3 個位置（索引 0, 2, 4）",
+        "html": "<span class=\"token-comment\"># a[::2] 包含 3 個位置（0, 2, 4）</span>",
+        "alt": "註解：提示切片位置數",
+        "why": "說明切片長度",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 踩雷：右側只給 2 個元素，長度不匹配！",
+        "html": "<span class=\"token-comment\"># 踩雷：右側只給 2 個元素！</span>",
+        "alt": "註解：提示長度不符",
+        "why": "標註錯誤原因",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "a[::2] = [88, 99]",
+        "html": "<span class=\"token-ident\">a</span>[::<span class=\"token-number\">2</span>] = [<span class=\"token-number\">88</span>, <span class=\"token-number\">99</span>]",
+        "alt": "錯誤寫法：步進切片賦值長度不符",
+        "diff": true,
+        "error": true,
+        "why": "長度不符拋出 ValueError",
+        "mean": "拋出例外"
+      }
+    ],
+    "output": "<span class=\"output-error\">ValueError: attempt to assign sequence of size 2 to extended slice of size 3</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 帶步進切片的嚴格鐵律</strong>：普通連續切片（步長為 1）支援長度動態伸縮；但一旦加入步進 <code>step != 1</code>，右側元素個數<strong>必須與抽取格數分毫不差</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>錯誤訊息白話解析</strong>：<code>extended slice of size 3</code> 意思是跳步切片鎖定了 3 格，但你只提供 2 個元素，無法對齊因此報錯！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：帶步進切片賦值，長度必須剛剛好"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2.5 切片清空與區間刪除：a[:] = [] 的就地洗牌術",
+    "titleZh": "考場致命地雷三：a = [] 與 a[:] = [] 的本質區別",
+    "titleEn": "Exam Pitfall 3: Rebinding a = [] vs In-Place a[:] = []",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "shared = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">shared</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告共用串列 shared",
+        "why": "指標重綁定測試",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "alias = shared",
+        "html": "<span class=\"token-ident\">alias</span> = <span class=\"token-ident\">shared</span>",
+        "alt": "alias 參照指向同一個串列",
+        "why": "建立雙變數共享",
+        "mean": "指針共享"
+      },
+      {
+        "num": 3,
+        "code": "shared = []",
+        "html": "<span class=\"token-ident\">shared</span> = []",
+        "alt": "重綁定 shared 為全新空串列",
+        "diff": true,
+        "why": "重綁定指標不影響舊箱",
+        "mean": "更換門牌指向"
+      },
+      {
+        "num": 4,
+        "code": "print(\"shared 換了新箱:\", shared)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"shared 換了新箱:\"</span>, <span class=\"token-ident\">shared</span>)",
+        "alt": "印出 shared 為空",
+        "diff": true,
+        "why": "shared 指向新空串列",
+        "mean": "輸出 []"
+      },
+      {
+        "num": 5,
+        "code": "print(\"alias 仍留舊箱:\", alias)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"alias 仍留舊箱:\"</span>, <span class=\"token-ident\">alias</span>)",
+        "alt": "印出 alias 依然是舊資料",
+        "diff": true,
+        "why": "alias 仍保有原內容",
+        "mean": "輸出 [1, 2, 3]"
+      }
+    ],
+    "output": "shared 換了新箱: []\nalias 仍留舊箱: [1, 2, 3]",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考：重新綁定 vs 就地清空</strong>：<code>shared = []</code> 只是讓變數 <code>shared</code> 改指一個新的空箱子，原箱子絲毫未動！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>若要全員同步清空</strong>：必須寫成 <code>shared[:] = []</code> 或 <code>shared.clear()</code>，才會把原箱子裡的物品徹底倒空！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：等號空括號換箱，切片空括號掏空"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.2 綜合驗收",
+    "titleZh": "單元 8.2 綜合驗收——串列切片與切片賦值大滿貫",
+    "titleEn": "Unit 8.2 Mastery: List Slicing & Slice Assignment",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [10, 20, 30, 40, 50]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告包含 5 個元素的串列 nums",
+        "why": "綜合驗收資料",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "nums[1:3] = [88, 99]",
+        "html": "<span class=\"token-ident\">nums</span>[<span class=\"token-number\">1</span>:<span class=\"token-number\">3</span>] = [<span class=\"token-number\">88</span>, <span class=\"token-number\">99</span>]",
+        "alt": "切片就地賦值替換 20, 30 為 88, 99",
+        "diff": true,
+        "why": "切片批量賦值",
+        "mean": "就地更新 2 格"
+      },
+      {
+        "num": 3,
+        "code": "ans = nums[::-1]",
+        "html": "<span class=\"token-ident\">ans</span> = <span class=\"token-ident\">nums</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "以 [::-1] 逆序反轉整個串列",
+        "diff": true,
+        "why": "極速反轉串列",
+        "mean": "反轉串列"
+      },
+      {
+        "num": 4,
+        "code": "print(*ans)",
+        "html": "<span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">ans</span>)",
+        "alt": "使用星號解包乾淨輸出反轉後的串列",
+        "diff": true,
+        "why": "星號解包滿分輸出",
+        "mean": "輸出 50 40 99 88 10"
+      }
+    ],
+    "output": "50 40 99 88 10",
+    "completionCard": {
+      "badge": "🏆 單元 8.2 通關：切片手風琴魔術師！",
+      "summary": "太神了！你已精通左閉右開切片、省略起終點、[::-1] 負步進反轉、切片就地賦值動態伸縮與 a[:] = [] 真正的清空洗牌術！",
+      "nextUnit": "8.3 串列常用內建方法（append, pop, insert 等）"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 動手練！</strong>：單元 8-2 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 40/50 儲存格的實戰切片演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>切片三大金律</strong>：1. a[start:stop] 包頭不包尾；2. a[::-1] 負步進秒反轉；3. a[s:e] = list 可原地動態伸縮替換！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：切片包頭不包尾，動態伸縮一把罩"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec8-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_8-2_list_slicing_and_slice_assignment.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

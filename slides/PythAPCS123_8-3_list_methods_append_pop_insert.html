@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 8.3 串列常用內建方法（append, pop, insert 等） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 8.3 串列常用內建方法（append, pop, insert 等）
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.1 尾端動態追加：.append(x) 方法與迴圈收集模式",
+    "titleZh": "尾端動態追加——.append(x) 往箱底放入新元素",
+    "titleEn": "Appending Elements: .append(x) In-Place Extension",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "cart = [\"蘋果\", \"香蕉\"]",
+        "html": "<span class=\"token-ident\">cart</span> = [<span class=\"token-string\">\"蘋果\"</span>, <span class=\"token-string\">\"香蕉\"</span>]",
+        "alt": "宣告購物車串列 cart",
+        "why": "初始清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "cart.append(\"芭樂\")",
+        "html": "<span class=\"token-ident\">cart</span>.<span class=\"token-ident\">append</span>(<span class=\"token-string\">\"芭樂\"</span>)",
+        "alt": "在 cart 尾端追加芭樂",
+        "diff": true,
+        "why": "追加尾端元素",
+        "mean": "尾端加入芭樂"
+      },
+      {
+        "num": 3,
+        "code": "print(\"購物車清單:\", cart)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"購物車清單:\"</span>, <span class=\"token-ident\">cart</span>)",
+        "alt": "印出追加後的購物車",
+        "diff": true,
+        "why": "檢視追加成果",
+        "mean": "輸出含三種水果"
+      },
+      {
+        "num": 4,
+        "code": "print(\"商品件數:\", len(cart))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"商品件數:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">cart</span>))",
+        "alt": "測量追加後的長度",
+        "why": "長度加一",
+        "mean": "輸出 3"
+      }
+    ],
+    "output": "購物車清單: ['蘋果', '香蕉', '芭樂']\n商品件數: 3",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>尾端追加神器</strong>：<code>.append(x)</code> 是 Python 最常用的串列方法，能以 $O(1)$ 時間將新元素 <code>x</code> 放入串列的最末端，長度自動加 1。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：<code>.append()</code> 是**原地就地修改**，其本身回傳值為 <code>None</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：追加放最後，長度自動加"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.1 尾端動態追加：.append(x) 方法與迴圈收集模式",
+    "titleZh": "迴圈收集模式——空串列出發，邊算邊收集",
+    "titleEn": "Loop Collection Pattern: Building Lists Dynamically",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "evens = []",
+        "html": "<span class=\"token-ident\">evens</span> = []",
+        "alt": "建立空的收集串列 evens",
+        "why": "準備收集箱",
+        "mean": "宣告空串列"
+      },
+      {
+        "num": 2,
+        "code": "for i in range(1, 6):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">6</span>):",
+        "alt": "走訪 1 到 5",
+        "why": "迴圈產生數值",
+        "mean": "走訪 1~5"
+      },
+      {
+        "num": 3,
+        "code": "    evens.append(i * 2)",
+        "html": "    <span class=\"token-ident\">evens</span>.<span class=\"token-ident\">append</span>(<span class=\"token-ident\">i</span> * <span class=\"token-number\">2</span>)",
+        "alt": "將偶數動態加入 evens 尾端",
+        "diff": true,
+        "why": "動態收集運算結果",
+        "mean": "追加 2*i"
+      },
+      {
+        "num": 4,
+        "code": "print(\"收集完成的偶數:\", evens)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"收集完成的偶數:\"</span>, <span class=\"token-ident\">evens</span>)",
+        "alt": "印出收集完成的串列",
+        "diff": true,
+        "why": "檢視收集結果",
+        "mean": "輸出 2, 4, 6, 8, 10"
+      }
+    ],
+    "output": "收集完成的偶數: [2, 4, 6, 8, 10]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>收集者心智模型（Accumulator Pattern）</strong>：先在迴圈外宣告一個空串列 <code>results = []</code>，迴圈內部每次算出一筆成果就 <code>.append()</code>，這是競賽解題必備骨架。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>過渡至列表生成式</strong>：理解了這個「迴圈+append」架構後，到了 8.7 單元就能一秒升級成一行俐落的列表生成式！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：空箱先備妥，迴圈逐一裝"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.2 元素彈出與提取：.pop() 尾端彈出與指定索引彈出",
+    "titleZh": "尾端彈出提取——.pop() 拿走末位並取回數值",
+    "titleEn": "Popping Elements: .pop() LIFO Stack Behavior",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "stack = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">stack</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "宣告堆疊串列 stack",
+        "why": "堆疊測試清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "top = stack.pop()",
+        "html": "<span class=\"token-ident\">top</span> = <span class=\"token-ident\">stack</span>.<span class=\"token-ident\">pop</span>()",
+        "alt": "彈出尾端元素 30 並存入 top",
+        "diff": true,
+        "why": "取出並移除末位元素",
+        "mean": "彈出 30"
+      },
+      {
+        "num": 3,
+        "code": "print(\"彈出的元素 top:\", top)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"彈出的元素 top:\"</span>, <span class=\"token-ident\">top</span>)",
+        "alt": "印出彈出的數值 30",
+        "diff": true,
+        "why": "確認回傳值",
+        "mean": "輸出 30"
+      },
+      {
+        "num": 4,
+        "code": "print(\"殘留的串列 stack:\", stack)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"殘留的串列 stack:\"</span>, <span class=\"token-ident\">stack</span>)",
+        "alt": "印出彈出後的串列",
+        "diff": true,
+        "why": "確認串列長度減一",
+        "mean": "輸出 10, 20"
+      }
+    ],
+    "output": "彈出的元素 top: 30\n殘留的串列 stack: [10, 20]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>雙重功能：移除＋回傳</strong>：<code>.pop()</code> 預設移除最後一個元素，且**會將該元素當成回傳值交還給你**！這與只刪除不回傳的 <code>del</code> 完全不同。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>天然的堆疊（Stack）</strong>：串列搭配 <code>append()</code>（進棧 Push）與 <code>pop()</code>（出棧 Pop），就是最完美的後進先出（LIFO）堆疊資料結構！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：彈出尾端項，拿走又回傳"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.2 元素彈出與提取：.pop() 尾端彈出與指定索引彈出",
+    "titleZh": "指定索引彈出——.pop(index) 抽出任意抽屜物品",
+    "titleEn": "Index-Specific Pop: .pop(i) Removing from Position",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "queue = [\"A\", \"B\", \"C\", \"D\"]",
+        "html": "<span class=\"token-ident\">queue</span> = [<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"C\"</span>, <span class=\"token-string\">\"D\"</span>]",
+        "alt": "宣告排隊清單 queue",
+        "why": "佇列模擬清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "first = queue.pop(0)",
+        "html": "<span class=\"token-ident\">first</span> = <span class=\"token-ident\">queue</span>.<span class=\"token-ident\">pop</span>(<span class=\"token-number\">0</span>)",
+        "alt": "彈出索引 0 的第一個元素 A",
+        "diff": true,
+        "why": "指定彈出頭端元素",
+        "mean": "彈出第一個"
+      },
+      {
+        "num": 3,
+        "code": "print(\"率先出列:\", first)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"率先出列:\"</span>, <span class=\"token-ident\">first</span>)",
+        "alt": "印出出列元素 A",
+        "diff": true,
+        "why": "展示彈出元素",
+        "mean": "輸出 A"
+      },
+      {
+        "num": 4,
+        "code": "print(\"後續隊伍:\", queue)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"後續隊伍:\"</span>, <span class=\"token-ident\">queue</span>)",
+        "alt": "印出平移後的隊伍",
+        "diff": true,
+        "why": "確認後方元素自動前移",
+        "mean": "輸出 B, C, D"
+      }
+    ],
+    "output": "率先出列: A\n後續隊伍: ['B', 'C', 'D']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>指定門牌精確抽出</strong>：括號內帶入索引 <code>.pop(i)</code> 能抽出第 $i$ 格的元素，後方所有元素會自動向左平移遞補空缺。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考（時間複雜度）</strong>：<code>pop()</code> 尾端彈出是 $O(1)$ 極速常數時間；但 <code>pop(0)</code> 頭部彈出因為需要整隊平移，時間複雜度為 $O(n)$！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：彈出帶門牌，後面往前補"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.3 指定位置插隊：.insert(index, x) 方法",
+    "titleZh": "指定位置插隊——.insert(index, x) 精準插入",
+    "titleEn": "Inserting Elements: .insert(i, x) In-Place Insertion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "letters = [\"A\", \"C\", \"D\"]",
+        "html": "<span class=\"token-ident\">letters</span> = [<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"C\"</span>, <span class=\"token-string\">\"D\"</span>]",
+        "alt": "宣告缺少 B 的字母串列",
+        "why": "插入測試清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "letters.insert(1, \"B\")",
+        "html": "<span class=\"token-ident\">letters</span>.<span class=\"token-ident\">insert</span>(<span class=\"token-number\">1</span>, <span class=\"token-string\">\"B\"</span>)",
+        "alt": "在索引 1 插入字串 B",
+        "diff": true,
+        "why": "在索引 1 插入新項目",
+        "mean": "插入 B"
+      },
+      {
+        "num": 3,
+        "code": "print(\"插入補齊後:\", letters)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"插入補齊後:\"</span>, <span class=\"token-ident\">letters</span>)",
+        "alt": "印出補齊後的 letters",
+        "diff": true,
+        "why": "檢視插入成果",
+        "mean": "輸出 A, B, C, D"
+      },
+      {
+        "num": 4,
+        "code": "print(\"當前長度:\", len(letters))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"當前長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">letters</span>))",
+        "alt": "印出插入後的總長度",
+        "why": "長度加一",
+        "mean": "輸出 4"
+      }
+    ],
+    "output": "插入補齊後: ['A', 'B', 'C', 'D']\n當前長度: 4",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>指定位置插隊</strong>：語法 <code>.insert(index, x)</code> 會將新元素 <code>x</code> 插入到第 <code>index</code> 格，原本在該格及後方的所有元素自動往右後移一位。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>頭部插入技巧</strong>：<code>letters.insert(0, 'VIP')</code> 能將元素插在隊伍最前端；但與 <code>pop(0)</code> 相同，內部需要整隊後移，複雜度為 $O(n)$。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：前索引後元素，插隊往後擠"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.4 指定數值精確刪除：.remove(x) 方法與 ValueError 防禦",
+    "titleZh": "指定數值刪除——.remove(x) 消除第一個匹配項目",
+    "titleEn": "Removing by Value: .remove(x) First Occurrence",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [10, 20, 30, 20, 50]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">50</span>]",
+        "alt": "宣告包含重複數值 20 的串列",
+        "why": "remove 重複值範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "nums.remove(20)",
+        "html": "<span class=\"token-ident\">nums</span>.<span class=\"token-ident\">remove</span>(<span class=\"token-number\">20</span>)",
+        "alt": "刪除串列中第一個出現的 20",
+        "diff": true,
+        "why": "刪除第一個匹配數值",
+        "mean": "刪除首個 20"
+      },
+      {
+        "num": 3,
+        "code": "print(\"刪除一個 20 後:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"刪除一個 20 後:\"</span>, <span class=\"token-ident\">nums</span>)",
+        "alt": "印出刪除後的 nums",
+        "diff": true,
+        "why": "驗證第二個 20 仍保留",
+        "mean": "輸出 10, 30, 20, 50"
+      }
+    ],
+    "output": "刪除一個 20 後: [10, 30, 20, 50]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>依值刪除而非依索引</strong>：<code>.remove(x)</code> 會由左至右搜尋串列，**只刪除第一個找到的數值 x**，後續重複的相同數值並不會被刪除！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考（不存在死穴）</strong>：若要刪除的數值根本不在串列中，<code>.remove()</code> 會直接引發 <code>ValueError: list.remove(x): x not in list</code>！安全做法應先用 <code>if x in nums:</code> 防禦。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：依值刪只刪首，不在就噴錯"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.1 尾端動態追加：.append(x) 方法與迴圈收集模式",
+    "titleZh": "一鍵徹底倒空——.clear() 原箱洗淨重用",
+    "titleEn": "Emptying the Container: .clear() Method",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "data = [99, 88, 77, 66]",
+        "html": "<span class=\"token-ident\">data</span> = [<span class=\"token-number\">99</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">77</span>, <span class=\"token-number\">66</span>]",
+        "alt": "宣告資料串列 data",
+        "why": "清空測試清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "data.clear()",
+        "html": "<span class=\"token-ident\">data</span>.<span class=\"token-ident\">clear</span>()",
+        "alt": "呼叫 clear 清空整條串列",
+        "diff": true,
+        "why": "就地清空串列",
+        "mean": "原箱倒空"
+      },
+      {
+        "num": 3,
+        "code": "print(\"清空後的 data:\", data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"清空後的 data:\"</span>, <span class=\"token-ident\">data</span>)",
+        "alt": "印出清空後的 data",
+        "diff": true,
+        "why": "檢視清空成果",
+        "mean": "輸出 []"
+      },
+      {
+        "num": 4,
+        "code": "print(\"長度已歸零:\", len(data))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"長度已歸零:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">data</span>))",
+        "alt": "確認長度為 0",
+        "diff": true,
+        "why": "確認長度為 0",
+        "mean": "輸出 0"
+      }
+    ],
+    "output": "清空後的 data: []\n長度已歸零: 0",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>就地徹底倒空</strong>：<code>.clear()</code> 會一口氣移除串列中的所有元素，等價於上一單元所學的切片清空 <code>data[:] = []</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>保持記憶體位址不變</strong>：清空後 <code>id(data)</code> 依舊相同，非常適合在多輪循環演算法中重複利用容器，避免頻繁配置釋放記憶體。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：呼叫 clear 倒空，原箱位址不換"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.5 串列就地反轉：.reverse() 方法與切片對比",
+    "titleZh": "串列就地反轉——.reverse() 記憶體原物掉頭",
+    "titleEn": "In-Place Reversal: .reverse() Method vs Slicing",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [1, 2, 3, 4, 5]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>]",
+        "alt": "宣告整數串列 nums",
+        "why": "就地反轉範例",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "nums.reverse()",
+        "html": "<span class=\"token-ident\">nums</span>.<span class=\"token-ident\">reverse</span>()",
+        "alt": "就地反轉串列 nums",
+        "diff": true,
+        "why": "原地逆序對調",
+        "mean": "就地掉頭"
+      },
+      {
+        "num": 3,
+        "code": "print(\"反轉後的 nums:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"反轉後的 nums:\"</span>, <span class=\"token-ident\">nums</span>)",
+        "alt": "印出反轉後的 nums",
+        "diff": true,
+        "why": "檢視原地修改成果",
+        "mean": "輸出 5, 4, 3, 2, 1"
+      }
+    ],
+    "output": "反轉後的 nums: [5, 4, 3, 2, 1]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>原地調頭 vs 複製新串列</strong>：<code>.reverse()</code> 直接在<strong>原本的串列內部</strong>對調前後元素，空間複雜度為 $O(1)$，回傳值為 <code>None</code>；而 <code>nums[::-1]</code> 是建立全新副本！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>效能首選</strong>：在題目資料量巨大（如 $N = 10^6$）且不需要保留舊順序時，使用 <code>.reverse()</code> 能省下一倍記憶體！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：點 reverse 原地換，切片冒號生新箱"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.5 串列就地反轉：.reverse() 方法與切片對比",
+    "titleZh": "串列排序大對決——.sort() 原地排序 vs sorted() 回傳新串列",
+    "titleEn": "Sorting Duel: .sort() In-Place vs sorted() Builtin",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw = [38, 12, 95, 47]",
+        "html": "<span class=\"token-ident\">raw</span> = [<span class=\"token-number\">38</span>, <span class=\"token-number\">12</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">47</span>]",
+        "alt": "宣告未排序資料 raw",
+        "why": "排序對照清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "sorted_new = sorted(raw)",
+        "html": "<span class=\"token-ident\">sorted_new</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">raw</span>)",
+        "alt": "以內建函式 sorted 排序並回傳新串列",
+        "diff": true,
+        "why": "產生排序後新串列",
+        "mean": "回傳新排序串列"
+      },
+      {
+        "num": 3,
+        "code": "print(\"sorted 新產出:\", sorted_new, \"原串列未變:\", raw)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"sorted 新產出:\"</span>, <span class=\"token-ident\">sorted_new</span>, <span class=\"token-string\">\"原串列未變:\"</span>, <span class=\"token-ident\">raw</span>)",
+        "alt": "印出 sorted 結果與未變的原串列",
+        "why": "驗證原串列不受影響",
+        "mean": "輸出新舊對照"
+      },
+      {
+        "num": 4,
+        "code": "raw.sort()",
+        "html": "<span class=\"token-ident\">raw</span>.<span class=\"token-ident\">sort</span>()",
+        "alt": "呼叫 sort 就地排序",
+        "diff": true,
+        "why": "就地修改排序",
+        "mean": "原串列就地排序"
+      },
+      {
+        "num": 5,
+        "code": "print(\"呼叫 .sort() 後 raw 本身就地排序:\", raw)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"呼叫 .sort() 後 raw 本身就地排序:\"</span>, <span class=\"token-ident\">raw</span>)",
+        "alt": "印出就地排序後的 raw",
+        "diff": true,
+        "why": "驗證 raw 已被修改",
+        "mean": "輸出 12, 38, 47, 95"
+      }
+    ],
+    "output": "sorted 新產出: [12, 38, 47, 95] 原串列未變: [38, 12, 95, 47]\n呼叫 .sort() 後 raw 本身就地排序: [12, 38, 47, 95]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>考場最愛考的分水嶺</strong>：<code>sorted(a)</code> 是內建函式，回傳全新排序串列，原串列不變；<code>a.sort()</code> 是串列方法，直接就地修改原串列，回傳 <code>None</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>由大到小降序排列</strong>：兩種方式皆支援 <code>reverse=True</code> 參數，如 <code>raw.sort(reverse=True)</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：內建 sorted 生新箱，方法 sort 改本體"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.4 指定數值精確刪除：.remove(x) 方法與 ValueError 防禦",
+    "titleZh": "頻率與定位——.count(x) 計數與 .index(x) 搜尋",
+    "titleEn": "Querying Elements: .count(x) & .index(x)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "letters = [\"A\", \"B\", \"C\", \"A\", \"A\"]",
+        "html": "<span class=\"token-ident\">letters</span> = [<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"C\"</span>, <span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"A\"</span>]",
+        "alt": "宣告包含重複字母的串列",
+        "why": "查詢測試清單",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "print(\"A 出現次數:\", letters.count(\"A\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"A 出現次數:\"</span>, <span class=\"token-ident\">letters</span>.<span class=\"token-ident\">count</span>(<span class=\"token-string\">\"A\"</span>))",
+        "alt": "計算 A 出現次數",
+        "diff": true,
+        "why": "統計特定元素頻率",
+        "mean": "輸出次數 3"
+      },
+      {
+        "num": 3,
+        "code": "print(\"B 首次出現位置:\", letters.index(\"B\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"B 首次出現位置:\"</span>, <span class=\"token-ident\">letters</span>.<span class=\"token-ident\">index</span>(<span class=\"token-string\">\"B\"</span>))",
+        "alt": "查詢 B 首次出現的索引",
+        "diff": true,
+        "why": "定位元素首次索引",
+        "mean": "輸出索引 1"
+      }
+    ],
+    "output": "A 出現次數: 3\nB 首次出現位置: 1",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>計數與定位利器</strong>：<code>.count(x)</code> 回傳 <code>x</code> 總共出現幾次；<code>.index(x)</code> 回傳 <code>x</code> <strong>首次出現</strong>的索引號碼。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題必考</strong>：若 <code>letters.index(\"Z\")</code> 查不存在的元素，會直接噴 <code>ValueError: 'Z' is not in list</code>！必須先用 <code>if 'Z' in letters:</code> 檢查。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：count算總次數，index找首門牌"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.1 尾端動態追加：.append(x) 方法與迴圈收集模式",
+    "titleZh": "考場致命地雷一：a = a.append(x) 自殺式賦值變成 None",
+    "titleEn": "Exam Pitfall 1: a = a.append(x) Overwrites List with None",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "宣告串列 nums",
+        "why": "地雷示範串列",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 致命地雷：誤把 append() 的回傳值賦值給 nums！",
+        "html": "<span class=\"token-comment\"># 踩雷：nums = nums.append(4)！</span>",
+        "alt": "註解：警示錯誤寫法",
+        "why": "標註死穴語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "nums = nums.append(4)",
+        "html": "<span class=\"token-ident\">nums</span> = <span class=\"token-ident\">nums</span>.<span class=\"token-ident\">append</span>(<span class=\"token-number\">4</span>)",
+        "alt": "錯誤寫法：以 append 回傳的 None 覆蓋 nums",
+        "diff": true,
+        "why": "將 None 覆蓋至 nums",
+        "mean": "nums 變成 None"
+      },
+      {
+        "num": 4,
+        "code": "print(\"慘遭覆蓋後的 nums:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"慘遭覆蓋後的 nums:\"</span>, <span class=\"token-ident\">nums</span>)",
+        "alt": "印出被覆蓋為 None 的 nums",
+        "diff": true,
+        "why": "展示慘痛代價",
+        "mean": "輸出 None"
+      }
+    ],
+    "output": "慘遭覆蓋後的 nums: None",
+    "predictQuiz": {
+      "question": "預測思考：執行 nums = nums.append(4) 之後，nums 變數裡的值會是什麼？",
+      "options": [
+        "[1, 2, 3, 4]（新串列成功賦值）",
+        "None（串列被 None 徹底銷毀）"
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "append() 是就地修改方法，其回傳值固定為 None！如果寫成 nums = nums.append(4)，變數 nums 就會被 None 徹底覆蓋！"
+    },
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 全國考生失分榜首</strong>：無數初學者習慣字串寫法 <code>s = s.strip()</code>，誤寫成 <code>a = a.append(x)</code> 或 <code>a = a.sort()</code>，導致整張串列灰飛煙滅變成 <code>None</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>牢記安全法則</strong>：就地修改方法單獨寫一行（<code>nums.append(4)</code>），<strong>絕對不要加上 <code>nums =</code></strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：append單獨一行寫，加上等號變 None"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.4 指定數值精確刪除：.remove(x) 方法與 ValueError 防禦",
+    "titleZh": "考場致命地雷二：.remove(x) 刪除不存在項目引發 ValueError",
+    "titleEn": "Exam Pitfall 2: ValueError from Removing Non-Existent Value",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "宣告串列 nums",
+        "why": "地雷示範串列",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 踩雷：嘗試刪除不存在的 99，直譯器立即崩潰！",
+        "html": "<span class=\"token-comment\"># 踩雷：刪除不存在的數值 99</span>",
+        "alt": "註解：提示不存在數值",
+        "why": "說明錯誤操作",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "nums.remove(99)",
+        "html": "<span class=\"token-ident\">nums</span>.<span class=\"token-ident\">remove</span>(<span class=\"token-number\"><span class=\"token-wavy-err\">99</span></span>)",
+        "alt": "錯誤寫法：嘗試 remove 不存在的數值",
+        "diff": true,
+        "error": true,
+        "why": "拋出 ValueError 異常",
+        "mean": "拋出例外"
+      }
+    ],
+    "output": "<span class=\"output-error\">ValueError: list.remove(x): x not in list</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 刪除不存在數值崩潰</strong>：<code>.remove()</code> 不像切片那樣寬容，找不到目標值會立即引發 <code>ValueError: list.remove(x): x not in list</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>安全防禦模式</strong>：刪除前務必先進行成員檢查：<code>if 99 in nums: nums.remove(99)</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：先用 in 來查存在，再去 remove 不踩雷"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.2 元素彈出與提取：.pop() 尾端彈出與指定索引彈出",
+    "titleZh": "考場致命地雷三：空串列呼叫 .pop() 噴 IndexError",
+    "titleEn": "Exam Pitfall 3: IndexError from Popping an Empty List",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "empty_stack = []",
+        "html": "<span class=\"token-ident\">empty_stack</span> = []",
+        "alt": "宣告空堆疊 empty_stack",
+        "why": "地雷示範空串列",
+        "mean": "空串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 踩雷：箱子裡空空如也，卻嘗試執行 pop() 拿取物品！",
+        "html": "<span class=\"token-comment\"># 踩雷：空箱執行 pop()！</span>",
+        "alt": "註解：提示空箱彈出",
+        "why": "標註地雷行為",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "val = empty_stack.pop()",
+        "html": "<span class=\"token-ident\">val</span> = <span class=\"token-ident\">empty_stack</span>.<span class=\"token-ident\"><span class=\"token-wavy-err\">pop</span></span>()",
+        "alt": "錯誤寫法：在空串列呼叫 pop()",
+        "diff": true,
+        "error": true,
+        "why": "引發 IndexError 堆疊下溢",
+        "mean": "拋出例外"
+      }
+    ],
+    "output": "<span class=\"output-error\">IndexError: pop from empty list</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>💥 堆疊下溢（Stack Underflow）</strong>：在括號匹配或路徑搜尋等經典 APCS 演算法題中，如果忘記檢查 <code>if stack:</code> 就直接彈出，一遇到右括號多出的測資就會當場 RE 爆零！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>防禦守則</strong>：彈出前務必加上守衛條件：<code>if stack: val = stack.pop()</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：彈出先看非空箱，空箱 pop 當場崩"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3.4 指定數值精確刪除：.remove(x) 方法與 ValueError 防禦",
+    "titleZh": "考場致命地雷四：邊走訪邊 remove 產生跳格漏刪",
+    "titleEn": "Exam Pitfall 4: Modifying List Length During Iteration",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [2, 2, 3, 4]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]",
+        "alt": "宣告包含連續偶數的串列",
+        "why": "跳格漏刪示範",
+        "mean": "串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "# 嘗試刪除所有偶數，但在走訪時就地修改串列！",
+        "html": "<span class=\"token-comment\"># 嘗試刪除所有偶數：邊走訪邊 remove</span>",
+        "alt": "註解：說明錯誤走訪",
+        "why": "提示危險操作",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "for x in nums:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span>:",
+        "alt": "走訪 nums",
+        "why": "迭代中修改串列",
+        "mean": "走訪中"
+      },
+      {
+        "num": 4,
+        "code": "    if x % 2 == 0: nums.remove(x)",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> % <span class=\"token-number\">2</span> == <span class=\"token-number\">0</span>: <span class=\"token-ident\">nums</span>.<span class=\"token-ident\">remove</span>(<span class=\"token-ident\">x</span>)",
+        "alt": "若是偶數就 remove",
+        "diff": true,
+        "why": "引發指標跳格",
+        "mean": "移除偶數"
+      },
+      {
+        "num": 5,
+        "code": "print(\"竟然漏刪了一個 2:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"竟然漏刪了一個 2:\"</span>, <span class=\"token-ident\">nums</span>)",
+        "alt": "印出漏刪結果 [2, 3]",
+        "diff": true,
+        "why": "展示跳格漏刪 Bug",
+        "mean": "輸出 [2, 3]"
+      }
+    ],
+    "output": "竟然漏刪了一個 2: [2, 3]",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題最陰險陷阱：指標錯位跳格</strong>：刪除第一個 <code>2</code> 後，第二個 <code>2</code> 往前移至索引 0；但 <code>for</code> 迴圈指標前進到索引 1，導致第二個 <code>2</code> 被直接跳過漏刪！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>安全過濾正解</strong>：不要原地邊查邊刪，使用列表生成式 <code>[x for x in nums if x % 2 != 0]</code> 或全切片走訪 <code>for x in nums[:]:</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：走訪之中莫刪改，切片走訪才安全"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 8 章 一維串列（List）核心操作與列表生成式",
+    "section": "8.3 綜合驗收",
+    "titleZh": "單元 8.3 綜合驗收——串列常用方法實戰大滿貫",
+    "titleEn": "Unit 8.3 Mastery: In-Place Methods Integration",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = []",
+        "html": "<span class=\"token-ident\">scores</span> = []",
+        "alt": "建立空串列 scores",
+        "why": "驗收測試起點",
+        "mean": "空串列宣告"
+      },
+      {
+        "num": 2,
+        "code": "for s in [85, 92, 78]: scores.append(s)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> [<span class=\"token-number\">85</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">78</span>]: <span class=\"token-ident\">scores</span>.<span class=\"token-ident\">append</span>(<span class=\"token-ident\">s</span>)",
+        "alt": "迴圈 append 收集成績",
+        "diff": true,
+        "why": "迴圈收集資料",
+        "mean": "追加三個成績"
+      },
+      {
+        "num": 3,
+        "code": "scores.sort()",
+        "html": "<span class=\"token-ident\">scores</span>.<span class=\"token-ident\">sort</span>()",
+        "alt": "呼叫 sort 就地由小到大排序",
+        "diff": true,
+        "why": "就地排序",
+        "mean": "排序 78, 85, 92"
+      },
+      {
+        "num": 4,
+        "code": "print(*scores)",
+        "html": "<span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">scores</span>)",
+        "alt": "星號解包乾淨輸出排序後成績",
+        "diff": true,
+        "why": "星號解包滿分輸出",
+        "mean": "輸出 78 85 92"
+      }
+    ],
+    "output": "78 85 92",
+    "completionCard": {
+      "badge": "🏆 單元 8.3 通關：串列方法百寶箱大師！",
+      "summary": "太強大了！你已融會貫通 append 收集、pop 彈出、insert 插隊、remove 依值消除、sort 就地排序，並完美避開 a=a.append() 的 None 地雷！",
+      "nextUnit": "8.4 串列統計與極值運算（sum, max, min, len）"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 動手練！</strong>：單元 8-3 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 40/50 儲存格的常用方法實戰演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>方法核心守則</strong>：就地修改方法（append/sort/reverse）回傳 None，切勿賦值；查詢方法（count/index）與提取方法（pop）才有實體回傳值！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "<strong>⏱️ 考場秒記口訣</strong>：增刪查改勤練習，串列方法秒掌握"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec8-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_8-3_list_methods_append_pop_insert.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

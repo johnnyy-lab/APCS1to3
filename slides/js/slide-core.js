@@ -472,13 +472,14 @@ function renderSlide(index) {
     codeViewport.innerHTML = slide.codeLines.map(line => {
       const diffClass = line.diff ? 'diff-highlight' : (line.error ? 'error-highlight' : '');
       const tooltipPositionClass = (line.num <= 2) ? 'tooltip-down' : 'tooltip-up';
+      const lineHtmlSafe = (line.html && line.html.trim()) ? line.html : '&nbsp;';
       return `
         <div class="code-line ${diffClass}" id="code-line-${line.num}"
              onmouseenter="onLineHover(${line.num})"
              onmouseleave="onLineLeave()"
              onclick="onLineClick(${line.num})">
           <span class="line-num">${line.num}</span>
-          <span class="line-content">${line.html}</span>
+          <span class="line-content">${lineHtmlSafe}</span>
           <span class="dataflow-badge badge-code-out" id="code-badge-${line.num}" style="display:none;"></span>
           <div class="line-tooltip ${tooltipPositionClass}">
             <div class="tt-header">📌 第 ${line.num} 行代碼解析</div>
@@ -624,8 +625,18 @@ function renderSlide(index) {
     if (callStackStage) callStackStage.style.display = 'none';
   }
 
-  // 單元通關徽章與 Colab 實戰卡片 (agytodo 5.3)
-  const completionCard = document.getElementById('completionCard');
+  // 單元通關徽章與 Colab 實戰卡片 (agytodo 5.3, a0069)
+  let completionCard = document.getElementById('completionCard');
+  if (!completionCard) {
+    const cardNotesContent = document.querySelector('.card-notes > div:first-child') || document.querySelector('.card-notes');
+    if (cardNotesContent) {
+      completionCard = document.createElement('div');
+      completionCard.className = 'completion-card';
+      completionCard.id = 'completionCard';
+      completionCard.style.display = 'none';
+      cardNotesContent.appendChild(completionCard);
+    }
+  }
   if (completionCard) {
     if (isLast) {
       completionCard.style.display = 'block';

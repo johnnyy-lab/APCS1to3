@@ -214,7 +214,7 @@ const courseCurriculum = [
       { id: "sec15-10", title: "15.10 g596. 動線安排（APCS 2021-11 舊版第 2 題）", available: true, url: "PythAPCS123_15-10_line_layout_apcs_g596.html" },
       { id: "sec15-11", title: "15.11 k732. 特殊位置（官方中級範例第 1 題）", available: true, url: "PythAPCS123_15-11_special_position_apcs_k732.html" },
       { id: "sec15-12", title: "15.12 o712. 蒐集寶石（官方中級範例第 2 題）", available: true, url: "PythAPCS123_15-12_gem_collection_apcs_o712.html" },
-      { id: "sec15-13", title: "15.13 i400. 字串解碼（官方中級範例第 3 題）", available: false }
+      { id: "sec15-13", title: "15.13 i400. 字串解碼（官方中級範例第 3 題）", available: true, url: "PythAPCS123_15-13_string_decoding_apcs_i400.html" }
     ]
   }
 ];

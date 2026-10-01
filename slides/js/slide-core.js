@@ -146,8 +146,8 @@ const courseCurriculum = [
       { id: "sec11-2", title: "11.2 回傳值 return 與守衛子句（Guard Clauses）", available: true, url: "PythAPCS123_11-2_function_return_and_guard_clauses.html" },
       { id: "sec11-3", title: "11.3 參數傳遞機制與副作用（可變 vs 不可變物件）", available: true, url: "PythAPCS123_11-3_parameter_passing_and_side_effects.html" },
       { id: "sec11-4", title: "11.4 變數作用域：區域變數與遮蔽現象（Shadowing）", available: true, url: "PythAPCS123_11-4_variable_scope_local_and_shadowing.html" },
-      { id: "sec11-5", title: "11.5 全域變數 global 關鍵字與除錯陷阱", available: false },
-      { id: "sec11-6", title: "11.6 線性遞迴與呼叫堆疊（Call Stack）視覺化", available: false },
+      { id: "sec11-5", title: "11.5 全域變數 global 關鍵字與除錯陷阱", available: true, url: "PythAPCS123_11-5_global_variable_and_debugging.html" },
+      { id: "sec11-6", title: "11.6 線性遞迴與呼叫堆疊（Call Stack）視覺化", available: true, url: "PythAPCS123_11-6_linear_recursion_and_call_stack.html" },
       { id: "sec11-7", title: "11.7 樹狀遞迴與經典數論問題（輾轉相除法、費氏數列）", available: false },
       { id: "sec11-8", title: "11.8 模組化解題戰略：頂層抽象與輔助函式設計", available: false }
     ]

@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.6 線性遞迴（Linear Recursion）：呼叫堆疊（Call Stack）展開與終止條件 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0000cd" />
+        </marker>
+      </defs>
+      <path class="flow-line" id="flowGuidePath" d="" />
+    </svg>
+
+    <!-- 施工中遮罩 (Construction Stage) -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.1 遞迴第一步：認識「函數呼叫自己」與鏡中鏡意象",
+    "titleZh": "什麼是遞迴？——函數呼叫自己的俄羅斯娃娃心智模型",
+    "titleEn": "What is Recursion? The Russian Doll Mental Model",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def countdown(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">countdown</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "定義倒數計時函數",
+        "why": "線性遞迴經典入門",
+        "mean": "定義函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(\"當前層級:\", n)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;當前層級:&quot;</span>, <span class=\"token-ident\">n</span>)",
+        "alt": "印出當前層級",
+        "why": "觀察下潛過程",
+        "mean": "印出層級"
+      },
+      {
+        "num": 3,
+        "code": "    if n <= 0:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>:",
+        "alt": "煞車停止條件",
+        "diff": true,
+        "why": "數到 0 即停下",
+        "mean": "煞車判斷"
+      },
+      {
+        "num": 4,
+        "code": "        print(\"火箭發射！\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;火箭發射！&quot;</span>)",
+        "alt": "印出發射",
+        "diff": true,
+        "why": "觸發終點動作",
+        "mean": "觸發終點"
+      },
+      {
+        "num": 5,
+        "code": "        return  # 煞車返回",
+        "html": "        <span class=\"token-keyword\">return</span>  <span class=\"token-comment\"># 煞車返回</span>",
+        "alt": "終止遞迴下潛",
+        "diff": true,
+        "why": "停止下潛開始折返",
+        "mean": "煞車返回"
+      },
+      {
+        "num": 6,
+        "code": "    countdown(n - 1)  # ⭐ 關鍵：呼叫縮小規模的自己！",
+        "html": "    <span class=\"token-func\">countdown</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># ⭐ 關鍵：呼叫縮小規模的自己！</span>",
+        "alt": "遞迴呼叫 n - 1",
+        "diff": true,
+        "why": "進入更深一層俄羅斯娃娃",
+        "mean": "遞迴呼叫"
+      },
+      {
+        "num": 7,
+        "code": "countdown(3)",
+        "html": "<span class=\"token-func\">countdown</span>(<span class=\"token-number\">3</span>)",
+        "alt": "啟動倒數 3",
+        "why": "外部進入第 1 層",
+        "mean": "啟動遞迴"
+      }
+    ],
+    "output": "當前層級: 3\n當前層級: 2\n當前層級: 1\n當前層級: 0\n火箭發射！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>函數呼叫自己的魔術</strong>：遞迴（Recursion）就是函數在執行過程中呼叫了「縮小規模的自己」。每次呼叫都像打開一層更小的俄羅斯娃娃，直到抵達最小核心為止！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "呼叫自己娃，縮小層層鑽"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.2 呼叫堆疊（Call Stack）物理模型：棧針推入（Push）與彈出（Pop）過程",
+    "titleZh": "呼叫堆疊（Call Stack）——去程推入（Push）與回程彈出（Pop）",
+    "titleEn": "Call Stack Physical Model: Push and Pop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def explore(depth):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">explore</span>(<span class=\"token-ident\">depth</span>):",
+        "alt": "探索深穴函數",
+        "why": "透視堆疊對稱印記",
+        "mean": "定義探索函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\">>> 入洞 Push: 第 {depth} 層\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;&gt;&gt;&gt; 入洞 Push: 第 {</span><span class=\"token-ident\">depth</span><span class=\"token-string\">} 層&quot;</span>)",
+        "alt": "去程入洞標記",
+        "diff": true,
+        "why": "堆疊推入幀",
+        "mean": "入洞推進"
+      },
+      {
+        "num": 3,
+        "code": "    if depth == 2:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">depth</span> == <span class=\"token-number\">2</span>:",
+        "alt": "最深處判斷",
+        "why": "抵達洞底",
+        "mean": "洞底煞車"
+      },
+      {
+        "num": 4,
+        "code": "        print(\"  ★ 抵達洞底寶藏庫！\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;  ★ 抵達洞底寶藏庫！&quot;</span>)",
+        "alt": "發現寶藏",
+        "why": "最深層動作",
+        "mean": "發現寶藏"
+      },
+      {
+        "num": 5,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span>:",
+        "alt": "未到底則繼續深入",
+        "why": "下潛分支",
+        "mean": "深入分支"
+      },
+      {
+        "num": 6,
+        "code": "        explore(depth + 1)  # 下潛呼叫下一層",
+        "html": "        <span class=\"token-func\">explore</span>(<span class=\"token-ident\">depth</span> + <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># 下潛呼叫下一層</span>",
+        "alt": "呼叫下一層",
+        "diff": true,
+        "why": "暫停當前層並深入",
+        "mean": "下潛推進"
+      },
+      {
+        "num": 7,
+        "code": "    # ⚡ 注意：下方是回程甦醒時才會執行的！",
+        "html": "    <span class=\"token-comment\"># ⚡ 注意：下方是回程甦醒時才會執行的！</span>",
+        "alt": "回程標記說明",
+        "why": "彈出後的接續執行",
+        "mean": "回程註解"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"<<< 出洞 Pop:  離開第 {depth} 層\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;&lt;&lt;&lt; 出洞 Pop:  離開第 {</span><span class=\"token-ident\">depth</span><span class=\"token-string\">} 層&quot;</span>)",
+        "alt": "回程出洞標記",
+        "diff": true,
+        "why": "堆疊彈出幀",
+        "mean": "出洞折返"
+      },
+      {
+        "num": 9,
+        "code": "explore(1)",
+        "html": "<span class=\"token-func\">explore</span>(<span class=\"token-number\">1</span>)",
+        "alt": "從第 1 層開始",
+        "why": "主程式出發",
+        "mean": "啟動探險"
+      }
+    ],
+    "output": ">>> 入洞 Push: 第 1 層\n>>> 入洞 Push: 第 2 層\n  ★ 抵達洞底寶藏庫！\n<<< 出洞 Pop:  離開第 2 層\n<<< 出洞 Pop:  離開第 1 層",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>完美對稱的進出順序</strong>：電腦記憶體使用呼叫堆疊（Call Stack）記錄每一層。去程時一層層推入（Push），回程時從最深處一層層彈出（Pop）。先呼叫的最後結束（後進先出 LIFO）！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "推入去程棧，後進先出回"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.3 終止條件（Base Case）：遞迴能停下來的唯一煞車皮",
+    "titleZh": "終止條件（Base Case）——遞迴能平安折返的唯一煞車皮",
+    "titleEn": "Base Case: The Essential Brake System",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 遞迴的黃金結構：雙分支骨架",
+        "html": "<span class=\"token-comment\"># 遞迴的黃金結構：雙分支骨架</span>",
+        "alt": "雙分支結構說明",
+        "why": "遞迴核心心法",
+        "mean": "架構說明"
+      },
+      {
+        "num": 2,
+        "code": "def climb_down(step):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">climb_down</span>(<span class=\"token-ident\">step</span>):",
+        "alt": "走下階梯函數",
+        "why": "示範終止條件",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 1. 煞車條件（Base Case）：最簡單且無須遞迴的狀態",
+        "html": "    <span class=\"token-comment\"># 1. 煞車條件（Base Case）：最簡單且無須遞迴的狀態</span>",
+        "alt": "煞車條件註解",
+        "why": "Base Case 定位",
+        "mean": "煞車註解"
+      },
+      {
+        "num": 4,
+        "code": "    if step == 0:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">step</span> == <span class=\"token-number\">0</span>:",
+        "alt": "抵達地面",
+        "diff": true,
+        "why": "無須再遞迴",
+        "mean": "基底條件"
+      },
+      {
+        "num": 5,
+        "code": "        print(\"平穩著陸地面！\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;平穩著陸地面！&quot;</span>)",
+        "alt": "印出著陸",
+        "why": "執行著陸訊息",
+        "mean": "著陸訊息"
+      },
+      {
+        "num": 6,
+        "code": "        return",
+        "html": "        <span class=\"token-keyword\">return</span>",
+        "alt": "終止返回",
+        "diff": true,
+        "why": "切斷下潛",
+        "mean": "終止返回"
+      },
+      {
+        "num": 7,
+        "code": "    # 2. 遞迴關係（Recursive Case）：將大問題化小",
+        "html": "    <span class=\"token-comment\"># 2. 遞迴關係（Recursive Case）：將大問題化小</span>",
+        "alt": "遞迴分支註解",
+        "why": "Recursive Case 定位",
+        "mean": "遞迴註解"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"走下階梯: {step}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;走下階梯: {</span><span class=\"token-ident\">step</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "印出當前階梯",
+        "why": "動作記錄",
+        "mean": "走下階梯"
+      },
+      {
+        "num": 9,
+        "code": "    climb_down(step - 1)  # 朝著 Base Case 前進",
+        "html": "    <span class=\"token-func\">climb_down</span>(<span class=\"token-ident\">step</span> - <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># 朝著 Base Case 前進</span>",
+        "alt": "下階一步",
+        "diff": true,
+        "why": "規模收斂",
+        "mean": "下潛收斂"
+      },
+      {
+        "num": 10,
+        "code": "climb_down(2)",
+        "html": "<span class=\"token-func\">climb_down</span>(<span class=\"token-number\">2</span>)",
+        "alt": "從階梯 2 開始走",
+        "why": "啟動遞迴",
+        "mean": "呼叫函數"
+      }
+    ],
+    "output": "走下階梯: 2\n走下階梯: 1\n平穩著陸地面！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>煞車皮缺一不可</strong>：任何遞迴函數都必須具備「終止條件（Base Case）」。它是遞迴由深入下潛轉為折返歸還的關鍵轉折點。沒有煞車皮的遞迴，就像沒有剎車的賽車！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "基底煞車皮，轉折平安歸"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.3 終止條件（Base Case）：遞迴能停下來的唯一煞車皮",
+    "titleZh": "防禦性煞車皮——為什麼永遠推薦寫「<= 0」而非「== 0」？",
+    "titleEn": "Defensive Base Case: Why <= 0 Beats == 0",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 脆弱煞車皮：if n == 0（若傳入負數或跳步會直接衝過頭！）",
+        "html": "<span class=\"token-comment\"># 脆弱煞車皮：if n == 0（若傳入負數或跳步會直接衝過頭！）</span>",
+        "alt": "脆弱煞車說明",
+        "why": "邊界風險警示",
+        "mean": "脆弱警示"
+      },
+      {
+        "num": 2,
+        "code": "# ✅ 堅固防禦煞車皮：使用 <= 0 涵蓋所有邊界",
+        "html": "<span class=\"token-comment\"># ✅ 堅固防禦煞車皮：使用 &lt;= 0 涵蓋所有邊界</span>",
+        "alt": "安全防禦推薦",
+        "why": "最佳實踐",
+        "mean": "安全防禦"
+      },
+      {
+        "num": 3,
+        "code": "def safe_step(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">safe_step</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "安全跳步函數",
+        "why": "跨步遞迴示範",
+        "mean": "定義函數"
+      },
+      {
+        "num": 4,
+        "code": "    if n <= 0:  # ⭐ 不怕偶數跳成負數！",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>:  <span class=\"token-comment\"># ⭐ 不怕偶數跳成負數！</span>",
+        "alt": "小於等於 0 安全煞車",
+        "diff": true,
+        "why": "攔截負數與零",
+        "mean": "防禦判斷"
+      },
+      {
+        "num": 5,
+        "code": "        print(f\"安全煞車於 n={n}\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;安全煞車於 n={</span><span class=\"token-ident\">n</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "印出煞車位置",
+        "diff": true,
+        "why": "顯示煞車值",
+        "mean": "印出煞車"
+      },
+      {
+        "num": 6,
+        "code": "        return",
+        "html": "        <span class=\"token-keyword\">return</span>",
+        "alt": "結束返回",
+        "why": "切斷遞迴",
+        "mean": "結束返回"
+      },
+      {
+        "num": 7,
+        "code": "    print(\"前進中:\", n)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;前進中:&quot;</span>, <span class=\"token-ident\">n</span>)",
+        "alt": "前進中印出",
+        "why": "前進記錄",
+        "mean": "前進印出"
+      },
+      {
+        "num": 8,
+        "code": "    safe_step(n - 2)  # 每次跳 2 步（若奇數會跳到 -1）",
+        "html": "    <span class=\"token-func\">safe_step</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">2</span>)  <span class=\"token-comment\"># 每次跳 2 步（若奇數會跳到 -1）</span>",
+        "alt": "每次減 2",
+        "diff": true,
+        "why": "跨步遞迴，奇數直達負數",
+        "mean": "跨步遞迴"
+      },
+      {
+        "num": 9,
+        "code": "safe_step(5)",
+        "html": "<span class=\"token-func\">safe_step</span>(<span class=\"token-number\">5</span>)",
+        "alt": "奇數 5 測試",
+        "why": "5 -> 3 -> 1 -> -1",
+        "mean": "呼叫測試"
+      }
+    ],
+    "output": "前進中: 5\n前進中: 3\n前進中: 1\n安全煞車於 n=-1",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>防禦性不等號思維</strong>：若寫 <code>if n == 0:</code>，當 <code>n=5</code> 每次減 2 時序列為 5➔3➔1➔-1➔-3... 永遠碰不到 0，直接失控！改寫為 <code>n <= 0</code> 能 100% 防禦跳步與非法負數！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "小於等於煞，不怕越過頭"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.4 經典範例：階乘累乘 N! 與數列累加的呼叫與歸還路徑追蹤",
+    "titleZh": "數列累加求和——遞迴定義的數學式到程式轉譯",
+    "titleEn": "Recursive Sum: Mathematical Induction in Code",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 數學遞迴定義：Sum(n) = n + Sum(n-1)，基底 Sum(0) = 0",
+        "html": "<span class=\"token-comment\"># 數學遞迴定義：Sum(n) = n + Sum(n-1)，基底 Sum(0) = 0</span>",
+        "alt": "數學模型註解",
+        "why": "數學歸納法邏輯",
+        "mean": "數學定義"
+      },
+      {
+        "num": 2,
+        "code": "def sum_to_n(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">sum_to_n</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "累加函數",
+        "why": "函數定義",
+        "mean": "定義累加"
+      },
+      {
+        "num": 3,
+        "code": "    # 1. Base Case: 數到 0 即回傳 0",
+        "html": "    <span class=\"token-comment\"># 1. Base Case: 數到 0 即回傳 0</span>",
+        "alt": "基底條件註解",
+        "why": "累加基底",
+        "mean": "基底註解"
+      },
+      {
+        "num": 4,
+        "code": "    if n <= 0:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>:",
+        "alt": "小於等於 0",
+        "diff": true,
+        "why": "累加終點",
+        "mean": "基底判斷"
+      },
+      {
+        "num": 5,
+        "code": "        return 0",
+        "html": "        <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span>",
+        "alt": "回傳 0",
+        "diff": true,
+        "why": "基底數值",
+        "mean": "回傳零"
+      },
+      {
+        "num": 6,
+        "code": "    # 2. Recursive Case: 當前數字 + 剩下總和",
+        "html": "    <span class=\"token-comment\"># 2. Recursive Case: 當前數字 + 剩下總和</span>",
+        "alt": "遞迴式註解",
+        "why": "委託下層計算",
+        "mean": "遞迴委託"
+      },
+      {
+        "num": 7,
+        "code": "    return n + sum_to_n(n - 1)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">n</span> + <span class=\"token-func\">sum_to_n</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>)",
+        "alt": "n 加上遞迴呼叫",
+        "diff": true,
+        "why": "核心遞迴運算式",
+        "mean": "回傳累加"
+      },
+      {
+        "num": 8,
+        "code": "ans = sum_to_n(4)",
+        "html": "<span class=\"token-ident\">ans</span> = <span class=\"token-func\">sum_to_n</span>(<span class=\"token-number\">4</span>)",
+        "alt": "計算 1+2+3+4",
+        "why": "呼叫 4",
+        "mean": "呼叫計算"
+      },
+      {
+        "num": 9,
+        "code": "print(\"1 加到 4 的總和:\", ans)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;1 加到 4 的總和:&quot;</span>, <span class=\"token-ident\">ans</span>)",
+        "alt": "輸出 10",
+        "diff": true,
+        "why": "印出計算結果 10",
+        "mean": "印出總和"
+      }
+    ],
+    "output": "1 加到 4 的總和: 10",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>委託信任心法</strong>：寫遞迴時不要試圖在大腦中模擬每一層展開。只要信任 <code>sum_to_n(n-1)</code> 一定能正確算出 1 到 n-1 的總和，你只需負責把當前的 <code>n</code> 加上去並 return 即可！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "相信子問題，當前加上返"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.4 經典範例：階乘累乘 N! 與數列累加的呼叫與歸還路徑追蹤",
+    "titleZh": "經典階乘累乘 N!——去程委託下潛與回程接力結算",
+    "titleEn": "Classic Factorial N!: Deep Dive and Return",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def factorial(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">factorial</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "定義階乘函數",
+        "why": "階乘標準實作",
+        "mean": "定義階乘"
+      },
+      {
+        "num": 2,
+        "code": "    # 1. Base Case: 1! 或 0! 定義為 1",
+        "html": "    <span class=\"token-comment\"># 1. Base Case: 1! 或 0! 定義為 1</span>",
+        "alt": "階乘基底",
+        "why": "不可乘 0",
+        "mean": "基底註解"
+      },
+      {
+        "num": 3,
+        "code": "    if n <= 1:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">1</span>:",
+        "alt": "小於等於 1 條件",
+        "diff": true,
+        "why": "階乘煞車點",
+        "mean": "基底判斷"
+      },
+      {
+        "num": 4,
+        "code": "        return 1",
+        "html": "        <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>",
+        "alt": "回傳 1",
+        "diff": true,
+        "why": "乘法中立元素 1",
+        "mean": "回傳一"
+      },
+      {
+        "num": 5,
+        "code": "    # 2. Recursive Case: n * (n - 1)!",
+        "html": "    <span class=\"token-comment\"># 2. Recursive Case: n * (n - 1)!</span>",
+        "alt": "階乘遞迴定義",
+        "why": "乘積推導",
+        "mean": "遞迴定義"
+      },
+      {
+        "num": 6,
+        "code": "    return n * factorial(n - 1)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">n</span> * <span class=\"token-func\">factorial</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>)",
+        "alt": "回傳 n 乘階乘 n-1",
+        "diff": true,
+        "why": "遞迴乘法計算",
+        "mean": "回傳累乘"
+      },
+      {
+        "num": 7,
+        "code": "print(\"3! 階乘結果:\", factorial(3))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;3! 階乘結果:&quot;</span>, <span class=\"token-func\">factorial</span>(<span class=\"token-number\">3</span>))",
+        "alt": "輸出 6",
+        "why": "3 * 2 * 1 = 6",
+        "mean": "計算 3!"
+      },
+      {
+        "num": 8,
+        "code": "print(\"4! 階乘結果:\", factorial(4))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;4! 階乘結果:&quot;</span>, <span class=\"token-func\">factorial</span>(<span class=\"token-number\">4</span>))",
+        "alt": "輸出 24",
+        "diff": true,
+        "why": "4 * 6 = 24",
+        "mean": "計算 4!"
+      }
+    ],
+    "output": "3! 階乘結果: 6\n4! 階乘結果: 24",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>延遲計算的魔力</strong>：在呼叫 <code>factorial(4)</code> 時，<code>4 * ...</code> 必須先掛起等待 <code>factorial(3)</code> 的答案。一路下潛至 <code>factorial(1)</code> 觸發 Base Case 返還 1 後，回程才接力相乘算出 24！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "去程先掛起，回程乘出結"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.5 字串與串列的線性遞迴：反轉字串與倒序輸出",
+    "titleZh": "字串線性遞迴——反轉字串的頭尾切片妙手",
+    "titleEn": "String Linear Recursion: Reversal with Slicing",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def reverse_str(s):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">reverse_str</span>(<span class=\"token-ident\">s</span>):",
+        "alt": "定義字串反轉函數",
+        "why": "線性序列遞迴",
+        "mean": "定義反轉函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 1. Base Case: 空字串或單一字元，反轉即本身",
+        "html": "    <span class=\"token-comment\"># 1. Base Case: 空字串或單一字元，反轉即本身</span>",
+        "alt": "基底長度說明",
+        "why": "長度 <= 1",
+        "mean": "基底說明"
+      },
+      {
+        "num": 3,
+        "code": "    if len(s) <= 1:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">s</span>) &lt;= <span class=\"token-number\">1</span>:",
+        "alt": "長度小於等於 1",
+        "diff": true,
+        "why": "字串煞車條件",
+        "mean": "長度判斷"
+      },
+      {
+        "num": 4,
+        "code": "        return s",
+        "html": "        <span class=\"token-keyword\">return</span> <span class=\"token-ident\">s</span>",
+        "alt": "直接回傳原字串",
+        "diff": true,
+        "why": "無須再切片",
+        "mean": "回傳自身"
+      },
+      {
+        "num": 5,
+        "code": "    # 2. Recursive Case: 後續子字串反轉 + 第一個字元放在最後",
+        "html": "    <span class=\"token-comment\"># 2. Recursive Case: 後續子字串反轉 + 第一個字元放在最後</span>",
+        "alt": "遞迴拼接說明",
+        "why": "子串反轉加首字",
+        "mean": "拼接說明"
+      },
+      {
+        "num": 6,
+        "code": "    return reverse_str(s[1:]) + s[0]",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\">reverse_str</span>(<span class=\"token-ident\">s</span>[<span class=\"token-number\">1</span>:]) + <span class=\"token-ident\">s</span>[<span class=\"token-number\">0</span>]",
+        "alt": "回傳遞迴切片加上首字",
+        "diff": true,
+        "why": "首字移至末尾",
+        "mean": "切片拼接"
+      },
+      {
+        "num": 7,
+        "code": "word = \"cat\"",
+        "html": "<span class=\"token-ident\">word</span> = <span class=\"token-string\">&quot;cat&quot;</span>",
+        "alt": "測試字串 cat",
+        "why": "三字元示範",
+        "mean": "測試字串"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"'{word}' 反轉為:\", reverse_str(word))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;'{</span><span class=\"token-ident\">word</span><span class=\"token-string\">}' 反轉為:&quot;</span>, <span class=\"token-func\">reverse_str</span>(<span class=\"token-ident\">word</span>))",
+        "alt": "輸出 'tac'",
+        "diff": true,
+        "why": "驗證正確性",
+        "mean": "印出反轉"
+      }
+    ],
+    "output": "'cat' 反轉為: tac",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>結構化數據的切片遞迴</strong>：處理字串或串列時，將「首字元 <code>s[0]</code>」與「剩餘字串 <code>s[1:]</code>」分離，將子問題交給遞迴，最後在回程重組，這是 APCS 處理序列結構的經典套路！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "子串先反轉，首字黏末尾"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.5 字串與串列的線性遞迴：反轉字串與倒序輸出",
+    "titleZh": "迴文字串檢測——由外向內夾擊的遞迴判定",
+    "titleEn": "Palindrome Check: Inward Clamping Recursion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def is_palindrome(text):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_palindrome</span>(<span class=\"token-ident\">text</span>):",
+        "alt": "定義迴文檢測函數",
+        "why": "雙向夾擊線性遞迴",
+        "mean": "定義迴文函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 1. Base Case: 長度 <= 1 必定是迴文",
+        "html": "    <span class=\"token-comment\"># 1. Base Case: 長度 &lt;= 1 必定是迴文</span>",
+        "alt": "基底對稱條件",
+        "why": "單字元必定對稱",
+        "mean": "基底說明"
+      },
+      {
+        "num": 3,
+        "code": "    if len(text) <= 1: return True",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">text</span>) &lt;= <span class=\"token-number\">1</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">True</span>",
+        "alt": "回傳 True",
+        "diff": true,
+        "why": "通過全數檢驗",
+        "mean": "回傳真"
+      },
+      {
+        "num": 4,
+        "code": "    # 2. 衛語句：頭尾字元不相等，直接破局！",
+        "html": "    <span class=\"token-comment\"># 2. 衛語句：頭尾字元不相等，直接破局！</span>",
+        "alt": "衛語句提前終止",
+        "why": "頭尾比對",
+        "mean": "不符即停"
+      },
+      {
+        "num": 5,
+        "code": "    if text[0] != text[-1]: return False",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">text</span>[<span class=\"token-number\">0</span>] != <span class=\"token-ident\">text</span>[-<span class=\"token-number\">1</span>]: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "回傳 False",
+        "diff": true,
+        "why": "非對稱字元",
+        "mean": "回傳假"
+      },
+      {
+        "num": 6,
+        "code": "    # 3. Recursive Case: 剝去頭尾，檢查內部子字串",
+        "html": "    <span class=\"token-comment\"># 3. Recursive Case: 剝去頭尾，檢查內部子字串</span>",
+        "alt": "子字串遞迴檢查",
+        "why": "剝洋蔥核心",
+        "mean": "子字串檢查"
+      },
+      {
+        "num": 7,
+        "code": "    return is_palindrome(text[1:-1])",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\">is_palindrome</span>(<span class=\"token-ident\">text</span>[<span class=\"token-number\">1</span>:-<span class=\"token-number\">1</span>])",
+        "alt": "傳入 text[1:-1]",
+        "diff": true,
+        "why": "規模向內縮減",
+        "mean": "夾擊遞迴"
+      },
+      {
+        "num": 8,
+        "code": "print(\"radar 是迴文:\", is_palindrome(\"radar\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;radar 是迴文:&quot;</span>, <span class=\"token-func\">is_palindrome</span>(<span class=\"token-string\">&quot;radar&quot;</span>))",
+        "alt": "輸出 True",
+        "why": "r..r, a..a, d",
+        "mean": "測試 radar"
+      },
+      {
+        "num": 9,
+        "code": "print(\"apple 是迴文:\", is_palindrome(\"apple\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;apple 是迴文:&quot;</span>, <span class=\"token-func\">is_palindrome</span>(<span class=\"token-string\">&quot;apple&quot;</span>))",
+        "alt": "輸出 False",
+        "diff": true,
+        "why": "a != e 首輪即假",
+        "mean": "測試 apple"
+      }
+    ],
+    "output": "radar 是迴文: True\napple 是迴文: False",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>剝洋蔥式的子問題縮小</strong>：字串長度 $N$ 每次剝去頭尾 2 個字元，規模縮小為 $N-2$。只要頭尾不同就立刻 False 提早結束，全部吻合直到中心時 True，邏輯極度對稱優雅！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "頭尾比相同，剝皮向內夾"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.2 呼叫堆疊（Call Stack）物理模型：棧針推入（Push）與彈出（Pop）過程",
+    "titleZh": "堆疊空間代價——遞迴深度 N 即佔用 O(N) 記憶體空間",
+    "titleEn": "Space Complexity: Recursion Depth Costs O(N)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 迴圈版本：空間複雜度 O(1)",
+        "html": "<span class=\"token-comment\"># 迴圈版本：空間複雜度 O(1)</span>",
+        "alt": "迴圈空間複雜度",
+        "why": "原地累加只耗 1 個變數",
+        "mean": "迴圈空間"
+      },
+      {
+        "num": 2,
+        "code": "def loop_sum(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">loop_sum</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "迴圈版本求和",
+        "why": "對照組",
+        "mean": "迴圈函數"
+      },
+      {
+        "num": 3,
+        "code": "    tot = 0",
+        "html": "    <span class=\"token-ident\">tot</span> = <span class=\"token-number\">0</span>",
+        "alt": "累加變數",
+        "why": "單一變數空間",
+        "mean": "初始化"
+      },
+      {
+        "num": 4,
+        "code": "    for i in range(1, n + 1): tot += i",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-ident\">n</span> + <span class=\"token-number\">1</span>): <span class=\"token-ident\">tot</span> += <span class=\"token-ident\">i</span>",
+        "alt": "迴圈累加",
+        "why": "無額外堆疊幀",
+        "mean": "迴圈運算"
+      },
+      {
+        "num": 5,
+        "code": "    return tot",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">tot</span>",
+        "alt": "回傳總和",
+        "why": "回傳結果",
+        "mean": "回傳"
+      },
+      {
+        "num": 6,
+        "code": "# 遞迴版本：呼叫深度 N 層，耗費 O(N) 棧幀（Stack Frames）！",
+        "html": "<span class=\"token-comment\"># 遞迴版本：呼叫深度 N 層，耗費 O(N) 棧幀（Stack Frames）！</span>",
+        "alt": "遞迴空間代價",
+        "why": "堆疊層層推入",
+        "mean": "遞迴空間"
+      },
+      {
+        "num": 7,
+        "code": "print(\"迴圈計算 (1..100):\", loop_sum(100))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;迴圈計算 (1..100):&quot;</span>, <span class=\"token-func\">loop_sum</span>(<span class=\"token-number\">100</span>))",
+        "alt": "輸出 5050",
+        "diff": true,
+        "why": "驗證正確性",
+        "mean": "印出計算"
+      }
+    ],
+    "output": "迴圈計算 (1..100): 5050",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>天下沒有白吃的午餐</strong>：迴圈是原地重複使用同一個變數，空間複雜度是極省的 $O(1)$；而遞迴每下一層都必須在 Stack 上凍結當前狀態，深度 $N$ 層就耗費 $O(N)$ 記憶體！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "迴圈省記憶，遞迴耗棧幀"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.6 遞迴深度限制與防爆：RecursionError: maximum recursion depth exceeded",
+    "titleZh": "系統安全閥——Python 預設遞迴上限與查詢調用",
+    "titleEn": "System Safety Valve: sys.getrecursionlimit()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>",
+        "alt": "引入 sys 模組",
+        "why": "查詢系統限制",
+        "mean": "匯入模組"
+      },
+      {
+        "num": 2,
+        "code": "# 查詢 Python 預設最大遞迴深度（通常為 1000）",
+        "html": "<span class=\"token-comment\"># 查詢 Python 預設最大遞迴深度（通常為 1000）</span>",
+        "alt": "上限說明註解",
+        "why": "了解預設深度",
+        "mean": "深度說明"
+      },
+      {
+        "num": 3,
+        "code": "limit = sys.getrecursionlimit()",
+        "html": "<span class=\"token-ident\">limit</span> = <span class=\"token-ident\">sys</span>.<span class=\"token-func\">getrecursionlimit</span>()",
+        "alt": "取得預設深度限制",
+        "diff": true,
+        "why": "取得整數上限",
+        "mean": "取得上限"
+      },
+      {
+        "num": 4,
+        "code": "print(\"Python 預設最大遞迴層數:\", limit)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;Python 預設最大遞迴層數:&quot;</span>, <span class=\"token-ident\">limit</span>)",
+        "alt": "輸出 1000",
+        "diff": true,
+        "why": "顯示 1000",
+        "mean": "印出上限"
+      },
+      {
+        "num": 5,
+        "code": "# 說明：若遞迴層數超過此限制，Python 會主動拉下電閘！",
+        "html": "<span class=\"token-comment\"># 說明：若遞迴層數超過此限制，Python 會主動拉下電閘！</span>",
+        "alt": "安全閥說明",
+        "why": "保護記憶體不被耗盡",
+        "mean": "安全機制"
+      }
+    ],
+    "output": "Python 預設最大遞迴層數: 1000",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>防爆保護安全閥</strong>：為了防止程式猿寫出無窮遞迴導致作業系統記憶體崩潰，Python 預設將遞迴深度限制在 1000 層。超過這條安全紅線時，會主動引爆 <code>RecursionError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "預設千層閥，防爆保系統"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6.6 遞迴深度限制與防爆：RecursionError: maximum recursion depth exceeded",
+    "titleZh": "APCS 考場避坑——大數據下手動調高上限 sys.setrecursionlimit",
+    "titleEn": "Raising Recursion Limit for Deep Recurse in APCS",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>",
+        "alt": "引入 sys",
+        "why": "調用系統設定",
+        "mean": "匯入模組"
+      },
+      {
+        "num": 2,
+        "code": "# APCS 題目資料量若達到 N = 10^5，深度 1000 會慘遭 RE！",
+        "html": "<span class=\"token-comment\"># APCS 題目資料量若達到 N = 10^5，深度 1000 會慘遭 RE！</span>",
+        "alt": "競賽常見深度爆掉",
+        "why": "樹論與圖論 DFS 深度大題",
+        "mean": "競賽情境"
+      },
+      {
+        "num": 3,
+        "code": "# 手動擴充遞迴深度上限至 200000",
+        "html": "<span class=\"token-comment\"># 手動擴充遞迴深度上限至 200000</span>",
+        "alt": "擴充深度指令",
+        "why": "預防 RE",
+        "mean": "擴充說明"
+      },
+      {
+        "num": 4,
+        "code": "sys.setrecursionlimit(200000)",
+        "html": "<span class=\"token-ident\">sys</span>.<span class=\"token-func\">setrecursionlimit</span>(<span class=\"token-number\">200000</span>)",
+        "alt": "設定上限為 200000",
+        "diff": true,
+        "why": "解除 1000 限制",
+        "mean": "調高上限"
+      },
+      {
+        "num": 5,
+        "code": "print(\"調高後遞迴深度上限:\", sys.getrecursionlimit())",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;調高後遞迴深度上限:&quot;</span>, <span class=\"token-ident\">sys</span>.<span class=\"token-func\">getrecursionlimit</span>())",
+        "alt": "輸出 200000",
+        "diff": true,
+        "why": "確認新上限生效",
+        "mean": "印出新上限"
+      }
+    ],
+    "output": "調高後遞迴深度上限: 200000",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>競賽必備大招</strong>：在 APCS 第 3、4 題涉及深搜（DFS）或樹狀結構走訪時，節點數往往高達數萬。在程式最頂端加入 <code>sys.setrecursionlimit(200000)</code>，能瞬間瓦解考場 RE 慘劇！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "競賽開上限，深搜不崩潰"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6 考場地雷一：漏寫終止條件或無法收斂引爆 RecursionError",
+    "titleZh": "考場致命地雷一：漏寫煞車條件——無窮下潛爆棧崩潰",
+    "titleEn": "Trap 1: Missing Base Case Triggers RecursionError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：忘記寫 Base Case 煞車皮！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：忘記寫 Base Case 煞車皮！</span>",
+        "alt": "漏寫煞車地雷",
+        "why": "無限下潛",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "def infinite_fall(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">infinite_fall</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "無窮下潛函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 沒有任何 if 判斷就直接呼叫自己！",
+        "html": "    <span class=\"token-comment\"># 沒有任何 if 判斷就直接呼叫自己！</span>",
+        "alt": "沒有煞車條件",
+        "why": "致命缺失",
+        "mean": "缺少判斷"
+      },
+      {
+        "num": 4,
+        "code": "    return infinite_fall(n - 1)  # 💥 衝下深淵",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\"><span class=\"token-wavy-err\">infinite_fall</span></span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># 💥 衝下深淵</span>",
+        "alt": "無休止遞迴",
+        "diff": true,
+        "why": "堆疊迅速被填滿",
+        "mean": "無休止下潛"
+      },
+      {
+        "num": 5,
+        "code": "infinite_fall(5)",
+        "html": "<span class=\"token-func\">infinite_fall</span>(<span class=\"token-number\">5</span>)",
+        "alt": "啟動呼叫",
+        "diff": true,
+        "why": "瞬間下潛 1000 層引爆異常",
+        "mean": "呼叫引爆"
+      }
+    ],
+    "output": "<span class=\"output-error\">RecursionError: maximum recursion depth exceeded</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>致命紅線：堆疊溢出（Stack Overflow）</strong>：函數在沒有煞車皮的情況下反覆自己呼叫自己，記憶體棧針一路往上堆疊，直到撞上 Python 預設的 1000 層安全天花板，當場拋出 <code>RecursionError</code> 慘遭 RE！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "漏寫煞車皮，千層當場爆"
+      }
+    ],
+    "predictQuiz": {
+      "question": "如果遞迴函數在執行時完全沒有設置 Base Case 終止條件，Python 會如何反應？",
+      "options": [
+        "A. 程式會一直執行幾萬年直到電腦斷電",
+        "B. 達到預設深度上限時拋出 RecursionError 終止程式"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "Python 直譯器內部設有 recursionlimit 安全閥（預設 1000 層）。當函數無止盡下潛達到該上限時，會立即拋出 RecursionError: maximum recursion depth exceeded 中斷執行，防止耗盡實體記憶體！"
+    }
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6 考場地雷二：遞迴引數未縮小規模導致原地空轉",
+    "titleZh": "考場致命地雷二：引數未縮小規模——原地踏步爆棧崩潰",
+    "titleEn": "Trap 2: Recursive Argument Fails to Shrink",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：有寫 Base Case，但傳入引數忘了減 1！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：有寫 Base Case，但傳入引數忘了減 1！</span>",
+        "alt": "未縮小規模註解",
+        "why": "引數原地踏步",
+        "mean": "地雷警示"
+      },
+      {
+        "num": 2,
+        "code": "def bad_countdown(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">bad_countdown</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "錯誤倒數函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    if n <= 0: return",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span>",
+        "alt": "看似完備的煞車皮",
+        "why": "煞車皮雖然存在",
+        "mean": "基底條件"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 慘劇：呼叫了 bad_countdown(n) 而非 (n - 1)！",
+        "html": "    <span class=\"token-comment\"># 💥 慘劇：呼叫了 bad_countdown(n) 而非 (n - 1)！</span>",
+        "alt": "漏減 1 慘劇說明",
+        "why": "參數永遠是 3",
+        "mean": "漏減說明"
+      },
+      {
+        "num": 5,
+        "code": "    bad_countdown(n)  # 永遠都是 3，永遠碰不到 <= 0！",
+        "html": "    <span class=\"token-func\"><span class=\"token-wavy-err\">bad_countdown</span></span>(<span class=\"token-ident\">n</span>)  <span class=\"token-comment\"># 永遠都是 3，永遠碰不到 &lt;= 0！</span>",
+        "alt": "原地呼叫 n",
+        "diff": true,
+        "why": "無法收斂至 Base Case",
+        "mean": "原地踏步"
+      },
+      {
+        "num": 6,
+        "code": "bad_countdown(3)",
+        "html": "<span class=\"token-func\">bad_countdown</span>(<span class=\"token-number\">3</span>)",
+        "alt": "呼叫引爆",
+        "diff": true,
+        "why": "重複堆疊 3 直到爆棧",
+        "mean": "呼叫引爆"
+      }
+    ],
+    "output": "<span class=\"output-error\">RecursionError: maximum recursion depth exceeded</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>收斂原則不可背離</strong>：遞迴呼叫時傳入的引數，必須朝向 Base Case 的方向「實質縮小規模」（例如 <code>n - 1</code> 或 <code>s[1:]</code>）。如果傳入原數值原地踏步，煞車條件就形同虛設，同樣引爆 <code>RecursionError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "規模需縮小，原地踏步爆"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6 考場地雷三：遞迴呼叫處遺漏 return 接收下層回傳值",
+    "titleZh": "考場致命地雷三：漏寫 return——下層回傳 None 引爆 TypeError",
+    "titleEn": "Trap 3: Missing return Yields None and Causes TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：呼叫了遞迴，卻忘了把它的回傳值 return 回去！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：呼叫了遞迴，卻忘了把它的回傳值 return 回去！</span>",
+        "alt": "漏接回傳值地雷",
+        "why": "數值接力中斷",
+        "mean": "地雷說明"
+      },
+      {
+        "num": 2,
+        "code": "def broken_sum(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">broken_sum</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "斷鏈累加函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    if n <= 1: return 1",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">1</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>",
+        "alt": "基底回傳 1",
+        "why": "基底正確",
+        "mean": "基底回傳"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 漏掉了 return！雖然呼叫了 broken_sum，但未回傳結果",
+        "html": "    <span class=\"token-comment\"># 💥 漏掉了 return！雖然呼叫了 broken_sum，但未回傳結果</span>",
+        "alt": "漏寫 return 註解",
+        "why": "執行完後預設回傳 None",
+        "mean": "漏接說明"
+      },
+      {
+        "num": 5,
+        "code": "    n + broken_sum(n - 1)  # 計算了卻沒 return！",
+        "html": "    <span class=\"token-ident\">n</span> + <span class=\"token-func\"><span class=\"token-wavy-err\">broken_sum</span></span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># 計算了卻沒 return！</span>",
+        "alt": "計算卻未 return",
+        "diff": true,
+        "why": "未將算式結果交接給外部",
+        "mean": "漏接回傳"
+      },
+      {
+        "num": 6,
+        "code": "broken_sum(3)  # 💥 呼叫時內部 3 + None 當場引爆崩潰！",
+        "html": "<span class=\"token-func\">broken_sum</span>(<span class=\"token-number\">3</span>)  <span class=\"token-comment\"># 💥 呼叫時內部 3 + None 當場引爆崩潰！</span>",
+        "alt": "呼叫 3",
+        "diff": true,
+        "why": "3 + None 引爆 TypeError",
+        "mean": "呼叫崩潰"
+      }
+    ],
+    "output": "<span class=\"output-error\">TypeError: unsupported operand type(s) for +: 'int' and 'NoneType'</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>遞迴斷鏈引發 NoneType 災難</strong>：遞迴就像接力賽跑，如果內部算式 <code>n + broken_sum(n-1)</code> 前面忘了加上 <code>return</code>，函數執行完就會預設回傳 <code>None</code>，導致上層在執行加法時與 <code>None</code> 相加，當場拋出 <code>TypeError</code> 崩潰！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "漏寫回傳值，加空拋型態"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.6 線性遞迴（Linear Recursion）：呼叫堆疊（Call Stack）展開與終止條件",
+    "titleZh": "綜合實戰——十進位轉二進位（短除法回溯接力拼裝）",
+    "titleEn": "Full Battle: Decimal to Binary Recursive Assembly",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 經典演算法：遞迴短除法轉二進位字串",
+        "html": "<span class=\"token-comment\"># APCS 經典演算法：遞迴短除法轉二進位字串</span>",
+        "alt": "短除法模型註解",
+        "why": "去程除以 2，回程拼餘數",
+        "mean": "演算法模型"
+      },
+      {
+        "num": 2,
+        "code": "def to_binary(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">to_binary</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "十進位轉二進位",
+        "why": "函數宣告",
+        "mean": "定義轉二進位"
+      },
+      {
+        "num": 3,
+        "code": "    # 1. Base Case: 當數字小於 2 時，轉為字串直接回傳",
+        "html": "    <span class=\"token-comment\"># 1. Base Case: 當數字小於 2 時，轉為字串直接回傳</span>",
+        "alt": "基底條件說明",
+        "why": "商為 0 或 1",
+        "mean": "基底說明"
+      },
+      {
+        "num": 4,
+        "code": "    if n < 2:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt; <span class=\"token-number\">2</span>:",
+        "alt": "小於 2 判斷",
+        "diff": true,
+        "why": "煞車基底",
+        "mean": "基底判斷"
+      },
+      {
+        "num": 5,
+        "code": "        return str(n)",
+        "html": "        <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">str</span>(<span class=\"token-ident\">n</span>)",
+        "alt": "回傳字串",
+        "diff": true,
+        "why": "最高有效位元",
+        "mean": "回傳字串"
+      },
+      {
+        "num": 6,
+        "code": "    # 2. Recursive Case: 較高位元 (n // 2) + 當前餘數 (n % 2)",
+        "html": "    <span class=\"token-comment\"># 2. Recursive Case: 較高位元 (n // 2) + 當前餘數 (n % 2)</span>",
+        "alt": "商與餘數接力說明",
+        "why": "逆序拼裝自然完成",
+        "mean": "拼裝說明"
+      },
+      {
+        "num": 7,
+        "code": "    return to_binary(n // 2) + str(n % 2)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\">to_binary</span>(<span class=\"token-ident\">n</span> // <span class=\"token-number\">2</span>) + <span class=\"token-builtin\">str</span>(<span class=\"token-ident\">n</span> % <span class=\"token-number\">2</span>)",
+        "alt": "高位接上餘數",
+        "diff": true,
+        "why": "利用 Call Stack 自然逆向組合",
+        "mean": "遞迴拼接"
+      },
+      {
+        "num": 8,
+        "code": "print(\"13 的二進位:\", to_binary(13))  # 13 // 2 -> 6 // 2 -> 3 // 2 -> 1",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;13 的二進位:&quot;</span>, <span class=\"token-func\">to_binary</span>(<span class=\"token-number\">13</span>))  <span class=\"token-comment\"># 13 // 2 -&gt; 6 // 2 -&gt; 3 // 2 -&gt; 1</span>",
+        "alt": "輸出 1101",
+        "diff": true,
+        "why": "印出 1101",
+        "mean": "印出 13 二進位"
+      },
+      {
+        "num": 9,
+        "code": "print(\"6 的二進位:\", to_binary(6))    # 輸出 110",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;6 的二進位:&quot;</span>, <span class=\"token-func\">to_binary</span>(<span class=\"token-number\">6</span>))    <span class=\"token-comment\"># 輸出 110</span>",
+        "alt": "輸出 110",
+        "diff": true,
+        "why": "印出 110",
+        "mean": "印出 6 二進位"
+      }
+    ],
+    "output": "13 的二進位: 1101\n6 的二進位: 110",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>回溯自動逆轉順序的奇蹟</strong>：短除法算二進位必須「由下往上倒著讀餘數」。遞迴在去程先除到最深處（得到最高位），回程時才從最深處彈出並拼接當前餘數，天生完成了逆向拼裝！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "除商往深探，回溯拼餘數"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.6",
+      "title": "線性遞迴與呼叫堆疊展開完全掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心思維",
+          "val": "Call Stack / Base Case"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "11.7",
+        "title": "樹狀分支遞迴（Tree Recursion）與數論演算法（費氏數列與輾轉相除法 GCD）",
+        "desc": "即將跨入雙分支遞迴展開樹，剖析費氏數列指數爆炸與歐幾里得 GCD 極速數論！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-6_linear_recursion_and_call_stack.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

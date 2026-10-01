@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.5 全域變數（global）在 APCS 競賽中的使用準則與除錯防禦 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0000cd" />
+        </marker>
+      </defs>
+      <path class="flow-line" id="flowGuidePath" d="" />
+    </svg>
+
+    <!-- 施工中遮罩 (Construction Stage) -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.1 global 關鍵字：在區域內宣告並修改全域變數的值",
+    "titleZh": "修改外部變數的困境——函數內的賦值被困在小房間",
+    "titleEn": "The Dilemma of Modifying Outer Variables",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "gold = 100  # 全域金幣庫存",
+        "html": "<span class=\"token-ident\">gold</span> = <span class=\"token-number\">100</span>  <span class=\"token-comment\"># 全域金幣庫存</span>",
+        "alt": "宣告全域金幣",
+        "why": "外部共享狀態",
+        "mean": "全域變數"
+      },
+      {
+        "num": 2,
+        "code": "def earn_gold(amount):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">earn_gold</span>(<span class=\"token-ident\">amount</span>):",
+        "alt": "賺取金幣函數",
+        "why": "嘗試在內部修改",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 若直接寫 gold = gold + amount，會引爆 UnboundLocalError！",
+        "html": "    <span class=\"token-comment\"># 若直接寫 gold = gold + amount，會引爆 UnboundLocalError！</span>",
+        "alt": "未宣告 global 的賦值衝突",
+        "why": "等號強制將其判定為區域變數",
+        "mean": "註解衝突"
+      },
+      {
+        "num": 4,
+        "code": "    temp_gold = gold + amount  # 僅能唯讀外部",
+        "html": "    <span class=\"token-ident\">temp_gold</span> = <span class=\"token-ident\">gold</span> + <span class=\"token-ident\">amount</span>  <span class=\"token-comment\"># 僅能唯讀外部</span>",
+        "alt": "建立區域暫存變數",
+        "diff": true,
+        "why": "內部讀取外部，但無法直接改寫外部",
+        "mean": "區域暫存"
+      },
+      {
+        "num": 5,
+        "code": "    print(\"函數內暫存:\", temp_gold)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;函數內暫存:&quot;</span>, <span class=\"token-ident\">temp_gold</span>)",
+        "alt": "印出 150",
+        "diff": true,
+        "why": "印出計算值",
+        "mean": "印出暫存"
+      },
+      {
+        "num": 6,
+        "code": "earn_gold(50)",
+        "html": "<span class=\"token-func\">earn_gold</span>(<span class=\"token-number\">50</span>)",
+        "alt": "呼叫函數",
+        "why": "執行內部計算",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 7,
+        "code": "print(\"外部金幣依舊:\", gold)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部金幣依舊:&quot;</span>, <span class=\"token-ident\">gold</span>)",
+        "alt": "外部 gold 分毫未動依然是 100",
+        "diff": true,
+        "why": "全域金幣完全沒有被更新",
+        "mean": "印出外部金幣"
+      }
+    ],
+    "output": "函數內暫存: 150\n外部金幣依舊: 100",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>區域無法直接改寫全域</strong>：在 Python 作用域規則下，函數內部預設只能「讀取」全域變數；一旦出現賦值指令，直譯器便會將其視為區域變數，無法直接撼動外層變數！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "內部只能讀，直接賦值斷"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.1 global 關鍵字：在區域內宣告並修改全域變數的值",
+    "titleZh": "global 關鍵字登場——取得全域變數的直接寫入授權",
+    "titleEn": "The global Keyword: Authorization to Write",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "gold = 100  # 全域金幣庫存",
+        "html": "<span class=\"token-ident\">gold</span> = <span class=\"token-number\">100</span>  <span class=\"token-comment\"># 全域金幣庫存</span>",
+        "alt": "全域金幣庫存",
+        "why": "頂層變數",
+        "mean": "全域變數"
+      },
+      {
+        "num": 2,
+        "code": "def earn_gold(amount):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">earn_gold</span>(<span class=\"token-ident\">amount</span>):",
+        "alt": "定義賺取金幣函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    global gold  # ⭐ 關鍵宣告：此處 gold 指向全域變數！",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">gold</span>  <span class=\"token-comment\"># ⭐ 關鍵宣告：此處 gold 指向全域變數！</span>",
+        "alt": "宣告 global gold",
+        "diff": true,
+        "why": "打通區域與全域通道",
+        "mean": "宣告全域授權"
+      },
+      {
+        "num": 4,
+        "code": "    gold += amount  # 直接原地累加全域變數",
+        "html": "    <span class=\"token-ident\">gold</span> += <span class=\"token-ident\">amount</span>  <span class=\"token-comment\"># 直接原地累加全域變數</span>",
+        "alt": "改寫全域變數",
+        "diff": true,
+        "why": "數值成功改寫",
+        "mean": "改寫全域"
+      },
+      {
+        "num": 5,
+        "code": "earn_gold(50)",
+        "html": "<span class=\"token-func\">earn_gold</span>(<span class=\"token-number\">50</span>)",
+        "alt": "呼叫加 50",
+        "why": "gold 變為 150",
+        "mean": "初次加幣"
+      },
+      {
+        "num": 6,
+        "code": "earn_gold(30)",
+        "html": "<span class=\"token-func\">earn_gold</span>(<span class=\"token-number\">30</span>)",
+        "alt": "再次呼叫加 30",
+        "why": "gold 變為 180",
+        "mean": "二次加幣"
+      },
+      {
+        "num": 7,
+        "code": "print(\"最終全域金幣:\", gold)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;最終全域金幣:&quot;</span>, <span class=\"token-ident\">gold</span>)",
+        "alt": "印出 180",
+        "diff": true,
+        "why": "外部成功更新為 180",
+        "mean": "印出最終金幣"
+      }
+    ],
+    "output": "最終全域金幣: 180",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>global 授權通行證</strong>：在函數第一行寫入 <code>global 變數名稱</code>，直譯器就不會在局部作用域建立新變數，而是直接連線並修改外層同名的全域變數！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "宣告全域證，內部改全域"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.2 APCS 競賽實戰場景一：全域最佳解累計計數器",
+    "titleZh": "APCS 實戰場景一——跨層維護全域最佳解（min / max）",
+    "titleEn": "Scenario 1: Global Best-Answer Tracker",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "min_cost = float('inf')  # 全域最低耗費初始化為無限大",
+        "html": "<span class=\"token-ident\">min_cost</span> = <span class=\"token-builtin\">float</span>(<span class=\"token-string\">'inf'</span>)  <span class=\"token-comment\"># 全域最低耗費初始化為無限大</span>",
+        "alt": "全域初始化無限大",
+        "diff": true,
+        "why": "求最小值標準起手式",
+        "mean": "初始化最佳解"
+      },
+      {
+        "num": 2,
+        "code": "def check_route(route_name, cost):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">check_route</span>(<span class=\"token-ident\">route_name</span>, <span class=\"token-ident\">cost</span>):",
+        "alt": "路徑評估函數",
+        "why": "評估單一路徑耗費",
+        "mean": "路徑評估"
+      },
+      {
+        "num": 3,
+        "code": "    global min_cost",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">min_cost</span>",
+        "alt": "宣告存取全域最佳解",
+        "diff": true,
+        "why": "準備刷新全域最佳解",
+        "mean": "宣告存取"
+      },
+      {
+        "num": 4,
+        "code": "    if cost < min_cost:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">cost</span> &lt; <span class=\"token-ident\">min_cost</span>:",
+        "alt": "發現更優解",
+        "why": "比現有最佳解更小",
+        "mean": "比較條件"
+      },
+      {
+        "num": 5,
+        "code": "        min_cost = cost  # ⭐ 刷新全域最佳紀錄",
+        "html": "        <span class=\"token-ident\">min_cost</span> = <span class=\"token-ident\">cost</span>  <span class=\"token-comment\"># ⭐ 刷新全域最佳紀錄</span>",
+        "alt": "更新最低耗費",
+        "diff": true,
+        "why": "更新全域數值",
+        "mean": "刷新紀錄"
+      },
+      {
+        "num": 6,
+        "code": "check_route(\"路線 A\", 85)",
+        "html": "<span class=\"token-func\">check_route</span>(<span class=\"token-string\">&quot;路線 A&quot;</span>, <span class=\"token-number\">85</span>)",
+        "alt": "路線 A 耗費 85",
+        "why": "min_cost 變為 85",
+        "mean": "評估路線 A"
+      },
+      {
+        "num": 7,
+        "code": "check_route(\"路線 B\", 42)",
+        "html": "<span class=\"token-func\">check_route</span>(<span class=\"token-string\">&quot;路線 B&quot;</span>, <span class=\"token-number\">42</span>)",
+        "alt": "路線 B 耗費 42",
+        "why": "min_cost 刷新為 42",
+        "mean": "評估路線 B"
+      },
+      {
+        "num": 8,
+        "code": "print(\"全域最佳最低耗費:\", min_cost)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;全域最佳最低耗費:&quot;</span>, <span class=\"token-ident\">min_cost</span>)",
+        "alt": "輸出 42",
+        "diff": true,
+        "why": "輸出歷史最佳解",
+        "mean": "印出最佳解"
+      }
+    ],
+    "output": "全域最佳最低耗費: 42",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>競賽搜尋常用技巧</strong>：在 APCS 的遞迴回溯（Backtracking）或模擬搜尋中，常使用全域變數記錄「當前找到的最優解」。任何分支只要找到更小成本，即可透過 global 即時刷新！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "全域記最優，分支隨時刷"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.3 APCS 競賽實戰場景二：大型地圖 / 圖論鄰接矩陣的全域共享存取",
+    "titleZh": "APCS 實戰場景二——大型二維網格地圖的全域共享存取",
+    "titleEn": "Scenario 2: Shared Global Matrix Access",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 全域定義 3x3 地圖（0: 空地, 1: 障礙, 9: 寶藏）",
+        "html": "<span class=\"token-comment\"># 全域定義 3x3 地圖（0: 空地, 1: 障礙, 9: 寶藏）</span>",
+        "alt": "地圖代碼說明",
+        "why": "題目給定的靜態網格",
+        "mean": "註解說明"
+      },
+      {
+        "num": 2,
+        "code": "grid = [",
+        "html": "<span class=\"token-ident\">grid</span> = [",
+        "alt": "二維地圖陣列",
+        "why": "頂層宣告共享地圖",
+        "mean": "宣告網格"
+      },
+      {
+        "num": 3,
+        "code": "    [0, 1, 0],",
+        "html": "    [<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>],",
+        "alt": "第 0 列",
+        "why": "地圖列 0",
+        "mean": "列 0"
+      },
+      {
+        "num": 4,
+        "code": "    [0, 0, 9],",
+        "html": "    [<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">9</span>],",
+        "alt": "第 1 列",
+        "why": "地圖列 1",
+        "mean": "列 1"
+      },
+      {
+        "num": 5,
+        "code": "    [1, 0, 0]",
+        "html": "    [<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>]",
+        "alt": "第 2 列",
+        "why": "地圖列 2",
+        "mean": "列 2"
+      },
+      {
+        "num": 6,
+        "code": "]",
+        "html": "]",
+        "alt": "結束中括號",
+        "why": "閉合陣列",
+        "mean": "結束定義"
+      },
+      {
+        "num": 7,
+        "code": "def is_treasure(r, c):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_treasure</span>(<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>):",
+        "alt": "探測寶藏函數",
+        "why": "讀取指定座標",
+        "mean": "定義探測函數"
+      },
+      {
+        "num": 8,
+        "code": "    # 僅讀取全域 grid，不需 global 關鍵字！",
+        "html": "    <span class=\"token-comment\"># 僅讀取全域 grid，不需 global 關鍵字！</span>",
+        "alt": "唯讀全域陣列免 global",
+        "why": "LEGB 自動向外尋找",
+        "mean": "唯讀註解"
+      },
+      {
+        "num": 9,
+        "code": "    return grid[r][c] == 9",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] == <span class=\"token-number\">9</span>",
+        "alt": "比對座標是否為 9",
+        "diff": true,
+        "why": "回傳布林判斷",
+        "mean": "回傳判定"
+      },
+      {
+        "num": 10,
+        "code": "print(\"(0, 1) 是否寶藏:\", is_treasure(0, 1))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;(0, 1) 是否寶藏:&quot;</span>, <span class=\"token-func\">is_treasure</span>(<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>))",
+        "alt": "輸出 False",
+        "why": "座標值為 1 障礙",
+        "mean": "印出 False"
+      },
+      {
+        "num": 11,
+        "code": "print(\"(1, 2) 是否寶藏:\", is_treasure(1, 2))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;(1, 2) 是否寶藏:&quot;</span>, <span class=\"token-func\">is_treasure</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>))",
+        "alt": "輸出 True",
+        "diff": true,
+        "why": "座標值為 9 寶藏",
+        "mean": "印出 True"
+      }
+    ],
+    "output": "(0, 1) 是否寶藏: False\n(1, 2) 是否寶藏: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>避免大型物件重疊傳參</strong>：在 APCS 中，地圖往往是數百行的大陣列。將地圖置於全域供各個子函數共享唯讀存取，能讓函數參數極度簡潔（只需傳 <code>r, c</code> 座標），代碼清爽好讀！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "地圖放全域，傳參輕量化"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.4 可變物件免 global 原理：為何串列原處修改不需要宣告 global？",
+    "titleZh": "可變物件原處修改（In-place）——為什麼不需要 global？",
+    "titleEn": "Mutable In-Place Modification Needs No global",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [90, 80]  # 全域串列（可變物件）",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">90</span>, <span class=\"token-number\">80</span>]  <span class=\"token-comment\"># 全域串列（可變物件）</span>",
+        "alt": "全域串列",
+        "why": "指向同一個串列記憶體",
+        "mean": "全域串列"
+      },
+      {
+        "num": 2,
+        "code": "def add_score(s):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">add_score</span>(<span class=\"token-ident\">s</span>):",
+        "alt": "添加分數函數",
+        "why": "內部修改串列",
+        "mean": "定義添加函數"
+      },
+      {
+        "num": 3,
+        "code": "    # ⚡ 驚奇：沒有 global scores 宣告！",
+        "html": "    <span class=\"token-comment\"># ⚡ 驚奇：沒有 global scores 宣告！</span>",
+        "alt": "免 global 驚奇註解",
+        "why": "因為未出現 scores = ... 賦值指令",
+        "mean": "免宣告說明"
+      },
+      {
+        "num": 4,
+        "code": "    scores.append(s)     # 呼叫方法原地修改",
+        "html": "    <span class=\"token-ident\">scores</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">s</span>)     <span class=\"token-comment\"># 呼叫方法原地修改</span>",
+        "alt": "使用 append 原處修改",
+        "diff": true,
+        "why": "沿著記憶體指標原處加入新元素",
+        "mean": "原地附加"
+      },
+      {
+        "num": 5,
+        "code": "    scores[0] = 95       # 原地索引改值",
+        "html": "    <span class=\"token-ident\">scores</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">95</span>       <span class=\"token-comment\"># 原地索引改值</span>",
+        "alt": "更新索引 0 為 95",
+        "diff": true,
+        "why": "原地改寫元素",
+        "mean": "原地改值"
+      },
+      {
+        "num": 6,
+        "code": "add_score(100)",
+        "html": "<span class=\"token-func\">add_score</span>(<span class=\"token-number\">100</span>)",
+        "alt": "呼叫函數",
+        "why": "執行原地修改",
+        "mean": "呼叫修改"
+      },
+      {
+        "num": 7,
+        "code": "print(\"全域串列已原地改變:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;全域串列已原地改變:&quot;</span>, <span class=\"token-ident\">scores</span>)",
+        "alt": "印出 [95, 80, 100]",
+        "diff": true,
+        "why": "全域串列已被成功改動",
+        "mean": "印出全域串列"
+      }
+    ],
+    "output": "全域串列已原地改變: [95, 80, 100]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>原處修改 vs 重新綁定</strong>：<code>scores.append()</code> 或 <code>scores[0] = ...</code> 是對同一個記憶體箱子內部的操作，變數 <code>scores</code> 本身指針並未改變，因此直譯器判定為「讀取 scores 後修改內容」，完全免宣告 global！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "原處改內容，免宣全域證"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.4 可變物件免 global 原理：為何串列原處修改不需要宣告 global？",
+    "titleZh": "可變物件的指派陷阱——一旦出現等號重新綁定就必須 global",
+    "titleEn": "Rebinding Pitfall: Reassigning Still Needs global",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "records = [1, 2, 3]  # 全域紀錄",
+        "html": "<span class=\"token-ident\">records</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]  <span class=\"token-comment\"># 全域紀錄</span>",
+        "alt": "全域原始紀錄",
+        "why": "全域初始串列",
+        "mean": "全域串列"
+      },
+      {
+        "num": 2,
+        "code": "def reset_wrong():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">reset_wrong</span>():",
+        "alt": "錯誤重置函數",
+        "why": "示範無 global 賦值",
+        "mean": "錯誤重置"
+      },
+      {
+        "num": 3,
+        "code": "    # 💥 出現了等號賦值！Python 將 records 判定為「區域變數」",
+        "html": "    <span class=\"token-comment\"># 💥 出現了等號賦值！Python 將 records 判定為「區域變數」</span>",
+        "alt": "等號判定為區域",
+        "why": "局部遮蔽發生",
+        "mean": "遮蔽註解"
+      },
+      {
+        "num": 4,
+        "code": "    records = []  # 僅僅建立了一個同名區域空串列！",
+        "html": "    <span class=\"token-ident\">records</span> = []  <span class=\"token-comment\"># 僅僅建立了一個同名區域空串列！</span>",
+        "alt": "賦值空串列",
+        "diff": true,
+        "why": "未宣告 global，建立區域新物件",
+        "mean": "區域重置"
+      },
+      {
+        "num": 5,
+        "code": "reset_wrong()",
+        "html": "<span class=\"token-func\">reset_wrong</span>()",
+        "alt": "呼叫錯誤重置",
+        "why": "執行無效重置",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 6,
+        "code": "print(\"全域 records 根本沒清空:\", records)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;全域 records 根本沒清空:&quot;</span>, <span class=\"token-ident\">records</span>)",
+        "alt": "印出 [1, 2, 3]",
+        "diff": true,
+        "why": "全域依然維持 [1, 2, 3]",
+        "mean": "驗證未清空"
+      }
+    ],
+    "output": "全域 records 根本沒清空: [1, 2, 3]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>變數重新綁定的分水嶺</strong>：只要出現 <code>records = ...</code>（變數名稱左邊直接接等號），直譯器就認定你在指派新物件。若無 <code>global</code> 宣告，它就只是曇花一現的區域變數，外層全域毫髮無傷！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "等號指新箱，無宣變區域"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.4 可變物件免 global 原理：為何串列原處修改不需要宣告 global？",
+    "titleZh": "字典原地更新也是免 global——鍵值對增刪改原處生效",
+    "titleEn": "Dictionary In-Place Updates Also Need No global",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "player = {\"name\": \"艾力克斯\", \"hp\": 100}  # 全域字典",
+        "html": "<span class=\"token-ident\">player</span> = {<span class=\"token-string\">&quot;name&quot;</span>: <span class=\"token-string\">&quot;艾力克斯&quot;</span>, <span class=\"token-string\">&quot;hp&quot;</span>: <span class=\"token-number\">100</span>}  <span class=\"token-comment\"># 全域字典</span>",
+        "alt": "全域玩家字典",
+        "why": "可變容器物件",
+        "mean": "全域字典"
+      },
+      {
+        "num": 2,
+        "code": "def take_damage(dmg):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">take_damage</span>(<span class=\"token-ident\">dmg</span>):",
+        "alt": "扣血函數",
+        "why": "修改玩家狀態",
+        "mean": "定義扣血函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 字典鍵值修改是原處改值，完全不需 global player！",
+        "html": "    <span class=\"token-comment\"># 字典鍵值修改是原處改值，完全不需 global player！</span>",
+        "alt": "免 global 說明",
+        "why": "透過鍵原地改值",
+        "mean": "註解說明"
+      },
+      {
+        "num": 4,
+        "code": "    player[\"hp\"] -= dmg",
+        "html": "    <span class=\"token-ident\">player</span>[<span class=\"token-string\">&quot;hp&quot;</span>] -= <span class=\"token-ident\">dmg</span>",
+        "alt": "原地扣減 hp",
+        "diff": true,
+        "why": "修改全域字典中的鍵值",
+        "mean": "原地扣血"
+      },
+      {
+        "num": 5,
+        "code": "    player[\"status\"] = \"受傷\"",
+        "html": "    <span class=\"token-ident\">player</span>[<span class=\"token-string\">&quot;status&quot;</span>] = <span class=\"token-string\">&quot;受傷&quot;</span>",
+        "alt": "原地新增鍵值",
+        "diff": true,
+        "why": "原處加入新鍵",
+        "mean": "新增狀態"
+      },
+      {
+        "num": 6,
+        "code": "take_damage(35)",
+        "html": "<span class=\"token-func\">take_damage</span>(<span class=\"token-number\">35</span>)",
+        "alt": "承受 35 傷害",
+        "why": "hp 變為 65",
+        "mean": "呼叫扣血"
+      },
+      {
+        "num": 7,
+        "code": "print(\"玩家全域狀態:\", player)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;玩家全域狀態:&quot;</span>, <span class=\"token-ident\">player</span>)",
+        "alt": "印出完整字典",
+        "diff": true,
+        "why": "確認全域字典已更新",
+        "mean": "印出玩家狀態"
+      }
+    ],
+    "output": "玩家全域狀態: {'name': '艾力克斯', 'hp': 65, 'status': '受傷'}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>可變容器的統一法則</strong>：不管是串列（<code>list[i]</code>）還是字典（<code>dict[key]</code>），只要存取方式是中括號下標索引，都是在原處修改內容，變數本身的名字連結沒變，因此都不需要 <code>global</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "中括號修改，全域同生效"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.1 global 關鍵字：在區域內宣告並修改全域變數的值",
+    "titleZh": "global 宣告時序鐵律——必須在任何使用之前率先宣告",
+    "titleEn": "Timing Rule: global Must Be Declared First",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "score = 0  # 全域分數",
+        "html": "<span class=\"token-ident\">score</span> = <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 全域分數</span>",
+        "alt": "全域分數",
+        "why": "起始數值",
+        "mean": "全域變數"
+      },
+      {
+        "num": 2,
+        "code": "def add_points(pts):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">add_points</span>(<span class=\"token-ident\">pts</span>):",
+        "alt": "加分函數",
+        "why": "準備修改全域",
+        "mean": "定義加分函數"
+      },
+      {
+        "num": 3,
+        "code": "    global score  # ✅ 正確：函數開頭第一行立即宣告",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">score</span>  <span class=\"token-comment\"># ✅ 正確：函數開頭第一行立即宣告</span>",
+        "alt": "最前頭宣告 global",
+        "diff": true,
+        "why": "嚴格遵照語法時序",
+        "mean": "最前宣告"
+      },
+      {
+        "num": 4,
+        "code": "    # 若在宣告 global 前先寫了 print(score)，就會直接引爆 SyntaxError！",
+        "html": "    <span class=\"token-comment\"># 若在宣告 global 前先寫了 print(score)，就會直接引爆 SyntaxError！</span>",
+        "alt": "先讀後宣告 SyntaxError 警告",
+        "why": "時序錯誤違規",
+        "mean": "錯誤預警"
+      },
+      {
+        "num": 5,
+        "code": "    score += pts",
+        "html": "    <span class=\"token-ident\">score</span> += <span class=\"token-ident\">pts</span>",
+        "alt": "累加分數",
+        "why": "順利改寫全域變數",
+        "mean": "累加分數"
+      },
+      {
+        "num": 6,
+        "code": "add_points(20)",
+        "html": "<span class=\"token-func\">add_points</span>(<span class=\"token-number\">20</span>)",
+        "alt": "呼叫加 20",
+        "why": "score 變為 20",
+        "mean": "呼叫加分"
+      },
+      {
+        "num": 7,
+        "code": "print(\"順利更新 score:\", score)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;順利更新 score:&quot;</span>, <span class=\"token-ident\">score</span>)",
+        "alt": "輸出 20",
+        "diff": true,
+        "why": "語法順暢無錯",
+        "mean": "印出分數"
+      }
+    ],
+    "output": "順利更新 score: 20",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>宣告時序不可顛倒</strong>：Python 規定 <code>global</code> 宣告必須在該變數於函數內部被任何敘述使用（無論讀取或寫入）之前出現。如果在宣告前就碰了該變數，Python 編譯期會直接報 <code>SyntaxError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "頭行先宣告，嚴禁先用後"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.1 global 關鍵字：在區域內宣告並修改全域變數的值",
+    "titleZh": "多變數逗號合併宣告——簡潔與清晰兼備的標準寫法",
+    "titleEn": "Multiple Variables Global Declaration",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "total_steps = 0",
+        "html": "<span class=\"token-ident\">total_steps</span> = <span class=\"token-number\">0</span>",
+        "alt": "全域總步數",
+        "why": "全域狀態 1",
+        "mean": "全域步數"
+      },
+      {
+        "num": 2,
+        "code": "best_time = 999.0",
+        "html": "<span class=\"token-ident\">best_time</span> = <span class=\"token-number\">999.0</span>",
+        "alt": "全域最佳時間",
+        "why": "全域狀態 2",
+        "mean": "全域時間"
+      },
+      {
+        "num": 3,
+        "code": "def update_records(steps, time):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">update_records</span>(<span class=\"token-ident\">steps</span>, <span class=\"token-ident\">time</span>):",
+        "alt": "更新雙全域變數函數",
+        "why": "函數定義",
+        "mean": "定義更新函數"
+      },
+      {
+        "num": 4,
+        "code": "    # 以逗號並列多個全域變數",
+        "html": "    <span class=\"token-comment\"># 以逗號並列多個全域變數</span>",
+        "alt": "多變數宣告註解",
+        "why": "逗號語法",
+        "mean": "語法註解"
+      },
+      {
+        "num": 5,
+        "code": "    global total_steps, best_time",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">total_steps</span>, <span class=\"token-ident\">best_time</span>",
+        "alt": "一行宣告兩個 global",
+        "diff": true,
+        "why": "簡潔優雅的並列語法",
+        "mean": "雙全域宣告"
+      },
+      {
+        "num": 6,
+        "code": "    total_steps += steps",
+        "html": "    <span class=\"token-ident\">total_steps</span> += <span class=\"token-ident\">steps</span>",
+        "alt": "累加步數",
+        "why": "改寫步數",
+        "mean": "更新步數"
+      },
+      {
+        "num": 7,
+        "code": "    if time < best_time: best_time = time",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">time</span> &lt; <span class=\"token-ident\">best_time</span>: <span class=\"token-ident\">best_time</span> = <span class=\"token-ident\">time</span>",
+        "alt": "更新最佳時間",
+        "diff": true,
+        "why": "改寫最佳時間",
+        "mean": "更新最佳時間"
+      },
+      {
+        "num": 8,
+        "code": "update_records(150, 48.5)",
+        "html": "<span class=\"token-func\">update_records</span>(<span class=\"token-number\">150</span>, <span class=\"token-number\">48.5</span>)",
+        "alt": "呼叫更新",
+        "why": "執行雙更新",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"步數: {total_steps}, 最快: {best_time}s\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;步數: {</span><span class=\"token-ident\">total_steps</span><span class=\"token-string\">}, 最快: {</span><span class=\"token-ident\">best_time</span><span class=\"token-string\">}s&quot;</span>)",
+        "alt": "輸出兩項成果",
+        "diff": true,
+        "why": "印出 150 與 48.5s",
+        "mean": "印出成果"
+      }
+    ],
+    "output": "步數: 150, 最快: 48.5s",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>逗號多值宣告</strong>：當需要同時改寫多個全域變數時，無須一行寫一個，直接以逗號隔開 <code>global x, y, z</code> 即可。建議一個函數內不要超過 3 個全域變數，保持代碼可讀性！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "逗號並宣告，簡潔好維護"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.5 濫用 global 的隱患：狀態污染、跨測資未清空（重測致命傷）",
+    "titleZh": "濫用 global 的競賽慘劇——跨測資狀態污染（殘留致命傷）",
+    "titleEn": "Cross-Testcase Pollution: The Global Disaster",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "sum_accumulator = 0  # 全域累加器",
+        "html": "<span class=\"token-ident\">sum_accumulator</span> = <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 全域累加器</span>",
+        "alt": "全域累加器",
+        "why": "全域共享變數",
+        "mean": "全域累加器"
+      },
+      {
+        "num": 2,
+        "code": "def solve_polluted(nums):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">solve_polluted</span>(<span class=\"token-ident\">nums</span>):",
+        "alt": "未清空全域的求解函數",
+        "why": "錯誤示範",
+        "mean": "未清空求解"
+      },
+      {
+        "num": 3,
+        "code": "    global sum_accumulator",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">sum_accumulator</span>",
+        "alt": "宣告 global",
+        "why": "直接累加全域變數",
+        "mean": "宣告 global"
+      },
+      {
+        "num": 4,
+        "code": "    for x in nums: sum_accumulator += x",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">nums</span>: <span class=\"token-ident\">sum_accumulator</span> += <span class=\"token-ident\">x</span>",
+        "alt": "逐一累加",
+        "why": "直接改寫累加器",
+        "mean": "迴圈累加"
+      },
+      {
+        "num": 5,
+        "code": "    return sum_accumulator",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">sum_accumulator</span>",
+        "alt": "回傳當前總和",
+        "why": "回傳全域值",
+        "mean": "回傳結果"
+      },
+      {
+        "num": 6,
+        "code": "print(\"測資 1 結果:\", solve_polluted([10, 20]))  # 應為 30",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 1 結果:&quot;</span>, <span class=\"token-func\">solve_polluted</span>([<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]))  <span class=\"token-comment\"># 應為 30</span>",
+        "alt": "測資 1 輸出 30",
+        "diff": true,
+        "why": "第一筆正常產出 30",
+        "mean": "測資 1 正確"
+      },
+      {
+        "num": 7,
+        "code": "print(\"測資 2 結果:\", solve_polluted([5, 5]))    # 慘！輸出 40！",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 2 結果:&quot;</span>, <span class=\"token-func\">solve_polluted</span>([<span class=\"token-number\">5</span>, <span class=\"token-number\">5</span>]))    <span class=\"token-comment\"># 慘！輸出 40！</span>",
+        "alt": "測資 2 慘遭污染輸出 40 而非 10",
+        "diff": true,
+        "why": "殘留上一筆測資的 30，30 + 10 = 40 引爆 WA",
+        "mean": "測資 2 污染"
+      }
+    ],
+    "output": "測資 1 結果: 30\n測資 2 結果: 40",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 考場最冤枉的 WA</strong>：OJ 系統通常會連續灌入多筆測資。若你使用 <code>global</code> 累加，第一筆測資跑完後全域變數未歸零，第二筆測資便會繼承髒數據，直接引爆 Wrong Answer 零分慘劇！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "跨筆未歸零，殘留必引錯"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5.6 競賽除錯守則：如何在多筆測資迴圈開頭正確重置（Reset）全域變數",
+    "titleZh": "競賽除錯守則——APCS 多筆測資黃金重置 SOP",
+    "titleEn": "Competition Standard: Clean Reset Protocol",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "total_gold = 0",
+        "html": "<span class=\"token-ident\">total_gold</span> = <span class=\"token-number\">0</span>",
+        "alt": "全域金幣",
+        "why": "狀態 1",
+        "mean": "全域金幣"
+      },
+      {
+        "num": 2,
+        "code": "items_log = []",
+        "html": "<span class=\"token-ident\">items_log</span> = []",
+        "alt": "全域清單",
+        "why": "狀態 2",
+        "mean": "全域清單"
+      },
+      {
+        "num": 3,
+        "code": "def reset_all():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">reset_all</span>():",
+        "alt": "黃金重置函數",
+        "why": "每筆測資獨立重置",
+        "mean": "重置函數"
+      },
+      {
+        "num": 4,
+        "code": "    global total_gold",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">total_gold</span>",
+        "alt": "宣告 global",
+        "why": "準備重置數值",
+        "mean": "宣告全域"
+      },
+      {
+        "num": 5,
+        "code": "    total_gold = 0      # 數值歸零",
+        "html": "    <span class=\"token-ident\">total_gold</span> = <span class=\"token-number\">0</span>      <span class=\"token-comment\"># 數值歸零</span>",
+        "alt": "數值強制歸零",
+        "diff": true,
+        "why": "徹底清除殘留",
+        "mean": "數值歸零"
+      },
+      {
+        "num": 6,
+        "code": "    items_log.clear()   # 串列使用 .clear() 安全清空",
+        "html": "    <span class=\"token-ident\">items_log</span>.<span class=\"token-func\">clear</span>()   <span class=\"token-comment\"># 串列使用 .clear() 安全清空</span>",
+        "alt": "使用 clear 清空串列",
+        "diff": true,
+        "why": "原處清空，免重新指派",
+        "mean": "清空串列"
+      },
+      {
+        "num": 7,
+        "code": "def run_case(gold_gained, item):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">run_case</span>(<span class=\"token-ident\">gold_gained</span>, <span class=\"token-ident\">item</span>):",
+        "alt": "執行單筆測資",
+        "why": "測資執行流程",
+        "mean": "測資處理"
+      },
+      {
+        "num": 8,
+        "code": "    reset_all()         # ⭐ SOP 第一步：無條件先重置！",
+        "html": "    <span class=\"token-func\">reset_all</span>()         <span class=\"token-comment\"># ⭐ SOP 第一步：無條件先重置！</span>",
+        "alt": "先呼叫重置",
+        "diff": true,
+        "why": "杜絕任何跨測資污染",
+        "mean": "先執行重置"
+      },
+      {
+        "num": 9,
+        "code": "    global total_gold",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">total_gold</span>",
+        "alt": "宣告 global",
+        "why": "業務邏輯存取",
+        "mean": "宣告存取"
+      },
+      {
+        "num": 10,
+        "code": "    total_gold += gold_gained",
+        "html": "    <span class=\"token-ident\">total_gold</span> += <span class=\"token-ident\">gold_gained</span>",
+        "alt": "累加金幣",
+        "why": "更新金幣",
+        "mean": "累加金幣"
+      },
+      {
+        "num": 11,
+        "code": "    items_log.append(item)",
+        "html": "    <span class=\"token-ident\">items_log</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">item</span>)",
+        "alt": "加入寶物",
+        "why": "追加元素",
+        "mean": "追加寶物"
+      },
+      {
+        "num": 12,
+        "code": "    return total_gold, len(items_log)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">total_gold</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">items_log</span>)",
+        "alt": "回傳金幣與道具數",
+        "why": "回傳乾淨結果",
+        "mean": "回傳成果"
+      },
+      {
+        "num": 13,
+        "code": "print(\"測資 1:\", run_case(100, \"寶劍\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 1:&quot;</span>, <span class=\"token-func\">run_case</span>(<span class=\"token-number\">100</span>, <span class=\"token-string\">&quot;寶劍&quot;</span>))",
+        "alt": "輸出 (100, 1)",
+        "why": "第 1 筆乾淨完成",
+        "mean": "測資 1 成果"
+      },
+      {
+        "num": 14,
+        "code": "print(\"測資 2:\", run_case(50, \"盾牌\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 2:&quot;</span>, <span class=\"token-func\">run_case</span>(<span class=\"token-number\">50</span>, <span class=\"token-string\">&quot;盾牌&quot;</span>))",
+        "alt": "輸出 (50, 1) 完全無污染",
+        "diff": true,
+        "why": "第 2 筆獨立乾淨",
+        "mean": "測資 2 成果"
+      }
+    ],
+    "output": "測資 1: (100, 1)\n測資 2: (50, 1)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>標準重置函數 SOP</strong>：養成寫 <code>reset_all()</code> 的好習慣。在每筆測資迴圈開頭或處理函數第一行無條件呼叫它，數值歸零、容器清空（<code>.clear()</code>），即可確保 100% 測資獨立通關！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "重置寫函數，首步清狀態"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5 考場地雷一：先使用變數才宣告 global 引爆 SyntaxError",
+    "titleZh": "考場致命地雷一：先讀取變數後才宣告 global 引爆語法錯誤",
+    "titleEn": "Trap 1: Reading Variable Prior to global Declaration",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：宣告順序顛倒",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：宣告順序顛倒</span>",
+        "alt": "順序顛倒地雷註解",
+        "why": "時序錯誤警報",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "x = 10",
+        "html": "<span class=\"token-ident\">x</span> = <span class=\"token-number\">10</span>",
+        "alt": "全域 x 為 10",
+        "why": "全域變數定義",
+        "mean": "全域變數"
+      },
+      {
+        "num": 3,
+        "code": "def bad_scope():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">bad_scope</span>():",
+        "alt": "錯誤作用域函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 4,
+        "code": "    print(x)      # 💥 致命：先碰了 x！",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\"><span class=\"token-wavy-err\">x</span></span>)      <span class=\"token-comment\"># 💥 致命：先碰了 x！</span>",
+        "alt": "先讀取 x",
+        "diff": true,
+        "why": "尚未宣告 global 前先存取了該名稱",
+        "mean": "搶先讀取"
+      },
+      {
+        "num": 5,
+        "code": "    global x      # 💥 太遲了！直譯器編譯時當場崩潰",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\"><span class=\"token-wavy-err\">x</span></span>      <span class=\"token-comment\"># 💥 太遲了！直譯器編譯時當場崩潰</span>",
+        "alt": "遲來的 global x 宣告",
+        "diff": true,
+        "why": "引發 SyntaxError",
+        "mean": "過遲宣告"
+      },
+      {
+        "num": 6,
+        "code": "    x = 20",
+        "html": "    <span class=\"token-ident\">x</span> = <span class=\"token-number\">20</span>",
+        "alt": "指派 x 為 20",
+        "why": "永遠無法執行到這行",
+        "mean": "指派數值"
+      },
+      {
+        "num": 7,
+        "code": "bad_scope()",
+        "html": "<span class=\"token-func\">bad_scope</span>()",
+        "alt": "呼叫函數",
+        "why": "直譯器在定義編譯期就已炸毀",
+        "mean": "呼叫出錯"
+      }
+    ],
+    "output": "<span class=\"output-error\">SyntaxError: name 'x' is used prior to global declaration</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>編譯期語法紅線</strong>：Python 編譯器在載入函數時，發現第 4 行已經使用了 <code>x</code>，第 5 行卻又試圖用 <code>global x</code> 將其宣告為全域，前後矛盾引爆 <code>SyntaxError: used prior to global declaration</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "先用後宣全，語法當場崩"
+      }
+    ],
+    "predictQuiz": {
+      "question": "如果在函數中先執行了 print(x)，隨後在下一行寫 global x，程式會發生什麼事？",
+      "options": [
+        "A. 正常印出 10，並成功將 x 設為 20",
+        "B. 拋出 SyntaxError，指出變數在 global 宣告前已被使用"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "Python 直譯器在編譯函數時會嚴格檢查時序。若變數在 global 宣告之前已被引用（讀取或寫入），直譯器會直接判定為語法錯誤 SyntaxError，連執行都不會開始！"
+    }
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5 考場地雷二：以等號賦值空串列試圖清空全域物件",
+    "titleZh": "考場致命地雷二：誤用等號賦值清空串列——外層全域分毫未動",
+    "titleEn": "Trap 2: Reassigning Empty List Fails to Clear Global",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：試圖以 scores = [] 清空全域，卻忘了宣告 global",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：試圖以 scores = [] 清空全域，卻忘了宣告 global</span>",
+        "alt": "清空陷阱註解",
+        "why": "新手經典錯覺",
+        "mean": "陷阱說明"
+      },
+      {
+        "num": 2,
+        "code": "data = [99, 100]",
+        "html": "<span class=\"token-ident\">data</span> = [<span class=\"token-number\">99</span>, <span class=\"token-number\">100</span>]",
+        "alt": "全域陣列資料",
+        "why": "初始狀態",
+        "mean": "全域資料"
+      },
+      {
+        "num": 3,
+        "code": "def clear_data_buggy():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">clear_data_buggy</span>():",
+        "alt": "錯誤清空函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 4,
+        "code": "    data = []  # 💥 等號賦值！這只是建立一個同名區域變數！",
+        "html": "    <span class=\"token-ident\"><span class=\"token-wavy-err\">data</span></span> = []  <span class=\"token-comment\"># 💥 等號賦值！這只是建立一個同名區域變數！</span>",
+        "alt": "局部指派空串列",
+        "diff": true,
+        "why": "並未影響外層全域變數",
+        "mean": "局部遮蔽"
+      },
+      {
+        "num": 5,
+        "code": "clear_data_buggy()",
+        "html": "<span class=\"token-func\">clear_data_buggy</span>()",
+        "alt": "呼叫假清空",
+        "why": "毫無清空效果",
+        "mean": "呼叫清空"
+      },
+      {
+        "num": 6,
+        "code": "print(\"全域 data 分毫未動:\", data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;全域 data 分毫未動:&quot;</span>, <span class=\"token-ident\">data</span>)",
+        "alt": "輸出 [99, 100]",
+        "diff": true,
+        "why": "全域資料依然存在",
+        "mean": "印出未清空"
+      },
+      {
+        "num": 7,
+        "code": "# ✅ 正確作法：使用 data.clear() 執行真正原處清空！",
+        "html": "<span class=\"token-comment\"># ✅ 正確作法：使用 data.clear() 執行真正原處清空！</span>",
+        "alt": "正確清空方法註解",
+        "why": "推崇 .clear() 方式",
+        "mean": "最佳解法"
+      }
+    ],
+    "output": "全域 data 分毫未動: [99, 100]",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>假清空引爆 WA</strong>：很多同學想重置串列時隨手寫 <code>data = []</code>。如果沒寫 <code>global data</code>，這行只會在函數內建一個無關痛癢的新空串列，全域串列完全沒被清空！請一律改用 <code>data.clear()</code> 原地清空！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "清空串列用，調用點清空"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5 考場地雷三：多筆測資下全域狀態未歸零導致慘遭 WA",
+    "titleZh": "考場致命地雷三：多測資全域變數未重置——首題滿分次題慘零分",
+    "titleEn": "Trap 3: Unreset Globals Across Testcases Cause WA",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：尋找字串中出現最多次數，但 max_cnt 跨測資未清空",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：尋找字串中出現最多次數，但 max_cnt 跨測資未清空</span>",
+        "alt": "最大次數統計地雷",
+        "why": "全域累積地雷",
+        "mean": "情境註解"
+      },
+      {
+        "num": 2,
+        "code": "max_freq = 0  # 全域頻率紀錄",
+        "html": "<span class=\"token-ident\">max_freq</span> = <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 全域頻率紀錄</span>",
+        "alt": "全域頻率變數",
+        "why": "全域計數器",
+        "mean": "全域變數"
+      },
+      {
+        "num": 3,
+        "code": "def find_max(counts):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">find_max</span>(<span class=\"token-ident\">counts</span>):",
+        "alt": "求最大頻率函數",
+        "why": "業務計算",
+        "mean": "定義函數"
+      },
+      {
+        "num": 4,
+        "code": "    global max_freq",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">max_freq</span>",
+        "alt": "宣告 global",
+        "why": "更新全域頻率",
+        "mean": "宣告存取"
+      },
+      {
+        "num": 5,
+        "code": "    # 忘記在開頭寫 max_freq = 0 歸零！",
+        "html": "    <span class=\"token-comment\"># 忘記在開頭寫 max_freq = 0 歸零！</span>",
+        "alt": "漏寫歸零提醒",
+        "why": "致命遺漏",
+        "mean": "遺漏警示"
+      },
+      {
+        "num": 6,
+        "code": "    for c in counts: max_freq = max(max_freq, c)",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">counts</span>: <span class=\"token-ident\">max_freq</span> = <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">max_freq</span>, <span class=\"token-ident\">c</span>)",
+        "alt": "取最大值",
+        "why": "殘留上一筆最高紀錄",
+        "mean": "取最大值"
+      },
+      {
+        "num": 7,
+        "code": "    return max_freq",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">max_freq</span>",
+        "alt": "回傳全域頻率",
+        "why": "回傳污染值",
+        "mean": "回傳結果"
+      },
+      {
+        "num": 8,
+        "code": "print(\"測資 1 最大頻率:\", find_max([5, 8, 3]))  # 輸出 8 (正確)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 1 最大頻率:&quot;</span>, <span class=\"token-func\">find_max</span>([<span class=\"token-number\">5</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">3</span>]))  <span class=\"token-comment\"># 輸出 8 (正確)</span>",
+        "alt": "第一筆測資輸出 8",
+        "why": "第一筆幸運正確",
+        "mean": "測資 1 正確"
+      },
+      {
+        "num": 9,
+        "code": "print(\"測資 2 最大頻率:\", find_max([2, 4, 1]))  # 輸出 8！❌ (應為 4)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 2 最大頻率:&quot;</span>, <span class=\"token-func\">find_max</span>([<span class=\"token-number\">2</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">1</span>]))  <span class=\"token-comment\"># 輸出 8！❌ (應為 4)</span>",
+        "alt": "第二筆測資被 8 污染輸出 8",
+        "diff": true,
+        "why": "殘留前筆的 8 導致後筆無法求出真實最大值 4",
+        "mean": "測資 2 慘遭污染"
+      }
+    ],
+    "output": "測資 1 最大頻率: 8\n測資 2 最大頻率: 8",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>本地自測過、上傳慘吃 WA</strong>：初學者在本地測試只測了一組測資，看到輸出 8 就興沖沖提交；但在 APCS 評判機上多筆測資連續灌入，第 2 筆測資（最大值 4）被前一筆的 8 卡死，當場斬獲 0 分！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "每輪測資起，極值必重置"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.5 全域變數（global）在 APCS 競賽中的使用準則與除錯防禦",
+    "titleZh": "綜合實戰——APCS 競賽級安全狀態機（地圖共享與標準重置）",
+    "titleEn": "Full Battle: APCS Global State Machine & Safe Reset",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 競賽典範：全域共享地圖 + 全域最佳解 + 乾淨重置 SOP",
+        "html": "<span class=\"token-comment\"># APCS 競賽典範：全域共享地圖 + 全域最佳解 + 乾淨重置 SOP</span>",
+        "alt": "競賽典範註解",
+        "why": "安全規範示範",
+        "mean": "典範註解"
+      },
+      {
+        "num": 2,
+        "code": "best_score = 0",
+        "html": "<span class=\"token-ident\">best_score</span> = <span class=\"token-number\">0</span>",
+        "alt": "全域最佳得分",
+        "why": "全域狀態",
+        "mean": "全域得分"
+      },
+      {
+        "num": 3,
+        "code": "def reset_contest():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">reset_contest</span>():",
+        "alt": "重置函數",
+        "why": "清空狀態",
+        "mean": "重置函數"
+      },
+      {
+        "num": 4,
+        "code": "    global best_score; best_score = 0",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">best_score</span>; <span class=\"token-ident\">best_score</span> = <span class=\"token-number\">0</span>",
+        "alt": "得分歸零",
+        "diff": true,
+        "why": "安全清空",
+        "mean": "歸零得分"
+      },
+      {
+        "num": 5,
+        "code": "def explore(path_name, score):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">explore</span>(<span class=\"token-ident\">path_name</span>, <span class=\"token-ident\">score</span>):",
+        "alt": "探索路徑函數",
+        "why": "業務邏輯",
+        "mean": "探索路徑"
+      },
+      {
+        "num": 6,
+        "code": "    global best_score",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">best_score</span>",
+        "alt": "宣告 global",
+        "why": "更新最佳紀錄",
+        "mean": "宣告存取"
+      },
+      {
+        "num": 7,
+        "code": "    if score > best_score: best_score = score",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">score</span> &gt; <span class=\"token-ident\">best_score</span>: <span class=\"token-ident\">best_score</span> = <span class=\"token-ident\">score</span>",
+        "alt": "刷新最高分",
+        "diff": true,
+        "why": "維護最大值",
+        "mean": "刷新高分"
+      },
+      {
+        "num": 8,
+        "code": "# 模擬測資組 1",
+        "html": "<span class=\"token-comment\"># 模擬測資組 1</span>",
+        "alt": "測資 1 標記",
+        "why": "第一筆執行",
+        "mean": "測資 1"
+      },
+      {
+        "num": 9,
+        "code": "reset_contest()",
+        "html": "<span class=\"token-func\">reset_contest</span>()",
+        "alt": "第一筆開頭先重置",
+        "why": "安全重置",
+        "mean": "開頭重置"
+      },
+      {
+        "num": 10,
+        "code": "explore(\"秘密小徑\", 85)",
+        "html": "<span class=\"token-func\">explore</span>(<span class=\"token-string\">&quot;秘密小徑&quot;</span>, <span class=\"token-number\">85</span>)",
+        "alt": "探索小徑得分 85",
+        "why": "更新高分",
+        "mean": "探索小徑"
+      },
+      {
+        "num": 11,
+        "code": "print(\"測資 1 結算最高分:\", best_score)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 1 結算最高分:&quot;</span>, <span class=\"token-ident\">best_score</span>)",
+        "alt": "輸出 85",
+        "why": "印出 85",
+        "mean": "印出測資 1"
+      },
+      {
+        "num": 12,
+        "code": "# 模擬測資組 2",
+        "html": "<span class=\"token-comment\"># 模擬測資組 2</span>",
+        "alt": "測資 2 標記",
+        "why": "第二筆執行",
+        "mean": "測資 2"
+      },
+      {
+        "num": 13,
+        "code": "reset_contest()  # ⭐ 關鍵防護：徹底阻斷污染",
+        "html": "<span class=\"token-func\">reset_contest</span>()  <span class=\"token-comment\"># ⭐ 關鍵防護：徹底阻斷污染</span>",
+        "alt": "第二筆開頭徹底重置",
+        "diff": true,
+        "why": "確保狀態乾淨",
+        "mean": "二次重置"
+      },
+      {
+        "num": 14,
+        "code": "explore(\"幽暗森林\", 60)",
+        "html": "<span class=\"token-func\">explore</span>(<span class=\"token-string\">&quot;幽暗森林&quot;</span>, <span class=\"token-number\">60</span>)",
+        "alt": "探索森林得分 60",
+        "why": "正確計算得分",
+        "mean": "探索森林"
+      },
+      {
+        "num": 15,
+        "code": "print(\"測資 2 結算最高分:\", best_score)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;測資 2 結算最高分:&quot;</span>, <span class=\"token-ident\">best_score</span>)",
+        "alt": "輸出 60",
+        "diff": true,
+        "why": "乾淨輸出 60 無污染",
+        "mean": "印出測資 2"
+      }
+    ],
+    "output": "測資 1 結算最高分: 85\n測資 2 結算最高分: 60",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 競賽全域變數大功告成！</strong>：你已掌握 global 授權原則、可變物件免 global 原理、避免語法時序地雷，並學會以重置 SOP 徹底杜絕跨測資污染，戰勝 APCS 複雜大題！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "重置切乾淨，競賽奪滿分"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.5",
+      "title": "全域變數與 APCS 競賽除錯防禦掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心語法",
+          "val": "global / 原處修改"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "11.6",
+        "title": "線性遞迴（Linear Recursion）：呼叫堆疊（Call Stack）展開與終止條件",
+        "desc": "即將踏入程式設計最高殿堂——遞迴思維，透視 Call Stack 推入彈出與 Base Case 煞車皮！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-5",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-5_global_variable_and_debugging.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

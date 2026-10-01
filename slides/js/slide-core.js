@@ -160,8 +160,8 @@ const courseCurriculum = [
       { id: "sec12-2", title: "12.2 反向排序 reverse=True 與字典序規則", available: true, url: "PythAPCS123_12-2_reverse_sort_and_lexicographical_order.html" },
       { id: "sec12-3", title: "12.3 自訂排序鍵值 key：具名函式提取", available: true, url: "PythAPCS123_12-3_custom_sort_key_and_named_functions.html" },
       { id: "sec12-4", title: "12.4 匿名函式 lambda 與多條件複合排序", available: true, url: "PythAPCS123_12-4_lambda_and_multi_key_sorting.html" },
-      { id: "sec12-5", title: "12.5 APCS 排序實戰應用：區間線段排序與雙指標", available: false },
-      { id: "sec12-6", title: "12.6 線性搜尋與 index() 例外防範", available: false },
+      { id: "sec12-5", title: "12.5 APCS 排序實戰應用：區間線段排序與雙指標", available: true, url: "PythAPCS123_12-5_apcs_sorting_patterns_intervals_and_pointers.html" },
+      { id: "sec12-6", title: "12.6 線性搜尋與 index() 例外防範", available: true, url: "PythAPCS123_12-6_linear_search_and_index_defense.html" },
       { id: "sec12-7", title: "12.7 二分搜尋法手刻演算法一：猜數字模型與精確匹配", available: false },
       { id: "sec12-8", title: "12.8 二分搜尋法手刻演算法二：邊界二分搜尋（Lower/Upper Bound）", available: false },
       { id: "sec12-9", title: "12.9 內建二分搜尋模組：bisect 與數值區間查詢", available: false }

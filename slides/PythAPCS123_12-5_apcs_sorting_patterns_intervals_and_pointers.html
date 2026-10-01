@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "Core Concept: Order Brings Regularity",
+    "titleZh": "解題心法：先排序，混亂立刻變規律！",
+    "desc": "散落一地的撲克牌難以查找，整理排齊後一目了然！排序為無序資料注入單調性，是化繁為簡的關鍵起手式。",
+    "codeLines": [
+      {
+        "code": "# 撲克牌整理哲學：無序 vs 有序",
+        "html": "<span class=\"c1\"># 撲克牌整理哲學：無序 vs 有序</span>",
+        "why": "無序需全面盲目搜尋，有序賦予單調性",
+        "mean": "先排好序，問題難度瞬間降維",
+        "alt": "演算法戰術思考"
+      },
+      {
+        "code": "nums = [47, 12, 89, 23, 99, 56, 12, 78]",
+        "html": "<span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">47</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">,</span> <span class=\"mi\">89</span><span class=\"p\">,</span> <span class=\"mi\">23</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">,</span> <span class=\"mi\">56</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">,</span> <span class=\"mi\">78</span><span class=\"p\">]</span>",
+        "why": "雜亂輸入清單，極值與重複分散各處",
+        "mean": "原始無序整數清單",
+        "alt": "待處理資料集"
+      },
+      {
+        "code": "nums.sort()",
+        "html": "<span class=\"n\">nums</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">()</span>",
+        "why": "就地排序建立單調遞增數列",
+        "mean": "付出 O(N log N) 代價換取後續規律",
+        "alt": "啟動排序引擎"
+      },
+      {
+        "code": "print(nums)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">)</span>",
+        "why": "印出排序後結果",
+        "mean": "輸出 [12, 12, 23, 47, 56, 78, 89, 99]",
+        "alt": "呈現單調序列"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "讀入原始無序清單 nums",
+        "vars": {
+          "nums": [
+            47,
+            12,
+            89,
+            23,
+            99,
+            56,
+            12,
+            78
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "執行 nums.sort() 建立遞增單調性",
+        "vars": {
+          "nums": [
+            12,
+            12,
+            23,
+            47,
+            56,
+            78,
+            89,
+            99
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出排序結果",
+        "vars": {},
+        "output": "[12, 12, 23, 47, 56, 78, 89, 99]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "先排好序混亂立刻變規律"
+      },
+      {
+        "type": "point",
+        "content": "無序狀態下無法做任何預測，有序則能單調推進。"
+      },
+      {
+        "type": "tip",
+        "content": "遇到暴力 O(N^2) 瓶頸時，先問自己能否先排序！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Immediate Benefits: Extrema & Duplicates",
+    "titleZh": "排序效益：極值在首尾，重複在相鄰",
+    "desc": "排序完成後，最小值在 nums[0]，最大值在 nums[-1]；重複元素必定緊緊相挨，相鄰比對即可查出！",
+    "codeLines": [
+      {
+        "code": "nums = [12, 12, 23, 47, 56, 78, 89, 99]",
+        "html": "<span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">12</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">,</span> <span class=\"mi\">23</span><span class=\"p\">,</span> <span class=\"mi\">47</span><span class=\"p\">,</span> <span class=\"mi\">56</span><span class=\"p\">,</span> <span class=\"mi\">78</span><span class=\"p\">,</span> <span class=\"mi\">89</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">]</span>",
+        "why": "已排序清單",
+        "mean": "元素遞增排列",
+        "alt": "已排序資料"
+      },
+      {
+        "code": "print(\"最小:\", nums[0], \"最大:\", nums[-1])",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;最小:&quot;</span><span class=\"p\">,</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">],</span> <span class=\"s2\">&quot;最大:&quot;</span><span class=\"p\">,</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">])</span>",
+        "why": "首尾索引 O(1) 取得極值",
+        "mean": "最小 12，最大 99",
+        "alt": "常數時間取極值"
+      },
+      {
+        "code": "has_dup = any(nums[i] == nums[i+1] for i in range(len(nums)-1))",
+        "html": "<span class=\"n\">has_dup</span> <span class=\"o\">=</span> <span class=\"nb\">any</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">]</span> <span class=\"o\">==</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"o\">+</span><span class=\"mi\">1</span><span class=\"p\">]</span> <span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">)</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">))</span>",
+        "why": "重複元素必定相鄰，O(N) 即可確認重複性",
+        "mean": "檢查是否有相鄰相等項",
+        "alt": "相鄰重複檢查"
+      },
+      {
+        "code": "print(\"是否有重複:\", has_dup)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;是否有重複:&quot;</span><span class=\"p\">,</span> <span class=\"n\">has_dup</span><span class=\"p\">)</span>",
+        "why": "印出重複檢查結果",
+        "mean": "印出 True",
+        "alt": "輸出布林結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "O(1) 讀取極值：nums[0]=12, nums[-1]=99",
+        "vars": {
+          "min": 12,
+          "max": 99
+        },
+        "output": "最小: 12 最大: 99\n"
+      },
+      {
+        "step": 2,
+        "action": "檢查相鄰項 nums[0] == nums[1] (12 == 12)",
+        "vars": {
+          "has_dup": true
+        },
+        "output": "是否有重複: True\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "極值看頭尾重複看相鄰"
+      },
+      {
+        "type": "point",
+        "content": "未排序找重複需 O(N^2)；排序後只需單層迴圈 O(N)。"
+      },
+      {
+        "type": "tip",
+        "content": "中位數直接取 nums[len(nums)//2] 即可。"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Intervals: Sort by Start Time",
+    "titleZh": "區間線段：依起點排序掃描",
+    "desc": "APCS 高頻考題：數線覆蓋與線段合併。將線段依「起點」由小到大排序，由左往右推進，問題迎刃而解！",
+    "codeLines": [
+      {
+        "code": "intervals = [[8, 12], [2, 5], [4, 7], [15, 20], [1, 3]]",
+        "html": "<span class=\"n\">intervals</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">4</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">15</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">]]</span>",
+        "why": "每個子清單為 [起點, 終點]",
+        "mean": "數線上散落的 5 條區間線段",
+        "alt": "原始線段集合"
+      },
+      {
+        "code": "intervals.sort(key=lambda seg: seg[0])",
+        "html": "<span class=\"n\">intervals</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">(</span><span class=\"n\">key</span><span class=\"o\">=</span><span class=\"k\">lambda</span> <span class=\"n\">seg</span><span class=\"p\">:</span> <span class=\"n\">seg</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">])</span>",
+        "why": "依起點升序排列，奠定掃描線基礎",
+        "mean": "由西向東、由小到大排齊",
+        "alt": "依起點排序"
+      },
+      {
+        "code": "print(intervals)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">intervals</span><span class=\"p\">)</span>",
+        "why": "印出排序後線段隊列",
+        "mean": "輸出 [[1, 3], [2, 5], [4, 7], [8, 12], [15, 20]]",
+        "alt": "依起點排序結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "讀入 5 條雜亂線段",
+        "vars": {
+          "count": 5
+        }
+      },
+      {
+        "step": 2,
+        "action": "lambda seg: seg[0] 提取各線段起點 [8, 2, 4, 15, 1]",
+        "vars": {
+          "starts": [
+            8,
+            2,
+            4,
+            15,
+            1
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "按起點升序排列完成",
+        "vars": {
+          "intervals": [
+            [
+              1,
+              3
+            ],
+            [
+              2,
+              5
+            ],
+            [
+              4,
+              7
+            ],
+            [
+              8,
+              12
+            ],
+            [
+              15,
+              20
+            ]
+          ]
+        },
+        "output": "[[1, 3], [2, 5], [4, 7], [8, 12], [15, 20]]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "線段看覆蓋起點先排齊"
+      },
+      {
+        "type": "point",
+        "content": "起點排好後，只需由左向右推進，不會出現「後面的線段反而更靠左」的情況。"
+      },
+      {
+        "type": "tip",
+        "content": "這是計算線段覆蓋長度（APCS 經典題）的第一步！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Overlap Detection: Next Start < Current End",
+    "titleZh": "重疊檢查：下一段起點小於當前終點",
+    "desc": "起點排序後，判斷兩相鄰線段是否重疊只需一句：next_start < cur_end！若成立則重疊，否則互斥分離。",
+    "codeLines": [
+      {
+        "code": "intervals = [[1, 3], [2, 5], [4, 7], [8, 12]]",
+        "html": "<span class=\"n\">intervals</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">4</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">]]</span>",
+        "why": "已按起點排序之線段",
+        "mean": "相鄰線段可能重疊或分離",
+        "alt": "線段串列"
+      },
+      {
+        "code": "for i in range(len(intervals) - 1):",
+        "html": "<span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">intervals</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><span class=\"p\">):</span>",
+        "why": "走訪至倒數第二個元素，避免越界",
+        "mean": "逐對檢查相鄰區間",
+        "alt": "相鄰走訪迴圈"
+      },
+      {
+        "code": "    cur, nxt = intervals[i], intervals[i+1]\n    overlap = nxt[0] < cur[1]\n    print(cur, nxt, \"重疊:\" if overlap else \"分離:\", overlap)",
+        "html": "&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">cur</span><span class=\"p\">,</span> <span class=\"n\">nxt</span> <span class=\"o\">=</span> <span class=\"n\">intervals</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">],</span> <span class=\"n\">intervals</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"o\">+</span><span class=\"mi\">1</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">overlap</span> <span class=\"o\">=</span> <span class=\"n\">nxt</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">&lt;</span> <span class=\"n\">cur</span><span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">cur</span><span class=\"p\">,</span> <span class=\"n\">nxt</span><span class=\"p\">,</span> <span class=\"s2\">&quot;重疊:&quot;</span> <span class=\"k\">if</span> <span class=\"n\">overlap</span> <span class=\"k\">else</span> <span class=\"s2\">&quot;分離:&quot;</span><span class=\"p\">,</span> <span class=\"n\">overlap</span><span class=\"p\">)</span>",
+        "why": "比較後段起點與前段終點",
+        "mean": "[1,3]與[2,5]重疊(2<3)；[4,7]與[8,12]分離(8>7)",
+        "alt": "重疊邏輯核心"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對 [1, 3] 與 [2, 5]：2 < 3 (重疊)",
+        "vars": {
+          "overlap": true
+        },
+        "output": "[1, 3] [2, 5] 重疊: True\n"
+      },
+      {
+        "step": 2,
+        "action": "比對 [2, 5] 與 [4, 7]：4 < 5 (重疊)",
+        "vars": {
+          "overlap": true
+        },
+        "output": "[2, 5] [4, 7] 重疊: True\n"
+      },
+      {
+        "step": 3,
+        "action": "比對 [4, 7] 與 [8, 12]：8 < 7 為 False (分離)",
+        "vars": {
+          "overlap": false
+        },
+        "output": "[4, 7] [8, 12] 分離: False\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "後起小於前終即為重疊"
+      },
+      {
+        "type": "point",
+        "content": "因為前段起點更小，所以只要後段起點比前段終點早，就必然相交！"
+      },
+      {
+        "type": "tip",
+        "content": "若題目規定端點相接算重疊，則改為 <= 。"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Merge Intervals: Extend Max End",
+    "titleZh": "區間合併：動態延伸最大終點",
+    "desc": "遇到重疊線段時，合併後的新終點為 max(cur_end, next_end)；若無重疊則結算前段並開啟新區間！",
+    "codeLines": [
+      {
+        "code": "intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]",
+        "html": "<span class=\"n\">intervals</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">6</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">10</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">15</span><span class=\"p\">,</span> <span class=\"mi\">18</span><span class=\"p\">]]</span>",
+        "why": "[1, 3] 與 [2, 6] 重疊，應合併為 [1, 6]",
+        "mean": "待合併的區間清單",
+        "alt": "區間合併資料"
+      },
+      {
+        "code": "merged = [intervals[0]]\nfor s, e in intervals[1:]:\n    if s <= merged[-1][1]:\n        merged[-1][1] = max(merged[-1][1], e)\n    else:\n        merged.append([s, e])",
+        "html": "<span class=\"n\">merged</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"n\">intervals</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">]]</span><br><span class=\"k\">for</span> <span class=\"n\">s</span><span class=\"p\">,</span> <span class=\"n\">e</span> <span class=\"ow\">in</span> <span class=\"n\">intervals</span><span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">:]:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">s</span> <span class=\"o\">&lt;=</span> <span class=\"n\">merged</span><span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">][</span><span class=\"mi\">1</span><span class=\"p\">]:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">merged</span><span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">][</span><span class=\"mi\">1</span><span class=\"p\">]</span> <span class=\"o\">=</span> <span class=\"nb\">max</span><span class=\"p\">(</span><span class=\"n\">merged</span><span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">][</span><span class=\"mi\">1</span><span class=\"p\">],</span> <span class=\"n\">e</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">merged</span><span class=\"p\">.</span><span class=\"n\">append</span><span class=\"p\">([</span><span class=\"n\">s</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">])</span>",
+        "why": "重疊則延伸尾端，分離則加入新區間",
+        "mean": "維護最後一段線段的延伸範圍",
+        "alt": "合併演算法核心"
+      },
+      {
+        "code": "print(\"合併後區間:\", merged)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;合併後區間:&quot;</span><span class=\"p\">,</span> <span class=\"n\">merged</span><span class=\"p\">)</span>",
+        "why": "印出合併後的不重疊區間集合",
+        "mean": "輸出 [[1, 6], [8, 10], [15, 18]]",
+        "alt": "輸出合併結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "放入首段 [1, 3]",
+        "vars": {
+          "merged": [
+            [
+              1,
+              3
+            ]
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "處理 [2, 6]：2 <= 3 重疊，延伸終點為 max(3, 6) = 6",
+        "vars": {
+          "merged": [
+            [
+              1,
+              6
+            ]
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "處理 [8, 10]：8 > 6 分離，新增區間",
+        "vars": {
+          "merged": [
+            [
+              1,
+              6
+            ],
+            [
+              8,
+              10
+            ]
+          ]
+        }
+      },
+      {
+        "step": 4,
+        "action": "處理 [15, 18]：15 > 10 分離，新增區間",
+        "vars": {
+          "merged": [
+            [
+              1,
+              6
+            ],
+            [
+              8,
+              10
+            ],
+            [
+              15,
+              18
+            ]
+          ]
+        },
+        "output": "合併後區間: [[1, 6], [8, 10], [15, 18]]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "重疊延終點分離開新段"
+      },
+      {
+        "type": "point",
+        "content": "經此處理後，merged 中所有線段均互不重疊。"
+      },
+      {
+        "type": "tip",
+        "content": "覆蓋總長度只需 sum(e - s for s, e in merged)！"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Activity Selection: Sort by End Time",
+    "titleZh": "貪婪活動安排：依結束時間排序",
+    "desc": "若要在同一場地舉辦最多場活動，貪婪策略為：「永遠挑選最早結束的活動」！因此必須依「結束時間」升序排序！",
+    "codeLines": [
+      {
+        "code": "# 活動格式：(名稱, 開始時間, 結束時間)",
+        "html": "<span class=\"c1\"># 活動格式：(名稱, 開始時間, 結束時間)</span>",
+        "why": "會議室排程經典問題",
+        "mean": "目標為容納最多場次活動",
+        "alt": "貪婪活動模型"
+      },
+      {
+        "code": "acts = [(\"演講\", 1, 4), (\"工作坊\", 3, 5), (\"音樂會\", 0, 6), (\"茶會\", 5, 7)]",
+        "html": "<span class=\"n\">acts</span> <span class=\"o\">=</span> <span class=\"p\">[(</span><span class=\"s2\">&quot;演講&quot;</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">4</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;工作坊&quot;</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;音樂會&quot;</span><span class=\"p\">,</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"mi\">6</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;茶會&quot;</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">)]</span>",
+        "why": "多個互相重疊的活動時段",
+        "mean": "若挑了 0~6 的音樂會，整天只能辦一場",
+        "alt": "候選活動清單"
+      },
+      {
+        "code": "acts.sort(key=lambda a: a[2])",
+        "html": "<span class=\"n\">acts</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">(</span><span class=\"n\">key</span><span class=\"o\">=</span><span class=\"k\">lambda</span> <span class=\"n\">a</span><span class=\"p\">:</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">])</span>",
+        "why": "關鍵貪婪第一步：依結束時間（第 2 欄）升序排序！",
+        "mean": "越早結束，留給後面的時間越多",
+        "alt": "結束時間排序"
+      },
+      {
+        "code": "print(acts)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">acts</span><span class=\"p\">)</span>",
+        "why": "印出排序結果",
+        "mean": "演講(4結束) -> 工作坊(5結束) -> 音樂會(6結束) -> 茶會(7結束)",
+        "alt": "確認結束時間升序"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "讀入 4 場活動",
+        "vars": {
+          "count": 4
+        }
+      },
+      {
+        "step": 2,
+        "action": "依結束時間 a[2] 升序排序",
+        "vars": {
+          "sorted": [
+            [
+              "演講",
+              1,
+              4
+            ],
+            [
+              "工作坊",
+              3,
+              5
+            ],
+            [
+              "音樂會",
+              0,
+              6
+            ],
+            [
+              "茶會",
+              5,
+              7
+            ]
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出排序結果",
+        "vars": {},
+        "output": "[('演講', 1, 4), ('工作坊', 3, 5), ('音樂會', 0, 6), ('茶會', 5, 7)]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "活動多場次結束早優先"
+      },
+      {
+        "type": "point",
+        "content": "為什麼不依起點排序？因為最早開始的活動可能時間極長，佔滿全天。"
+      },
+      {
+        "type": "tip",
+        "content": "數學已證明：結束時間最早的貪婪選擇具有最優子結構！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Greedy Selection: Non-overlapping Schedule",
+    "titleZh": "貪婪挑選：線性掃描選最多場次",
+    "desc": "依結束時間排好序後，從第一場開始挑選；若下一場 start >= last_end，立即納入並更新 last_end！",
+    "codeLines": [
+      {
+        "code": "acts = [(\"演講\", 1, 4), (\"工作坊\", 3, 5), (\"音樂會\", 0, 6), (\"茶會\", 5, 7)]",
+        "html": "<span class=\"n\">acts</span> <span class=\"o\">=</span> <span class=\"p\">[(</span><span class=\"s2\">&quot;演講&quot;</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">4</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;工作坊&quot;</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;音樂會&quot;</span><span class=\"p\">,</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"mi\">6</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;茶會&quot;</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">)]</span>",
+        "why": "已按結束時間排好序",
+        "mean": "依序檢驗是否與前場衝突",
+        "alt": "依結束時間排序之活動"
+      },
+      {
+        "code": "chosen = []\nlast_end = -1\nfor name, s, e in acts:\n    if s >= last_end:\n        chosen.append(name)\n        last_end = e",
+        "html": "<span class=\"n\">chosen</span> <span class=\"o\">=</span> <span class=\"p\">[]</span><br><span class=\"n\">last_end</span> <span class=\"o\">=</span> <span class=\"o\">-</span><span class=\"mi\">1</span><br><span class=\"k\">for</span> <span class=\"n\">name</span><span class=\"p\">,</span> <span class=\"n\">s</span><span class=\"p\">,</span> <span class=\"n\">e</span> <span class=\"ow\">in</span> <span class=\"n\">acts</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">s</span> <span class=\"o\">&gt;=</span> <span class=\"n\">last_end</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">chosen</span><span class=\"p\">.</span><span class=\"n\">append</span><span class=\"p\">(</span><span class=\"n\">name</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">last_end</span> <span class=\"o\">=</span> <span class=\"n\">e</span>",
+        "why": "開始時間不早於前一場結束時間即無衝突",
+        "mean": "演講(1~4)入選 -> 茶會(5~7)入選",
+        "alt": "貪婪線性掃描"
+      },
+      {
+        "code": "print(\"最多場次:\", chosen)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;最多場次:&quot;</span><span class=\"p\">,</span> <span class=\"n\">chosen</span><span class=\"p\">)</span>",
+        "why": "印出選中的活動清單",
+        "mean": "印出 ['演講', '茶會']",
+        "alt": "確認挑選結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "演講 s=1 >= -1，入選！更新 last_end = 4",
+        "vars": {
+          "chosen": [
+            "演講"
+          ],
+          "last_end": 4
+        }
+      },
+      {
+        "step": 2,
+        "action": "工作坊 s=3 < 4，衝突略過",
+        "vars": {
+          "last_end": 4
+        }
+      },
+      {
+        "step": 3,
+        "action": "音樂會 s=0 < 4，衝突略過",
+        "vars": {
+          "last_end": 4
+        }
+      },
+      {
+        "step": 4,
+        "action": "茶會 s=5 >= 4，入選！更新 last_end = 7",
+        "vars": {
+          "chosen": [
+            "演講",
+            "茶會"
+          ],
+          "last_end": 7
+        },
+        "output": "最多場次: ['演講', '茶會']\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "起過前終即可排不衝突"
+      },
+      {
+        "type": "point",
+        "content": "總時間複雜度：排序 O(N log N) + 掃描 O(N) = O(N log N)。"
+      },
+      {
+        "type": "tip",
+        "content": "這是 APCS 實作題最經典的貪婪排程模板！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Two Paradigms: Start vs End Time",
+    "titleZh": "區間兩大流派：起點排序 vs 終點排序",
+    "desc": "APCS 區間問題的最高心法：依「起點」排序解決覆蓋與合併；依「終點」排序解決最多不衝突活動排程！",
+    "codeLines": [
+      {
+        "code": "# 區間問題兩大流派精確對照",
+        "html": "<span class=\"c1\"># 區間問題兩大流派精確對照</span>",
+        "why": "釐清兩種排序目標的本質區別",
+        "mean": "依題目需求精確選擇 key 參數",
+        "alt": "流派對照"
+      },
+      {
+        "code": "# 流派一：合併區間 / 覆蓋長度 -> 依「起點」升序",
+        "html": "<span class=\"c1\"># 流派一：合併區間 / 覆蓋長度 -&gt; 依「起點」升序</span>",
+        "why": "由左至右看連通與覆蓋",
+        "mean": "key=lambda x: x[0]",
+        "alt": "起點排序用途"
+      },
+      {
+        "code": "# 流派二：最多活動 / 互斥排程 -> 依「終點」升序",
+        "html": "<span class=\"c1\"># 流派二：最多活動 / 互斥排程 -&gt; 依「終點」升序</span>",
+        "why": "最早結束者釋放資源最快",
+        "mean": "key=lambda x: x[1]",
+        "alt": "終點排序用途"
+      },
+      {
+        "code": "print(\"覆蓋排起點，活動排終點！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;覆蓋排起點，活動排終點！&quot;</span><span class=\"p\">)</span>",
+        "why": "口訣式輸出強化記憶",
+        "mean": "印出通關口訣",
+        "alt": "核心記憶口訣"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對覆蓋與活動排程策略",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出決策指引",
+        "vars": {},
+        "output": "覆蓋排起點，活動排終點！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "覆蓋排起點活動排終點"
+      },
+      {
+        "type": "point",
+        "content": "選錯排序鍵值會導致貪婪策略失效或無法由左向右合併。"
+      },
+      {
+        "type": "warn",
+        "content": "千萬不要在活動排程中習慣性寫成 key=lambda x: x[0]！"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Minimum Difference: Adjacent Comparison",
+    "titleZh": "相鄰掃描：極速找出全數列最小差值",
+    "desc": "若要找任兩數的最小差值，暴力雙層迴圈需 O(N^2)。排序後最小差值必定在相鄰兩數之間，單層迴圈 O(N) 搞定！",
+    "codeLines": [
+      {
+        "code": "nums = [105, 42, 88, 19, 73, 91, 55, 120, 89]",
+        "html": "<span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">105</span><span class=\"p\">,</span> <span class=\"mi\">42</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">,</span> <span class=\"mi\">19</span><span class=\"p\">,</span> <span class=\"mi\">73</span><span class=\"p\">,</span> <span class=\"mi\">91</span><span class=\"p\">,</span> <span class=\"mi\">55</span><span class=\"p\">,</span> <span class=\"mi\">120</span><span class=\"p\">,</span> <span class=\"mi\">89</span><span class=\"p\">]</span>",
+        "why": "雜亂數列，任兩數差值可能出現在任意對",
+        "mean": "待搜尋最小差距數對",
+        "alt": "原始整數清單"
+      },
+      {
+        "code": "nums.sort()  # 排序後最接近的兩數必定相鄰",
+        "html": "<span class=\"n\">nums</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">()</span>  <span class=\"c1\"># 排序後最接近的兩數必定相鄰</span>",
+        "why": "建立順序性：88 與 89 必緊靠在一起",
+        "mean": "[19, 42, 55, 73, 88, 89, 91, 105, 120]",
+        "alt": "升序排序"
+      },
+      {
+        "code": "min_diff = min(nums[i+1] - nums[i] for i in range(len(nums)-1))",
+        "html": "<span class=\"n\">min_diff</span> <span class=\"o\">=</span> <span class=\"nb\">min</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"o\">+</span><span class=\"mi\">1</span><span class=\"p\">]</span> <span class=\"o\">-</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">]</span> <span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">)</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">))</span>",
+        "why": "只比對相鄰兩項，從 O(N^2) 降為 O(N log N)",
+        "mean": "89 - 88 = 1 為全域最小差",
+        "alt": "線性相鄰比對"
+      },
+      {
+        "code": "print(\"最小差值:\", min_diff)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;最小差值:&quot;</span><span class=\"p\">,</span> <span class=\"n\">min_diff</span><span class=\"p\">)</span>",
+        "why": "印出最小差值結果",
+        "mean": "印出 1",
+        "alt": "輸出答案"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "排序數列 nums.sort()",
+        "vars": {
+          "nums": [
+            19,
+            42,
+            55,
+            73,
+            88,
+            89,
+            91,
+            105,
+            120
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "掃描相鄰差值：42-19=23, 55-42=13, ..., 89-88=1",
+        "vars": {
+          "min_diff": 1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出全數列最小差值",
+        "vars": {},
+        "output": "最小差值: 1\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "最貼兩數排序後必相鄰"
+      },
+      {
+        "type": "point",
+        "content": "N=10^5 時，暴力法 100 億次（超時），排序法 170 萬次（0.02秒）！"
+      },
+      {
+        "type": "tip",
+        "content": "若要記錄是哪一對數字，用 for 迴圈搭配變數記錄最佳 pair。"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Two Pointers: Concept on Sorted Array",
+    "titleZh": "雙指標夾擊：已排序數列的相向尋寶",
+    "desc": "兩隊員站在數線兩端：加總太小則左隊員向右進（換大的），加總太大則右隊員向左退（換小的），相向夾擊不走回頭路！",
+    "codeLines": [
+      {
+        "code": "# 雙指標夾擊核心機制（已排序數列前提）",
+        "html": "<span class=\"c1\"># 雙指標夾擊核心機制（已排序數列前提）</span>",
+        "why": "利用單調性保證指標移動方向無庸置疑",
+        "mean": "left 向右必增，right 向左必減",
+        "alt": "單調性保證"
+      },
+      {
+        "code": "a = [2, 7, 11, 15]; target = 18",
+        "html": "<span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">,</span> <span class=\"mi\">11</span><span class=\"p\">,</span> <span class=\"mi\">15</span><span class=\"p\">];</span> <span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">18</span>",
+        "why": "已排序小清單示範",
+        "mean": "尋找兩數相加等於 18",
+        "alt": "Two Sum 資料"
+      },
+      {
+        "code": "l, r = 0, len(a) - 1\nprint(\"首步總和:\", a[l] + a[r])  # 2 + 15 = 17 < 18",
+        "html": "<span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;首步總和:&quot;</span><span class=\"p\">,</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">]</span> <span class=\"o\">+</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">])</span>  <span class=\"c1\"># 2 + 15 = 17 &lt; 18</span>",
+        "why": "首步太小，左指標必須右移 (l += 1)",
+        "mean": "17 < 18，唯一可能增大總和的方法是 l += 1",
+        "alt": "決策分析"
+      },
+      {
+        "code": "l += 1\nprint(\"次步總和:\", a[l] + a[r])  # 7 + 15 = 22 > 18 -> r -= 1",
+        "html": "<span class=\"n\">l</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;次步總和:&quot;</span><span class=\"p\">,</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">]</span> <span class=\"o\">+</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">])</span>  <span class=\"c1\"># 7 + 15 = 22 &gt; 18 -&gt; r -= 1</span>",
+        "why": "次步太大人右移，直到 7 + 11 = 18 命中",
+        "mean": "每一步都縮小搜尋區間",
+        "alt": "逐步逼近"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "l=0 (2), r=3 (15)，總和 17 < 18，l += 1",
+        "vars": {
+          "l": 0,
+          "r": 3,
+          "sum": 17
+        },
+        "output": "首步總和: 17\n"
+      },
+      {
+        "step": 2,
+        "action": "l=1 (7), r=3 (15)，總和 22 > 18，r -= 1",
+        "vars": {
+          "l": 1,
+          "r": 3,
+          "sum": 22
+        },
+        "output": "次步總和: 22\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "小了左進大了右退夾擊"
+      },
+      {
+        "type": "point",
+        "content": "相向雙指標只向中間走，最多移動 N 步，複雜度為 O(N)！"
+      },
+      {
+        "type": "warn",
+        "content": "前提：數列必須已排好序！未排序使用會完全失控。"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Two Sum with Two Pointers: Complete Code",
+    "titleZh": "實戰演練：雙指標線性破解 Two Sum",
+    "desc": "APCS 與 LeetCode 經典 Two Sum：先 nums.sort() 排序，再用 while left < right 夾擊，線性時間秒殺解！",
+    "codeLines": [
+      {
+        "code": "nums = [15, 3, 9, 2, 8, 12, 7, 20]; target = 23",
+        "html": "<span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">15</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">9</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">];</span> <span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">23</span>",
+        "why": "待尋找兩數和為 23",
+        "mean": "原始無序清單",
+        "alt": "輸入資料"
+      },
+      {
+        "code": "nums.sort()\nl, r = 0, len(nums) - 1\nans = None",
+        "html": "<span class=\"n\">nums</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">()</span><br><span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br><span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"kc\">None</span>",
+        "why": "第一步排序：nums 變為 [2, 3, 7, 8, 9, 12, 15, 20]",
+        "mean": "初始化左右指標於兩端",
+        "alt": "前置準備"
+      },
+      {
+        "code": "while l < r:\n    s = nums[l] + nums[r]\n    if s == target: ans = (nums[l], nums[r]); break\n    elif s < target: l += 1\n    else: r -= 1",
+        "html": "<span class=\"k\">while</span> <span class=\"n\">l</span> <span class=\"o\">&lt;</span> <span class=\"n\">r</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">s</span> <span class=\"o\">=</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">]</span> <span class=\"o\">+</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">s</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span> <span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">],</span> <span class=\"n\">nums</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">]);</span> <span class=\"k\">break</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">elif</span> <span class=\"n\">s</span> <span class=\"o\">&lt;</span> <span class=\"n\">target</span><span class=\"p\">:</span> <span class=\"n\">l</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span> <span class=\"n\">r</span> <span class=\"o\">-=</span> <span class=\"mi\">1</span>",
+        "why": "單向夾擊，最多移動 N 步即可找到解",
+        "mean": "3 + 20 = 23 成功命中",
+        "alt": "雙指標夾擊迴圈"
+      },
+      {
+        "code": "print(\"找到解:\", ans)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;找到解:&quot;</span><span class=\"p\">,</span> <span class=\"n\">ans</span><span class=\"p\">)</span>",
+        "why": "印出尋找結果",
+        "mean": "印出 (3, 20)",
+        "alt": "確認找到答案"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "排序為 [2, 3, 7, 8, 9, 12, 15, 20]",
+        "vars": {
+          "nums": [
+            2,
+            3,
+            7,
+            8,
+            9,
+            12,
+            15,
+            20
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "l=0 (2), r=7 (20)，2+20=22 < 23，l += 1",
+        "vars": {
+          "l": 1,
+          "r": 7
+        }
+      },
+      {
+        "step": 3,
+        "action": "l=1 (3), r=7 (20)，3+20=23 == 23，命中答案！",
+        "vars": {
+          "ans": [
+            3,
+            20
+          ]
+        },
+        "output": "找到解: (3, 20)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "排序雙指標秒殺兩數和"
+      },
+      {
+        "type": "point",
+        "content": "總時間：排序 O(N log N) + 雙指標 O(N) = O(N log N)。"
+      },
+      {
+        "type": "tip",
+        "content": "若找不到解，迴圈會自然終止於 left == right。"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Interval & Pointer Decision",
+    "titleZh": "關鍵理解測驗：區間排序與指標決策",
+    "desc": "檢驗演算法決策觀念！若有一組區間 [[2, 5], [1, 9], [6, 8]]，請問「活動挑選」與「線段覆蓋」各應如何排序？",
+    "codeLines": [
+      {
+        "code": "# 觀念測驗：區間排序方針選擇",
+        "html": "<span class=\"c1\"># 觀念測驗：區間排序方針選擇</span>",
+        "why": "測驗是否融會貫通區間兩大流派",
+        "mean": "覆蓋看起點，活動看終點",
+        "alt": "區間決策測驗"
+      },
+      {
+        "code": "intervals = [[2, 5], [1, 9], [6, 8]]",
+        "html": "<span class=\"n\">intervals</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">9</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">6</span><span class=\"p\">,</span> <span class=\"mi\">8</span><span class=\"p\">]]</span>",
+        "why": "包含包覆線段 [1, 9] 的測試集",
+        "mean": "不同目標需採用不同排序依據",
+        "alt": "測試線段"
+      },
+      {
+        "code": "by_end = sorted(intervals, key=lambda x: x[1])\nprint(\"依結束排序:\", by_end)",
+        "html": "<span class=\"n\">by_end</span> <span class=\"o\">=</span> <span class=\"nb\">sorted</span><span class=\"p\">(</span><span class=\"n\">intervals</span><span class=\"p\">,</span> <span class=\"n\">key</span><span class=\"o\">=</span><span class=\"k\">lambda</span> <span class=\"n\">x</span><span class=\"p\">:</span> <span class=\"n\">x</span><span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">])</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;依結束排序:&quot;</span><span class=\"p\">,</span> <span class=\"n\">by_end</span><span class=\"p\">)</span>",
+        "why": "結束時間升序：[2, 5] -> [6, 8] -> [1, 9]",
+        "mean": "貪婪可挑出 [2, 5] 與 [6, 8] 共 2 場！",
+        "alt": "輸出活動排序"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "依結束時間排序：5 < 8 < 9",
+        "vars": {
+          "by_end": [
+            [
+              2,
+              5
+            ],
+            [
+              6,
+              8
+            ],
+            [
+              1,
+              9
+            ]
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "貪婪挑選：[2, 5] 結束 5，下一場 [6, 8] 起點 6 >= 5 入選！",
+        "vars": {
+          "chosen": [
+            [
+              2,
+              5
+            ],
+            [
+              6,
+              8
+            ]
+          ]
+        },
+        "output": "依結束排序: [[2, 5], [6, 8], [1, 9]]\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "如果要解決「會議室容納最多場活動」，關鍵第一步應採用哪一種排序依據？",
+      "options": [
+        "依結束時間（end）由小到大排序 —— 留給後續空閒時間最多",
+        "依開始時間（start）由小到大排序 —— 越早開始的一定越先辦"
+      ],
+      "correct": 0,
+      "answer": "A",
+      "explanation": "依結束時間排序是貪婪活動選擇的數學最優策略！若依開始時間排序，若第一場活動耗時極長（如 [1, 9]），會排擠掉後續所有短活動，導致場次大幅減少。"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "活動求最多結束早勝出"
+      },
+      {
+        "type": "point",
+        "content": "牢記：合併覆蓋排起點，活動排程排終點。"
+      },
+      {
+        "type": "tip",
+        "content": "考場上切勿混淆兩者的排序目標！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Common Pitfalls: Boundary & Unsorted Array",
+    "titleZh": "典型陷阱警示：相鄰越界與未排序雙指標",
+    "desc": "初學者的兩大痛點：相鄰比對迴圈寫 len(a) 導致 IndexError；在未排序陣列上妄用雙指標導致答案全毀！",
+    "codeLines": [
+      {
+        "code": "# 陷阱 1：相鄰比對邊界忘記減 1 -> IndexError",
+        "html": "<span class=\"c1\"># 陷阱 1：相鄰比對邊界忘記減 1 -&gt; IndexError</span>",
+        "why": "比較 a[i] 與 a[i+1] 時，i 最大只能到 len - 2",
+        "mean": "務必寫 range(len(a) - 1)",
+        "alt": "邊界提醒"
+      },
+      {
+        "code": "# 陷阱 2：未排序的陣列使用雙指標 -> 邏輯崩潰",
+        "html": "<span class=\"c1\"># 陷阱 2：未排序的陣列使用雙指標 -&gt; 邏輯崩潰</span>",
+        "why": "未排序時右移不一定變大，左移不一定變小",
+        "mean": "雙指標成立的根本在於單調性",
+        "alt": "先決條件警告"
+      },
+      {
+        "code": "a = [10, 20]\ntry:\n    for i in range(len(a)):\n        diff = a[i+1] - a[i]\nexcept IndexError as e:\n    print(\"捕捉例外:\", type(e).__name__)",
+        "html": "<span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">]</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">)):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">diff</span> <span class=\"o\">=</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"o\">+</span><span class=\"mi\">1</span><span class=\"p\">]</span> <span class=\"o\">-</span> <span class=\"n\">a</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">]</span><br><span class=\"k\">except</span> <span class=\"ne\">IndexError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;捕捉例外:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">type</span><span class=\"p\">(</span><span class=\"n\">e</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"vm\">__name__</span><span class=\"p\">)</span>",
+        "why": "實機示範相鄰越界錯誤",
+        "mean": "印出 IndexError",
+        "alt": "示範越界"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "i=0 時 a[1] - a[0] 正常計算",
+        "vars": {
+          "diff": 10
+        }
+      },
+      {
+        "step": 2,
+        "action": "i=1 時訪問 a[2] 越界，引發 IndexError",
+        "vars": {
+          "error": "IndexError"
+        }
+      },
+      {
+        "step": 3,
+        "action": "捕捉例外並印出名稱",
+        "vars": {},
+        "output": "捕捉例外: IndexError\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "相鄰走訪長度必減一"
+      },
+      {
+        "type": "point",
+        "content": "比對 a[i+1] 時，range 終點必須減 1。"
+      },
+      {
+        "type": "warn",
+        "content": "雙指標演算法執行前，第一行永遠是 nums.sort()！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Index Tagging: Keep Original Position",
+    "titleZh": "競賽高階技巧：帶原始索引打包排序",
+    "desc": "若題目要求輸出答案在「原始輸入清單中的索引」，直接 sort 會洗掉順序。使用 (val, idx) 打包排序，兼得高速與位置！",
+    "codeLines": [
+      {
+        "code": "raw = [20, 7, 11, 15, 2]; target = 9",
+        "html": "<span class=\"n\">raw</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">7</span><span class=\"p\">,</span> <span class=\"mi\">11</span><span class=\"p\">,</span> <span class=\"mi\">15</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">];</span> <span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">9</span>",
+        "why": "題目要求輸出加起來等於 9 的原始索引",
+        "mean": "7(索引1) + 2(索引4) = 9",
+        "alt": "帶索引題目"
+      },
+      {
+        "code": "tagged = [(val, idx) for idx, val in enumerate(raw)]\ntagged.sort(key=lambda x: x[0])",
+        "html": "<span class=\"n\">tagged</span> <span class=\"o\">=</span> <span class=\"p\">[(</span><span class=\"n\">val</span><span class=\"p\">,</span> <span class=\"n\">idx</span><span class=\"p\">)</span> <span class=\"k\">for</span> <span class=\"n\">idx</span><span class=\"p\">,</span> <span class=\"n\">val</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">raw</span><span class=\"p\">)]</span><br><span class=\"n\">tagged</span><span class=\"p\">.</span><span class=\"n\">sort</span><span class=\"p\">(</span><span class=\"n\">key</span><span class=\"o\">=</span><span class=\"k\">lambda</span> <span class=\"n\">x</span><span class=\"p\">:</span> <span class=\"n\">x</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">])</span>",
+        "why": "打包 (數值, 原索引) 後依數值升序排列",
+        "mean": "排序後仍能回查最初的索引位置",
+        "alt": "打包與排序"
+      },
+      {
+        "code": "l, r = 0, len(tagged) - 1\nwhile l < r:\n    s = tagged[l][0] + tagged[r][0]\n    if s == target:\n        print(\"原始索引解:\", (tagged[l][1], tagged[r][1]))\n        break\n    elif s < target: l += 1\n    else: r -= 1",
+        "html": "<span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">tagged</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br><span class=\"k\">while</span> <span class=\"n\">l</span> <span class=\"o\">&lt;</span> <span class=\"n\">r</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">s</span> <span class=\"o\">=</span> <span class=\"n\">tagged</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">][</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">+</span> <span class=\"n\">tagged</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">][</span><span class=\"mi\">0</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">s</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;原始索引解:&quot;</span><span class=\"p\">,</span> <span class=\"p\">(</span><span class=\"n\">tagged</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">][</span><span class=\"mi\">1</span><span class=\"p\">],</span> <span class=\"n\">tagged</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">][</span><span class=\"mi\">1</span><span class=\"p\">]))</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">break</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">elif</span> <span class=\"n\">s</span> <span class=\"o\">&lt;</span> <span class=\"n\">target</span><span class=\"p\">:</span> <span class=\"n\">l</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span> <span class=\"n\">r</span> <span class=\"o\">-=</span> <span class=\"mi\">1</span>",
+        "why": "雙指標夾擊後輸出原始索引值",
+        "mean": "輸出 (4, 1) 代表 raw[4]=2 與 raw[1]=7",
+        "alt": "雙指標取得原始位置"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "打包並排序：[(2, 4), (7, 1), (11, 2), (15, 3), (20, 0)]",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "l=0 (數值2, 索引4), r=1 (數值7, 索引1)，2+7=9 命中！",
+        "vars": {
+          "indices": [
+            4,
+            1
+          ]
+        },
+        "output": "原始索引解: (4, 1)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "打包原索引排序不丟位"
+      },
+      {
+        "type": "point",
+        "content": "enumerate 打包元組是演算法競賽中最常用的位置保全技巧。"
+      },
+      {
+        "type": "tip",
+        "content": "這招在維持演算法速度的同時，徹底解決位置回查痛點！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 12.5 Summary & Mastery Card",
+    "titleZh": "單元 12.5 綜合驗收：排序實戰與雙指標",
+    "desc": "恭喜完成單元 12.5！你已掌握區間線段起點掃描、貪婪活動終點挑選、相鄰差值掃描與雙指標夾擊的實戰神技！",
+    "codeLines": [
+      {
+        "code": "# 排序實戰四大武器庫整合",
+        "html": "<span class=\"c1\"># 排序實戰四大武器庫整合</span>",
+        "why": "總結本單元精華心法",
+        "mean": "線段覆蓋、貪婪活動、相鄰差值、雙指標",
+        "alt": "全能精要"
+      },
+      {
+        "code": "segs = [[1, 3], [2, 6], [8, 10]]\nsegs.sort(key=lambda x: x[0])  # 區間覆蓋排起點",
+        "html": "<span class=\"n\">segs</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">6</span><span class=\"p\">],</span> <span class=\"p\">[</span><span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">10</span><span class=\"p\">]]</span><br><span class=\"n\">segs</span><span class=\"p\">.</span><span class=\"n\">sort</span><span class=\"p\">(</span><span class=\"n\">key</span><span class=\"o\">=</span><span class=\"k\">lambda</span> <span class=\"n\">x</span><span class=\"p\">:</span> <span class=\"n\">x</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">])</span>  <span class=\"c1\"># 區間覆蓋排起點</span>",
+        "why": "線段覆蓋依起點升序",
+        "mean": "由左至右平滑推進",
+        "alt": "起點排序"
+      },
+      {
+        "code": "acts = [(\"A\", 1, 4), (\"B\", 2, 3)]\nacts.sort(key=lambda x: x[2])  # 貪婪活動排終點",
+        "html": "<span class=\"n\">acts</span> <span class=\"o\">=</span> <span class=\"p\">[(</span><span class=\"s2\">&quot;A&quot;</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">4</span><span class=\"p\">),</span> <span class=\"p\">(</span><span class=\"s2\">&quot;B&quot;</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">)]</span><br><span class=\"n\">acts</span><span class=\"p\">.</span><span class=\"n\">sort</span><span class=\"p\">(</span><span class=\"n\">key</span><span class=\"o\">=</span><span class=\"k\">lambda</span> <span class=\"n\">x</span><span class=\"p\">:</span> <span class=\"n\">x</span><span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">])</span>  <span class=\"c1\"># 貪婪活動排終點</span>",
+        "why": "貪婪活動排程依結束時間升序",
+        "mean": "B 優先入選，保留更多空間",
+        "alt": "終點排序"
+      },
+      {
+        "code": "print(\"區間與貪婪排序就緒！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;區間與貪婪排序就緒！&quot;</span><span class=\"p\">)</span>",
+        "why": "驗證完封就緒",
+        "mean": "印出完成訊息",
+        "alt": "驗收完畢"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "驗收線段依起點排序與活動依終點排序",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出整合完畢訊息",
+        "vars": {},
+        "output": "區間與貪婪排序就緒！\n"
+      }
+    ],
+    "completionCard": {
+      "badge": "🚀 演算法戰術大師",
+      "summary": [
+        "深刻體會「先排序，混亂立刻變規律」，為無序世界注入單調性",
+        "精通區間兩大流派：覆蓋合併排起點，貪婪排程排終點",
+        "相鄰元素掃描 O(N) 取代 O(N^2)，極速查找最小差值與相鄰重複",
+        "掌握相向雙指標夾擊法，O(N) 線性搞定 Two Sum，並以 enumerate 保全原索引"
+      ],
+      "nextUnit": "12.6 線性搜尋（Linear Search）與安全查詢防護"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "排序雙指標戰術定乾坤"
+      },
+      {
+        "type": "point",
+        "content": "從語法邁向演算法架構，排序是 APCS 高分選手的最強基石。"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將從搜尋的原點出發，探討線性搜尋與例外防禦！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec12-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_12-3_custom_sort_key_and_named_functions.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

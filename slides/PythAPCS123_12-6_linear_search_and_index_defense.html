@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "Linear Search: Exhaustive Traversal",
+    "titleZh": "搜尋原點：黑暗中的地毯式走訪",
+    "desc": "在停電的置物間裡尋找球鞋，只能拿著手電筒一雙一雙檢查。面對無序資料，線性搜尋是最原始、最穩健的基石！",
+    "codeLines": [
+      {
+        "code": "# 無序資料的循序比對哲學",
+        "html": "<span class=\"c1\"># 無序資料的循序比對哲學</span>",
+        "why": "說明面對無序宇宙唯一的通用搜尋方式",
+        "mean": "從頭到尾、一個不漏、循序推進",
+        "alt": "搜尋本質思維"
+      },
+      {
+        "code": "scores = [65, 82, 90, 74, 99, 88, 55]",
+        "html": "<span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">65</span><span class=\"p\">,</span> <span class=\"mi\">82</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">74</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">,</span> <span class=\"mi\">55</span><span class=\"p\">]</span>",
+        "why": "待搜尋的無序學生成績串列",
+        "mean": "包含 7 筆成績",
+        "alt": "原始成績清單"
+      },
+      {
+        "code": "target = 99",
+        "html": "<span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">99</span>",
+        "why": "設定搜尋目標滿分 99 分",
+        "mean": "要尋找的目標數值",
+        "alt": "搜尋目標"
+      },
+      {
+        "code": "print(\"串列長度:\", len(scores), \"目標:\", target)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;串列長度:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">),</span> <span class=\"s2\">&quot;目標:&quot;</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">)</span>",
+        "why": "檢視搜尋初始狀態",
+        "mean": "印出長度 7 與目標 99",
+        "alt": "輸出配置資訊"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "宣告待搜尋串列 scores 與目標 target",
+        "vars": {
+          "len": 7,
+          "target": 99
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出初始狀態",
+        "vars": {},
+        "output": "串列長度: 7 目標: 99\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "無序地毯搜一個不漏看"
+      },
+      {
+        "type": "point",
+        "content": "線性搜尋（Linear Search）又稱循序搜尋，適用於任何未排序清單。"
+      },
+      {
+        "type": "tip",
+        "content": "無序狀態下無法跳躍，逐一查驗是唯一保證命中途徑。"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Mechanism: Early Break on Hit",
+    "titleZh": "運作機制：命中目標即提早收工",
+    "desc": "指標由索引 0 開始遞增比對，一旦發現目標相等，立刻記錄位置並以 break 中斷迴圈，節省無謂計算！",
+    "codeLines": [
+      {
+        "code": "scores = [65, 82, 90, 74, 99, 88, 55]; target = 99",
+        "html": "<span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">65</span><span class=\"p\">,</span> <span class=\"mi\">82</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">74</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">,</span> <span class=\"mi\">55</span><span class=\"p\">];</span> <span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">99</span>",
+        "why": "搜尋輸入資料",
+        "mean": "目標 99 位於第 4 個位置",
+        "alt": "輸入資料"
+      },
+      {
+        "code": "found = None\nfor i, s in enumerate(scores):\n    if s == target: found = i; break",
+        "html": "<span class=\"n\">found</span> <span class=\"o\">=</span> <span class=\"kc\">None</span><br><span class=\"k\">for</span> <span class=\"n\">i</span><span class=\"p\">,</span> <span class=\"n\">s</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">s</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span> <span class=\"n\">found</span> <span class=\"o\">=</span> <span class=\"n\">i</span><span class=\"p\">;</span> <span class=\"k\">break</span>",
+        "why": "比對到 99 時 break 跳出，不再比對後面的 88 與 55",
+        "mean": "命中目標，提早中斷",
+        "alt": "線性搜尋迴圈"
+      },
+      {
+        "code": "print(\"目標位置:\", found)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;目標位置:&quot;</span><span class=\"p\">,</span> <span class=\"n\">found</span><span class=\"p\">)</span>",
+        "why": "印出目標索引",
+        "mean": "印出 4",
+        "alt": "確認找到索引"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對 i=0~3，均不等於 99",
+        "vars": {
+          "checked": [
+            65,
+            82,
+            90,
+            74
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "比對 i=4，scores[4] == 99 命中！執行 break",
+        "vars": {
+          "found": 4
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "目標位置: 4\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "命中即收工跳出不再看"
+      },
+      {
+        "type": "point",
+        "content": "break 關鍵字防止不必要的後續檢查。"
+      },
+      {
+        "type": "tip",
+        "content": "使用 enumerate 同時獲得索引 i 與數值 s，代碼簡潔。"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Comparison Count: Step-by-Step",
+    "titleZh": "實戰追蹤：比對次數步步計數",
+    "desc": "每比對一次元素就將計數器加一，精確了解演算法在命中前究竟花了多少功夫！",
+    "codeLines": [
+      {
+        "code": "data = [42, 18, 95, 33, 70]; target = 95",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">42</span><span class=\"p\">,</span> <span class=\"mi\">18</span><span class=\"p\">,</span> <span class=\"mi\">95</span><span class=\"p\">,</span> <span class=\"mi\">33</span><span class=\"p\">,</span> <span class=\"mi\">70</span><span class=\"p\">];</span> <span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">95</span>",
+        "why": "目標 95 位於索引 2",
+        "mean": "待搜尋清單",
+        "alt": "測試清單"
+      },
+      {
+        "code": "steps = 0\nfor x in data:\n    steps += 1\n    if x == target: break",
+        "html": "<span class=\"n\">steps</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">for</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"n\">data</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">steps</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span> <span class=\"k\">break</span>",
+        "why": "累計比對次數 steps",
+        "mean": "經過 42(1), 18(2), 95(3)，共 3 步",
+        "alt": "計步追蹤"
+      },
+      {
+        "code": "print(\"比對次數:\", steps)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;比對次數:&quot;</span><span class=\"p\">,</span> <span class=\"n\">steps</span><span class=\"p\">)</span>",
+        "why": "印出總比對步數",
+        "mean": "印出 3",
+        "alt": "確認步數"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對 42，steps=1",
+        "vars": {
+          "steps": 1
+        }
+      },
+      {
+        "step": 2,
+        "action": "比對 18，steps=2",
+        "vars": {
+          "steps": 2
+        }
+      },
+      {
+        "step": 3,
+        "action": "比對 95 == target，steps=3，中斷",
+        "vars": {
+          "steps": 3
+        },
+        "output": "比對次數: 3\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "步步累加記精確比對數"
+      },
+      {
+        "type": "point",
+        "content": "若目標位於索引 k，則成功命中需經過 k + 1 次比對。"
+      },
+      {
+        "type": "tip",
+        "content": "計數器技巧在 OJ 性能分析題中極為實用。"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Time Complexity: Best, Worst & Average",
+    "titleZh": "複雜度分析：最佳、最差與平均情況",
+    "desc": "最佳情況 O(1)（首位命中）；最差情況 O(N)（末位或不存在）；平均比對約 (N+1)/2 次，統一評定為 O(N)！",
+    "codeLines": [
+      {
+        "code": "# 鑰匙串比喻：10 把鑰匙試開大門",
+        "html": "<span class=\"c1\"># 鑰匙串比喻：10 把鑰匙試開大門</span>",
+        "why": "說明運氣與演算法複雜度的關係",
+        "mean": "運氣最好 1 次開，最倒楣試 10 次",
+        "alt": "生活故事比喻"
+      },
+      {
+        "code": "N = 8",
+        "html": "<span class=\"n\">N</span> <span class=\"o\">=</span> <span class=\"mi\">8</span>",
+        "why": "示範長度為 8 的資料集",
+        "mean": "資料量為 8",
+        "alt": "資料規模"
+      },
+      {
+        "code": "best_case = 1\nworst_case = N\navg_case = (N + 1) / 2",
+        "html": "<span class=\"n\">best_case</span> <span class=\"o\">=</span> <span class=\"mi\">1</span><br><span class=\"n\">worst_case</span> <span class=\"o\">=</span> <span class=\"n\">N</span><br><span class=\"n\">avg_case</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">N</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><span class=\"p\">)</span> <span class=\"o\">/</span> <span class=\"mi\">2</span>",
+        "why": "計算三種情況的理論比對次數",
+        "mean": "最佳 1，最差 8，平均 4.5",
+        "alt": "複雜度公式計算"
+      },
+      {
+        "code": "print(f\"最佳: {best_case} 次, 最差: {worst_case} 次, 平均: {avg_case} 次\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;最佳: </span><span class=\"si\">{</span><span class=\"n\">best_case</span><span class=\"si\">}</span><span class=\"s2\"> 次, 最差: </span><span class=\"si\">{</span><span class=\"n\">worst_case</span><span class=\"si\">}</span><span class=\"s2\"> 次, 平均: </span><span class=\"si\">{</span><span class=\"n\">avg_case</span><span class=\"si\">}</span><span class=\"s2\"> 次&quot;</span><span class=\"p\">)</span>",
+        "why": "印出分析數值",
+        "mean": "印出 最佳: 1 次, 最差: 8 次, 平均: 4.5 次",
+        "alt": "輸出理論指標"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "代入 N=8 計算理論值",
+        "vars": {
+          "best": 1,
+          "worst": 8,
+          "avg": 4.5
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "最佳: 1 次, 最差: 8 次, 平均: 4.5 次\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "最差看長度平均約一半"
+      },
+      {
+        "type": "point",
+        "content": "電腦科學評估複雜度預設採「最差情況」，線性搜尋為 O(N)。"
+      },
+      {
+        "type": "tip",
+        "content": "平均次數 (N+1)/2 是 APCS 觀念題超經典考點！"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Built-in index() Pitfall: ValueError",
+    "titleZh": "內建 index() 致命陷阱：掀桌拋錯",
+    "desc": "list.index(x) 找不到目標時，絕不會回傳 -1，而是當場引發 ValueError 讓程式崩潰中斷！",
+    "codeLines": [
+      {
+        "code": "names = [\"Alice\", \"Bob\", \"Charlie\"]",
+        "html": "<span class=\"n\">names</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s2\">&quot;Alice&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;Bob&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;Charlie&quot;</span><span class=\"p\">]</span>",
+        "why": "名冊不包含 'Eve'",
+        "mean": "包含 3 位成員的名單",
+        "alt": "成員名冊"
+      },
+      {
+        "code": "print(\"找到 Bob:\", names.index(\"Bob\"))  # 存在時回傳索引 1",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;找到 Bob:&quot;</span><span class=\"p\">,</span> <span class=\"n\">names</span><span class=\"o\">.</span><span class=\"n\">index</span><span class=\"p\">(</span><span class=\"s2\">&quot;Bob&quot;</span><span class=\"p\">))</span>  <span class=\"c1\"># 存在時回傳索引 1</span>",
+        "why": "示範正常命中",
+        "mean": "印出 1",
+        "alt": "正常查找"
+      },
+      {
+        "code": "# 若直接寫 names.index(\"Eve\") -> 當場噴出 ValueError！",
+        "html": "<span class=\"c1\"># 若直接寫 names.index(&quot;Eve&quot;) -&gt; 當場噴出 ValueError！</span>",
+        "why": "警告初學者千萬不要在無防護下呼叫",
+        "mean": "其他語言常回傳 -1，但 Python 會崩潰",
+        "alt": "崩潰警告"
+      },
+      {
+        "code": "print(\"切記: 找不到時絕不回傳 -1！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;切記: 找不到時絕不回傳 -1！&quot;</span><span class=\"p\">)</span>",
+        "why": "加深合約觀念",
+        "mean": "印出提醒訊息",
+        "alt": "強調合約規則"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "names.index('Bob') 成功回傳 1",
+        "vars": {
+          "idx": 1
+        },
+        "output": "找到 Bob: 1\n"
+      },
+      {
+        "step": 2,
+        "action": "輸出警示提醒",
+        "vars": {},
+        "output": "切記: 找不到時絕不回傳 -1！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "索引查無值掀桌當機噴"
+      },
+      {
+        "type": "point",
+        "content": "Python 的 index() 契約是嚴苛的：找不到直接拋出 ValueError。"
+      },
+      {
+        "type": "warn",
+        "content": "若寫 if a.index(x) == -1: 會在呼叫端就當機，根本走不到判斷！"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Crash Demo: Catching ValueError",
+    "titleZh": "實機示範：捕捉 index() 的例外崩潰",
+    "desc": "透過 try...except 實機檢驗當目標不存在時，Python 直譯器產生的真實報錯與防護！",
+    "codeLines": [
+      {
+        "code": "fruits = [\"apple\", \"banana\", \"cherry\"]",
+        "html": "<span class=\"n\">fruits</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s2\">&quot;apple&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;banana&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;cherry&quot;</span><span class=\"p\">]</span>",
+        "why": "待搜尋水果串列",
+        "mean": "包含三種水果",
+        "alt": "水果清單"
+      },
+      {
+        "code": "query = \"mango\"",
+        "html": "<span class=\"n\">query</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;mango&quot;</span>",
+        "why": "mango 不在清單中",
+        "mean": "搜尋不存在的目標",
+        "alt": "缺漏目標"
+      },
+      {
+        "code": "try:\n    idx = fruits.index(query)\nexcept ValueError as e:\n    print(\"捕捉到例外:\", type(e).__name__)",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">idx</span> <span class=\"o\">=</span> <span class=\"n\">fruits</span><span class=\"o\">.</span><span class=\"n\">index</span><span class=\"p\">(</span><span class=\"n\">query</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;捕捉到例外:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">type</span><span class=\"p\">(</span><span class=\"n\">e</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"vm\">__name__</span><span class=\"p\">)</span>",
+        "why": "使用 try...except 攔截異常，保護程式不中斷",
+        "mean": "印出例外名稱 ValueError",
+        "alt": "捕捉例外示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "呼叫 fruits.index('mango')",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "直譯器拋出 ValueError: 'mango' is not in list",
+        "vars": {
+          "error": "ValueError"
+        }
+      },
+      {
+        "step": 3,
+        "action": "except 成功捕捉並印出",
+        "vars": {},
+        "output": "捕捉到例外: ValueError\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "例外攔截住程式不崩潰"
+      },
+      {
+        "type": "point",
+        "content": "OJ 評測系統遇到未處理例外會判定為 Runtime Error (RE)。"
+      },
+      {
+        "type": "tip",
+        "content": "透過 try-except 結構可賦予程式極高容錯力！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Defense Pattern 1: Exception Handling",
+    "titleZh": "防禦策略一：try...except 異常攔截",
+    "desc": "第一種安全查詢策略：將 index() 放入 try 區塊中，若拋出 ValueError 則在 except 區塊安全賦值 -1！",
+    "codeLines": [
+      {
+        "code": "def safe_index_try(arr, target):\n    try:\n        return arr.index(target)\n    except ValueError:\n        return -1",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">safe_index_try</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">arr</span><span class=\"o\">.</span><span class=\"n\">index</span><span class=\"p\">(</span><span class=\"n\">target</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>",
+        "why": "封裝安全索引查詢函數",
+        "mean": "命中回傳索引，例外安全回傳 -1",
+        "alt": "防禦函數封裝"
+      },
+      {
+        "code": "data = [10, 20, 30]\nprint(safe_index_try(data, 20), safe_index_try(data, 99))",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">safe_index_try</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">),</span> <span class=\"n\">safe_index_try</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">))</span>",
+        "why": "驗證存在與不存在的兩者結果",
+        "mean": "印出 1 與 -1",
+        "alt": "雙案例驗證"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "查詢 20：命中回傳 1",
+        "vars": {
+          "res1": 1
+        }
+      },
+      {
+        "step": 2,
+        "action": "查詢 99：觸發 ValueError 轉回傳 -1",
+        "vars": {
+          "res2": -1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出驗證結果",
+        "vars": {},
+        "output": "1 -1\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "例外轉負一優雅不當機"
+      },
+      {
+        "type": "point",
+        "content": "此模式在 Python 哲學中稱為 EAFP（請求原諒比請求許可容易）。"
+      },
+      {
+        "type": "tip",
+        "content": "在目標大多存在、極少數缺漏的情境下效能最佳！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Defense Pattern 2: Sentry with in Keyword",
+    "titleZh": "防禦策略二：先敲門哨兵模式 if x in a",
+    "desc": "最受歡迎的 Pythonic 寫法：先用 in 運算子敲門確認存在，確認有人才推門呼叫 index()，100% 免疫報錯！",
+    "codeLines": [
+      {
+        "code": "def safe_index_sentry(arr, target):\n    if target in arr:\n        return arr.index(target)\n    return -1",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">safe_index_sentry</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">target</span> <span class=\"ow\">in</span> <span class=\"n\">arr</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">arr</span><span class=\"o\">.</span><span class=\"n\">index</span><span class=\"p\">(</span><span class=\"n\">target</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>",
+        "why": "哨兵檢查模式（LBYL：三思而後行）",
+        "mean": "先以 in 判斷，在才取 index",
+        "alt": "哨兵防禦函數"
+      },
+      {
+        "code": "items = [\"ps5\", \"switch\", \"xbox\"]\nprint(safe_index_sentry(items, \"switch\"), safe_index_sentry(items, \"wii\"))",
+        "html": "<span class=\"n\">items</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s2\">&quot;ps5&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;switch&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;xbox&quot;</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">safe_index_sentry</span><span class=\"p\">(</span><span class=\"n\">items</span><span class=\"p\">,</span> <span class=\"s2\">&quot;switch&quot;</span><span class=\"p\">),</span> <span class=\"n\">safe_index_sentry</span><span class=\"p\">(</span><span class=\"n\">items</span><span class=\"p\">,</span> <span class=\"s2\">&quot;wii&quot;</span><span class=\"p\">))</span>",
+        "why": "驗證 switch 位於 1，wii 回傳 -1",
+        "mean": "印出 1 與 -1",
+        "alt": "驗證輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "'switch' in items 為 True，執行 items.index('switch') 回傳 1",
+        "vars": {
+          "res1": 1
+        }
+      },
+      {
+        "step": 2,
+        "action": "'wii' in items 為 False，直接回傳 -1",
+        "vars": {
+          "res2": -1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "1 -1\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "先用敲門查再取下標位"
+      },
+      {
+        "type": "point",
+        "content": "if x in a 語法自然易懂，考場上推薦優先採用。"
+      },
+      {
+        "type": "tip",
+        "content": "程式碼無 try 區塊，邏輯最直觀清爽！"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Comparison: Try vs Sentry Pattern",
+    "titleZh": "雙重防禦比較：EAFP vs LBYL",
+    "desc": "try...except（先斬後奏）與 if in（三思後行）各有優勢。考場寫題推薦 if in，商業工程大數據視情境挑選！",
+    "codeLines": [
+      {
+        "code": "# 兩種防禦思維的哲學對比",
+        "html": "<span class=\"c1\"># 兩種防禦思維的哲學對比</span>",
+        "why": "比較兩者的使用時機",
+        "mean": "掌握演算法工程設計取捨",
+        "alt": "架構思維"
+      },
+      {
+        "code": "# 方式 A (LBYL): if target in arr -> 程式碼直觀、考場首選",
+        "html": "<span class=\"c1\"># 方式 A (LBYL): if target in arr -&gt; 程式碼直觀、考場首選</span>",
+        "why": "三思後行模式",
+        "mean": "先檢查再動作",
+        "alt": "LBYL"
+      },
+      {
+        "code": "# 方式 B (EAFP): try ... except -> 目標大多存在時最快",
+        "html": "<span class=\"c1\"># 方式 B (EAFP): try ... except -&gt; 目標大多存在時最快</span>",
+        "why": "先斬後奏模式",
+        "mean": "少一次 in 的額外走訪",
+        "alt": "EAFP"
+      },
+      {
+        "code": "print(\"防禦到位，永不噴錯！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;防禦到位，永不噴錯！&quot;</span><span class=\"p\">)</span>",
+        "why": "核心信念輸出",
+        "mean": "印出總結金句",
+        "alt": "金句輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對兩種防禦模式",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出防禦口訣",
+        "vars": {},
+        "output": "防禦到位，永不噴錯！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "考場用包含工程看頻率"
+      },
+      {
+        "type": "point",
+        "content": "若目標 99% 會存在，try-except 避開了 in 的第二次遍歷。"
+      },
+      {
+        "type": "tip",
+        "content": "APCS 資料量千筆以內，兩者速度差異微乎其微。"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Standard Custom Linear Search",
+    "titleZh": "手刻標準模組：通用線性搜尋函數",
+    "desc": "自訂線性搜尋模板：輸入 arr 與 target，走訪命中即 return i，全部走完未命中則 return -1！",
+    "codeLines": [
+      {
+        "code": "def linear_search(arr, target):\n    for i, val in enumerate(arr):\n        if val == target:\n            return i\n    return -1",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">linear_search</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">for</span> <span class=\"n\">i</span><span class=\"p\">,</span> <span class=\"n\">val</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">val</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">i</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>",
+        "why": "國際標準線性搜尋實作",
+        "mean": "命中回傳索引，無解回傳 -1",
+        "alt": "標準模組"
+      },
+      {
+        "code": "nums = [15, 42, 88, 23, 70]\nprint(linear_search(nums, 88), linear_search(nums, 999))",
+        "html": "<span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">15</span><span class=\"p\">,</span> <span class=\"mi\">42</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">,</span> <span class=\"mi\">23</span><span class=\"p\">,</span> <span class=\"mi\">70</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">linear_search</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">),</span> <span class=\"n\">linear_search</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">,</span> <span class=\"mi\">999</span><span class=\"p\">))</span>",
+        "why": "驗證找到為 2，找不到為 -1",
+        "mean": "印出 2 與 -1",
+        "alt": "驗證呼叫"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "搜尋 88：i=2 命中直接 return 2",
+        "vars": {
+          "res1": 2
+        }
+      },
+      {
+        "step": 2,
+        "action": "搜尋 999：走完 5 個元素未命中，執行最外層 return -1",
+        "vars": {
+          "res2": -1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "2 -1\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "命中即回傳無解歸負一"
+      },
+      {
+        "type": "point",
+        "content": "return -1 必須縮排在 for 迴圈外層，切勿縮在迴圈裡面！"
+      },
+      {
+        "type": "tip",
+        "content": "呼叫端只需判斷 if idx != -1 即可安心使用。"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Conditional Search: First Negative / Even",
+    "titleZh": "帶條件搜尋：尋找第一個負數或偶數",
+    "desc": "內建 index() 只能比對等於；手刻搜尋則能自由放入任何條件，如尋找「第一個小於 0」的負數！",
+    "codeLines": [
+      {
+        "code": "def find_first_negative(arr):\n    for i, x in enumerate(arr):\n        if x < 0: return i\n    return -1",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">find_first_negative</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">for</span> <span class=\"n\">i</span><span class=\"p\">,</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">&lt;</span> <span class=\"mi\">0</span><span class=\"p\">:</span> <span class=\"k\">return</span> <span class=\"n\">i</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>",
+        "why": "自訂條件：x < 0",
+        "mean": "搜尋第一個負整數位置",
+        "alt": "條件搜尋函數"
+      },
+      {
+        "code": "vals = [10, 25, -3, 8, -12]\nidx = find_first_negative(vals)\nprint(\"首個負數索引:\", idx, \"數值:\", vals[idx])",
+        "html": "<span class=\"n\">vals</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">25</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">12</span><span class=\"p\">]</span><br><span class=\"n\">idx</span> <span class=\"o\">=</span> <span class=\"n\">find_first_negative</span><span class=\"p\">(</span><span class=\"n\">vals</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;首個負數索引:&quot;</span><span class=\"p\">,</span> <span class=\"n\">idx</span><span class=\"p\">,</span> <span class=\"s2\">&quot;數值:&quot;</span><span class=\"p\">,</span> <span class=\"n\">vals</span><span class=\"p\">[</span><span class=\"n\">idx</span><span class=\"p\">])</span>",
+        "why": "驗證首個負數 -3 位於索引 2",
+        "mean": "印出 首個負數索引: 2 數值: -3",
+        "alt": "輸出驗證"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對 vals[0]=10 >= 0",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "比對 vals[1]=25 >= 0",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "比對 vals[2]=-3 < 0 命中！return 2",
+        "vars": {
+          "idx": 2
+        },
+        "output": "首個負數索引: 2 數值: -3\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "條件自由訂手刻靈活性"
+      },
+      {
+        "type": "point",
+        "content": "可自由置換為 x % 2 == 0、len(s) > 5、'UP' in s 等條件。"
+      },
+      {
+        "type": "tip",
+        "content": "這是手刻搜尋超越內建 index() 的核心價值所在！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: index() vs Custom Function",
+    "titleZh": "關鍵理解測驗：找不到目標時的預期行為",
+    "desc": "測驗你的工程敏銳度！若清單 a = [1, 2, 3]，直接呼叫 a.index(5) 會發生什麼事？",
+    "codeLines": [
+      {
+        "code": "a = [1, 2, 3]",
+        "html": "<span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">]</span>",
+        "why": "待測串列，不含元素 5",
+        "mean": "搜尋測試集",
+        "alt": "測驗資料"
+      },
+      {
+        "code": "# 思考題：若直接執行 a.index(5)",
+        "html": "<span class=\"c1\"># 思考題：若直接執行 a.index(5)</span>",
+        "why": "檢驗是否已克服「以為回傳 -1」的慣性思維",
+        "mean": "預測直譯器反應",
+        "alt": "思考題目"
+      },
+      {
+        "code": "safe_res = a.index(5) if 5 in a else -1\nprint(\"安全寫法結果:\", safe_res)",
+        "html": "<span class=\"n\">safe_res</span> <span class=\"o\">=</span> <span class=\"n\">a</span><span class=\"o\">.</span><span class=\"n\">index</span><span class=\"p\">(</span><span class=\"mi\">5</span><span class=\"p\">)</span> <span class=\"k\">if</span> <span class=\"mi\">5</span> <span class=\"ow\">in</span> <span class=\"n\">a</span> <span class=\"k\">else</span> <span class=\"o\">-</span><span class=\"mi\">1</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;安全寫法結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">safe_res</span><span class=\"p\">)</span>",
+        "why": "展示安全一行寫法",
+        "mean": "印出 -1",
+        "alt": "安全一行結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "檢查 5 in a 為 False",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "三元運算子選擇 else 分支，得 -1",
+        "vars": {
+          "safe_res": -1
+        },
+        "output": "安全寫法結果: -1\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "如果直接在程式碼中執行 ans = a.index(5)（不加任何防護），直譯器會回傳什麼？",
+      "options": [
+        "拋出 ValueError 異常並當場中斷程式",
+        "回傳整數 -1 表示找不到目標"
+      ],
+      "correct": 0,
+      "answer": "A",
+      "explanation": "Python 的 list.index(x) 絕不回傳 -1！當目標不存在時會拋出 ValueError。想要安全回傳 -1，必須手刻函數或使用 if 5 in a 進行防禦。"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "索引無負一直接噴錯誤"
+      },
+      {
+        "type": "point",
+        "content": "記住：JavaScript 的 indexOf 回傳 -1，但 Python 的 index 噴 ValueError！"
+      },
+      {
+        "type": "tip",
+        "content": "三元運算子 a.index(x) if x in a else -1 是一行流妙招。"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Common Pitfalls: Premature else & Indentation",
+    "titleZh": "典型陷阱警示：提早宣判與縮排失誤",
+    "desc": "兩大新手常犯地雷：在 for 迴圈內寫 else 導致第 0 個不符就喊找不到；將 return -1 縮排在迴圈內！",
+    "codeLines": [
+      {
+        "code": "# 陷阱 1：在迴圈內寫 else 大喊找不到（致命邏輯失誤）",
+        "html": "<span class=\"c1\"># 陷阱 1：在迴圈內寫 else 大喊找不到（致命邏輯失誤）</span>",
+        "why": "看了一筆不符合就宣判無解是初學者常見錯誤",
+        "mean": "必須看完全部才能判定找不到",
+        "alt": "提早宣告錯誤"
+      },
+      {
+        "code": "# 陷阱 2：return -1 縮排在 for 迴圈內部",
+        "html": "<span class=\"c1\"># 陷阱 2：return -1 縮排在 for 迴圈內部</span>",
+        "why": "導致迴圈只執行 1 輪就強制 return",
+        "mean": "縮排錯誤使迴圈失去走訪意義",
+        "alt": "縮排錯誤"
+      },
+      {
+        "code": "nums = [10, 20, 30]\n# 正確寫法：走完整個迴圈才 return -1\nfound = -1\nfor i, x in enumerate(nums):\n    if x == 30: found = i; break\nprint(\"正確搜尋結果:\", found)",
+        "html": "<span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"c1\"># 正確寫法：走完整個迴圈才 return -1</span><br><span class=\"n\">found</span> <span class=\"o\">=</span> <span class=\"o\">-</span><span class=\"mi\">1</span><br><span class=\"k\">for</span> <span class=\"n\">i</span><span class=\"p\">,</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">nums</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">==</span> <span class=\"mi\">30</span><span class=\"p\">:</span> <span class=\"n\">found</span> <span class=\"o\">=</span> <span class=\"n\">i</span><span class=\"p\">;</span> <span class=\"k\">break</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;正確搜尋結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">found</span><span class=\"p\">)</span>",
+        "why": "示範標準正確架構",
+        "mean": "印出 2",
+        "alt": "正確結構"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "初始化 found = -1",
+        "vars": {
+          "found": -1
+        }
+      },
+      {
+        "step": 2,
+        "action": "走訪至 i=2 時命中 30，更新 found = 2 並 break",
+        "vars": {
+          "found": 2
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "正確搜尋結果: 2\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "看完最後人方能宣無解"
+      },
+      {
+        "type": "point",
+        "content": "只要一個符合即成功；宣判失敗必須看完所有人。"
+      },
+      {
+        "type": "warn",
+        "content": "縮排是 Python 的靈魂，return -1 永遠與 for 對齊！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Multi-match Search: Collect All Indices",
+    "titleZh": "多重目標搜尋：列表生成式收集全部索引",
+    "desc": "若目標可能出現多次，老師點名全班 100 分同學！使用列表生成式收集所有符合索引，找不到則為空串列！",
+    "codeLines": [
+      {
+        "code": "scores = [85, 90, 72, 90, 60, 90, 88]; target = 90",
+        "html": "<span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">85</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">72</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">];</span> <span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">90</span>",
+        "why": "90 分出現了三次（索引 1, 3, 5）",
+        "mean": "包含重複命中目標的成績冊",
+        "alt": "多目標資料"
+      },
+      {
+        "code": "matches = [i for i, s in enumerate(scores) if s == target]",
+        "html": "<span class=\"n\">matches</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"n\">i</span> <span class=\"k\">for</span> <span class=\"n\">i</span><span class=\"p\">,</span> <span class=\"n\">s</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">)</span> <span class=\"k\">if</span> <span class=\"n\">s</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">]</span>",
+        "why": "一行流收集所有匹配的索引 i",
+        "mean": "若無符合則為 []",
+        "alt": "列表生成式收集"
+      },
+      {
+        "code": "print(\"所有 90 分索引:\", matches)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;所有 90 分索引:&quot;</span><span class=\"p\">,</span> <span class=\"n\">matches</span><span class=\"p\">)</span>",
+        "why": "輸出索引清單",
+        "mean": "印出 [1, 3, 5]",
+        "alt": "輸出匹配清單"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "走訪 scores，篩選出 s == 90 的索引 1, 3, 5",
+        "vars": {
+          "matches": [
+            1,
+            3,
+            5
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "所有 90 分索引: [1, 3, 5]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "生成式收集全體索引清"
+      },
+      {
+        "type": "point",
+        "content": "收集的是索引 i 而非數值 s，別忘了用 enumerate！"
+      },
+      {
+        "type": "tip",
+        "content": "若無符合者，matches 為空串列，len(matches) == 0。"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 12.6 Summary & Mastery Card",
+    "titleZh": "單元 12.6 綜合驗收：線性搜尋與例外防護",
+    "desc": "恭喜完成單元 12.6！你已徹底精通線性搜尋原理、O(N) 複雜度、index() 防禦戰術與多目標索引收集！",
+    "codeLines": [
+      {
+        "code": "# 線性搜尋與安全防禦終極模板",
+        "html": "<span class=\"c1\"># 線性搜尋與安全防禦終極模板</span>",
+        "why": "總結本節精髓",
+        "mean": "涵蓋安全查詢與多目標收集",
+        "alt": "全能精要"
+      },
+      {
+        "code": "arr = [10, 20, 30, 20, 50]",
+        "html": "<span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">]</span>",
+        "why": "測試用清單",
+        "mean": "測試資料",
+        "alt": "測試清單"
+      },
+      {
+        "code": "first_pos = arr.index(20) if 20 in arr else -1\nall_pos = [i for i, x in enumerate(arr) if x == 20]",
+        "html": "<span class=\"n\">first_pos</span> <span class=\"o\">=</span> <span class=\"n\">arr</span><span class=\"o\">.</span><span class=\"n\">index</span><span class=\"p\">(</span><span class=\"mi\">20</span><span class=\"p\">)</span> <span class=\"k\">if</span> <span class=\"mi\">20</span> <span class=\"ow\">in</span> <span class=\"n\">arr</span> <span class=\"k\">else</span> <span class=\"o\">-</span><span class=\"mi\">1</span><br><span class=\"n\">all_pos</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"n\">i</span> <span class=\"k\">for</span> <span class=\"n\">i</span><span class=\"p\">,</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"nb\">enumerate</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">==</span> <span class=\"mi\">20</span><span class=\"p\">]</span>",
+        "why": "一行取得首次安全位置與全部位置",
+        "mean": "首次 1，全部 [1, 3]",
+        "alt": "雙模式呈現"
+      },
+      {
+        "code": "print(\"首次:\", first_pos, \"全部:\", all_pos)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;首次:&quot;</span><span class=\"p\">,</span> <span class=\"n\">first_pos</span><span class=\"p\">,</span> <span class=\"s2\">&quot;全部:&quot;</span><span class=\"p\">,</span> <span class=\"n\">all_pos</span><span class=\"p\">)</span>",
+        "why": "印出驗證結果",
+        "mean": "印出 首次: 1 全部: [1, 3]",
+        "alt": "輸出驗收結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "安全取得首次出現位置 first_pos = 1",
+        "vars": {
+          "first_pos": 1
+        }
+      },
+      {
+        "step": 2,
+        "action": "列表生成式取得全部出現位置 all_pos = [1, 3]",
+        "vars": {
+          "all_pos": [
+            1,
+            3
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出驗收成果",
+        "vars": {},
+        "output": "首次: 1 全部: [1, 3]\n"
+      }
+    ],
+    "completionCard": {
+      "badge": "🛡️ 搜尋防禦大師",
+      "summary": [
+        "掌握線性搜尋原理，地毯式逐一走訪無序資料，命中提早 break",
+        "透徹分析 O(N) 複雜度：最佳 O(1)、最差 O(N)、平均 (N+1)/2 次比對",
+        "認清 list.index() 找不到時拋出 ValueError 的致命地雷",
+        "熟練運用 if x in a 哨兵防禦、手刻回傳 -1 慣例與列表生成式全收集"
+      ],
+      "nextUnit": "12.7 二分搜尋法手刻演算法一：猜數字模型與精確匹配"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "線性搜防禦到位無差錯"
+      },
+      {
+        "type": "point",
+        "content": "學會搜尋與防禦，是邁向更高階演算法不可或缺的堅固盾牌。"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將迎來重頭戲：每次砍半範圍的二分搜尋法！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec12-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_12-3_custom_sort_key_and_named_functions.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

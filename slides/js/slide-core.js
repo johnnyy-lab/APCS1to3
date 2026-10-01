@@ -148,8 +148,8 @@ const courseCurriculum = [
       { id: "sec11-4", title: "11.4 變數作用域：區域變數與遮蔽現象（Shadowing）", available: true, url: "PythAPCS123_11-4_variable_scope_local_and_shadowing.html" },
       { id: "sec11-5", title: "11.5 全域變數 global 關鍵字與除錯陷阱", available: true, url: "PythAPCS123_11-5_global_variable_and_debugging.html" },
       { id: "sec11-6", title: "11.6 線性遞迴與呼叫堆疊（Call Stack）視覺化", available: true, url: "PythAPCS123_11-6_linear_recursion_and_call_stack.html" },
-      { id: "sec11-7", title: "11.7 樹狀遞迴與經典數論問題（輾轉相除法、費氏數列）", available: false },
-      { id: "sec11-8", title: "11.8 模組化解題戰略：頂層抽象與輔助函式設計", available: false }
+      { id: "sec11-7", title: "11.7 樹狀遞迴與經典數論問題（輾轉相除法、費氏數列）", available: true, url: "PythAPCS123_11-7_tree_recursion_and_number_theory.html" },
+      { id: "sec11-8", title: "11.8 模組化解題戰略：頂層抽象與輔助函式設計", available: true, url: "PythAPCS123_11-8_modular_decomposition_and_helper_functions.html" }
     ]
   },
   {

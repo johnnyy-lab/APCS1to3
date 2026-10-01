@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.8 函數模組化解題實戰：Top-Down 拆題法與競賽輔助函數庫建立 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0000cd" />
+        </marker>
+      </defs>
+      <path class="flow-line" id="flowGuidePath" d="" />
+    </svg>
+
+    <!-- 施工中遮罩 (Construction Stage) -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.1 自頂向下拆題思維（Top-Down Decomposition）：先寫主流程骨架，再填細節函數",
+    "titleZh": "百行大題的痛點——麵條式代碼塞滿主程式的除錯噩夢",
+    "titleEn": "Spaghetti Code Pain in APCS Big Problems",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 典型新手寫法：輸入、清洗、篩選、計算全部擠在同一個大迴圈",
+        "html": "<span class=\"token-comment\"># 典型新手寫法：輸入、清洗、篩選、計算全部擠在同一個大迴圈</span>",
+        "alt": "新手麵條程式碼說明",
+        "why": "未模組化結構混亂",
+        "mean": "新手痛點"
+      },
+      {
+        "num": 2,
+        "code": "raw_data = [85, -1, 90, 150, 60]  # 雜亂資料",
+        "html": "<span class=\"token-ident\">raw_data</span> = [<span class=\"token-number\">85</span>, -<span class=\"token-number\">1</span>, <span class=\"token-number\">90</span>, <span class=\"token-number\">150</span>, <span class=\"token-number\">60</span>]  <span class=\"token-comment\"># 雜亂資料</span>",
+        "alt": "原始雜亂數據",
+        "why": "待清洗數據",
+        "mean": "原始資料"
+      },
+      {
+        "num": 3,
+        "code": "# 若中間某一處邏輯改動，變數名稱互相踩踏，當場爆出難解 Bug！",
+        "html": "<span class=\"token-comment\"># 若中間某一處邏輯改動，變數名稱互相踩踏，當場爆出難解 Bug！</span>",
+        "alt": "變數踩踏風險",
+        "why": "命名空間污染",
+        "mean": "風險警告"
+      },
+      {
+        "num": 4,
+        "code": "print(\"痛點：程式碼超過 50 行時，大腦記憶力不堪負荷！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;痛點：程式碼超過 50 行時，大腦記憶力不堪負荷！&quot;</span>)",
+        "alt": "印出痛點反思",
+        "diff": true,
+        "why": "建立模組化動機",
+        "mean": "印出痛點"
+      }
+    ],
+    "output": "痛點：程式碼超過 50 行時，大腦記憶力不堪負荷！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>拒絕麵條程式碼</strong>：在 APCS 第 2、3、4 題中，題目常包含多個繁瑣步驟。若把所有代碼全部寫在一起，只要出一個 Bug 往往需要整篇重讀。解題大師的秘訣是「模組化拆解」！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "邏輯混一團，改一爆全盤"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.1 自頂向下拆題思維（Top-Down Decomposition）：先寫主流程骨架，再填細節函數",
+    "titleZh": "自頂向下拆題思維（Top-Down）——先寫主流程骨架，再填子函數",
+    "titleEn": "Top-Down Decomposition: Main Skeleton First",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 第一步：先規劃一目了然的主流程骨架！",
+        "html": "<span class=\"token-comment\"># 第一步：先規劃一目了然的主流程骨架！</span>",
+        "alt": "自頂向下思維註解",
+        "why": "先寫骨架再填肉",
+        "mean": "設計思維"
+      },
+      {
+        "num": 2,
+        "code": "def process_scores(scores):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">process_scores</span>(<span class=\"token-ident\">scores</span>):",
+        "alt": "定義主流程函數",
+        "why": "高層業務邏輯",
+        "mean": "主流程骨架"
+      },
+      {
+        "num": 3,
+        "code": "    clean = [s for s in scores if 0 <= s <= 100]",
+        "html": "    <span class=\"token-ident\">clean</span> = [<span class=\"token-ident\">s</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span> <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">s</span> &lt;= <span class=\"token-number\">100</span>]",
+        "alt": "第 1 步：清洗資料",
+        "diff": true,
+        "why": "過濾異常值",
+        "mean": "清洗數據"
+      },
+      {
+        "num": 4,
+        "code": "    passed = [s for s in clean if s >= 60]",
+        "html": "    <span class=\"token-ident\">passed</span> = [<span class=\"token-ident\">s</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">clean</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">s</span> &gt;= <span class=\"token-number\">60</span>]",
+        "alt": "第 2 步：及格篩選",
+        "diff": true,
+        "why": "及格名單",
+        "mean": "及格篩選"
+      },
+      {
+        "num": 5,
+        "code": "    return len(passed)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">passed</span>)",
+        "alt": "回傳及格人數",
+        "why": "產出最終結果",
+        "mean": "回傳成果"
+      },
+      {
+        "num": 6,
+        "code": "raw = [80, -5, 95, 45, 110, 70]",
+        "html": "<span class=\"token-ident\">raw</span> = [<span class=\"token-number\">80</span>, -<span class=\"token-number\">5</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">45</span>, <span class=\"token-number\">110</span>, <span class=\"token-number\">70</span>]",
+        "alt": "原始成績清單",
+        "why": "測試數據",
+        "mean": "測試資料"
+      },
+      {
+        "num": 7,
+        "code": "print(\"有效及格人數:\", process_scores(raw))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;有效及格人數:&quot;</span>, <span class=\"token-func\">process_scores</span>(<span class=\"token-ident\">raw</span>))",
+        "alt": "輸出 3",
+        "diff": true,
+        "why": "80, 95, 70 共 3 人及格",
+        "mean": "印出人數"
+      }
+    ],
+    "output": "有效及格人數: 3",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>先骨骼後血肉</strong>：由頂層業務邏輯往下看，主流程清晰流暢，每個步驟各司其職。即使題目需求臨時變更（例如改及格門檻為 70），只需修改對應小函數，主流程穩如泰山！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "先定主骨架，分工填肉塊"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.2 必備輔助函式庫一：二維網格安全邊界檢查 in_bound(r, c, H, W)",
+    "titleZh": "必備武器庫一——二維網格安全邊界守衛 in_bound",
+    "titleEn": "Helper 1: Grid In-Bound Safety Boundary Guard",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def in_bound(r, c, H, W):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">in_bound</span>(<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>, <span class=\"token-ident\">H</span>, <span class=\"token-ident\">W</span>):",
+        "alt": "定義 in_bound 函數",
+        "why": "APCS 網格第一神器",
+        "mean": "邊界守衛"
+      },
+      {
+        "num": 2,
+        "code": "    # 嚴格界定：0 <= r < H 且 0 <= c < W",
+        "html": "    <span class=\"token-comment\"># 嚴格界定：0 &lt;= r &lt; H 且 0 &lt;= c &lt; W</span>",
+        "alt": "邊界判斷公式",
+        "why": "合法索引範圍",
+        "mean": "邊界公式"
+      },
+      {
+        "num": 3,
+        "code": "    return 0 <= r < H and 0 <= c < W",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">r</span> &lt; <span class=\"token-ident\">H</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">c</span> &lt; <span class=\"token-ident\">W</span>",
+        "alt": "回傳邊界布林值",
+        "diff": true,
+        "why": "雙維度鏈狀比對",
+        "mean": "回傳布林"
+      },
+      {
+        "num": 4,
+        "code": "# 測試 3x3 網格 (H=3, W=3)",
+        "html": "<span class=\"token-comment\"># 測試 3x3 網格 (H=3, W=3)</span>",
+        "alt": "3x3 測試註解",
+        "why": "測試情境",
+        "mean": "情境註解"
+      },
+      {
+        "num": 5,
+        "code": "print(\"(1, 2) 在範圍內:\", in_bound(1, 2, 3, 3))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;(1, 2) 在範圍內:&quot;</span>, <span class=\"token-func\">in_bound</span>(<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>))",
+        "alt": "輸出 True",
+        "why": "合法範圍",
+        "mean": "測試合法"
+      },
+      {
+        "num": 6,
+        "code": "print(\"(3, 0) 在範圍內:\", in_bound(3, 0, 3, 3))  # 越界",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;(3, 0) 在範圍內:&quot;</span>, <span class=\"token-func\">in_bound</span>(<span class=\"token-number\">3</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>))  <span class=\"token-comment\"># 越界</span>",
+        "alt": "輸出 False",
+        "diff": true,
+        "why": "r=3 達到高度上限非法",
+        "mean": "測試越界"
+      }
+    ],
+    "output": "(1, 2) 在範圍內: True\n(3, 0) 在範圍內: False",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>徹底杜絕 IndexError 的金鐘罩</strong>：APCS 歷屆實作題有超過 40% 都是二維網格模擬題（如裝飲料、魔王迷宮、動線安排）。將 <code>in_bound</code> 封裝為標準工具，從此再也不會發生陣列越界慘劇！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "零到小於高，邊界金鐘罩"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.2 必備輔助函式庫一：二維網格安全邊界檢查 in_bound(r, c, H, W)",
+    "titleZh": "方向向量與相鄰走訪——四方向安全擴展標準模板",
+    "titleEn": "Direction Vectors: 4-Way Safe Expansion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "2x2 測試網格",
+        "why": "小型地圖",
+        "mean": "二維網格"
+      },
+      {
+        "num": 2,
+        "code": "H, W = len(grid), len(grid[0])",
+        "html": "<span class=\"token-ident\">H</span>, <span class=\"token-ident\">W</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])",
+        "alt": "取得網格高寬",
+        "why": "維度常數",
+        "mean": "網格高寬"
+      },
+      {
+        "num": 3,
+        "code": "def get_valid_neighbors(r, c):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">get_valid_neighbors</span>(<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>):",
+        "alt": "取得相鄰元素",
+        "why": "鄰居收集函數",
+        "mean": "定義鄰居函數"
+      },
+      {
+        "num": 4,
+        "code": "    dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 上下左右位移",
+        "html": "    <span class=\"token-ident\">dirs</span> = [(-<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]  <span class=\"token-comment\"># 上下左右位移</span>",
+        "alt": "方向向量",
+        "diff": true,
+        "why": "標準方向陣列",
+        "mean": "方向向量"
+      },
+      {
+        "num": 5,
+        "code": "    res = []",
+        "html": "    <span class=\"token-ident\">res</span> = []",
+        "alt": "結果收集串列",
+        "why": "存放合法鄰居",
+        "mean": "初始化串列"
+      },
+      {
+        "num": 6,
+        "code": "    for dr, dc in dirs:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">dirs</span>:",
+        "alt": "走訪四方向",
+        "why": "枚舉位移向量",
+        "mean": "方向走訪"
+      },
+      {
+        "num": 7,
+        "code": "        nr, nc = r + dr, c + dc",
+        "html": "        <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "計算新座標",
+        "why": "探索座標",
+        "mean": "新座標"
+      },
+      {
+        "num": 8,
+        "code": "        if 0 <= nr < H and 0 <= nc < W: res.append(grid[nr][nc])",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">nr</span> &lt; <span class=\"token-ident\">H</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">nc</span> &lt; <span class=\"token-ident\">W</span>: <span class=\"token-ident\">res</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-ident\">nr</span>][<span class=\"token-ident\">nc</span>])",
+        "alt": "合法則加入",
+        "diff": true,
+        "why": "安全邊界防護",
+        "mean": "合法收集"
+      },
+      {
+        "num": 9,
+        "code": "    return res",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">res</span>",
+        "alt": "回傳鄰居清單",
+        "why": "回傳結果",
+        "mean": "回傳"
+      },
+      {
+        "num": 10,
+        "code": "print(\"(0, 0) 的合法鄰居:\", get_valid_neighbors(0, 0))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;(0, 0) 的合法鄰居:&quot;</span>, <span class=\"token-func\">get_valid_neighbors</span>(<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>))",
+        "alt": "輸出 [3, 2]",
+        "diff": true,
+        "why": "(0,0) 的下鄰居是 3，右鄰居是 2",
+        "mean": "印出鄰居"
+      }
+    ],
+    "output": "(0, 0) 的合法鄰居: [3, 2]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>方向向量搭配安全邊界</strong>：以 <code>(-1, 0), (1, 0), (0, -1), (0, 1)</code> 表達上下左右位移，配合邊界檢查，邊角頂點只會收納合法的鄰居，代碼結構整潔高雅！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "向量定方向，邊界濾鄰居"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.3 必備輔助函式庫二：幾何與網格曼哈頓距離 / 歐式距離計算函數",
+    "titleZh": "必備武器庫二——曼哈頓距離（Manhattan Distance）",
+    "titleEn": "Helper 2: Manhattan Distance |x1-x2| + |y1-y2|",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def manhattan_dist(p1, p2):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">manhattan_dist</span>(<span class=\"token-ident\">p1</span>, <span class=\"token-ident\">p2</span>):",
+        "alt": "定義曼哈頓距離函數",
+        "why": "棋盤網格距離工具",
+        "mean": "曼哈頓函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 棋盤曼哈頓公式：|x1 - x2| + |y1 - y2|",
+        "html": "    <span class=\"token-comment\"># 棋盤曼哈頓公式：|x1 - x2| + |y1 - y2|</span>",
+        "alt": "公式註解",
+        "why": "絕對值之和",
+        "mean": "公式說明"
+      },
+      {
+        "num": 3,
+        "code": "    return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">p1</span>[<span class=\"token-number\">0</span>] - <span class=\"token-ident\">p2</span>[<span class=\"token-number\">0</span>]) + <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">p1</span>[<span class=\"token-number\">1</span>] - <span class=\"token-ident\">p2</span>[<span class=\"token-number\">1</span>])",
+        "alt": "回傳絕對值相加",
+        "diff": true,
+        "why": "極速整數運算",
+        "mean": "絕對值求和"
+      },
+      {
+        "num": 4,
+        "code": "start = (1, 2)",
+        "html": "<span class=\"token-ident\">start</span> = (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>)",
+        "alt": "起點 (1, 2)",
+        "why": "座標 1",
+        "mean": "起點座標"
+      },
+      {
+        "num": 5,
+        "code": "target = (4, 6)",
+        "html": "<span class=\"token-ident\">target</span> = (<span class=\"token-number\">4</span>, <span class=\"token-number\">6</span>)",
+        "alt": "目標 (4, 6)",
+        "why": "座標 2",
+        "mean": "目標座標"
+      },
+      {
+        "num": 6,
+        "code": "d = manhattan_dist(start, target)",
+        "html": "<span class=\"token-ident\">d</span> = <span class=\"token-func\">manhattan_dist</span>(<span class=\"token-ident\">start</span>, <span class=\"token-ident\">target</span>)",
+        "alt": "計算兩點距離",
+        "diff": true,
+        "why": "|1-4| + |2-6| = 3 + 4 = 7",
+        "mean": "呼叫計算"
+      },
+      {
+        "num": 7,
+        "code": "print(\"曼哈頓步數距離:\", d)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;曼哈頓步數距離:&quot;</span>, <span class=\"token-ident\">d</span>)",
+        "alt": "輸出 7",
+        "why": "印出計算結果",
+        "mean": "印出距離"
+      }
+    ],
+    "output": "曼哈頓步數距離: 7",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>網格世界的步數標準</strong>：在只能走上下左右的網格中，兩點間最短步數就是曼哈頓距離。APCS「特殊位置」真題便以曼哈頓距離為核心題意，純整數計算，毫無浮點數誤差！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "坐標差絕對，相加得步數"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.3 必備輔助函式庫二：幾何與網格曼哈頓距離 / 歐式距離計算函數",
+    "titleZh": "歐式距離比較技巧——以「距離平方」比大小徹底消滅浮點誤差",
+    "titleEn": "Euclidean Distance: Compare Squared Distance",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def dist_sq(p1, p2):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">dist_sq</span>(<span class=\"token-ident\">p1</span>, <span class=\"token-ident\">p2</span>):",
+        "alt": "距離平方函數",
+        "why": "避免開根號",
+        "mean": "定義平方函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 歐式距離平方：(x1 - x2)^2 + (y1 - y2)^2",
+        "html": "    <span class=\"token-comment\"># 歐式距離平方：(x1 - x2)^2 + (y1 - y2)^2</span>",
+        "alt": "距離平方公式",
+        "why": "純整數運算",
+        "mean": "公式註解"
+      },
+      {
+        "num": 3,
+        "code": "    return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2",
+        "html": "    <span class=\"token-keyword\">return</span> (<span class=\"token-ident\">p1</span>[<span class=\"token-number\">0</span>] - <span class=\"token-ident\">p2</span>[<span class=\"token-number\">0</span>])**<span class=\"token-number\">2</span> + (<span class=\"token-ident\">p1</span>[<span class=\"token-number\">1</span>] - <span class=\"token-ident\">p2</span>[<span class=\"token-number\">1</span>])**<span class=\"token-number\">2</span>",
+        "alt": "回傳平方和",
+        "diff": true,
+        "why": "純整數，速度快 10 倍",
+        "mean": "回傳平方和"
+      },
+      {
+        "num": 4,
+        "code": "origin = (0, 0)",
+        "html": "<span class=\"token-ident\">origin</span> = (<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>)",
+        "alt": "原點 (0, 0)",
+        "why": "基地起點",
+        "mean": "原點"
+      },
+      {
+        "num": 5,
+        "code": "points = [(\"A\", (3, 4)), (\"B\", (1, 5))]",
+        "html": "<span class=\"token-ident\">points</span> = [(<span class=\"token-string\">&quot;A&quot;</span>, (<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>)), (<span class=\"token-string\">&quot;B&quot;</span>, (<span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>))]",
+        "alt": "候選點 A 與 B",
+        "why": "A 平方 25, B 平方 26",
+        "mean": "候選清單"
+      },
+      {
+        "num": 6,
+        "code": "closest = min(points, key=lambda p: dist_sq(origin, p[1]))",
+        "html": "<span class=\"token-ident\">closest</span> = <span class=\"token-builtin\">min</span>(<span class=\"token-ident\">points</span>, <span class=\"token-keyword\">key</span>=<span class=\"token-keyword\">lambda</span> <span class=\"token-ident\">p</span>: <span class=\"token-func\">dist_sq</span>(<span class=\"token-ident\">origin</span>, <span class=\"token-ident\">p</span>[<span class=\"token-number\">1</span>]))",
+        "alt": "以平方最小取最近點",
+        "diff": true,
+        "why": "純整數比大小",
+        "mean": "找出最近點"
+      },
+      {
+        "num": 7,
+        "code": "print(\"直線最近目標是:\", closest[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;直線最近目標是:&quot;</span>, <span class=\"token-ident\">closest</span>[<span class=\"token-number\">0</span>])",
+        "alt": "輸出 A",
+        "diff": true,
+        "why": "印出 A 站",
+        "mean": "印出最近點"
+      }
+    ],
+    "output": "直線最近目標是: A",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>競賽大忌：濫用開根號</strong>：在平面比距離時，若使用 <code>math.sqrt()</code> 會引入浮點數，可能因微小精度誤差導致判斷錯誤。因為 $d_1 < d_2 \\iff d_1^2 < d_2^2$，直接比平方全整數運算，100% 精準且極速！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "比距莫開方，平方純整數"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.4 必備輔助函式庫三：數論判定工具（質數判定、因數個數、迴文數判定）",
+    "titleZh": "必備武器庫三——極速質數判定 is_prime 範本",
+    "titleEn": "Helper 3: O(sqrt(N)) Fast Prime Checker",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def is_prime(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_prime</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "定義質數判定函數",
+        "why": "APCS 數論必背模板",
+        "mean": "質數判定"
+      },
+      {
+        "num": 2,
+        "code": "    # 1. 邊界守衛：小於 2 的數都不是質數！",
+        "html": "    <span class=\"token-comment\"># 1. 邊界守衛：小於 2 的數都不是質數！</span>",
+        "alt": "邊界條件註解",
+        "why": "攔截 0 與 1",
+        "mean": "邊界註解"
+      },
+      {
+        "num": 3,
+        "code": "    if n < 2: return False",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt; <span class=\"token-number\">2</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "小於 2 回傳 False",
+        "diff": true,
+        "why": "關鍵防線",
+        "mean": "防護攔截"
+      },
+      {
+        "num": 4,
+        "code": "    # 2. 根號 N 檢查法：只需檢查到 int(n**0.5)",
+        "html": "    <span class=\"token-comment\"># 2. 根號 N 檢查法：只需檢查到 int(n**0.5)</span>",
+        "alt": "根號 N 原理",
+        "why": "O(sqrt(N)) 複雜度",
+        "mean": "複雜度註解"
+      },
+      {
+        "num": 5,
+        "code": "    for d in range(2, int(n**0.5) + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span>**<span class=\"token-number\">0.5</span>) + <span class=\"token-number\">1</span>):",
+        "alt": "檢查到根號 n",
+        "diff": true,
+        "why": "縮減至根號等級",
+        "mean": "根號迴圈"
+      },
+      {
+        "num": 6,
+        "code": "        if n % d == 0: return False  # 能整除必非質數",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> % <span class=\"token-ident\">d</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>  <span class=\"token-comment\"># 能整除必非質數</span>",
+        "alt": "整除提早結束",
+        "why": "發現因數立即回傳 False",
+        "mean": "整除判定"
+      },
+      {
+        "num": 7,
+        "code": "    return True  # 順利通過即為質數",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">True</span>  <span class=\"token-comment\"># 順利通過即為質數</span>",
+        "alt": "回傳 True",
+        "why": "通過全檢驗",
+        "mean": "回傳真"
+      },
+      {
+        "num": 8,
+        "code": "primes_to_20 = [x for x in range(20) if is_prime(x)]",
+        "html": "<span class=\"token-ident\">primes_to_20</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">20</span>) <span class=\"token-keyword\">if</span> <span class=\"token-func\">is_prime</span>(<span class=\"token-ident\">x</span>)]",
+        "alt": "生成 20 以內質數",
+        "diff": true,
+        "why": "列表生成式篩選",
+        "mean": "篩選質數"
+      },
+      {
+        "num": 9,
+        "code": "print(\"20 以內的質數:\", primes_to_20)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;20 以內的質數:&quot;</span>, <span class=\"token-ident\">primes_to_20</span>)",
+        "alt": "輸出 [2, 3, 5, 7, 11, 13, 17, 19]",
+        "why": "驗證正確性",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "20 以內的質數: [2, 3, 5, 7, 11, 13, 17, 19]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>因數成對出現原理</strong>：若 $n = a \times b$，則 $a$ 與 $b$ 必有一者 $\\le \\sqrt{n}$。因此檢查迴圈上限設為 <code>int(n**0.5) + 1</code> 即可，運算時間從 100 萬次驟減至 1000 次！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "小於二先擋，測到根號止"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.4 必備輔助函式庫三：數論判定工具（質數判定、因數個數、迴文數判定）",
+    "titleZh": "因數個數統計——成對累積與完全平方數特判",
+    "titleEn": "Counting Divisors: Pair Accumulation & Perfect Square",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def count_divisors(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">count_divisors</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "因數計數函數",
+        "why": "統計因數個數",
+        "mean": "定義計數函數"
+      },
+      {
+        "num": 2,
+        "code": "    if n <= 0: return 0",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span>",
+        "alt": "非正整數回傳 0",
+        "why": "邊界保護",
+        "mean": "邊界保護"
+      },
+      {
+        "num": 3,
+        "code": "    cnt = 0",
+        "html": "    <span class=\"token-ident\">cnt</span> = <span class=\"token-number\">0</span>",
+        "alt": "計數變數",
+        "why": "累計器",
+        "mean": "初始化計數"
+      },
+      {
+        "num": 4,
+        "code": "    for d in range(1, int(n**0.5) + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">1</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span>**<span class=\"token-number\">0.5</span>) + <span class=\"token-number\">1</span>):",
+        "alt": "走訪至根號 n",
+        "why": "只跑一半區間",
+        "mean": "根號迴圈"
+      },
+      {
+        "num": 5,
+        "code": "        if n % d == 0:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> % <span class=\"token-ident\">d</span> == <span class=\"token-number\">0</span>:",
+        "alt": "整除則成對累加",
+        "why": "發現因數",
+        "mean": "整除判斷"
+      },
+      {
+        "num": 6,
+        "code": "            cnt += 1 if d * d == n else 2  # 完全平方數只計 1 個！",
+        "html": "            <span class=\"token-ident\">cnt</span> += <span class=\"token-number\">1</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">d</span> * <span class=\"token-ident\">d</span> == <span class=\"token-ident\">n</span> <span class=\"token-keyword\">else</span> <span class=\"token-number\">2</span>  <span class=\"token-comment\"># 完全平方數只計 1 個！</span>",
+        "alt": "三元運算判斷平方根",
+        "diff": true,
+        "why": "防範重複計算 6*6",
+        "mean": "成對計數"
+      },
+      {
+        "num": 7,
+        "code": "    return cnt",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">cnt</span>",
+        "alt": "回傳總因數數",
+        "why": "回傳結果",
+        "mean": "回傳"
+      },
+      {
+        "num": 8,
+        "code": "print(\"36 的因數個數:\", count_divisors(36))  # 1,2,3,4,6,9,12,18,36 共 9 個",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;36 的因數個數:&quot;</span>, <span class=\"token-func\">count_divisors</span>(<span class=\"token-number\">36</span>))  <span class=\"token-comment\"># 1,2,3,4,6,9,12,18,36 共 9 個</span>",
+        "alt": "輸出 9",
+        "diff": true,
+        "why": "驗證完全平方數",
+        "mean": "測試 36"
+      }
+    ],
+    "output": "36 的因數個數: 9",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>成對成雙的因數技巧</strong>：因數是成對出現的（如 36 的 1 與 36、2 與 18）。只有在 <code>d * d == n</code>（如 6*6=36）時是同一個數，此時只加 1，其餘情況一次加 2，效率提升千倍！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "因數成對數，平方根計一"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.4 必備輔助函式庫三：數論判定工具（質數判定、因數個數、迴文數判定）",
+    "titleZh": "迴文數判定工具——數字轉字串反轉對稱檢驗",
+    "titleEn": "Palindrome Number Checker: String Slicing",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def is_pal_num(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_pal_num</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "迴文數判定函數",
+        "why": "數值轉型對稱比對",
+        "mean": "定義迴文函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 轉為字串後，比對是否與[::-1]反轉字串完全相同",
+        "html": "    <span class=\"token-comment\"># 轉為字串後，比對是否與[::-1]反轉字串完全相同</span>",
+        "alt": "切片反轉比對",
+        "why": "一秒極速判定",
+        "mean": "方法說明"
+      },
+      {
+        "num": 3,
+        "code": "    s = str(n)",
+        "html": "    <span class=\"token-ident\">s</span> = <span class=\"token-builtin\">str</span>(<span class=\"token-ident\">n</span>)",
+        "alt": "轉為字串",
+        "diff": true,
+        "why": "型態轉換",
+        "mean": "轉型字串"
+      },
+      {
+        "num": 4,
+        "code": "    return s == s[::-1]",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">s</span> == <span class=\"token-ident\">s</span>[::<span class=\"token-number\">-1</span>]",
+        "alt": "比對自身與反轉",
+        "diff": true,
+        "why": "回傳對稱布林值",
+        "mean": "對稱比對"
+      },
+      {
+        "num": 5,
+        "code": "print(\"12321 是迴文數:\", is_pal_num(12321))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;12321 是迴文數:&quot;</span>, <span class=\"token-func\">is_pal_num</span>(<span class=\"token-number\">12321</span>))",
+        "alt": "輸出 True",
+        "why": "對稱奇數長度",
+        "mean": "測試 1"
+      },
+      {
+        "num": 6,
+        "code": "print(\"12345 是迴文數:\", is_pal_num(12345))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;12345 是迴文數:&quot;</span>, <span class=\"token-func\">is_pal_num</span>(<span class=\"token-number\">12345</span>))",
+        "alt": "輸出 False",
+        "diff": true,
+        "why": "非對稱數字",
+        "mean": "測試 2"
+      }
+    ],
+    "output": "12321 是迴文數: True\n12345 是迴文數: False",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>型態轉化的妙手</strong>：純數學判定迴文數需要反覆取模與整除；在 Python 中善用動態型態特性，透過 <code>str(n)</code> 轉為字串後以 <code>s[::-1]</code> 反轉比對，代碼兩行搞定，直觀且無 bug！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "轉為字串切，負一步步反"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.4 必備輔助函式庫三：數論判定工具（質數判定、因數個數、迴文數判定）",
+    "titleZh": "武器庫組合拳——列表生成式整合多項判定函數",
+    "titleEn": "Helper Arsenal Combo: Multi-Predicate Filtering",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def is_prime(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_prime</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "質數函數",
+        "why": "判定 1",
+        "mean": "質數判定"
+      },
+      {
+        "num": 2,
+        "code": "    if n < 2: return False",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt; <span class=\"token-number\">2</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "邊界防禦",
+        "why": "基底",
+        "mean": "邊界"
+      },
+      {
+        "num": 3,
+        "code": "    for d in range(2, int(n**0.5) + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span>**<span class=\"token-number\">0.5</span>) + <span class=\"token-number\">1</span>):",
+        "alt": "迴圈",
+        "why": "根號",
+        "mean": "迴圈"
+      },
+      {
+        "num": 4,
+        "code": "        if n % d == 0: return False",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> % <span class=\"token-ident\">d</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "整除回傳假",
+        "why": "因數判定",
+        "mean": "整除"
+      },
+      {
+        "num": 5,
+        "code": "    return True",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">True</span>",
+        "alt": "回傳真",
+        "why": "質數真",
+        "mean": "回傳真"
+      },
+      {
+        "num": 6,
+        "code": "def is_pal(n): return str(n) == str(n)[::-1]",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_pal</span>(<span class=\"token-ident\">n</span>): <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">str</span>(<span class=\"token-ident\">n</span>) == <span class=\"token-builtin\">str</span>(<span class=\"token-ident\">n</span>)[::<span class=\"token-number\">-1</span>]",
+        "alt": "單行迴文判定",
+        "why": "判定 2",
+        "mean": "迴文判定"
+      },
+      {
+        "num": 7,
+        "code": "# 組合拳：挑出 10 到 150 之間「同時是質數也是迴文數」的數字",
+        "html": "<span class=\"token-comment\"># 組合拳：挑出 10 到 150 之間「同時是質數也是迴文數」的數字</span>",
+        "alt": "雙重條件組合",
+        "why": "組合拳示範",
+        "mean": "組合說明"
+      },
+      {
+        "num": 8,
+        "code": "pal_primes = [x for x in range(10, 150) if is_prime(x) and is_pal(x)]",
+        "html": "<span class=\"token-ident\">pal_primes</span> = [<span class=\"token-ident\">x</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">10</span>, <span class=\"token-number\">150</span>) <span class=\"token-keyword\">if</span> <span class=\"token-func\">is_prime</span>(<span class=\"token-ident\">x</span>) <span class=\"token-keyword\">and</span> <span class=\"token-func\">is_pal</span>(<span class=\"token-ident\">x</span>)]",
+        "alt": "列表生成式雙條件",
+        "diff": true,
+        "why": "一行流過濾",
+        "mean": "雙重篩選"
+      },
+      {
+        "num": 9,
+        "code": "print(\"10~150 迴文質數:\", pal_primes)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;10~150 迴文質數:&quot;</span>, <span class=\"token-ident\">pal_primes</span>)",
+        "alt": "輸出 [11, 101, 131]",
+        "diff": true,
+        "why": "印出篩選結果",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "10~150 迴文質數: [11, 101, 131]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>積木般的組裝威力</strong>：將判定邏輯封裝為純函數後，主程式只要用 <code>if is_prime(x) and is_pal(x):</code> 就能像拼積木一樣組合多重篩選條件，閱讀體驗如英文句子般自然！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "函式如積木，拼裝多條件"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8.6 模組化除錯策略：單獨測試子函數（Unit Test 雛形）快速定位 Bug",
+    "titleZh": "考場除錯秘訣——單獨測試子函數（Unit Test 雛形）",
+    "titleEn": "Debug Strategy: Isolated Unit Testing",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def in_bound(r, c, H, W):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">in_bound</span>(<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>, <span class=\"token-ident\">H</span>, <span class=\"token-ident\">W</span>):",
+        "alt": "待測函數",
+        "why": "邊界檢驗",
+        "mean": "待測函數"
+      },
+      {
+        "num": 2,
+        "code": "    return 0 <= r < H and 0 <= c < W",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">r</span> &lt; <span class=\"token-ident\">H</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">c</span> &lt; <span class=\"token-ident\">W</span>",
+        "alt": "邊界邏輯",
+        "why": "被測邏輯",
+        "mean": "邏輯實作"
+      },
+      {
+        "num": 3,
+        "code": "# 考場自檢測資表 (輸入, 預期結果, 說明)",
+        "html": "<span class=\"token-comment\"># 考場自檢測資表 (輸入, 預期結果, 說明)</span>",
+        "alt": "自檢測資表",
+        "why": "單元測試案例",
+        "mean": "測資定義"
+      },
+      {
+        "num": 4,
+        "code": "cases = [",
+        "html": "<span class=\"token-ident\">cases</span> = [",
+        "alt": "測試案例陣列",
+        "why": "測資清單",
+        "mean": "案例串列"
+      },
+      {
+        "num": 5,
+        "code": "    ((0, 0, 3, 3), True, \"左上頂點\"),",
+        "html": "    ((<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>), <span class=\"token-keyword\">True</span>, <span class=\"token-string\">&quot;左上頂點&quot;</span>),",
+        "alt": "案例 1",
+        "why": "頂點邊界",
+        "mean": "案例 1"
+      },
+      {
+        "num": 6,
+        "code": "    ((3, 0, 3, 3), False, \"下界越界\")",
+        "html": "    ((<span class=\"token-number\">3</span>, <span class=\"token-number\">0</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>), <span class=\"token-keyword\">False</span>, <span class=\"token-string\">&quot;下界越界&quot;</span>)",
+        "alt": "案例 2",
+        "why": "越界邊界",
+        "mean": "案例 2"
+      },
+      {
+        "num": 7,
+        "code": "]",
+        "html": "]",
+        "alt": "閉合案例",
+        "why": "閉合清單",
+        "mean": "結束定義"
+      },
+      {
+        "num": 8,
+        "code": "for args, expected, label in cases:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">args</span>, <span class=\"token-ident\">expected</span>, <span class=\"token-ident\">label</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">cases</span>:",
+        "alt": "逐一驗證測試",
+        "why": "走訪測試案例",
+        "mean": "走訪測試"
+      },
+      {
+        "num": 9,
+        "code": "    ok = in_bound(*args) == expected",
+        "html": "    <span class=\"token-ident\">ok</span> = <span class=\"token-func\">in_bound</span>(*<span class=\"token-ident\">args</span>) == <span class=\"token-ident\">expected</span>",
+        "alt": "比對實際與預期",
+        "diff": true,
+        "why": "自動對照結果",
+        "mean": "驗證對照"
+      },
+      {
+        "num": 10,
+        "code": "    print(f\"{label}: {'PASS' if ok else 'FAIL'}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;{</span><span class=\"token-ident\">label</span><span class=\"token-string\">}: {'PASS' if </span><span class=\"token-ident\">ok</span><span class=\"token-string\"> else 'FAIL'}&quot;</span>)",
+        "alt": "印出測試結果",
+        "diff": true,
+        "why": "全數顯示 PASS",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "左上頂點: PASS\n下界越界: PASS",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>隔離除錯神技</strong>：當大程式輸出算錯時，千萬不要盲目改主程式。先把懷疑出問題的子函數（如 <code>in_bound</code>）單獨抽出來測 2 組極端資料，花 30 秒就能精準鎖定並修復 Bug！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "單獨測子模，定位秒修復"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8 考場地雷一：質數判定漏判 n < 2 將 1 誤判為質數",
+    "titleZh": "考場致命地雷一：質數判定漏防 1——直接送掉整題分數",
+    "titleEn": "Trap 1: Missing n < 2 Case Misidentifies 1 as Prime",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：直接 range(2, 根號n) 忘了防守 n < 2！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：直接 range(2, 根號n) 忘了防守 n &lt; 2！</span>",
+        "alt": "漏防 1 地雷註解",
+        "why": "極限邊界漏洞",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "def buggy_prime(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">buggy_prime</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "漏洞質數函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 💥 漏掉了 if n < 2: return False！",
+        "html": "    <span class=\"token-comment\"># 💥 漏掉了 if n &lt; 2: return False！</span>",
+        "alt": "缺少小於 2 判斷",
+        "why": "致命缺失",
+        "mean": "漏判說明"
+      },
+      {
+        "num": 4,
+        "code": "    for d in range(2, int(n**0.5) + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span>**<span class=\"token-number\">0.5</span>) + <span class=\"token-number\">1</span>):",
+        "alt": "根號迴圈",
+        "why": "range(2, 2) 為空迴圈",
+        "mean": "空迴圈"
+      },
+      {
+        "num": 5,
+        "code": "        if n % d == 0: return False",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> % <span class=\"token-ident\">d</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "整除回傳假",
+        "why": "不曾執行",
+        "mean": "整除判斷"
+      },
+      {
+        "num": 6,
+        "code": "    return True  # 💥 1 沒進迴圈，竟直接回傳了 True！",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">True</span>  <span class=\"token-comment\"># 💥 1 沒進迴圈，竟直接回傳了 True！</span>",
+        "alt": "直接回傳 True",
+        "diff": true,
+        "why": "致命誤判",
+        "mean": "錯誤回傳"
+      },
+      {
+        "num": 7,
+        "code": "print(\"1 是否為質數:\", buggy_prime(1))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;1 是否為質數:&quot;</span>, <span class=\"token-func\">buggy_prime</span>(<span class=\"token-number\">1</span>))",
+        "alt": "輸出 True 引爆 WA！",
+        "diff": true,
+        "why": "1 絕非質數！",
+        "mean": "驗證誤判"
+      }
+    ],
+    "output": "1 是否為質數: True",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>APCS 考官最愛陰的測資</strong>：質數定義為「大於 1 且只有 1 和自己兩個因數的整數」。當 <code>n=1</code> 時，<code>range(2, 2)</code> 一次都不跑，直接跳到 <code>return True</code>，把 1 當成質數當場獲贈 WA！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "一不是質數，首行判小二"
+      }
+    ],
+    "predictQuiz": {
+      "question": "在數學與程式語言標準定義中，數字「1」究竟是不是質數？",
+      "options": [
+        "A. 不是質數，質數嚴格定義為大於 1 的正整數",
+        "B. 是質數，因為 1 只能被 1 整除"
+      ],
+      "answer": "A",
+      "correct": "A",
+      "explanation": "依據算術基本定理，質數必須是大於 1 的自然數，且恰好有 2 個正因數（1 與本身）。數字 1 只有 1 個因數，因此 1 既非質數也非合數！判定函數第一行必須寫 if n < 2: return False！"
+    }
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8 考場地雷二：網格邊界判定包含等號引爆 IndexError",
+    "titleZh": "考場致命地雷二：邊界檢查寫成「<=」——邊緣越界當場崩潰",
+    "titleEn": "Trap 2: Off-by-One in in_bound Triggers IndexError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>], [<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>]]",
+        "alt": "2x2 測試網格",
+        "why": "高寬均為 2",
+        "mean": "網格定義"
+      },
+      {
+        "num": 2,
+        "code": "H, W = len(grid), len(grid[0])  # H=2, W=2",
+        "html": "<span class=\"token-ident\">H</span>, <span class=\"token-ident\">W</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>), <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\">0</span>])  <span class=\"token-comment\"># H=2, W=2</span>",
+        "alt": "取得高寬",
+        "why": "合法索引為 0, 1",
+        "mean": "高寬定義"
+      },
+      {
+        "num": 3,
+        "code": "def bad_bound(r, c):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">bad_bound</span>(<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>):",
+        "alt": "差一錯誤函數",
+        "why": "不等號寫錯",
+        "mean": "錯誤邊界"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 致命手滑：寫成了 <= H！最大索引其實只有 H - 1！",
+        "html": "    <span class=\"token-comment\"># 💥 致命手滑：寫成了 &lt;= H！最大索引其實只有 H - 1！</span>",
+        "alt": "寫成 <= H 註解",
+        "why": "0-based 差一錯誤",
+        "mean": "差一說明"
+      },
+      {
+        "num": 5,
+        "code": "    return 0 <= r <= H and 0 <= c < W",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">r</span> &lt;= <span class=\"token-ident\">H</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">c</span> &lt; <span class=\"token-ident\">W</span>",
+        "alt": "錯誤寫成 <= H",
+        "diff": true,
+        "why": "放行了 r = 2",
+        "mean": "錯誤判定"
+      },
+      {
+        "num": 6,
+        "code": "if bad_bound(2, 0):",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-func\">bad_bound</span>(<span class=\"token-number\">2</span>, <span class=\"token-number\">0</span>):",
+        "alt": "檢查 (2, 0) 放行",
+        "why": "誤判為合法",
+        "mean": "誤判進入"
+      },
+      {
+        "num": 7,
+        "code": "    print(grid[2][0])  # 💥 存取不存在的第 2 列，當場拋出 IndexError！",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">grid</span>[<span class=\"token-number\"><span class=\"token-wavy-err\">2</span></span>][<span class=\"token-number\">0</span>])  <span class=\"token-comment\"># 💥 存取不存在的第 2 列，當場拋出 IndexError！</span>",
+        "alt": "越界存取引爆例外",
+        "diff": true,
+        "why": "超出合法索引範圍",
+        "mean": "越界崩潰"
+      }
+    ],
+    "output": "<span class=\"output-error\">IndexError: list index out of range</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>差一錯誤（Off-by-one Error）</strong>：Python 串列是 0-based 索引。長度為 2 時，合法下標只有 0 和 1。若邊界寫成 <code>r <= H</code>，當 <code>r=2</code> 被放行時存取陣列必爆 <code>IndexError</code>！嚴格牢記是 <code>< H</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "嚴格小於高，等號必越界"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8 考場地雷三：子函數內部計算完遺漏 return 導致資料斷鏈",
+    "titleZh": "考場致命地雷三：子函數忘記 return——計算全丟變成 None",
+    "titleEn": "Trap 3: Helper Function Forgets return Keyword",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：子函數辛苦計算出及格名單，卻忘了 return！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：子函數辛苦計算出及格名單，卻忘了 return！</span>",
+        "alt": "忘了 return 地雷註解",
+        "why": "未交接結果",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "def filter_passing(scores):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">filter_passing</span>(<span class=\"token-ident\">scores</span>):",
+        "alt": "過濾及格函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    passed = [s for s in scores if s >= 60]",
+        "html": "    <span class=\"token-ident\">passed</span> = [<span class=\"token-ident\">s</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">s</span> &gt;= <span class=\"token-number\">60</span>]",
+        "alt": "篩選計算",
+        "why": "計算完畢",
+        "mean": "篩選計算"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 漏寫了 return passed！",
+        "html": "    <span class=\"token-comment\"># 💥 漏寫了 return passed！</span>",
+        "alt": "漏寫 return 註解",
+        "why": "局域變數隨函數消亡",
+        "mean": "漏寫說明"
+      },
+      {
+        "num": 5,
+        "code": "res = filter_passing([90, 80, 50])",
+        "html": "<span class=\"token-ident\">res</span> = <span class=\"token-func\">filter_passing</span>([<span class=\"token-number\">90</span>, <span class=\"token-number\">80</span>, <span class=\"token-number\">50</span>])",
+        "alt": "呼叫函數",
+        "diff": true,
+        "why": "呼叫端接取回傳值",
+        "mean": "接取回傳"
+      },
+      {
+        "num": 6,
+        "code": "print(\"篩選成果:\", res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;篩選成果:&quot;</span>, <span class=\"token-ident\">res</span>)",
+        "alt": "印出 None！",
+        "diff": true,
+        "why": "回傳值為 None",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "篩選成果: None",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>黑盒子的出貨口不可封閉</strong>：模組化子函數就像工廠車間，原料送進去加工完成後，必須透過 <code>return</code> 將成品送出。漏寫 <code>return</code>，車間一關閉所有成果瞬間隨風消逝，回傳值變成 <code>None</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "算出要交接，末行必回傳"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.8 函數模組化解題實戰：Top-Down 拆題法與競賽輔助函數庫建立",
+    "titleZh": "綜合實戰——APCS 最強能量基地台選址大題完整破關",
+    "titleEn": "Full Battle: APCS Best Power Station Selection Problem",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 1. 武器庫：邊界守衛、曼哈頓距離、質數判定",
+        "html": "<span class=\"token-comment\"># 1. 武器庫：邊界守衛、曼哈頓距離、質數判定</span>",
+        "alt": "武器庫定義",
+        "why": "三大純函數工具",
+        "mean": "武器庫註解"
+      },
+      {
+        "num": 2,
+        "code": "def manhattan(p1, p2): return abs(p1[0]-p2[0]) + abs(p1[1]-p2[1])",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">manhattan</span>(<span class=\"token-ident\">p1</span>, <span class=\"token-ident\">p2</span>): <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">p1</span>[<span class=\"token-number\">0</span>]-<span class=\"token-ident\">p2</span>[<span class=\"token-number\">0</span>]) + <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">p1</span>[<span class=\"token-number\">1</span>]-<span class=\"token-ident\">p2</span>[<span class=\"token-number\">1</span>])",
+        "alt": "單行曼哈頓距離",
+        "why": "距離工具",
+        "mean": "曼哈頓函數"
+      },
+      {
+        "num": 3,
+        "code": "def is_prime(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">is_prime</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "質數判定",
+        "why": "質數工具",
+        "mean": "質數函數"
+      },
+      {
+        "num": 4,
+        "code": "    if n < 2: return False",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt; <span class=\"token-number\">2</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "防禦小於 2",
+        "why": "基底",
+        "mean": "防禦"
+      },
+      {
+        "num": 5,
+        "code": "    for d in range(2, int(n**0.5) + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">d</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">n</span>**<span class=\"token-number\">0.5</span>) + <span class=\"token-number\">1</span>):",
+        "alt": "根號迴圈",
+        "why": "檢驗",
+        "mean": "根號迴圈"
+      },
+      {
+        "num": 6,
+        "code": "        if n % d == 0: return False",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> % <span class=\"token-ident\">d</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">False</span>",
+        "alt": "整除回傳假",
+        "why": "排除合數",
+        "mean": "合數判斷"
+      },
+      {
+        "num": 7,
+        "code": "    return True",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-keyword\">True</span>",
+        "alt": "回傳真",
+        "why": "質數確定",
+        "mean": "質數真"
+      },
+      {
+        "num": 8,
+        "code": "# 2. 主流程：走訪網格，挑選距離 (0, 0) <= 2 的最強質數基地台",
+        "html": "<span class=\"token-comment\"># 2. 主流程：走訪網格，挑選距離 (0, 0) &lt;= 2 的最強質數基地台</span>",
+        "alt": "主流程業務邏輯",
+        "why": "題目要求",
+        "mean": "業務註解"
+      },
+      {
+        "num": 9,
+        "code": "grid = [[4, 11, 8], [13, 20, 29], [6, 17, 31]]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-number\">4</span>, <span class=\"token-number\">11</span>, <span class=\"token-number\">8</span>], [<span class=\"token-number\">13</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">29</span>], [<span class=\"token-number\">6</span>, <span class=\"token-number\">17</span>, <span class=\"token-number\">31</span>]]",
+        "alt": "能量網格地圖",
+        "why": "3x3 網格",
+        "mean": "地圖資料"
+      },
+      {
+        "num": 10,
+        "code": "best_pwr, best_pos = -1, None",
+        "html": "<span class=\"token-ident\">best_pwr</span>, <span class=\"token-ident\">best_pos</span> = -<span class=\"token-number\">1</span>, <span class=\"token-keyword\">None</span>",
+        "alt": "初始化最佳紀錄",
+        "why": "極值追蹤",
+        "mean": "初始化極值"
+      },
+      {
+        "num": 11,
+        "code": "for r in range(3):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):",
+        "alt": "走訪列",
+        "why": "雙重迴圈",
+        "mean": "走訪列"
+      },
+      {
+        "num": 12,
+        "code": "    for c in range(3):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">3</span>):",
+        "alt": "走訪行",
+        "why": "雙重迴圈",
+        "mean": "走訪行"
+      },
+      {
+        "num": 13,
+        "code": "        val = grid[r][c]",
+        "html": "        <span class=\"token-ident\">val</span> = <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>]",
+        "alt": "取得能量值",
+        "why": "能量讀取",
+        "mean": "取得數值"
+      },
+      {
+        "num": 14,
+        "code": "        if manhattan((0, 0), (r, c)) <= 2 and is_prime(val):",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-func\">manhattan</span>((<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>), (<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>)) &lt;= <span class=\"token-number\">2</span> <span class=\"token-keyword\">and</span> <span class=\"token-func\">is_prime</span>(<span class=\"token-ident\">val</span>):",
+        "alt": "一併審查距離與質數",
+        "diff": true,
+        "why": "條件審查",
+        "mean": "複合審查"
+      },
+      {
+        "num": 15,
+        "code": "            if val > best_pwr: best_pwr, best_pos = val, (r, c)",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">val</span> &gt; <span class=\"token-ident\">best_pwr</span>: <span class=\"token-ident\">best_pwr</span>, <span class=\"token-ident\">best_pos</span> = <span class=\"token-ident\">val</span>, (<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>)",
+        "alt": "刷新最佳解",
+        "diff": true,
+        "why": "更新紀錄",
+        "mean": "刷新紀錄"
+      },
+      {
+        "num": 16,
+        "code": "print(f\"最強質數基地台座標: {best_pos}, 能量值: {best_pwr}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;最強質數基地台座標: {</span><span class=\"token-ident\">best_pos</span><span class=\"token-string\">}, 能量值: {</span><span class=\"token-ident\">best_pwr</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "輸出 (1, 0) 能量 13",
+        "diff": true,
+        "why": "輸出大題成果",
+        "mean": "印出大題結果"
+      }
+    ],
+    "output": "最強質數基地台座標: (1, 0), 能量值: 13",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>第 11 章全章大圓滿！</strong>：你已完全精通函數定義、引數傳遞、回傳值解包、變數作用域與 global 防禦，並征服了線性遞迴與樹狀遞迴，更打造出專屬的 APCS 輔助武器庫，具備了破解所有高難度大題的頂尖架構能力！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "函數模組化，大題秒通關"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.8",
+      "title": "函數模組化與 Top-Down 拆題完全大功告成！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心思維",
+          "val": "Top-Down 拆題法 / 武器庫"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "第 11 章 100% 圓滿通關"
+        }
+      ],
+      "nextUnit": {
+        "unit": "12.1",
+        "title": "就地排序（sort）與新物件排序（sorted）",
+        "desc": "即將邁入第 12 章演算法核心殿堂——排序與搜尋，解鎖原地修改 vs 產生新物件的記憶體奧秘！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-8",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-8_modular_decomposition_and_helper_functions.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.7 樹狀分支遞迴（Tree Recursion）與數論演算法（費氏數列與輾轉相除法 GCD） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0000cd" />
+        </marker>
+      </defs>
+      <path class="flow-line" id="flowGuidePath" d="" />
+    </svg>
+
+    <!-- 施工中遮罩 (Construction Stage) -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.1 雙分支遞迴：一分二的遞迴樹（Recursion Tree）展開圖解",
+    "titleZh": "從單線到分叉——雙分支遞迴（Tree Recursion）心智模型",
+    "titleEn": "From Linear to Forked: Tree Recursion Mental Model",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def branch_demo(name, depth):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">branch_demo</span>(<span class=\"token-ident\">name</span>, <span class=\"token-ident\">depth</span>):",
+        "alt": "定義雙分支展示函數",
+        "why": "雙分支結構起點",
+        "mean": "定義函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\"走訪: {name} (深度 {depth})\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;走訪: {</span><span class=\"token-ident\">name</span><span class=\"token-string\">} (深度 {</span><span class=\"token-ident\">depth</span><span class=\"token-string\">})&quot;</span>)",
+        "alt": "印出走訪節點",
+        "why": "顯示當前節點標籤",
+        "mean": "印出走訪"
+      },
+      {
+        "num": 3,
+        "code": "    if depth >= 1: return  # 深度達 1 停止",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">depth</span> &gt;= <span class=\"token-number\">1</span>: <span class=\"token-keyword\">return</span>  <span class=\"token-comment\"># 深度達 1 停止</span>",
+        "alt": "限制深度為 1 煞車",
+        "diff": true,
+        "why": "簡化展開觀察",
+        "mean": "基底煞車"
+      },
+      {
+        "num": 4,
+        "code": "    branch_demo(name + \"-左\", depth + 1)  # 第 1 條分支：左子樹",
+        "html": "    <span class=\"token-func\">branch_demo</span>(<span class=\"token-ident\">name</span> + <span class=\"token-string\">&quot;-左&quot;</span>, <span class=\"token-ident\">depth</span> + <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># 第 1 條分支：左子樹</span>",
+        "alt": "呼叫左分支",
+        "diff": true,
+        "why": "深入左側分支",
+        "mean": "左子分支"
+      },
+      {
+        "num": 5,
+        "code": "    branch_demo(name + \"-右\", depth + 1)  # 第 2 條分支：右子樹",
+        "html": "    <span class=\"token-func\">branch_demo</span>(<span class=\"token-ident\">name</span> + <span class=\"token-string\">&quot;-右&quot;</span>, <span class=\"token-ident\">depth</span> + <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># 第 2 條分支：右子樹</span>",
+        "alt": "呼叫右分支",
+        "diff": true,
+        "why": "深入右側分支",
+        "mean": "右子分支"
+      },
+      {
+        "num": 6,
+        "code": "branch_demo(\"根\", 0)",
+        "html": "<span class=\"token-func\">branch_demo</span>(<span class=\"token-string\">&quot;根&quot;</span>, <span class=\"token-number\">0</span>)",
+        "alt": "從根節點啟動",
+        "why": "啟動二元樹展開",
+        "mean": "啟動遞迴"
+      }
+    ],
+    "output": "走訪: 根 (深度 0)\n走訪: 根-左 (深度 1)\n走訪: 根-右 (深度 1)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>一分二的樹狀蔓延</strong>：線性遞迴每一次只呼叫一個自己，形成單鏈；而「樹狀遞迴（Tree Recursion）」在同一個函數內會呼叫兩次（甚至多次）自己，像樹枝開岔般展開出壯闊的遞迴樹！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "一分二蔓延，左右分頭探"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.1 雙分支遞迴：一分二的遞迴樹（Recursion Tree）展開圖解",
+    "titleZh": "深度優先走訪順序（DFS）——左子樹全跑完才輪到右子樹",
+    "titleEn": "Depth-First Search (DFS) Execution Order",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def dfs_order(x):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">dfs_order</span>(<span class=\"token-ident\">x</span>):",
+        "alt": "DFS 順序追蹤函數",
+        "why": "觀察執行時序",
+        "mean": "定義函數"
+      },
+      {
+        "num": 2,
+        "code": "    if x <= 0: return",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> &lt;= <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span>",
+        "alt": "小於等於 0 煞車",
+        "why": "Base Case",
+        "mean": "基底煞車"
+      },
+      {
+        "num": 3,
+        "code": "    print(\"進入:\", x)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;進入:&quot;</span>, <span class=\"token-ident\">x</span>)",
+        "alt": "印出進入數值",
+        "diff": true,
+        "why": "進入節點紀錄",
+        "mean": "進入紀錄"
+      },
+      {
+        "num": 4,
+        "code": "    dfs_order(x - 1)  # ⭐ 優先鑽入最左下角",
+        "html": "    <span class=\"token-func\">dfs_order</span>(<span class=\"token-ident\">x</span> - <span class=\"token-number\">1</span>)  <span class=\"token-comment\"># ⭐ 優先鑽入最左下角</span>",
+        "alt": "深入左分支",
+        "diff": true,
+        "why": "深度優先鑽到底",
+        "mean": "深入左側"
+      },
+      {
+        "num": 5,
+        "code": "    dfs_order(x - 2)  # 左邊徹底結束才換右邊",
+        "html": "    <span class=\"token-func\">dfs_order</span>(<span class=\"token-ident\">x</span> - <span class=\"token-number\">2</span>)  <span class=\"token-comment\"># 左邊徹底結束才換右邊</span>",
+        "alt": "深入右分支",
+        "diff": true,
+        "why": "回溯後啟動右側",
+        "mean": "深入右側"
+      },
+      {
+        "num": 6,
+        "code": "dfs_order(2)",
+        "html": "<span class=\"token-func\">dfs_order</span>(<span class=\"token-number\">2</span>)",
+        "alt": "呼叫 2",
+        "why": "測試順序",
+        "mean": "啟動測試"
+      }
+    ],
+    "output": "進入: 2\n進入: 1",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>鑽到底再回溯（DFS）</strong>：電腦單核心執行緒是循序執行的。當遇到第 4 行的 <code>dfs_order(x - 1)</code> 時，當前函數會掛起，全力鑽入最深處；直到整棵左子樹完全算完歸還，才會執行第 5 行的右子樹！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "一路鑽到底，左畢才換右"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.2 經典費氏數列（Fibonacci）：F(n) = F(n-1) + F(n-2) 的樹狀執行流程",
+    "titleZh": "經典費氏數列（Fibonacci）——雙分支遞迴的教科書典範",
+    "titleEn": "Classic Fibonacci: Textbook Tree Recursion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 數學定義：F(0)=0, F(1)=1，當 n>=2 時 F(n) = F(n-1) + F(n-2)",
+        "html": "<span class=\"token-comment\"># 數學定義：F(0)=0, F(1)=1，當 n&gt;=2 時 F(n) = F(n-1) + F(n-2)</span>",
+        "alt": "費氏數列數學公式",
+        "why": "數學原型",
+        "mean": "數學定義"
+      },
+      {
+        "num": 2,
+        "code": "def fib(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">fib</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "定義費氏函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    if n <= 0: return 0  # 第 1 個 Base Case",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 第 1 個 Base Case</span>",
+        "alt": "F(0) 回傳 0",
+        "diff": true,
+        "why": "基底 0",
+        "mean": "回傳零"
+      },
+      {
+        "num": 4,
+        "code": "    if n == 1: return 1  # 第 2 個 Base Case",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> == <span class=\"token-number\">1</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 第 2 個 Base Case</span>",
+        "alt": "F(1) 回傳 1",
+        "diff": true,
+        "why": "基底 1",
+        "mean": "回傳一"
+      },
+      {
+        "num": 5,
+        "code": "    # 雙分支委託相加",
+        "html": "    <span class=\"token-comment\"># 雙分支委託相加</span>",
+        "alt": "雙分支運算說明",
+        "why": "兩項和",
+        "mean": "雙分支說明"
+      },
+      {
+        "num": 6,
+        "code": "    return fib(n - 1) + fib(n - 2)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\">fib</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>) + <span class=\"token-func\">fib</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">2</span>)",
+        "alt": "回傳兩子問題之和",
+        "diff": true,
+        "why": "核心遞迴式",
+        "mean": "雙分支求和"
+      },
+      {
+        "num": 7,
+        "code": "print(\"F(4) 費氏數列結果:\", fib(4))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;F(4) 費氏數列結果:&quot;</span>, <span class=\"token-func\">fib</span>(<span class=\"token-number\">4</span>))",
+        "alt": "輸出 3",
+        "why": "0, 1, 1, 2, 3",
+        "mean": "印出 F(4)"
+      },
+      {
+        "num": 8,
+        "code": "print(\"F(6) 費氏數列結果:\", fib(6))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;F(6) 費氏數列結果:&quot;</span>, <span class=\"token-func\">fib</span>(<span class=\"token-number\">6</span>))",
+        "alt": "輸出 8",
+        "diff": true,
+        "why": "F(6) = 8",
+        "mean": "印出 F(6)"
+      }
+    ],
+    "output": "F(4) 費氏數列結果: 3\nF(6) 費氏數列結果: 8",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>最接近數學直覺的寫法</strong>：費氏數列 <code>fib(n-1) + fib(n-2)</code> 完美將數學定義轉化為 Python 代碼。計算 <code>fib(4)</code> 時會先算出 <code>fib(3)</code> 與 <code>fib(2)</code> 再相加，條理極為清晰！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "雙基底定樁，兩項和回傳"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.2 經典費氏數列（Fibonacci）：F(n) = F(n-1) + F(n-2) 的樹狀執行流程",
+    "titleZh": "費氏數列雙基底——為什麼必須具備兩個 Base Case？",
+    "titleEn": "Dual Base Cases: Why Fibonacci Needs Two",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 思考題：若只寫 if n == 1: return 1，會發生什麼事？",
+        "html": "<span class=\"token-comment\"># 思考題：若只寫 if n == 1: return 1，會發生什麼事？</span>",
+        "alt": "基底思考題",
+        "why": "剖析雙基底必要性",
+        "mean": "思考題"
+      },
+      {
+        "num": 2,
+        "code": "# 當計算 F(2) 時，會拆解為 F(1) + F(0)",
+        "html": "<span class=\"token-comment\"># 當計算 F(2) 時，會拆解為 F(1) + F(0)</span>",
+        "alt": "拆解說明",
+        "why": "F(0) 的產生",
+        "mean": "拆解說明"
+      },
+      {
+        "num": 3,
+        "code": "# F(1) 順利命中煞車回傳 1；但 F(0) 卻無法煞車，繼續拆解成 F(-1) + F(-2)！",
+        "html": "<span class=\"token-comment\"># F(1) 順利命中煞車回傳 1；但 F(0) 卻無法煞車，繼續拆解成 F(-1) + F(-2)！</span>",
+        "alt": "失控拆解說明",
+        "why": "未設 F(0) 煞車的下場",
+        "mean": "失控剖析"
+      },
+      {
+        "num": 4,
+        "code": "# 結論鐵律：因為遞迴式減了 2（n - 2），就必須具備 2 個 Base Case！",
+        "html": "<span class=\"token-comment\"># 結論鐵律：因為遞迴式減了 2（n - 2），就必須具備 2 個 Base Case！</span>",
+        "alt": "跨度與基底數量鐵律",
+        "why": "跨度步長決定基底個數",
+        "mean": "鐵律總結"
+      },
+      {
+        "num": 5,
+        "code": "print(\"規則：遞迴跨度為 k，基底條件就需 k 個！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;規則：遞迴跨度為 k，基底條件就需 k 個！&quot;</span>)",
+        "alt": "印出核心規則",
+        "diff": true,
+        "why": "牢記基底規則",
+        "mean": "印出規則"
+      }
+    ],
+    "output": "規則：遞迴跨度為 k，基底條件就需 k 個！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>步長與基底數量的數學鐵律</strong>：線性遞迴只減 1（<code>n-1</code>），只需 1 個 Base Case；但費氏數列最大跨度減了 2（<code>n-2</code>），就必須同時封鎖 <code>n=0</code> 與 <code>n=1</code> 兩個基底，缺一不可！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "跨度減多少，基底設幾何"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.3 重疊子問題（Overlapping Subproblems）的感性認知與運算量爆炸分析",
+    "titleZh": "重疊子問題的痛點——重複計算導致運算量指數爆炸 O(2^n)",
+    "titleEn": "Overlapping Subproblems: Exponential Explosion",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "counter = 0",
+        "html": "<span class=\"token-ident\">counter</span> = <span class=\"token-number\">0</span>",
+        "alt": "呼叫次數計數器",
+        "why": "全域計數器",
+        "mean": "計數器"
+      },
+      {
+        "num": 2,
+        "code": "def tracked_fib(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">tracked_fib</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "追蹤呼叫次數函數",
+        "why": "統計總呼叫次數",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    global counter; counter += 1",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">counter</span>; <span class=\"token-ident\">counter</span> += <span class=\"token-number\">1</span>",
+        "alt": "每次進入加 1",
+        "diff": true,
+        "why": "記錄進入次數",
+        "mean": "累加計數"
+      },
+      {
+        "num": 4,
+        "code": "    if n <= 0: return 0",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span>",
+        "alt": "基底 0",
+        "why": "煞車 0",
+        "mean": "基底 0"
+      },
+      {
+        "num": 5,
+        "code": "    if n == 1: return 1",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> == <span class=\"token-number\">1</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>",
+        "alt": "基底 1",
+        "why": "煞車 1",
+        "mean": "基底 1"
+      },
+      {
+        "num": 6,
+        "code": "    return tracked_fib(n - 1) + tracked_fib(n - 2)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\">tracked_fib</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>) + <span class=\"token-func\">tracked_fib</span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">2</span>)",
+        "alt": "雙分支遞迴",
+        "why": "雙分支呼叫",
+        "mean": "雙分支"
+      },
+      {
+        "num": 7,
+        "code": "counter = 0; ans = tracked_fib(5)",
+        "html": "<span class=\"token-ident\">counter</span> = <span class=\"token-number\">0</span>; <span class=\"token-ident\">ans</span> = <span class=\"token-func\">tracked_fib</span>(<span class=\"token-number\">5</span>)",
+        "alt": "測試 n=5",
+        "why": "計算 F(5)",
+        "mean": "測試 n=5"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"F(5) = {ans}, 呼叫了 {counter} 次\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;F(5) = {</span><span class=\"token-ident\">ans</span><span class=\"token-string\">}, 呼叫了 {</span><span class=\"token-ident\">counter</span><span class=\"token-string\">} 次&quot;</span>)",
+        "alt": "輸出 F(5)=5, 呼叫 15 次",
+        "diff": true,
+        "why": "印出次數",
+        "mean": "印出統計"
+      }
+    ],
+    "output": "F(5) = 5, 呼叫了 15 次",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>可怕的指數級爆炸</strong>：算 <code>F(5)</code> 竟然呼叫了 15 次！因為 <code>fib(3)</code> 被反覆計算了多次，隨 n 變大呼叫次數呈 $O(2^n)$ 暴增。當 $n=40$ 時需呼叫 3 億次，電腦直接卡死！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "重複算無窮，幾何暴增癱"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.3 重疊子問題（Overlapping Subproblems）的感性認知與運算量爆炸分析",
+    "titleZh": "思維對決——迴圈線性 O(N) 秒殺未優化遞迴 O(2^N)",
+    "titleEn": "Loop O(N) Crushes Unoptimized Recursion O(2^N)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def fib_loop(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">fib_loop</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "迴圈版本費氏函數",
+        "why": "線性時間版本",
+        "mean": "定義迴圈版"
+      },
+      {
+        "num": 2,
+        "code": "    if n <= 0: return 0",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> &lt;= <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">0</span>",
+        "alt": "小於等於 0",
+        "why": "邊界判斷",
+        "mean": "基底 0"
+      },
+      {
+        "num": 3,
+        "code": "    a, b = 0, 1  # F(0), F(1)",
+        "html": "    <span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>  <span class=\"token-comment\"># F(0), F(1)</span>",
+        "alt": "前兩項變數",
+        "diff": true,
+        "why": "雙變數滾動",
+        "mean": "初始化滾動"
+      },
+      {
+        "num": 4,
+        "code": "    for _ in range(2, n + 1):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-number\">2</span>, <span class=\"token-ident\">n</span> + <span class=\"token-number\">1</span>):",
+        "alt": "從 2 跑到 n",
+        "why": "單重迴圈",
+        "mean": "單層走訪"
+      },
+      {
+        "num": 5,
+        "code": "        a, b = b, a + b  # 滾動向前推進",
+        "html": "        <span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> = <span class=\"token-ident\">b</span>, <span class=\"token-ident\">a</span> + <span class=\"token-ident\">b</span>  <span class=\"token-comment\"># 滾動向前推進</span>",
+        "alt": "滾動賦值",
+        "diff": true,
+        "why": "O(1) 空間滾動",
+        "mean": "滾動賦值"
+      },
+      {
+        "num": 6,
+        "code": "    return b",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">b</span>",
+        "alt": "回傳第 n 項",
+        "why": "回傳答案",
+        "mean": "回傳結果"
+      },
+      {
+        "num": 7,
+        "code": "print(\"迴圈瞬間秒殺 F(50):\", fib_loop(50))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;迴圈瞬間秒殺 F(50):&quot;</span>, <span class=\"token-func\">fib_loop</span>(<span class=\"token-number\">50</span>))",
+        "alt": "輸出 12586269025",
+        "diff": true,
+        "why": "毫秒內秒殺",
+        "mean": "印出 F(50)"
+      }
+    ],
+    "output": "迴圈瞬間秒殺 F(50): 12586269025",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>工具沒有優劣，唯適才適用</strong>：遞迴觀念直觀，但在有「重疊子問題」且未加快取時效率極低；改用迴圈滾動推進，時間複雜度降為 $O(N)$，即便是第 50 項也能在 0.0001 秒內瞬間解出！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "雙變數滾動，線性秒解出"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.4 經典數論：輾轉相除法求最大公因數（GCD）之極簡遞迴實現",
+    "titleZh": "數論精髓——歐幾里得輾轉相除法（GCD）數學原理",
+    "titleEn": "Euclidean Algorithm (GCD) Mathematical Principle",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 數學定理：兩數 a 與 b 的最大公因數，等於 b 與 (a % b) 的最大公因數！",
+        "html": "<span class=\"token-comment\"># 數學定理：兩數 a 與 b 的最大公因數，等於 b 與 (a % b) 的最大公因數！</span>",
+        "alt": "歐幾里得定理",
+        "why": "gcd(a, b) = gcd(b, a % b)",
+        "mean": "定理註解"
+      },
+      {
+        "num": 2,
+        "code": "# 範例追蹤：gcd(48, 18)",
+        "html": "<span class=\"token-comment\"># 範例追蹤：gcd(48, 18)</span>",
+        "alt": "手算追蹤",
+        "why": "逐步示範",
+        "mean": "追蹤說明"
+      },
+      {
+        "num": 3,
+        "code": "# 輪次 1: 48 % 18 = 12  -> 轉為求 gcd(18, 12)",
+        "html": "<span class=\"token-comment\"># 輪次 1: 48 % 18 = 12  -&gt; 轉為求 gcd(18, 12)</span>",
+        "alt": "第 1 輪",
+        "why": "縮小至 (18, 12)",
+        "mean": "輪次 1"
+      },
+      {
+        "num": 4,
+        "code": "# 輪次 2: 18 % 12 = 6   -> 轉為求 gcd(12, 6)",
+        "html": "<span class=\"token-comment\"># 輪次 2: 18 % 12 = 6   -&gt; 轉為求 gcd(12, 6)</span>",
+        "alt": "第 2 輪",
+        "why": "縮小至 (12, 6)",
+        "mean": "輪次 2"
+      },
+      {
+        "num": 5,
+        "code": "# 輪次 3: 12 % 6 = 0    -> 轉為求 gcd(6, 0)",
+        "html": "<span class=\"token-comment\"># 輪次 3: 12 % 6 = 0    -&gt; 轉為求 gcd(6, 0)</span>",
+        "alt": "第 3 輪",
+        "why": "餘數為 0",
+        "mean": "輪次 3"
+      },
+      {
+        "num": 6,
+        "code": "# ⭐ 煞車點（Base Case）：當 b 縮減為 0 時，此時的 a 就是最大公因數！",
+        "html": "<span class=\"token-comment\"># ⭐ 煞車點（Base Case）：當 b 縮減為 0 時，此時的 a 就是最大公因數！</span>",
+        "alt": "終止條件判定",
+        "why": "答案浮現為 6",
+        "mean": "煞車說明"
+      },
+      {
+        "num": 7,
+        "code": "print(\"gcd(48, 18) 的最大公因數是: 6\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;gcd(48, 18) 的最大公因數是: 6&quot;</span>)",
+        "alt": "印出 6",
+        "diff": true,
+        "why": "印出計算結果",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "gcd(48, 18) 的最大公因數是: 6",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>幾千年前的古老智慧</strong>：歐幾里得證明了除數與餘數的公因數，與原兩數的公因數完全相等。透過取模（<code>%</code>）讓數值以對數速度極速暴跌，是演算法史上最優雅的發明！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "除數變被除，餘數歸零止"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.4 經典數論：輾轉相除法求最大公因數（GCD）之極簡遞迴實現",
+    "titleZh": "輾轉相除法極簡遞迴實作——兩行代碼解決世紀難題",
+    "titleEn": "Minimalist Recursive GCD: Two Lines of Code",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def gcd(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "定義 gcd 函數",
+        "why": "函數定義",
+        "mean": "定義 gcd"
+      },
+      {
+        "num": 2,
+        "code": "    # Base Case: 餘數 b 為 0 時，a 即為所求！",
+        "html": "    <span class=\"token-comment\"># Base Case: 餘數 b 為 0 時，a 即為所求！</span>",
+        "alt": "基底條件註解",
+        "why": "基底煞車",
+        "mean": "基底註解"
+      },
+      {
+        "num": 3,
+        "code": "    if b == 0: return a",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span>",
+        "alt": "b 為 0 回傳 a",
+        "diff": true,
+        "why": "終止回傳 a",
+        "mean": "回傳 a"
+      },
+      {
+        "num": 4,
+        "code": "    # Recursive Case: 傳入 (b, a % b)",
+        "html": "    <span class=\"token-comment\"># Recursive Case: 傳入 (b, a % b)</span>",
+        "alt": "遞迴關係註解",
+        "why": "歐幾里得轉換",
+        "mean": "遞迴轉換"
+      },
+      {
+        "num": 5,
+        "code": "    return gcd(b, a % b)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">b</span>, <span class=\"token-ident\">a</span> % <span class=\"token-ident\">b</span>)",
+        "alt": "回傳 gcd(b, a % b)",
+        "diff": true,
+        "why": "接力遞迴呼叫",
+        "mean": "遞迴呼叫"
+      },
+      {
+        "num": 6,
+        "code": "print(\"gcd(54, 24) =\", gcd(54, 24))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;gcd(54, 24) =&quot;</span>, <span class=\"token-func\">gcd</span>(<span class=\"token-number\">54</span>, <span class=\"token-number\">24</span>))",
+        "alt": "輸出 6",
+        "why": "計算 54 與 24",
+        "mean": "測試 1"
+      },
+      {
+        "num": 7,
+        "code": "print(\"gcd(101, 103) =\", gcd(101, 103))  # 互質",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;gcd(101, 103) =&quot;</span>, <span class=\"token-func\">gcd</span>(<span class=\"token-number\">101</span>, <span class=\"token-number\">103</span>))  <span class=\"token-comment\"># 互質</span>",
+        "alt": "輸出 1",
+        "diff": true,
+        "why": "兩質數互質",
+        "mean": "測試 2"
+      }
+    ],
+    "output": "gcd(54, 24) = 6\ngcd(101, 103) = 1",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>神奇的自動調換順序</strong>：如果呼叫時傳入 <code>gcd(24, 54)</code> 小數在前，第一輪 <code>24 % 54 = 24</code>，下一輪立刻自動變為 <code>gcd(54, 24)</code>！你甚至完全不需要判斷誰大誰小！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "大小不需挑，一輪自對調"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.4 經典數論：輾轉相除法求最大公因數（GCD）之極簡遞迴實現",
+    "titleZh": "數論連動——利用 GCD 妙求最小公倍數（LCM）",
+    "titleEn": "Number Theory Extension: LCM via GCD",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 數學定理：兩數乘積等於最大公因數與最小公倍數的乘積",
+        "html": "<span class=\"token-comment\"># 數學定理：兩數乘積等於最大公因數與最小公倍數的乘積</span>",
+        "alt": "a * b = gcd * lcm",
+        "why": "數論公式",
+        "mean": "定理註解"
+      },
+      {
+        "num": 2,
+        "code": "# 因此：lcm(a, b) = (a * b) // gcd(a, b)",
+        "html": "<span class=\"token-comment\"># 因此：lcm(a, b) = (a * b) // gcd(a, b)</span>",
+        "alt": "最小公倍數公式",
+        "why": "轉換除法",
+        "mean": "公式推導"
+      },
+      {
+        "num": 3,
+        "code": "def gcd(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "定義 gcd",
+        "why": "輔助函數",
+        "mean": "定義 gcd"
+      },
+      {
+        "num": 4,
+        "code": "    return a if b == 0 else gcd(b, a % b)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> == <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">b</span>, <span class=\"token-ident\">a</span> % <span class=\"token-ident\">b</span>)",
+        "alt": "一行單行 gcd",
+        "diff": true,
+        "why": "三元運算子極簡版",
+        "mean": "單行 gcd"
+      },
+      {
+        "num": 5,
+        "code": "def lcm(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">lcm</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "定義 lcm",
+        "why": "最小公倍數實作",
+        "mean": "定義 lcm"
+      },
+      {
+        "num": 6,
+        "code": "    return (a * b) // gcd(a, b)  # 整除確保產出整數",
+        "html": "    <span class=\"token-keyword\">return</span> (<span class=\"token-ident\">a</span> * <span class=\"token-ident\">b</span>) // <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>)  <span class=\"token-comment\"># 整除確保產出整數</span>",
+        "alt": "整除計算 lcm",
+        "diff": true,
+        "why": "兩數相乘除以 gcd",
+        "mean": "計算 lcm"
+      },
+      {
+        "num": 7,
+        "code": "print(\"lcm(12, 18) =\", lcm(12, 18))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;lcm(12, 18) =&quot;</span>, <span class=\"token-func\">lcm</span>(<span class=\"token-number\">12</span>, <span class=\"token-number\">18</span>))",
+        "alt": "輸出 36",
+        "why": "12 與 18 的公倍數",
+        "mean": "印出 lcm"
+      }
+    ],
+    "output": "lcm(12, 18) = 36",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 競賽高頻組合拳</strong>：在時鐘週期、公車發車間隔、齒輪轉動等 APCS 題目中，求最小公倍數幾乎是必備技能。牢記 <code>(a * b) // gcd(a, b)</code>，考場信手拈來！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "兩數相乘積，除以最大因"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.5 快速冪運算遞迴版：將 O(N) 降至 O(log N) 的分治思維萌芽",
+    "titleZh": "分治法萌芽——快速冪（Fast Power）折半降維思維",
+    "titleEn": "Divide & Conquer: Fast Power Algorithm",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 傳統連乘：2^16 需要乘 16 次，複雜度 O(N)",
+        "html": "<span class=\"token-comment\"># 傳統連乘：2^16 需要乘 16 次，複雜度 O(N)</span>",
+        "alt": "傳統乘法說明",
+        "why": "O(N) 複雜度",
+        "mean": "傳統連乘"
+      },
+      {
+        "num": 2,
+        "code": "# 分治法思考：2^16 = (2^8)^2，只需算一次 2^8 再平方！",
+        "html": "<span class=\"token-comment\"># 分治法思考：2^16 = (2^8)^2，只需算一次 2^8 再平方！</span>",
+        "alt": "折半思維",
+        "why": "規模減半",
+        "mean": "折半思維"
+      },
+      {
+        "num": 3,
+        "code": "# 2^8 = (2^4)^2，2^4 = (2^2)^2，2^2 = (2^1)^2",
+        "html": "<span class=\"token-comment\"># 2^8 = (2^4)^2，2^4 = (2^2)^2，2^2 = (2^1)^2</span>",
+        "alt": "層層折半",
+        "why": "對數收斂",
+        "mean": "對數收斂"
+      },
+      {
+        "num": 4,
+        "code": "# 次方減半只需 4 步！時間複雜度降為 O(log N)！",
+        "html": "<span class=\"token-comment\"># 次方減半只需 4 步！時間複雜度降為 O(log N)！</span>",
+        "alt": "O(log N) 威力",
+        "why": "快速冪核心價值",
+        "mean": "效能躍升"
+      },
+      {
+        "num": 5,
+        "code": "print(\"分治核心：大問題切成一半，只算一次再平方！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;分治核心：大問題切成一半，只算一次再平方！&quot;</span>)",
+        "alt": "印出分治核心",
+        "diff": true,
+        "why": "心智模型確立",
+        "mean": "印出心法"
+      }
+    ],
+    "output": "分治核心：大問題切成一半，只算一次再平方！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>分而治之（Divide and Conquer）</strong>：將 $a^b$ 次方折半。如果 $b$ 是偶數，先求出 $half = a^{b/2}$，再算 $half \times half$；若是奇數，則提出一個 $a$ 變成 $a \times a^{b-1}$。操作次數瞬間從百萬次驟降為 20 次！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "偶數次方半，算一再平方"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7.5 快速冪運算遞迴版：將 O(N) 降至 O(log N) 的分治思維萌芽",
+    "titleZh": "快速冪程式實作——奇偶分支與高效暫存",
+    "titleEn": "Fast Power Implementation: Parity Branching",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def fast_pow(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">fast_pow</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "定義快速冪",
+        "why": "分治實作",
+        "mean": "定義快速冪"
+      },
+      {
+        "num": 2,
+        "code": "    if b == 0: return 1  # 0 次方為 1",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 0 次方為 1</span>",
+        "alt": "Base Case",
+        "diff": true,
+        "why": "次方基底",
+        "mean": "基底煞車"
+      },
+      {
+        "num": 3,
+        "code": "    if b % 2 != 0:       # 奇數次方：提出一個 a",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> % <span class=\"token-number\">2</span> != <span class=\"token-number\">0</span>:       <span class=\"token-comment\"># 奇數次方：提出一個 a</span>",
+        "alt": "奇數判斷",
+        "why": "奇數分支",
+        "mean": "奇數分支"
+      },
+      {
+        "num": 4,
+        "code": "        return a * fast_pow(a, b - 1)",
+        "html": "        <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span> * <span class=\"token-func\">fast_pow</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> - <span class=\"token-number\">1</span>)",
+        "alt": "回傳 a 乘剩餘偶數次方",
+        "diff": true,
+        "why": "化奇為偶",
+        "mean": "轉為偶數"
+      },
+      {
+        "num": 5,
+        "code": "    half = fast_pow(a, b // 2)  # ⭐ 關鍵：只算一次暫存起來！",
+        "html": "    <span class=\"token-ident\">half</span> = <span class=\"token-func\">fast_pow</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> // <span class=\"token-number\">2</span>)  <span class=\"token-comment\"># ⭐ 關鍵：只算一次暫存起來！</span>",
+        "alt": "折半算一次",
+        "diff": true,
+        "why": "避免重複呼叫",
+        "mean": "折半暫存"
+      },
+      {
+        "num": 6,
+        "code": "    return half * half",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">half</span> * <span class=\"token-ident\">half</span>",
+        "alt": "自己乘自己平方",
+        "diff": true,
+        "why": "快速平方結算",
+        "mean": "平方結算"
+      },
+      {
+        "num": 7,
+        "code": "print(\"2^10 =\", fast_pow(2, 10))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;2^10 =&quot;</span>, <span class=\"token-func\">fast_pow</span>(<span class=\"token-number\">2</span>, <span class=\"token-number\">10</span>))",
+        "alt": "輸出 1024",
+        "why": "計算 2^10",
+        "mean": "測試 2^10"
+      },
+      {
+        "num": 8,
+        "code": "print(\"3^5 =\", fast_pow(3, 5))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;3^5 =&quot;</span>, <span class=\"token-func\">fast_pow</span>(<span class=\"token-number\">3</span>, <span class=\"token-number\">5</span>))",
+        "alt": "輸出 243",
+        "diff": true,
+        "why": "計算 3^5",
+        "mean": "測試 3^5"
+      }
+    ],
+    "output": "2^10 = 1024\n3^5 = 243",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>關鍵中的關鍵：half 暫存</strong>：偶數次方時，務必先將 <code>fast_pow(a, b // 2)</code> 算出來存入 <code>half</code> 變數，再執行 <code>half * half</code>。千萬不能寫兩次呼叫，否則分支又會退化回慢速的指數級！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "折半先暫存，平方不重複"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7 考場地雷一：費氏數列漏寫 n<=0 基底引爆無窮遞迴",
+    "titleZh": "考場致命地雷一：費氏數列漏寫 F(0)——深入負數深淵崩潰",
+    "titleEn": "Trap 1: Missing F(0) Base Case Dives into Negatives",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：只寫了 if n == 1，漏了 n <= 0 的煞車！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：只寫了 if n == 1，漏了 n &lt;= 0 的煞車！</span>",
+        "alt": "漏煞車地雷",
+        "why": "遺漏基底",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "def buggy_fib(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">buggy_fib</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "錯誤費氏函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    if n == 1: return 1  # 💥 漏掉了 F(0) 的基底！",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">n</span> == <span class=\"token-number\">1</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 💥 漏掉了 F(0) 的基底！</span>",
+        "alt": "僅有基底 1",
+        "diff": true,
+        "why": "0 無法被攔截",
+        "mean": "單一基底"
+      },
+      {
+        "num": 4,
+        "code": "    return buggy_fib(n - 1) + buggy_fib(n - 2)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\"><span class=\"token-wavy-err\">buggy_fib</span></span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">1</span>) + <span class=\"token-func\"><span class=\"token-wavy-err\">buggy_fib</span></span>(<span class=\"token-ident\">n</span> - <span class=\"token-number\">2</span>)",
+        "alt": "雙分支推進",
+        "diff": true,
+        "why": "遇到 n=0 繼續算出負數",
+        "mean": "下潛失控"
+      },
+      {
+        "num": 5,
+        "code": "buggy_fib(2)  # 2-2=0，進入 buggy_fib(0) 繼續算 -1, -2... 瞬間爆棧！",
+        "html": "<span class=\"token-func\">buggy_fib</span>(<span class=\"token-number\">2</span>)  <span class=\"token-comment\"># 2-2=0，進入 buggy_fib(0) 繼續算 -1, -2... 瞬間爆棧！</span>",
+        "alt": "呼叫 2 引爆",
+        "diff": true,
+        "why": "爆棧 RE",
+        "mean": "呼叫崩潰"
+      }
+    ],
+    "output": "<span class=\"output-error\">RecursionError: maximum recursion depth exceeded</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>最常見的雙基底遺漏</strong>：計算 <code>buggy_fib(2)</code> 時拆為 <code>F(1) + F(0)</code>。<code>F(1)</code> 正常回傳 1，但 <code>F(0)</code> 找不到煞車，繼續拆成 <code>F(-1) + F(-2)</code> 一路往負數深淵狂奔，撞毀堆疊！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "費氏減二步，零一雙基底"
+      }
+    ],
+    "predictQuiz": {
+      "question": "如果費氏數列只寫了 if n == 1: return 1，當呼叫 fib(2) 時會發生什麼狀況？",
+      "options": [
+        "A. 正常算出答案 1，完全不受影響",
+        "B. 拆解出 fib(0) 後因無煞車條件而狂奔向負數，引爆 RecursionError"
+      ],
+      "answer": "B",
+      "correct": "B",
+      "explanation": "因為 fib(2) = fib(1) + fib(0)。雖然 fib(1) 命中了條件，但右側的 fib(0) 沒有煞車條件，會繼續呼叫 fib(-1) 與 fib(-2)，迅速耗盡堆疊拋出 RecursionError！"
+    }
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7 考場地雷二：快速冪偶數次方重複呼叫導致降維失敗",
+    "titleZh": "考場致命地雷二：快速冪重複呼叫——分治降維瞬間化為烏有",
+    "titleEn": "Trap 2: Redundant Recursive Call Defeats Divide & Conquer",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "calls = 0",
+        "html": "<span class=\"token-ident\">calls</span> = <span class=\"token-number\">0</span>",
+        "alt": "呼叫計數",
+        "why": "統計次數",
+        "mean": "計數器"
+      },
+      {
+        "num": 2,
+        "code": "def slow_power(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">slow_power</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "錯誤快速冪函數",
+        "why": "示範重複呼叫",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    global calls; calls += 1",
+        "html": "    <span class=\"token-keyword\">global</span> <span class=\"token-ident\">calls</span>; <span class=\"token-ident\">calls</span> += <span class=\"token-number\">1</span>",
+        "alt": "計數累加",
+        "why": "統計進入次數",
+        "mean": "累加計數"
+      },
+      {
+        "num": 4,
+        "code": "    if b == 0: return 1",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-number\">1</span>",
+        "alt": "Base Case",
+        "why": "基底煞車",
+        "mean": "基底"
+      },
+      {
+        "num": 5,
+        "code": "    # 💥 致命失誤：呼叫了兩次 slow_power(a, b//2)！",
+        "html": "    <span class=\"token-comment\"># 💥 致命失誤：呼叫了兩次 slow_power(a, b//2)！</span>",
+        "alt": "重複呼叫註解",
+        "why": "兩次分支展開",
+        "mean": "重複呼叫說明"
+      },
+      {
+        "num": 6,
+        "code": "    return slow_power(a, b // 2) * slow_power(a, b // 2)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\"><span class=\"token-wavy-err\">slow_power</span></span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> // <span class=\"token-number\">2</span>) * <span class=\"token-func\"><span class=\"token-wavy-err\">slow_power</span></span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span> // <span class=\"token-number\">2</span>)",
+        "alt": "重複兩次呼叫",
+        "diff": true,
+        "why": "退化為雙分支樹狀遞迴",
+        "mean": "雙重呼叫"
+      },
+      {
+        "num": 7,
+        "code": "slow_power(2, 16)",
+        "html": "<span class=\"token-func\">slow_power</span>(<span class=\"token-number\">2</span>, <span class=\"token-number\">16</span>)",
+        "alt": "呼叫 2^16",
+        "why": "執行測試",
+        "mean": "測試 2^16"
+      },
+      {
+        "num": 8,
+        "code": "print(\"計算 2^16 竟呼叫了:\", calls, \"次！(正常僅需 5 次)\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;計算 2^16 竟呼叫了:&quot;</span>, <span class=\"token-ident\">calls</span>, <span class=\"token-string\">&quot;次！(正常僅需 5 次)&quot;</span>)",
+        "alt": "輸出 63 次",
+        "diff": true,
+        "why": "輸出 63 次呼叫",
+        "mean": "印出統計"
+      }
+    ],
+    "output": "計算 2^16 竟呼叫了: 63 次！(正常僅需 5 次)",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>分治退化為災難</strong>：快速冪之所以快，是因為偶數次方「只算一次」。如果你在同一行寫了兩次遞迴呼叫，它就變成了像費氏數列一樣的二元展開樹，呼叫次數暴增至 63 次，徹底失去分治加速優勢！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "莫寫雙呼叫，暫存算一次"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7 考場地雷三：輾轉相除法參數傳遞順序錯置引爆死循環",
+    "titleZh": "考場致命地雷三：輾轉相除傳錯參數——死循環爆棧崩潰",
+    "titleEn": "Trap 3: Inverted Arguments in GCD Cause Infinite Loop",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：參數順序顛倒，寫成了 gcd(a % b, b)",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：參數順序顛倒，寫成了 gcd(a % b, b)</span>",
+        "alt": "順序顛倒地雷註解",
+        "why": "傳錯第一個參數",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "def wrong_gcd(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">wrong_gcd</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "錯誤 gcd 函數",
+        "why": "函數定義",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    if b == 0: return a",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> == <span class=\"token-number\">0</span>: <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span>",
+        "alt": "Base Case",
+        "why": "基底煞車",
+        "mean": "基底"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 慘劇：順序顛倒！若 a < b，a % b 永遠等於 a，陷入死循環！",
+        "html": "    <span class=\"token-comment\"># 💥 慘劇：順序顛倒！若 a &lt; b，a % b 永遠等於 a，陷入死循環！</span>",
+        "alt": "順序顛倒慘劇說明",
+        "why": "引數無法收斂",
+        "mean": "參數顛倒說明"
+      },
+      {
+        "num": 5,
+        "code": "    return wrong_gcd(a % b, b)  # 12 % 18 永遠為 12，原地打轉！",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-func\"><span class=\"token-wavy-err\">wrong_gcd</span></span>(<span class=\"token-ident\">a</span> % <span class=\"token-ident\">b</span>, <span class=\"token-ident\">b</span>)  <span class=\"token-comment\"># 12 % 18 永遠為 12，原地打轉！</span>",
+        "alt": "顛倒參數遞迴",
+        "diff": true,
+        "why": "死循環下潛",
+        "mean": "死循環呼叫"
+      },
+      {
+        "num": 6,
+        "code": "wrong_gcd(12, 18)",
+        "html": "<span class=\"token-func\">wrong_gcd</span>(<span class=\"token-number\">12</span>, <span class=\"token-number\">18</span>)",
+        "alt": "呼叫 12, 18 引爆",
+        "diff": true,
+        "why": "引爆 RecursionError",
+        "mean": "呼叫崩潰"
+      }
+    ],
+    "output": "<span class=\"output-error\">RecursionError: maximum recursion depth exceeded</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>輾轉相除口訣不能忘</strong>：下一輪的被除數必須是上一輪的「除數 <code>b</code>」，餘數是 <code>a % b</code>，因此呼叫端必須寫 <code>gcd(b, a % b)</code>！若傳入原本的 <code>a</code>，被除數永遠縮不小，當場死循環爆棧！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "除數移前位，餘數殿後推"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.7 樹狀分支遞迴（Tree Recursion）與數論演算法（費氏數列與輾轉相除法 GCD）",
+    "titleZh": "綜合實戰——APCS 分數化簡器（約分至最簡真/假分數）",
+    "titleEn": "Full Battle: Fraction Simplifier using Recursive GCD",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 數論實戰：將任意分數分子與分母約分至最簡分數",
+        "html": "<span class=\"token-comment\"># APCS 數論實戰：將任意分數分子與分母約分至最簡分數</span>",
+        "alt": "實戰情境註解",
+        "why": "分數化簡演算法",
+        "mean": "實戰說明"
+      },
+      {
+        "num": 2,
+        "code": "def gcd(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "定義 gcd 核心工具",
+        "why": "極簡遞迴工具",
+        "mean": "定義 gcd"
+      },
+      {
+        "num": 3,
+        "code": "    return a if b == 0 else gcd(b, a % b)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> == <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">b</span>, <span class=\"token-ident\">a</span> % <span class=\"token-ident\">b</span>)",
+        "alt": "單行遞迴 gcd",
+        "why": "歐幾里得快速約分",
+        "mean": "遞迴 gcd"
+      },
+      {
+        "num": 4,
+        "code": "def simplify_fraction(num, den):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">simplify_fraction</span>(<span class=\"token-ident\">num</span>, <span class=\"token-ident\">den</span>):",
+        "alt": "化簡分數函數",
+        "why": "封裝業務邏輯",
+        "mean": "定義化簡函數"
+      },
+      {
+        "num": 5,
+        "code": "    g = gcd(num, den)  # 求分子分母最大公因數",
+        "html": "    <span class=\"token-ident\">g</span> = <span class=\"token-func\">gcd</span>(<span class=\"token-ident\">num</span>, <span class=\"token-ident\">den</span>)  <span class=\"token-comment\"># 求分子分母最大公因數</span>",
+        "alt": "求公因數 g",
+        "diff": true,
+        "why": "取得共同因數",
+        "mean": "計算公因數"
+      },
+      {
+        "num": 6,
+        "code": "    return num // g, den // g  # 同除以 g 完成約分",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">num</span> // <span class=\"token-ident\">g</span>, <span class=\"token-ident\">den</span> // <span class=\"token-ident\">g</span>  <span class=\"token-comment\"># 同除以 g 完成約分</span>",
+        "alt": "回傳約分後數值",
+        "diff": true,
+        "why": "產出最簡多回傳值",
+        "mean": "回傳最簡比"
+      },
+      {
+        "num": 7,
+        "code": "n1, d1 = simplify_fraction(48, 18)",
+        "html": "<span class=\"token-ident\">n1</span>, <span class=\"token-ident\">d1</span> = <span class=\"token-func\">simplify_fraction</span>(<span class=\"token-number\">48</span>, <span class=\"token-number\">18</span>)",
+        "alt": "48/18 約分",
+        "why": "測試假分數",
+        "mean": "測試 48/18"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"48/18 化簡為: {n1}/{d1}\")  # 輸出 8/3",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;48/18 化簡為: {</span><span class=\"token-ident\">n1</span><span class=\"token-string\">}/{</span><span class=\"token-ident\">d1</span><span class=\"token-string\">}&quot;</span>)  <span class=\"token-comment\"># 輸出 8/3</span>",
+        "alt": "輸出 8/3",
+        "diff": true,
+        "why": "印出化簡結果",
+        "mean": "印出 8/3"
+      },
+      {
+        "num": 9,
+        "code": "n2, d2 = simplify_fraction(24, 60)",
+        "html": "<span class=\"token-ident\">n2</span>, <span class=\"token-ident\">d2</span> = <span class=\"token-func\">simplify_fraction</span>(<span class=\"token-number\">24</span>, <span class=\"token-number\">60</span>)",
+        "alt": "24/60 約分",
+        "why": "測試真分數",
+        "mean": "測試 24/60"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"24/60 化簡為: {n2}/{d2}\")  # 輸出 2/5",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;24/60 化簡為: {</span><span class=\"token-ident\">n2</span><span class=\"token-string\">}/{</span><span class=\"token-ident\">d2</span><span class=\"token-string\">}&quot;</span>)  <span class=\"token-comment\"># 輸出 2/5</span>",
+        "alt": "輸出 2/5",
+        "diff": true,
+        "why": "印出化簡結果",
+        "mean": "印出 2/5"
+      }
+    ],
+    "output": "48/18 化簡為: 8/3\n24/60 化簡為: 2/5",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>數論遞迴大獲全勝！</strong>：你已精通雙分支遞迴展開樹的執行時序，理解重疊子問題的代價，熟練掌握歐幾里得輾轉相除法 GCD 與快速冪，為 APCS 進階分治與數論題目打下最堅實的基石！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "遞迴求公因，同除化最簡"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.7",
+      "title": "樹狀分支遞迴與數論演算法掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心演算法",
+          "val": "歐幾里得 GCD / 快速冪"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "11.8",
+        "title": "函數模組化解題實戰：Top-Down 拆題法與競賽輔助函數庫建立",
+        "desc": "即將迎來第 11 章大結局！掌握 Top-Down 拆題法與二維網格、曼哈頓距離全套解題工具箱！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-7",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-7_tree_recursion_and_number_theory.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

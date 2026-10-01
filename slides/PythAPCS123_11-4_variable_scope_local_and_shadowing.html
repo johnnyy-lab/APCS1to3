@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.4 變數作用域：區域變數（Local Scope）與同名變數遮蔽（Shadowing） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.1 什麼是作用域？函數內部的獨立小王國（Local Scope）",
+    "titleZh": "什麼是作用域？——函數內部的獨立小王國",
+    "titleEn": "What is Scope: The Local Kingdom",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 作用域（Scope）：變數名稱的有效可見範圍",
+        "html": "<span class=\"token-comment\"># 作用域（Scope）：變數名稱的有效可見範圍</span>",
+        "alt": "作用域概念說明",
+        "why": "建立作用域概念",
+        "mean": "作用域註解"
+      },
+      {
+        "num": 2,
+        "code": "def my_vault():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">my_vault</span>():",
+        "alt": "定義保險箱函數",
+        "why": "建立區域獨立空間",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    gold = 500  # 在函數內部宣告的區域變數（Local Variable）",
+        "html": "    <span class=\"token-ident\">gold</span> = <span class=\"token-number\">500</span>  <span class=\"token-comment\"># 在函數內部宣告的區域變數（Local Variable）</span>",
+        "alt": "宣告內部區域變數 gold",
+        "diff": true,
+        "why": "僅在此函數內部有效",
+        "mean": "指派區域變數"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"小王國內部 gold:\", gold)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;小王國內部 gold:&quot;</span>, <span class=\"token-ident\">gold</span>)",
+        "alt": "內部正常存取 gold",
+        "why": "小王國內部暢行無阻",
+        "mean": "內部印出"
+      },
+      {
+        "num": 5,
+        "code": "my_vault()",
+        "html": "<span class=\"token-func\">my_vault</span>()",
+        "alt": "呼叫函數",
+        "diff": true,
+        "why": "執行內部程式碼",
+        "mean": "呼叫函數"
+      }
+    ],
+    "output": "小王國內部 gold: 500",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>區域作用域（Local Scope）</strong>：在 <code>def</code> 縮排區塊內宣告的變數如同私人領地。外部世界無法直接窺探或存取它，實現了變數名稱的隔離保護！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "內部小王國，外界不可見"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.1 什麼是作用域？函數內部的獨立小王國（Local Scope）",
+    "titleZh": "穿越高牆的唯一途徑——透過 return 安全交出數據",
+    "titleEn": "Exporting Local Data Safely via Return",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def my_vault():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">my_vault</span>():",
+        "alt": "定義保險箱函數",
+        "why": "封裝內部數據",
+        "mean": "定義函數"
+      },
+      {
+        "num": 2,
+        "code": "    secret = 1234  # 內部機密",
+        "html": "    <span class=\"token-ident\">secret</span> = <span class=\"token-number\">1234</span>  <span class=\"token-comment\"># 內部機密</span>",
+        "alt": "宣告內部機密 secret",
+        "why": "區域變數",
+        "mean": "內部機密"
+      },
+      {
+        "num": 3,
+        "code": "    return secret  # 唯一將數據安全傳遞到外部的通道！",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">secret</span>  <span class=\"token-comment\"># 唯一將數據安全傳遞到外部的通道！</span>",
+        "alt": "以 return 輸出數據",
+        "diff": true,
+        "why": "合法交接數據",
+        "mean": "回傳內部機密"
+      },
+      {
+        "num": 4,
+        "code": "key = my_vault()",
+        "html": "<span class=\"token-ident\">key</span> = <span class=\"token-func\">my_vault</span>()",
+        "alt": "外部變數 key 接收",
+        "diff": true,
+        "why": "承接回傳值",
+        "mean": "接收回傳"
+      },
+      {
+        "num": 5,
+        "code": "print(\"透過 return 安全帶出:\", key)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;透過 return 安全帶出:&quot;</span>, <span class=\"token-ident\">key</span>)",
+        "alt": "印出外部 key 為 1234",
+        "why": "驗證數據安全輸出",
+        "mean": "印出變數"
+      }
+    ],
+    "output": "透過 return 安全帶出: 1234",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>數據引渡合約</strong>：外部不能直接呼叫 <code>secret</code>，但函數內部可以透過 <code>return secret</code> 將數據值交付給外部變數 <code>key</code> 接收，合乎模組化封裝原則。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "區域有高牆，回傳來引渡"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.2 區域變數的生命週期：呼叫時誕生、結束時釋放消亡",
+    "titleZh": "區域變數的生命週期——呼叫時誕生，離場即釋放",
+    "titleEn": "Lifecycle of Local Variables: Born and Destroyed",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def count_visitor():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">count_visitor</span>():",
+        "alt": "訪客計數函數",
+        "why": "演示生命週期重置",
+        "mean": "定義計數函數"
+      },
+      {
+        "num": 2,
+        "code": "    count = 0  # 每次呼叫函數，count 都是全新誕生的變數！",
+        "html": "    <span class=\"token-ident\">count</span> = <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 每次呼叫函數，count 都是全新誕生的變數！</span>",
+        "alt": "初始化區域 count",
+        "diff": true,
+        "why": "每次進入都重新初始化",
+        "mean": "誕生區域變數"
+      },
+      {
+        "num": 3,
+        "code": "    count += 1",
+        "html": "    <span class=\"token-ident\">count</span> += <span class=\"token-number\">1</span>",
+        "alt": "加 1",
+        "why": "0 + 1 = 1",
+        "mean": "累加"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"當前 count:\", count)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;當前 count:&quot;</span>, <span class=\"token-ident\">count</span>)",
+        "alt": "印出 count",
+        "why": "印出 1",
+        "mean": "印出計數"
+      },
+      {
+        "num": 5,
+        "code": "count_visitor()",
+        "html": "<span class=\"token-func\">count_visitor</span>()",
+        "alt": "第 1 次呼叫",
+        "diff": true,
+        "why": "誕生 -> 印出 1 -> 消亡",
+        "mean": "初次呼叫"
+      },
+      {
+        "num": 6,
+        "code": "count_visitor()",
+        "html": "<span class=\"token-func\">count_visitor</span>()",
+        "alt": "第 2 次呼叫",
+        "diff": true,
+        "why": "重新誕生 -> 印出 1 -> 消亡",
+        "mean": "二次呼叫"
+      },
+      {
+        "num": 7,
+        "code": "count_visitor()",
+        "html": "<span class=\"token-func\">count_visitor</span>()",
+        "alt": "第 3 次呼叫",
+        "diff": true,
+        "why": "重新誕生 -> 印出 1 -> 消亡",
+        "mean": "三次呼叫"
+      }
+    ],
+    "output": "當前 count: 1\n當前 count: 1\n當前 count: 1",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>生命週期短暫</strong>：函數每次被呼叫時，系統會在記憶體堆疊（Stack）上為它分配獨立空間；當函數執行完畢返回時，空間被<strong>立即回收釋放</strong>，內部的變數隨之灰飛煙滅！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "呼叫時誕生，離場即釋放"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.3 全域與區域同名：變數遮蔽（Shadowing）現象與就近原則",
+    "titleZh": "全域變數 vs 區域變數——大世界與小房間的視野",
+    "titleEn": "Global Scope vs Local Scope: World and Room",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "global_hero = \"艾力克斯\"  # 全域變數（Global Variable）",
+        "html": "<span class=\"token-ident\">global_hero</span> = <span class=\"token-string\">&quot;艾力克斯&quot;</span>  <span class=\"token-comment\"># 全域變數（Global Variable）</span>",
+        "alt": "宣告全域英雄",
+        "diff": true,
+        "why": "存在於頂層全域環境",
+        "mean": "宣告全域變數"
+      },
+      {
+        "num": 2,
+        "code": "def village():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">village</span>():",
+        "alt": "村莊函數（小房間）",
+        "why": "定義局部作用域",
+        "mean": "定義村莊函數"
+      },
+      {
+        "num": 3,
+        "code": "    local_npc = \"老村長\"    # 區域變數（Local Variable）",
+        "html": "    <span class=\"token-ident\">local_npc</span> = <span class=\"token-string\">&quot;老村長&quot;</span>    <span class=\"token-comment\"># 區域變數（Local Variable）</span>",
+        "alt": "宣告區域 NPC",
+        "diff": true,
+        "why": "僅村莊內部能看見",
+        "mean": "宣告區域變數"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"村內看見:\", global_hero, \"與\", local_npc)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;村內看見:&quot;</span>, <span class=\"token-ident\">global_hero</span>, <span class=\"token-string\">&quot;與&quot;</span>, <span class=\"token-ident\">local_npc</span>)",
+        "alt": "村內能看到全域與區域",
+        "why": "小房間可向外看到大世界",
+        "mean": "村內列印"
+      },
+      {
+        "num": 5,
+        "code": "village()",
+        "html": "<span class=\"token-func\">village</span>()",
+        "alt": "呼叫 village()",
+        "why": "觸發村莊內部印出",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 6,
+        "code": "print(\"世界看見:\", global_hero)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;世界看見:&quot;</span>, <span class=\"token-ident\">global_hero</span>)",
+        "alt": "外部大世界只能看見全域英雄",
+        "diff": true,
+        "why": "外部看不見 local_npc",
+        "mean": "外部列印"
+      }
+    ],
+    "output": "村內看見: 艾力克斯 與 老村長\n世界看見: 艾力克斯",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>單向透明原則</strong>：在函數小房間內，可以透過窗戶「向外看」看見全域變數；但在外部大世界，無法穿透牆壁直接看見小房間內的區域變數。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "大世界共享，小房間私有"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.3 全域與區域同名：變數遮蔽（Shadowing）現象與就近原則",
+    "titleZh": "變數遮蔽（Shadowing）——就近原則與各司其職",
+    "titleEn": "Variable Shadowing: The Nearest Scope Wins",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "score = 100  # 全域變數 score",
+        "html": "<span class=\"token-ident\">score</span> = <span class=\"token-number\">100</span>  <span class=\"token-comment\"># 全域變數 score</span>",
+        "alt": "全域滿分 score",
+        "why": "外部環境設定",
+        "mean": "全域指派"
+      },
+      {
+        "num": 2,
+        "code": "def exam():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">exam</span>():",
+        "alt": "定義測驗函數",
+        "why": "內部包含同名宣告",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    score = 60  # 區域同名變數 score：就近遮蔽全域變數！",
+        "html": "    <span class=\"token-ident\">score</span> = <span class=\"token-number\">60</span>  <span class=\"token-comment\"># 區域同名變數 score：就近遮蔽全域變數！</span>",
+        "alt": "內部同名 score 遮蔽外部",
+        "diff": true,
+        "why": "Local 優先於 Global",
+        "mean": "區域遮蔽指派"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"函數內部 score:\", score)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;函數內部 score:&quot;</span>, <span class=\"token-ident\">score</span>)",
+        "alt": "內部印出 60",
+        "why": "讀取最近的區域變數",
+        "mean": "內部列印"
+      },
+      {
+        "num": 5,
+        "code": "exam()",
+        "html": "<span class=\"token-func\">exam</span>()",
+        "alt": "呼叫函數",
+        "why": "執行內部遮蔽",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 6,
+        "code": "print(\"外部全域 score:\", score)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部全域 score:&quot;</span>, <span class=\"token-ident\">score</span>)",
+        "alt": "外部印出 100",
+        "diff": true,
+        "why": "外部 score 完全不受影響！",
+        "mean": "外部列印"
+      }
+    ],
+    "output": "函數內部 score: 60\n外部全域 score: 100",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>變數遮蔽（Shadowing）</strong>：當內部變數與全域變數同名時，Python 遵循「就近原則」優先採用區域變數，全域變數暫時被陰影遮蔽；但全域變數的數值<strong>絕不會被覆蓋</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "同名就近看，內部遮外部"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.4 在函數內部「唯讀」存取全域變數的合法行為與邊界",
+    "titleZh": "內部唯讀存取全域變數——只要不指派賦值即完全合法",
+    "titleEn": "Read-Only Access to Global Variables",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "RATE = 0.05  # 全域常數（固定稅率）",
+        "html": "<span class=\"token-ident\">RATE</span> = <span class=\"token-number\">0.05</span>  <span class=\"token-comment\"># 全域常數（固定稅率）</span>",
+        "alt": "全域常數定義",
+        "why": "公共參考標準",
+        "mean": "全域常數"
+      },
+      {
+        "num": 2,
+        "code": "def calc_tax(price):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">calc_tax</span>(<span class=\"token-ident\">price</span>):",
+        "alt": "計算稅金函數",
+        "why": "接收商品價格",
+        "mean": "定義計算函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 唯讀存取：只讀取 RATE 的值，完全不進行賦值修改！",
+        "html": "    <span class=\"token-comment\"># 唯讀存取：只讀取 RATE 的值，完全不進行賦值修改！</span>",
+        "alt": "唯讀存取註解",
+        "why": "合法讀取說明",
+        "mean": "唯讀註解"
+      },
+      {
+        "num": 4,
+        "code": "    return price * RATE",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">price</span> * <span class=\"token-ident\">RATE</span>",
+        "alt": "使用 RATE 進行乘法",
+        "diff": true,
+        "why": "直接乘上全域 RATE",
+        "mean": "計算並回傳"
+      },
+      {
+        "num": 5,
+        "code": "print(\"稅額:\", calc_tax(200))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;稅額:&quot;</span>, <span class=\"token-func\">calc_tax</span>(<span class=\"token-number\">200</span>))",
+        "alt": "200 * 0.05 = 10.0",
+        "diff": true,
+        "why": "輸出 10.0",
+        "mean": "印出計算結果"
+      },
+      {
+        "num": 6,
+        "code": "print(\"稅額:\", calc_tax(500))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;稅額:&quot;</span>, <span class=\"token-func\">calc_tax</span>(<span class=\"token-number\">500</span>))",
+        "alt": "500 * 0.05 = 25.0",
+        "diff": true,
+        "why": "輸出 25.0",
+        "mean": "印出計算結果"
+      }
+    ],
+    "output": "稅額: 10.0\n稅額: 25.0",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>唯讀（Read-Only）合法性</strong>：只要函數內部<strong>沒有出現 <code>RATE = ...</code> 單等號賦值</strong>，直譯器在區域找不到該變數時，會自動向外搜尋全域變數，順利讀取其值！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "只讀不指派，全域安心讀"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.5 經典報錯剖析：UnboundLocalError: local variable referenced before assignment",
+    "titleZh": "經典報錯成因解密——UnboundLocalError 的底層機制",
+    "titleEn": "Demystifying UnboundLocalError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 核心原理：Python 在執行前會預編譯掃描函數本體",
+        "html": "<span class=\"token-comment\"># 核心原理：Python 在執行前會預編譯掃描函數本體</span>",
+        "alt": "預編譯掃描說明",
+        "why": "解密編譯期行為",
+        "mean": "原理註解"
+      },
+      {
+        "num": 2,
+        "code": "# 只要內部任何一行出現了「變數 = ...」賦值指令，",
+        "html": "<span class=\"token-comment\"># 只要內部任何一行出現了「變數 = ...」賦值指令，</span>",
+        "alt": "賦值指令標記",
+        "why": "變數身分認定關鍵",
+        "mean": "變數標記說明"
+      },
+      {
+        "num": 3,
+        "code": "# Python 就會強制將該名稱標記為「區域變數」！",
+        "html": "<span class=\"token-comment\"># Python 就會強制將該名稱標記為「區域變數」！</span>",
+        "alt": "區域變數鎖定",
+        "why": "切斷全域搜尋通道",
+        "mean": "鎖定區域說明"
+      },
+      {
+        "num": 4,
+        "code": "# 若在賦值完成前就試圖讀取它（如 total = total + 1），",
+        "html": "<span class=\"token-comment\"># 若在賦值完成前就試圖讀取它（如 total = total + 1），</span>",
+        "alt": "讀取尚未指派的區域變數",
+        "why": "引爆衝突",
+        "mean": "衝突說明"
+      },
+      {
+        "num": 5,
+        "code": "# 直譯器就會當場拋出 UnboundLocalError 致命崩潰！",
+        "html": "<span class=\"token-comment\"># 直譯器就會當場拋出 UnboundLocalError 致命崩潰！</span>",
+        "alt": "拋出例外警告",
+        "why": "警示致命崩潰",
+        "mean": "報錯預告"
+      },
+      {
+        "num": 6,
+        "code": "print(\"規則記心中：內部有等號，預設變區域！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;規則記心中：內部有等號，預設變區域！&quot;</span>)",
+        "alt": "印出規則警句",
+        "diff": true,
+        "why": "建立直覺心智模型",
+        "mean": "印出核心規則"
+      }
+    ],
+    "output": "規則記心中：內部有等號，預設變區域！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>編譯期的靜態判定</strong>：Python 在執行代碼前，會先看一遍函數內所有程式碼。只要看到 <code>x = ...</code>，整個函數裡的 <code>x</code> 就一律被認定為區域變數，不再向外尋找全域 <code>x</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "預編譯綁定，未賦值噴錯"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.5 經典報錯剖析：UnboundLocalError: local variable referenced before assignment",
+    "titleZh": "正確修復方案——以「參數傳入、return 傳出」純函數解套",
+    "titleEn": "Clean Fix: Parameter In, Return Out",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "counter = 10  # 外部數值",
+        "html": "<span class=\"token-ident\">counter</span> = <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 外部數值</span>",
+        "alt": "外部計數器",
+        "why": "需要被更新的數值",
+        "mean": "外部變數"
+      },
+      {
+        "num": 2,
+        "code": "# ✅ 正確修復：透過參數 val 接收，透過 return 返還",
+        "html": "<span class=\"token-comment\"># ✅ 正確修復：透過參數 val 接收，透過 return 返還</span>",
+        "alt": "最佳實踐註解",
+        "why": "純函數設計模式",
+        "mean": "純函數說明"
+      },
+      {
+        "num": 3,
+        "code": "def update_counter(val):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">update_counter</span>(<span class=\"token-ident\">val</span>):",
+        "alt": "接收引數 val",
+        "why": "動態輸入",
+        "mean": "定義更新函數"
+      },
+      {
+        "num": 4,
+        "code": "    return val + 1  # 乾淨計算，毫無 Unbound 疑慮！",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">val</span> + <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 乾淨計算，毫無 Unbound 疑慮！</span>",
+        "alt": "回傳 val + 1",
+        "diff": true,
+        "why": "直接產出新值",
+        "mean": "回傳加一"
+      },
+      {
+        "num": 5,
+        "code": "counter = update_counter(counter)",
+        "html": "<span class=\"token-ident\">counter</span> = <span class=\"token-func\">update_counter</span>(<span class=\"token-ident\">counter</span>)",
+        "alt": "呼叫並接回更新值",
+        "diff": true,
+        "why": "外部 counter 重新賦值為 11",
+        "mean": "外部重新指派"
+      },
+      {
+        "num": 6,
+        "code": "print(\"更新後 counter:\", counter)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;更新後 counter:&quot;</span>, <span class=\"token-ident\">counter</span>)",
+        "alt": "輸出 11",
+        "diff": true,
+        "why": "安全更新完成",
+        "mean": "印出更新後數值"
+      }
+    ],
+    "output": "更新後 counter: 11",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>純函數（Pure Function）的解脫</strong>：不依賴也不修改外部變數，輸入靠參數、輸出靠 return。這樣完全不會引發 <code>UnboundLocalError</code>，也是架構最穩健的高分寫法！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "傳參再回傳，純函數最佳"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.6 設計原則：為什麼盡量依賴「參數傳入、return 傳出」而非依賴外部全域變數？",
+    "titleZh": "架構設計原則——純函數的獨立性與高可測試性",
+    "titleEn": "Pure Function Design: Independent and Testable",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 純函數示範：計算長方形面積（無任何外部全域依賴）",
+        "html": "<span class=\"token-comment\"># 純函數示範：計算長方形面積（無任何外部全域依賴）</span>",
+        "alt": "純函數概念註解",
+        "why": "獨立高內聚模組",
+        "mean": "純函數概念"
+      },
+      {
+        "num": 2,
+        "code": "def calc_area(width, height=10):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">calc_area</span>(<span class=\"token-ident\">width</span>, <span class=\"token-ident\">height</span>=<span class=\"token-number\">10</span>):",
+        "alt": "參數與預設值全自給自足",
+        "diff": true,
+        "why": "不依賴任何外部 global 變數",
+        "mean": "定義獨立函數"
+      },
+      {
+        "num": 3,
+        "code": "    return width * height",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">width</span> * <span class=\"token-ident\">height</span>",
+        "alt": "矩形面積計算",
+        "why": "回傳運算結果",
+        "mean": "回傳面積"
+      },
+      {
+        "num": 4,
+        "code": "print(\"預設高面積:\", calc_area(5))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;預設高面積:&quot;</span>, <span class=\"token-func\">calc_area</span>(<span class=\"token-number\">5</span>))",
+        "alt": "寬度 5 高度 10 測試",
+        "diff": true,
+        "why": "輸出 50",
+        "mean": "測試呼叫 5"
+      },
+      {
+        "num": 5,
+        "code": "print(\"自訂高面積:\", calc_area(5, 6))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;自訂高面積:&quot;</span>, <span class=\"token-func\">calc_area</span>(<span class=\"token-number\">5</span>, <span class=\"token-number\">6</span>))",
+        "alt": "寬度 5 高度 6 測試",
+        "diff": true,
+        "why": "輸出 30",
+        "mean": "測試呼叫 5 6"
+      }
+    ],
+    "output": "預設高面積: 50\n自訂高面積: 30",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼要盡量避免依賴全域？</strong>：如果函數依賴外部全域變數，一旦其他程式碼改動了該變數，函數就會莫名其妙算出錯的答案。純函數能被隨意搬移到任何專案直接重複使用！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "依賴傳參數，獨立好測試"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.3 全域與區域同名：變數遮蔽（Shadowing）現象與就近原則",
+    "titleZh": "多層作用域剖析——LEGB 巢狀遮蔽層層由內向外搜尋",
+    "titleEn": "Nested Scopes and the LEGB Search Rule",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "x = \"全域\"",
+        "html": "<span class=\"token-ident\">x</span> = <span class=\"token-string\">&quot;全域&quot;</span>",
+        "alt": "全域變數 x",
+        "why": "頂層 Global",
+        "mean": "全域變數"
+      },
+      {
+        "num": 2,
+        "code": "def outer():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">outer</span>():",
+        "alt": "外層函數",
+        "why": "Enclosing 作用域",
+        "mean": "外層函數"
+      },
+      {
+        "num": 3,
+        "code": "    x = \"外層\"",
+        "html": "    <span class=\"token-ident\">x</span> = <span class=\"token-string\">&quot;外層&quot;</span>",
+        "alt": "外層區域 x",
+        "why": "遮蔽全域 x",
+        "mean": "外層區域指派"
+      },
+      {
+        "num": 4,
+        "code": "    def inner():",
+        "html": "        <span class=\"token-keyword\">def</span> <span class=\"token-func\">inner</span>():",
+        "alt": "內層函數",
+        "why": "Local 作用域",
+        "mean": "內層函數"
+      },
+      {
+        "num": 5,
+        "code": "        x = \"內層\"",
+        "html": "            <span class=\"token-ident\">x</span> = <span class=\"token-string\">&quot;內層&quot;</span>",
+        "alt": "內層區域 x",
+        "why": "遮蔽外層與全域 x",
+        "mean": "內層區域指派"
+      },
+      {
+        "num": 6,
+        "code": "        print(\"inner 看到:\", x)",
+        "html": "            <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;inner 看到:&quot;</span>, <span class=\"token-ident\">x</span>)",
+        "alt": "inner 印出 內層",
+        "diff": true,
+        "why": "讀取 Local 的 x",
+        "mean": "內層印出"
+      },
+      {
+        "num": 7,
+        "code": "    inner()",
+        "html": "        <span class=\"token-func\">inner</span>()",
+        "alt": "呼叫 inner",
+        "why": "觸發內層",
+        "mean": "呼叫內層"
+      },
+      {
+        "num": 8,
+        "code": "    print(\"outer 看到:\", x)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;outer 看到:&quot;</span>, <span class=\"token-ident\">x</span>)",
+        "alt": "outer 印出 外層",
+        "diff": true,
+        "why": "讀取 Enclosing 的 x",
+        "mean": "外層印出"
+      },
+      {
+        "num": 9,
+        "code": "outer()",
+        "html": "<span class=\"token-func\">outer</span>()",
+        "alt": "呼叫 outer",
+        "why": "觸發外層",
+        "mean": "呼叫外層"
+      },
+      {
+        "num": 10,
+        "code": "print(\"世界 看到:\", x)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;世界 看到:&quot;</span>, <span class=\"token-ident\">x</span>)",
+        "alt": "頂層印出 全域",
+        "diff": true,
+        "why": "讀取 Global 的 x",
+        "mean": "世界印出"
+      }
+    ],
+    "output": "inner 看到: 內層\nouter 看到: 外層\n世界 看到: 全域",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>LEGB 搜尋原則</strong>：Python 尋找變數的順序為：Local（區域）➔ Enclosing（包覆外層）➔ Global（全域）➔ Built-in（內建）。由內向外找，找到即停，互不干擾！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "層層由內尋，各層不相擾"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4.4 在函數內部「唯讀」存取全域變數的合法行為與邊界",
+    "titleZh": "可變物件原處修改——就地操作全域串列免宣告 global",
+    "titleEn": "In-place Mutation on Global Lists Without global Keyword",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "ranks = [90, 80]  # 全域串列",
+        "html": "<span class=\"token-ident\">ranks</span> = [<span class=\"token-number\">90</span>, <span class=\"token-number\">80</span>]  <span class=\"token-comment\"># 全域串列</span>",
+        "alt": "宣告全域串列 ranks",
+        "why": "可變物件在頂層",
+        "mean": "全域串列"
+      },
+      {
+        "num": 2,
+        "code": "def add_rank(new_score):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">add_rank</span>(<span class=\"token-ident\">new_score</span>):",
+        "alt": "定義追加名次函數",
+        "why": "就地修改展示",
+        "mean": "定義追加函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 關鍵：呼叫 .append() 是就地操作，無單等號賦值！",
+        "html": "    <span class=\"token-comment\"># 關鍵：呼叫 .append() 是就地操作，無單等號賦值！</span>",
+        "alt": "免 global 原理註解",
+        "why": "說明無需 global 的本質",
+        "mean": "就地操作說明"
+      },
+      {
+        "num": 4,
+        "code": "    ranks.append(new_score)",
+        "html": "    <span class=\"token-ident\">ranks</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">new_score</span>)",
+        "alt": "直接呼叫 append 修改全域串列",
+        "diff": true,
+        "why": "直接修改原處記憶體",
+        "mean": "原處追加"
+      },
+      {
+        "num": 5,
+        "code": "add_rank(95)",
+        "html": "<span class=\"token-func\">add_rank</span>(<span class=\"token-number\">95</span>)",
+        "alt": "呼叫追加 95",
+        "diff": true,
+        "why": "成功追加",
+        "mean": "呼叫追加"
+      },
+      {
+        "num": 6,
+        "code": "print(\"更新後 ranks:\", ranks)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;更新後 ranks:&quot;</span>, <span class=\"token-ident\">ranks</span>)",
+        "alt": "輸出 [90, 80, 95]",
+        "diff": true,
+        "why": "全域 ranks 成功更新",
+        "mean": "印出更新串列"
+      }
+    ],
+    "output": "更新後 ranks: [90, 80, 95]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼不需要 global 宣告？</strong>：因為此處沒有 <code>ranks = ...</code> 重新指派！直譯器唯讀搜尋到全域 <code>ranks</code>，接著在其原處記憶體執行 <code>.append()</code>，因此無需宣告 <code>global</code> 就能修改！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "串列就地改，免宣告全域"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4 考場地雷一：UnboundLocalError 致命崩潰",
+    "titleZh": "考場致命地雷一：試圖原地累加全域數值引爆 UnboundLocalError",
+    "titleEn": "Trap 1: Local Reference Before Assignment Error",
+    "predictQuiz": {
+      "question": "預測思考：在 accumulate 內部執行 total = total + val，執行時會如何？",
+      "options": [
+        "順利將全域 total 加上 5 變為 5",
+        "拋出 UnboundLocalError: cannot access local variable 'total'..."
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "因為函數內部出現了 total = ...，Python 在編譯期就將 total 認定為區域變數；但在計算等號右邊 total + val 時該區域變數尚未被賦值，當場噴出 UnboundLocalError！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：試圖在函數內部直接對全域數值進行累加",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：試圖在函數內部直接對全域數值進行累加</span>",
+        "alt": "地雷註解說明",
+        "why": "APCS 觀念題最常考陷阱",
+        "mean": "地雷警告"
+      },
+      {
+        "num": 2,
+        "code": "total = 0",
+        "html": "<span class=\"token-ident\">total</span> = <span class=\"token-number\">0</span>",
+        "alt": "全域 total = 0",
+        "why": "全域變數",
+        "mean": "全域指派"
+      },
+      {
+        "num": 3,
+        "code": "def accumulate(val):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">accumulate</span>(<span class=\"token-ident\">val</span>):",
+        "alt": "定義累加函數",
+        "why": "內部包含致命錯誤",
+        "mean": "定義函數"
+      },
+      {
+        "num": 4,
+        "code": "    total = total + val  # 💥 引爆 UnboundLocalError！",
+        "html": "    <span class=\"token-ident\">total</span> = <span class=\"token-ident\"><span class=\"token-wavy-err\">total</span></span> + <span class=\"token-ident\">val</span>  <span class=\"token-comment\"># 💥 引爆 UnboundLocalError！</span>",
+        "alt": "右邊讀取未賦值的區域 total",
+        "diff": true,
+        "why": "等號讓 total 成為區域變數，但右邊卻想讀它",
+        "mean": "未賦值即讀取"
+      },
+      {
+        "num": 5,
+        "code": "    return total",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">total</span>",
+        "alt": "回傳",
+        "why": "尚未抵達就崩潰",
+        "mean": "回傳"
+      },
+      {
+        "num": 6,
+        "code": "accumulate(5)",
+        "html": "<span class=\"token-func\">accumulate</span>(<span class=\"token-number\">5</span>)",
+        "alt": "呼叫 accumulate(5) 引爆崩潰",
+        "diff": true,
+        "why": "觸發 UnboundLocalError",
+        "mean": "呼叫引爆"
+      }
+    ],
+    "output": "<span class=\"output-error\">UnboundLocalError: cannot access local variable 'total' where it is not associated with a value</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>考場第一死穴</strong>：等號 <code>total =</code> 讓 <code>total</code> 瞬間變成區域變數；但在指派前就試圖拿 <code>total + val</code> 來算，直譯器發現區域 <code>total</code> 還沒被綁定數值，當場拋出 <code>UnboundLocalError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "內部等號指，未賦值噴錯"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4 考場地雷二：外部存取內部區域變數引爆 NameError",
+    "titleZh": "考場致命地雷二：離開函數後試圖存取內部變數拋出 NameError",
+    "titleEn": "Trap 2: Accessing Local Variable Outside Raises NameError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def calculate():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">calculate</span>():",
+        "alt": "計算函數",
+        "why": "內部宣告區域變數",
+        "mean": "定義計算函數"
+      },
+      {
+        "num": 2,
+        "code": "    secret_result = 42  # 區域變數：執行完畢後隨即消亡",
+        "html": "    <span class=\"token-ident\">secret_result</span> = <span class=\"token-number\">42</span>  <span class=\"token-comment\"># 區域變數：執行完畢後隨即消亡</span>",
+        "alt": "宣告 secret_result",
+        "why": "離開函數即被記憶體回收",
+        "mean": "內部區域變數"
+      },
+      {
+        "num": 3,
+        "code": "calculate()",
+        "html": "<span class=\"token-func\">calculate</span>()",
+        "alt": "呼叫 calculate()",
+        "why": "函數生命結束，內部變數釋放",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 4,
+        "code": "# 💥 考場地雷：在外部直接存取內部已被釋放的變數！",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：在外部直接存取內部已被釋放的變數！</span>",
+        "alt": "外部非法存取註解",
+        "why": "外部環境無此變數",
+        "mean": "非法存取說明"
+      },
+      {
+        "num": 5,
+        "code": "print(secret_result)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-ident\"><span class=\"token-wavy-err\">secret_result</span></span>)",
+        "alt": "外部直接讀取 secret_result 引爆 NameError",
+        "diff": true,
+        "why": "全局符號表無此變數",
+        "mean": "引爆 NameError"
+      }
+    ],
+    "output": "<span class=\"output-error\">NameError: name 'secret_result' is not defined</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>區域變數不可外洩</strong>：<code>secret_result</code> 的生命期僅在 <code>calculate()</code> 執行期間。一旦跳出函數，該變數立刻被直譯器銷毀，外部調用當場引爆 <code>NameError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "離場即釋放，外讀拋未定"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4 考場地雷三：在內建名稱上建立區域變數導致後續調用失效",
+    "titleZh": "考場致命地雷三：自訂變數遮蔽內建函式引爆 TypeError",
+    "titleEn": "Trap 3: Shadowing Built-in Name Breaks Subsequent Calls",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def process_data(items):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">process_data</span>(<span class=\"token-ident\">items</span>):",
+        "alt": "定義數據處理函數",
+        "why": "示範遮蔽內建名稱陷阱",
+        "mean": "定義處理函數"
+      },
+      {
+        "num": 2,
+        "code": "    len = 10  # 💥 區域變數命名為 len，遮蔽 Python 內建 len()！",
+        "html": "    <span class=\"token-ident\"><span class=\"token-wavy-err\">len</span></span> = <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 💥 區域變數命名為 len，遮蔽 Python 內建 len()！</span>",
+        "alt": "錯誤將區域變數取名為 len",
+        "diff": true,
+        "why": "len 變成整數 10，不再是函式！",
+        "mean": "遮蔽內建函式"
+      },
+      {
+        "num": 3,
+        "code": "    print(\"區域 len 值:\", len)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;區域 len 值:&quot;</span>, <span class=\"token-ident\">len</span>)",
+        "alt": "印出 len 是整數 10",
+        "why": "印出 10",
+        "mean": "印出整數"
+      },
+      {
+        "num": 4,
+        "code": "    # 後續想呼叫原生 len(items)，整數不可被呼叫而噴錯！",
+        "html": "    <span class=\"token-comment\"># 後續想呼叫原生 len(items)，整數不可被呼叫而噴錯！</span>",
+        "alt": "後續調用說明",
+        "why": "展示調用整數崩潰",
+        "mean": "崩潰前兆"
+      },
+      {
+        "num": 5,
+        "code": "    print(len(items))",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\"><span class=\"token-wavy-err\">len</span></span>(<span class=\"token-ident\">items</span>))",
+        "alt": "試圖呼叫整數 len 引爆 TypeError",
+        "diff": true,
+        "why": "10(items) 拋出 'int' object is not callable",
+        "mean": "引爆 TypeError"
+      },
+      {
+        "num": 6,
+        "code": "process_data([1, 2, 3])",
+        "html": "<span class=\"token-func\">process_data</span>([<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>])",
+        "alt": "呼叫函數觸發報錯",
+        "diff": true,
+        "why": "執行測試",
+        "mean": "呼叫測試"
+      }
+    ],
+    "output": "區域 len 值: 10\n<span class=\"output-error\">TypeError: 'int' object is not callable</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>遮蔽內建函式（Built-in Shadowing）</strong>：在函數內寫 <code>len = 10</code> 會讓區域的 <code>len</code> 變成整數。後續若想呼叫 <code>len(items)</code>，直譯器會把它看成 <code>10(items)</code>，直接拋出 <code>TypeError: 'int' object is not callable</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "莫用內建名，遮蔽報錯慘"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.4 綜合驗收",
+    "titleZh": "單元 11.4 綜合驗收：作用域劃分與純函數狀態安全隔離",
+    "titleEn": "Comprehensive Mastery: Scopes and Pure Function Isolation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 綜合實戰：純函數計分系統，全域唯讀與區域運算嚴格隔離",
+        "html": "<span class=\"token-comment\"># 綜合實戰：純函數計分系統，全域唯讀與區域運算嚴格隔離</span>",
+        "alt": "綜合實戰註解",
+        "why": "整合作用域設計原則",
+        "mean": "實戰說明"
+      },
+      {
+        "num": 2,
+        "code": "GAME_TITLE = \"APCS 勇者冒險\"  # 全域常數唯讀",
+        "html": "<span class=\"token-ident\">GAME_TITLE</span> = <span class=\"token-string\">&quot;APCS 勇者冒險&quot;</span>  <span class=\"token-comment\"># 全域常數唯讀</span>",
+        "alt": "全域常數宣告",
+        "why": "公共常數供內部唯讀",
+        "mean": "宣告全域常數"
+      },
+      {
+        "num": 3,
+        "code": "def update_player(hero_name, current_exp, gain_exp):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">update_player</span>(<span class=\"token-ident\">hero_name</span>, <span class=\"token-ident\">current_exp</span>, <span class=\"token-ident\">gain_exp</span>):",
+        "alt": "純函數：輸入參數決定一切",
+        "why": "無任何全域污染",
+        "mean": "定義純函數"
+      },
+      {
+        "num": 4,
+        "code": "    # 內部純區域運算",
+        "html": "    <span class=\"token-comment\"># 內部純區域運算</span>",
+        "alt": "純區域計算註解",
+        "why": "區域隔離",
+        "mean": "區域註解"
+      },
+      {
+        "num": 5,
+        "code": "    total_exp = current_exp + gain_exp",
+        "html": "    <span class=\"token-ident\">total_exp</span> = <span class=\"token-ident\">current_exp</span> + <span class=\"token-ident\">gain_exp</span>",
+        "alt": "累計經驗值",
+        "why": "局部計算",
+        "mean": "計算總經驗"
+      },
+      {
+        "num": 6,
+        "code": "    level = total_exp // 100",
+        "html": "    <span class=\"token-ident\">level</span> = <span class=\"token-ident\">total_exp</span> // <span class=\"token-number\">100</span>",
+        "alt": "計算等級",
+        "why": "局部整除計算",
+        "mean": "計算等級"
+      },
+      {
+        "num": 7,
+        "code": "    return {\"hero\": hero_name, \"level\": level, \"exp\": total_exp}",
+        "html": "    <span class=\"token-keyword\">return</span> {<span class=\"token-string\">&quot;hero&quot;</span>: <span class=\"token-ident\">hero_name</span>, <span class=\"token-string\">&quot;level&quot;</span>: <span class=\"token-ident\">level</span>, <span class=\"token-string\">&quot;exp&quot;</span>: <span class=\"token-ident\">total_exp</span>}",
+        "alt": "回傳新字典結果",
+        "diff": true,
+        "why": "產出新物件，無副作用",
+        "mean": "回傳玩家字典"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"=== {GAME_TITLE} ===\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;=== {</span><span class=\"token-ident\">GAME_TITLE</span><span class=\"token-string\">} ===&quot;</span>)",
+        "alt": "主程式讀取全域標題",
+        "why": "輸出標題",
+        "mean": "印出遊戲標題"
+      },
+      {
+        "num": 9,
+        "code": "p1 = update_player(\"亞瑟\", 80, 50)",
+        "html": "<span class=\"token-ident\">p1</span> = <span class=\"token-func\">update_player</span>(<span class=\"token-string\">&quot;亞瑟&quot;</span>, <span class=\"token-number\">80</span>, <span class=\"token-number\">50</span>)",
+        "alt": "計算亞瑟資料",
+        "diff": true,
+        "why": "p1 獨立接收",
+        "mean": "呼叫玩家一"
+      },
+      {
+        "num": 10,
+        "code": "p2 = update_player(\"蘭斯洛特\", 150, 60)",
+        "html": "<span class=\"token-ident\">p2</span> = <span class=\"token-func\">update_player</span>(<span class=\"token-string\">&quot;蘭斯洛特&quot;</span>, <span class=\"token-number\">150</span>, <span class=\"token-number\">60</span>)",
+        "alt": "計算蘭斯洛特資料",
+        "diff": true,
+        "why": "p2 獨立接收",
+        "mean": "呼叫玩家二"
+      },
+      {
+        "num": 11,
+        "code": "print(\"玩家一:\", p1)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;玩家一:&quot;</span>, <span class=\"token-ident\">p1</span>)",
+        "alt": "輸出玩家一",
+        "why": "顯示玩家一成果",
+        "mean": "印出玩家一"
+      },
+      {
+        "num": 12,
+        "code": "print(\"玩家二:\", p2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;玩家二:&quot;</span>, <span class=\"token-ident\">p2</span>)",
+        "alt": "輸出玩家二",
+        "why": "顯示玩家二成果",
+        "mean": "印出玩家二"
+      }
+    ],
+    "output": "=== APCS 勇者冒險 ===\n玩家一: {'hero': '亞瑟', 'level': 1, 'exp': 130}\n玩家二: {'hero': '蘭斯洛特', 'level': 2, 'exp': 210}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>作用域劃分大圓滿！</strong>：你已清楚區分全域大世界與區域小王國的界線，理解 LEGB 就近原則與變數遮蔽，並徹底降伏了 <code>UnboundLocalError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "純函數計分，狀態全隔離"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.4",
+      "title": "變數作用域與遮蔽防禦掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心機制",
+          "val": "LEGB 作用域 / 就近原則"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "11.5",
+        "title": "全域變數（global）在 APCS 競賽中的使用準則與除錯防禦",
+        "desc": "即將學習 global 關鍵字的解題大招，解析競賽最佳解計數器與矩陣狀態維護！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-4",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-4_variable_scope_local_and_shadowing.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

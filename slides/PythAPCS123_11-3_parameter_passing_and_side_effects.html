@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.3 參數傳遞機制與副作用防禦（不可變物件 vs 可變物件串列/字典傳遞） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.1 不可變物件傳遞（整數、字串、元組）：函數內部修改為何不影響外部？",
+    "titleZh": "不可變物件傳遞——數值在函數內修改外部毫髮無傷",
+    "titleEn": "Immutable Passing: Local Modifications Stay Local",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 不可變物件（整數、浮點數、字串、元組）傳入函數",
+        "html": "<span class=\"token-comment\"># 不可變物件（整數、浮點數、字串、元組）傳入函數</span>",
+        "alt": "說明不可變物件種類",
+        "why": "建立型態不可變概念",
+        "mean": "不可變註解"
+      },
+      {
+        "num": 2,
+        "code": "def modify_num(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">modify_num</span>(<span class=\"token-ident\">n</span>):",
+        "alt": "定義修改數值函數",
+        "why": "接收參數 n",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    n = n + 10  # 重新賦值：區域標籤 n 指向新物件 110",
+        "html": "    <span class=\"token-ident\">n</span> = <span class=\"token-ident\">n</span> + <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 重新賦值：區域標籤 n 指向新物件 110</span>",
+        "alt": "內部重新賦值 n",
+        "diff": true,
+        "why": "指派新物件，不影響外部",
+        "mean": "內部計算"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"函數內部 n:\", n)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;函數內部 n:&quot;</span>, <span class=\"token-ident\">n</span>)",
+        "alt": "印出內部 n 的值",
+        "why": "印出 110",
+        "mean": "內部列印"
+      },
+      {
+        "num": 5,
+        "code": "x = 100",
+        "html": "<span class=\"token-ident\">x</span> = <span class=\"token-number\">100</span>",
+        "alt": "外部變數 x 指派 100",
+        "why": "原始外部數值",
+        "mean": "宣告外部變數"
+      },
+      {
+        "num": 6,
+        "code": "modify_num(x)",
+        "html": "<span class=\"token-func\">modify_num</span>(<span class=\"token-ident\">x</span>)",
+        "alt": "呼叫函數傳入 x",
+        "diff": true,
+        "why": "將 100 傳入函數",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 7,
+        "code": "print(\"外部原始 x:\", x)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部原始 x:&quot;</span>, <span class=\"token-ident\">x</span>)",
+        "alt": "印出外部 x，依然為 100",
+        "diff": true,
+        "why": "驗證外部未受竄改",
+        "mean": "印出外部變數"
+      }
+    ],
+    "output": "函數內部 n: 110\n外部原始 x: 100",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>不可變本質（Immutability）</strong>：整數 <code>100</code> 是不可變的。當內部執行 <code>n = n + 10</code> 時，Python 只是在記憶體創建了新的 <code>110</code> 並讓 <code>n</code> 貼上去，外部的 <code>x</code> 仍然指著 <code>100</code> 毫髮無傷！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "不可變數值，外部無影響"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.2 可變物件傳遞（串列、字典）：內部呼叫方法導致外部同步變化的現象",
+    "titleZh": "可變物件的震撼——串列傳入後外部同步被竄改！",
+    "titleEn": "Mutable Shock: In-place Modification Affects Caller",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 可變物件（串列 List、字典 Dict、集合 Set）",
+        "html": "<span class=\"token-comment\"># 可變物件（串列 List、字典 Dict、集合 Set）</span>",
+        "alt": "說明可變物件類型",
+        "why": "提示副作用潛在對象",
+        "mean": "可變註解"
+      },
+      {
+        "num": 2,
+        "code": "def add_item(arr):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">add_item</span>(<span class=\"token-ident\">arr</span>):",
+        "alt": "接收串列參數 arr",
+        "why": "arr 與外部變數共享記憶體",
+        "mean": "定義串列操作函數"
+      },
+      {
+        "num": 3,
+        "code": "    arr.append(999)  # 致命副作用：直接在原處修改！",
+        "html": "    <span class=\"token-ident\">arr</span>.<span class=\"token-func\">append</span>(<span class=\"token-number\">999</span>)  <span class=\"token-comment\"># 致命副作用：直接在原處修改！</span>",
+        "alt": "內部就地 append 修改",
+        "diff": true,
+        "why": "修改同一塊記憶體",
+        "mean": "原處加入元素"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"函數內部 arr:\", arr)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;函數內部 arr:&quot;</span>, <span class=\"token-ident\">arr</span>)",
+        "alt": "印出內部串列",
+        "why": "顯示內部狀態",
+        "mean": "內部列印"
+      },
+      {
+        "num": 5,
+        "code": "my_list = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">my_list</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "外部串列",
+        "why": "原始數據",
+        "mean": "宣告外部串列"
+      },
+      {
+        "num": 6,
+        "code": "add_item(my_list)",
+        "html": "<span class=\"token-func\">add_item</span>(<span class=\"token-ident\">my_list</span>)",
+        "alt": "呼叫函數傳入 my_list",
+        "diff": true,
+        "why": "參照同一串列物件",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 7,
+        "code": "print(\"外部原始 my_list:\", my_list)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部原始 my_list:&quot;</span>, <span class=\"token-ident\">my_list</span>)",
+        "alt": "驚人發現：外部 my_list 也多出 999！",
+        "diff": true,
+        "why": "外部已被竄改",
+        "mean": "印出外部串列"
+      }
+    ],
+    "output": "函數內部 arr: [1, 2, 3, 999]\n外部原始 my_list: [1, 2, 3, 999]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>記憶體共享（Shared Reference）</strong>：串列是可變物件。傳參時，<code>arr</code> 和 <code>my_list</code> 指向<strong>同一個實體置物箱</strong>！呼叫 <code>.append()</code> 是直接往箱子裡塞東西，外部開箱自然看到 <code>999</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "串列共用址，內部改外變"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.2 可變物件傳遞（串列、字典）：內部呼叫方法導致外部同步變化的現象",
+    "titleZh": "字典亦具備可變副作用——鍵值直接原地覆蓋更新",
+    "titleEn": "Dictionary In-place Mutation Side Effect",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def update_profile(user):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">update_profile</span>(<span class=\"token-ident\">user</span>):",
+        "alt": "接收字典參數 user",
+        "why": "字典也是可變物件",
+        "mean": "定義字典更新函數"
+      },
+      {
+        "num": 2,
+        "code": "    user[\"score\"] = 100  # 原處修改鍵值",
+        "html": "    <span class=\"token-ident\">user</span>[<span class=\"token-string\">&quot;score&quot;</span>] = <span class=\"token-number\">100</span>  <span class=\"token-comment\"># 原處修改鍵值</span>",
+        "alt": "修改鍵 score 的值",
+        "diff": true,
+        "why": "直接原地更新字典內容",
+        "mean": "更新字典鍵值"
+      },
+      {
+        "num": 3,
+        "code": "player = {\"name\": \"Alex\", \"score\": 80}",
+        "html": "<span class=\"token-ident\">player</span> = {<span class=\"token-string\">&quot;name&quot;</span>: <span class=\"token-string\">&quot;Alex&quot;</span>, <span class=\"token-string\">&quot;score&quot;</span>: <span class=\"token-number\">80</span>}",
+        "alt": "原始玩家字典",
+        "why": "score 原本為 80",
+        "mean": "宣告玩家字典"
+      },
+      {
+        "num": 4,
+        "code": "update_profile(player)",
+        "html": "<span class=\"token-func\">update_profile</span>(<span class=\"token-ident\">player</span>)",
+        "alt": "呼叫函數傳入 player",
+        "diff": true,
+        "why": "內部修改直接穿透",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 5,
+        "code": "print(\"外部 player:\", player)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部 player:&quot;</span>, <span class=\"token-ident\">player</span>)",
+        "alt": "外部 player 的 score 變成 100！",
+        "diff": true,
+        "why": "印出外部字典被修改的結果",
+        "mean": "印出外部字典"
+      }
+    ],
+    "output": "外部 player: {'name': 'Alex', 'score': 100}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字典也是就地變更</strong>：在函數內寫 <code>user[\"score\"] = 100</code>，外部 <code>player</code> 的分數立刻變成 <code>100</code>。這種在函數內部修改外部物件的現象統稱為<strong>「副作用（Side Effects）」</strong>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "字典原地改，外部連動變"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.3 賦值遮蔽 vs 就地修改：arr = []（重新指向）與 arr.append()（原處竄改）",
+    "titleZh": "賦值遮蔽——重新指派 arr = [] 瞬間斷開連結",
+    "titleEn": "Reassignment Breaks the Reference Link",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def clear_by_reassign(arr):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">clear_by_reassign</span>(<span class=\"token-ident\">arr</span>):",
+        "alt": "以重新指派方式嘗試清空",
+        "why": "演示重新賦值行為",
+        "mean": "定義重新指派函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 重新賦值（Reassign）：區域標籤 arr 改綁新空串列！",
+        "html": "    <span class=\"token-comment\"># 重新賦值（Reassign）：區域標籤 arr 改綁新空串列！</span>",
+        "alt": "重新賦值註解",
+        "why": "說明重新綁定",
+        "mean": "賦值說明"
+      },
+      {
+        "num": 3,
+        "code": "    arr = []  # 斷開與外部 data 的連結！",
+        "html": "    <span class=\"token-ident\">arr</span> = []  <span class=\"token-comment\"># 斷開與外部 data 的連結！</span>",
+        "alt": "指派新空串列",
+        "diff": true,
+        "why": "僅改變內部 arr 的指向",
+        "mean": "內部指向新串列"
+      },
+      {
+        "num": 4,
+        "code": "data = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">data</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "外部串列 data",
+        "why": "原始資料",
+        "mean": "宣告外部串列"
+      },
+      {
+        "num": 5,
+        "code": "clear_by_reassign(data)",
+        "html": "<span class=\"token-func\">clear_by_reassign</span>(<span class=\"token-ident\">data</span>)",
+        "alt": "呼叫函數",
+        "diff": true,
+        "why": "外部 data 完全不受影響",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 6,
+        "code": "print(\"重新指派後 data:\", data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;重新指派後 data:&quot;</span>, <span class=\"token-ident\">data</span>)",
+        "alt": "印出 data 依然是 [10, 20, 30]",
+        "diff": true,
+        "why": "驗證資料完好無損",
+        "mean": "印出外部串列"
+      }
+    ],
+    "output": "重新指派後 data: [10, 20, 30]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>重新賦值（Reassignment）不會影響外部</strong>：使用單等號 <code>arr = []</code> 只是讓區域標籤 <code>arr</code> 改貼到新的空箱子上，原本的 <code>data</code> 置物箱完全沒被碰觸，因此外部數值完好無損！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "等號新指派，斷開原連結"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.3 賦值遮蔽 vs 就地修改：arr = []（重新指向）與 arr.append()（原處竄改）",
+    "titleZh": "就地修改（In-place）——方法呼叫直擊底層記憶體",
+    "titleEn": "In-place Modification: Direct Memory Mutation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def clear_in_place(arr):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">clear_in_place</span>(<span class=\"token-ident\">arr</span>):",
+        "alt": "原處清空函數",
+        "why": "演示就地修改",
+        "mean": "定義原處清空"
+      },
+      {
+        "num": 2,
+        "code": "    # 方法呼叫：直接操作既有置物箱內部的元素！",
+        "html": "    <span class=\"token-comment\"># 方法呼叫：直接操作既有置物箱內部的元素！</span>",
+        "alt": "就地修改註解",
+        "why": "說明就地方法特性",
+        "mean": "方法呼叫說明"
+      },
+      {
+        "num": 3,
+        "code": "    arr.clear()  # 真正原處清空記憶體！",
+        "html": "    <span class=\"token-ident\">arr</span>.<span class=\"token-func\">clear</span>()  <span class=\"token-comment\"># 真正原處清空記憶體！</span>",
+        "alt": "呼叫 clear() 清空",
+        "diff": true,
+        "why": "直接將該串列元素全部移除",
+        "mean": "原處清空"
+      },
+      {
+        "num": 4,
+        "code": "data = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">data</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "外部串列 data",
+        "why": "原始數據",
+        "mean": "宣告外部串列"
+      },
+      {
+        "num": 5,
+        "code": "clear_in_place(data)",
+        "html": "<span class=\"token-func\">clear_in_place</span>(<span class=\"token-ident\">data</span>)",
+        "alt": "呼叫函數",
+        "diff": true,
+        "why": "穿透修改外部 data",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 6,
+        "code": "print(\"原處清空後 data:\", data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;原處清空後 data:&quot;</span>, <span class=\"token-ident\">data</span>)",
+        "alt": "印出 data 變成空串列 []！",
+        "diff": true,
+        "why": "驗證已被清空",
+        "mean": "印出清空結果"
+      }
+    ],
+    "output": "原處清空後 data: []",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>就地方法（In-place Methods）</strong>：例如 <code>.clear()</code>、<code>.pop()</code>、<code>.append()</code>、<code>arr[0] = x</code>，是在<strong>原記憶體位址</strong>上增刪改查，外部所有參照此物件的變數都會同步看到變化！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "原處清空法，記憶體歸零"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.4 防禦性複製：在函數內使用 .copy() 阻斷對外部原始陣列的副作用",
+    "titleZh": "防禦性複製（Defensive Copy）——用 .copy() 建立防護盾",
+    "titleEn": "Defensive Copying: Shielding External Data",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def safe_add(arr, val):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">safe_add</span>(<span class=\"token-ident\">arr</span>, <span class=\"token-ident\">val</span>):",
+        "alt": "安全添加元素函數",
+        "why": "避免修改外部原始串列",
+        "mean": "定義安全函數"
+      },
+      {
+        "num": 2,
+        "code": "    # 防禦性複製：複製出一份全新且獨立的串列副本！",
+        "html": "    <span class=\"token-comment\"># 防禦性複製：複製出一份全新且獨立的串列副本！</span>",
+        "alt": "防禦性複製註解",
+        "why": "阻斷副作用核心技巧",
+        "mean": "複製說明"
+      },
+      {
+        "num": 3,
+        "code": "    work_arr = arr.copy()",
+        "html": "    <span class=\"token-ident\">work_arr</span> = <span class=\"token-ident\">arr</span>.<span class=\"token-func\">copy</span>()",
+        "alt": "以 .copy() 建立獨立複本",
+        "diff": true,
+        "why": "work_arr 擁有全新記憶體",
+        "mean": "建立副本"
+      },
+      {
+        "num": 4,
+        "code": "    work_arr.append(val)",
+        "html": "    <span class=\"token-ident\">work_arr</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">val</span>)",
+        "alt": "修改副本",
+        "why": "安全修改",
+        "mean": "操作副本"
+      },
+      {
+        "num": 5,
+        "code": "    return work_arr",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">work_arr</span>",
+        "alt": "回傳新串列",
+        "why": "回傳加工後的獨立串列",
+        "mean": "回傳副本"
+      },
+      {
+        "num": 6,
+        "code": "original = [1, 2, 3]",
+        "html": "<span class=\"token-ident\">original</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "外部原始串列",
+        "why": "受保護的原始數據",
+        "mean": "宣告原始串列"
+      },
+      {
+        "num": 7,
+        "code": "result = safe_add(original, 999)",
+        "html": "<span class=\"token-ident\">result</span> = <span class=\"token-func\">safe_add</span>(<span class=\"token-ident\">original</span>, <span class=\"token-number\">999</span>)",
+        "alt": "呼叫安全函數",
+        "diff": true,
+        "why": "傳入原始串列與 999",
+        "mean": "呼叫函數"
+      },
+      {
+        "num": 8,
+        "code": "print(\"回傳新串列:\", result)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;回傳新串列:&quot;</span>, <span class=\"token-ident\">result</span>)",
+        "alt": "印出新串列 [1, 2, 3, 999]",
+        "why": "包含新元素",
+        "mean": "印出新串列"
+      },
+      {
+        "num": 9,
+        "code": "print(\"外部原始串列:\", original)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部原始串列:&quot;</span>, <span class=\"token-ident\">original</span>)",
+        "alt": "印出原始串列仍為 [1, 2, 3]",
+        "diff": true,
+        "why": "原件完好無損！",
+        "mean": "驗證原始串列"
+      }
+    ],
+    "output": "回傳新串列: [1, 2, 3, 999]\n外部原始串列: [1, 2, 3]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>防禦性複製（Defensive Copy）</strong>：若函數邏輯需要修改串列但外部呼叫者需要保留原件，內部第一步請務必使用 <code>arr.copy()</code> 或切片 <code>arr[:]</code>，徹底切斷共享記憶體的副作用！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "內部做副本，外部不受害"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.5 參數預設值（Default Parameters）基本語法與呼叫端彈性",
+    "titleZh": "參數預設值（Default Parameters）——給予呼叫端彈性",
+    "titleEn": "Default Parameters: Flexibility at Call Site",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def greet(name, msg=\"你好\"):  # msg 具備預設值 \"你好\"",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">greet</span>(<span class=\"token-ident\">name</span>, <span class=\"token-ident\">msg</span>=<span class=\"token-string\">&quot;你好&quot;</span>):  <span class=\"token-comment\"># msg 具備預設值 &quot;你好&quot;</span>",
+        "alt": "定義預設參數 msg='你好'",
+        "diff": true,
+        "why": "未傳 msg 時自動帶入預設值",
+        "mean": "定義預設參數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\"{name}，{msg}！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;{</span><span class=\"token-ident\">name</span><span class=\"token-string\">}，{</span><span class=\"token-ident\">msg</span><span class=\"token-string\">}！&quot;</span>)",
+        "alt": "印出格式化問候",
+        "why": "組合問候語句",
+        "mean": "輸出問候"
+      },
+      {
+        "num": 3,
+        "code": "# 1. 呼叫時省略 msg，自動採用預設值",
+        "html": "<span class=\"token-comment\"># 1. 呼叫時省略 msg，自動採用預設值</span>",
+        "alt": "省略引數呼叫",
+        "why": "展示預設值生效",
+        "mean": "省略呼叫說明"
+      },
+      {
+        "num": 4,
+        "code": "greet(\"小明\")",
+        "html": "<span class=\"token-func\">greet</span>(<span class=\"token-string\">&quot;小明&quot;</span>)",
+        "alt": "只傳 name，msg 預設為你好",
+        "diff": true,
+        "why": "印出 小明，你好！",
+        "mean": "採用預設值"
+      },
+      {
+        "num": 5,
+        "code": "# 2. 呼叫時提供新引數，覆蓋預設值",
+        "html": "<span class=\"token-comment\"># 2. 呼叫時提供新引數，覆蓋預設值</span>",
+        "alt": "覆蓋引數呼叫",
+        "why": "展示自訂值生效",
+        "mean": "覆蓋呼叫說明"
+      },
+      {
+        "num": 6,
+        "code": "greet(\"小華\", \"早安\")",
+        "html": "<span class=\"token-func\">greet</span>(<span class=\"token-string\">&quot;小華&quot;</span>, <span class=\"token-string\">&quot;早安&quot;</span>)",
+        "alt": "傳入自訂問候 早安",
+        "diff": true,
+        "why": "印出 小華，早安！",
+        "mean": "覆蓋預設值"
+      }
+    ],
+    "output": "小明，你好！\n小華，早安！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>可選參數的便利</strong>：設定預設值讓常用選項自動生效，簡化呼叫端的傳參數目；同時在需要特殊自訂時，仍保留隨時覆蓋的彈性！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "預設值隨選，未傳自動帶"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.5 參數預設值（Default Parameters）基本語法與呼叫端彈性",
+    "titleZh": "預設值順序鐵律——非預設參數必須排在預設參數前",
+    "titleEn": "Parameter Order Invariant: Non-default Before Default",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 鐵律：無預設值的必填參數（width）必須排在最前面！",
+        "html": "<span class=\"token-comment\"># 鐵律：無預設值的必填參數（width）必須排在最前面！</span>",
+        "alt": "參數順序規範說明",
+        "why": "語法解析器要求",
+        "mean": "順序鐵律註解"
+      },
+      {
+        "num": 2,
+        "code": "def create_box(width, height=10, border=\"*\"):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">create_box</span>(<span class=\"token-ident\">width</span>, <span class=\"token-ident\">height</span>=<span class=\"token-number\">10</span>, <span class=\"token-ident\">border</span>=<span class=\"token-string\">&quot;*&quot;</span>):",
+        "alt": "合法順序：width 在前，height與border在後",
+        "diff": true,
+        "why": "合法參數宣告順序",
+        "mean": "宣告多層預設參數"
+      },
+      {
+        "num": 3,
+        "code": "    print(f\"寬:{width} 高:{height} 邊框:{border}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;寬:{</span><span class=\"token-ident\">width</span><span class=\"token-string\">} 高:{</span><span class=\"token-ident\">height</span><span class=\"token-string\">} 邊框:{</span><span class=\"token-ident\">border</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "印出盒子規格",
+        "why": "輸出參數組合",
+        "mean": "列印規格"
+      },
+      {
+        "num": 4,
+        "code": "create_box(5)",
+        "html": "<span class=\"token-func\">create_box</span>(<span class=\"token-number\">5</span>)",
+        "alt": "只傳 width=5",
+        "diff": true,
+        "why": "其餘兩者採用預設值",
+        "mean": "單引數呼叫"
+      },
+      {
+        "num": 5,
+        "code": "create_box(5, 20)",
+        "html": "<span class=\"token-func\">create_box</span>(<span class=\"token-number\">5</span>, <span class=\"token-number\">20</span>)",
+        "alt": "覆蓋 height 為 20",
+        "diff": true,
+        "why": "覆蓋第二個參數",
+        "mean": "雙引數呼叫"
+      },
+      {
+        "num": 6,
+        "code": "create_box(5, 20, \"#\")",
+        "html": "<span class=\"token-func\">create_box</span>(<span class=\"token-number\">5</span>, <span class=\"token-number\">20</span>, <span class=\"token-string\">&quot;#&quot;</span>)",
+        "alt": "全覆蓋傳參",
+        "diff": true,
+        "why": "全部覆蓋自訂",
+        "mean": "三引數呼叫"
+      }
+    ],
+    "output": "寬:5 高:10 邊框:*\n寬:5 高:20 邊框:*\n寬:5 高:20 邊框:#",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>語意不歧義鐵律</strong>：若允許 <code>def func(a=1, b)</code>，當呼叫 <code>func(10)</code> 時直譯器無法判斷 <code>10</code> 該給 <code>a</code> 還是 <code>b</code>。因此 Python 語法嚴格禁止將預設參數放在必填參數之前！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "預設排後方，順序不可亂"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.6 陷阱防範：避免使用可變物件（如 []）作為預設參數的機制與正解（None 慣用法）",
+    "titleZh": "可變預設參數的天坑——預設只在定義期建立一次！",
+    "titleEn": "The Mutable Default Argument Trap",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 世紀大坑：預設物件只在 def 定義期被建立一次！",
+        "html": "<span class=\"token-comment\"># 💥 世紀大坑：預設物件只在 def 定義期被建立一次！</span>",
+        "alt": "可變預設參數陷阱註解",
+        "why": "Python 最著名暗礁",
+        "mean": "陷阱說明"
+      },
+      {
+        "num": 2,
+        "code": "def add_log_bad(item, log_list=[]):  # 預設 [] 永遠共享！",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">add_log_bad</span>(<span class=\"token-ident\">item</span>, <span class=\"token-ident\">log_list</span>=[]):  <span class=\"token-comment\"># 預設 [] 永遠共享！</span>",
+        "alt": "錯誤寫法：以 [] 當預設參數",
+        "diff": true,
+        "why": "log_list 記憶體在定義期就固定了",
+        "mean": "定義帶有陷阱的函數"
+      },
+      {
+        "num": 3,
+        "code": "    log_list.append(item)",
+        "html": "    <span class=\"token-ident\">log_list</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">item</span>)",
+        "alt": "向同一串列添加元素",
+        "why": "每次呼叫都往同一個串列塞",
+        "mean": "添加元素"
+      },
+      {
+        "num": 4,
+        "code": "    return log_list",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">log_list</span>",
+        "alt": "回傳該共享串列",
+        "why": "回傳共享置物箱",
+        "mean": "回傳串列"
+      },
+      {
+        "num": 5,
+        "code": "print(add_log_bad(\"A\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">add_log_bad</span>(<span class=\"token-string\">&quot;A&quot;</span>))",
+        "alt": "第 1 次呼叫: ['A']",
+        "diff": true,
+        "why": "印出 ['A']",
+        "mean": "初次呼叫"
+      },
+      {
+        "num": 6,
+        "code": "print(add_log_bad(\"B\"))  # 驚悚：殘留了 A！",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">add_log_bad</span>(<span class=\"token-string\">&quot;B&quot;</span>))  <span class=\"token-comment\"># 驚悚：殘留了 A！</span>",
+        "alt": "第 2 次呼叫: 變成 ['A', 'B']",
+        "diff": true,
+        "why": "印出 ['A', 'B']",
+        "mean": "二次呼叫污染"
+      },
+      {
+        "num": 7,
+        "code": "print(add_log_bad(\"C\"))  # 持續累積污染！",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">add_log_bad</span>(<span class=\"token-string\">&quot;C&quot;</span>))  <span class=\"token-comment\"># 持續累積污染！</span>",
+        "alt": "第 3 次呼叫: 變成 ['A', 'B', 'C']",
+        "diff": true,
+        "why": "印出 ['A', 'B', 'C']",
+        "mean": "三次呼叫累積"
+      }
+    ],
+    "output": "['A']\n['A', 'B']\n['A', 'B', 'C']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼會累積污染？</strong>：<code>log_list=[]</code> 只在直譯器讀到 <code>def</code> 那一瞬間建立一次。之後每次不傳引數呼叫，大家都在共用同一個被修改過的串列，導致可怕的跨呼叫資料幽靈！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "預設莫用串，記憶體共享"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.6 陷阱防範：避免使用可變物件（如 []）作為預設參數的機制與正解（None 慣用法）",
+    "titleZh": "標準正解——以 None 作為可變預設參數之防禦慣用法",
+    "titleEn": "Standard Solution: None Default Idiom",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ✅ 業界唯一標準防禦寫法：預設指定不可變的 None",
+        "html": "<span class=\"token-comment\"># ✅ 業界唯一標準防禦寫法：預設指定不可變的 None</span>",
+        "alt": "None 防禦慣用法說明",
+        "why": "標準安全設計模式",
+        "mean": "防禦慣用法註解"
+      },
+      {
+        "num": 2,
+        "code": "def add_log_safe(item, log_list=None):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">add_log_safe</span>(<span class=\"token-ident\">item</span>, <span class=\"token-ident\">log_list</span>=<span class=\"token-keyword\">None</span>):",
+        "alt": "預設值設為不可變的 None",
+        "diff": true,
+        "why": "避免在定義期建立共享串列",
+        "mean": "宣告 None 預設參數"
+      },
+      {
+        "num": 3,
+        "code": "    if log_list is None:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">log_list</span> <span class=\"token-keyword\">is</span> <span class=\"token-keyword\">None</span>:",
+        "alt": "檢查是否未傳引數",
+        "diff": true,
+        "why": "每次呼叫獨立判斷",
+        "mean": "None 守衛判斷"
+      },
+      {
+        "num": 4,
+        "code": "        log_list = []  # 呼叫時才動態建立全新獨立串列！",
+        "html": "        <span class=\"token-ident\">log_list</span> = []  <span class=\"token-comment\"># 呼叫時才動態建立全新獨立串列！</span>",
+        "alt": "內部動態建立全新串列",
+        "diff": true,
+        "why": "每次呼叫都是乾淨的新記憶體",
+        "mean": "動態建立新串列"
+      },
+      {
+        "num": 5,
+        "code": "    log_list.append(item)",
+        "html": "    <span class=\"token-ident\">log_list</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">item</span>)",
+        "alt": "加入元素",
+        "why": "安全添加至獨立串列",
+        "mean": "加入元素"
+      },
+      {
+        "num": 6,
+        "code": "    return log_list",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">log_list</span>",
+        "alt": "回傳串列",
+        "why": "回傳新串列",
+        "mean": "回傳串列"
+      },
+      {
+        "num": 7,
+        "code": "print(add_log_safe(\"A\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">add_log_safe</span>(<span class=\"token-string\">&quot;A&quot;</span>))",
+        "alt": "輸出 ['A']",
+        "diff": true,
+        "why": "獨立串列",
+        "mean": "初次安全呼叫"
+      },
+      {
+        "num": 8,
+        "code": "print(add_log_safe(\"B\"))  # 乾淨！不再殘留 A",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">add_log_safe</span>(<span class=\"token-string\">&quot;B&quot;</span>))  <span class=\"token-comment\"># 乾淨！不再殘留 A</span>",
+        "alt": "輸出 ['B']",
+        "diff": true,
+        "why": "不再受到前次干擾",
+        "mean": "二次安全呼叫"
+      },
+      {
+        "num": 9,
+        "code": "print(add_log_safe(\"C\"))  # 乾淨！不再殘留 A 與 B",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">add_log_safe</span>(<span class=\"token-string\">&quot;C&quot;</span>))  <span class=\"token-comment\"># 乾淨！不再殘留 A 與 B</span>",
+        "alt": "輸出 ['C']",
+        "diff": true,
+        "why": "每次均為嶄新獨立物件",
+        "mean": "三次安全呼叫"
+      }
+    ],
+    "output": "['A']\n['B']\n['C']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>None 慣用法（None Default Idiom）</strong>：將預設值宣告為 <code>None</code>，並在函數本體內部 <code>if log_list is None: log_list = []</code>。這樣每次呼叫時才建立新記憶體，徹底解決污染問題！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "預設給None安全建新串"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3.6 陷阱防範：避免使用可變物件（如 []）作為預設參數的機制與正解（None 慣用法）",
+    "titleZh": "字典預設值防護——可變字典亦嚴格落實 None 慣用防線",
+    "titleEn": "Dictionary Default Protection with None",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def register_user(name, options=None):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">register_user</span>(<span class=\"token-ident\">name</span>, <span class=\"token-ident\">options</span>=<span class=\"token-keyword\">None</span>):",
+        "alt": "字典參數同樣預設 None",
+        "diff": true,
+        "why": "防止字典跨呼叫污染",
+        "mean": "定義字典安全函數"
+      },
+      {
+        "num": 2,
+        "code": "    if options is None:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">options</span> <span class=\"token-keyword\">is</span> <span class=\"token-keyword\">None</span>:",
+        "alt": "檢查 options 是否為 None",
+        "why": "安全衛語句",
+        "mean": "檢查字典預設"
+      },
+      {
+        "num": 3,
+        "code": "        options = {}  # 呼叫時才動態建立新字典",
+        "html": "        <span class=\"token-ident\">options</span> = {}  <span class=\"token-comment\"># 呼叫時才動態建立新字典</span>",
+        "alt": "動態建立獨立空字典",
+        "diff": true,
+        "why": "獨立字典物件",
+        "mean": "動態建立新字典"
+      },
+      {
+        "num": 4,
+        "code": "    options[\"user\"] = name",
+        "html": "    <span class=\"token-ident\">options</span>[<span class=\"token-string\">&quot;user&quot;</span>] = <span class=\"token-ident\">name</span>",
+        "alt": "設定字典鍵值",
+        "why": "填充用戶名稱",
+        "mean": "填充用戶名"
+      },
+      {
+        "num": 5,
+        "code": "    return options",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">options</span>",
+        "alt": "回傳該字典",
+        "why": "回傳獨立字典",
+        "mean": "回傳字典"
+      },
+      {
+        "num": 6,
+        "code": "u1 = register_user(\"Alice\")",
+        "html": "<span class=\"token-ident\">u1</span> = <span class=\"token-func\">register_user</span>(<span class=\"token-string\">&quot;Alice&quot;</span>)",
+        "alt": "註冊 Alice",
+        "diff": true,
+        "why": "u1 得到獨立字典",
+        "mean": "呼叫註冊 Alice"
+      },
+      {
+        "num": 7,
+        "code": "u2 = register_user(\"Bob\")",
+        "html": "<span class=\"token-ident\">u2</span> = <span class=\"token-func\">register_user</span>(<span class=\"token-string\">&quot;Bob&quot;</span>)",
+        "alt": "註冊 Bob",
+        "diff": true,
+        "why": "u2 得到獨立字典",
+        "mean": "呼叫註冊 Bob"
+      },
+      {
+        "num": 8,
+        "code": "print(\"u1:\", u1)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;u1:&quot;</span>, <span class=\"token-ident\">u1</span>)",
+        "alt": "輸出 {'user': 'Alice'}",
+        "why": "未被 Bob 覆蓋",
+        "mean": "印出 u1"
+      },
+      {
+        "num": 9,
+        "code": "print(\"u2:\", u2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;u2:&quot;</span>, <span class=\"token-ident\">u2</span>)",
+        "alt": "輸出 {'user': 'Bob'}",
+        "why": "各自獨立安全無虞",
+        "mean": "印出 u2"
+      }
+    ],
+    "output": "u1: {'user': 'Alice'}\nu2: {'user': 'Bob'}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>所有可變容器一體適用</strong>：不論是串列 <code>list</code>、字典 <code>dict</code> 或集合 <code>set</code>，只要作為預設參數，一律使用 <code>None</code> 作為防禦守門員，是 APCS 實作題不可或缺的防禦本領！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "字典亦同理，安全設為空"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3 考場地雷一：非預設參數排在預設參數後引爆 SyntaxError",
+    "titleZh": "考場致命地雷一：非預設參數排在預設參數後引爆語法錯誤",
+    "titleEn": "Trap 1: Non-default Follows Default Raises SyntaxError",
+    "predictQuiz": {
+      "question": "預測思考：若定義 def bad_func(a=10, b):，Python 直譯器在編譯這行代碼時會如何反應？",
+      "options": [
+        "順利通過，呼叫時只需傳入 b 即可",
+        "拋出 SyntaxError: parameter without a default follows parameter with a default"
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "Python 規定必填（無預設值）參數必須嚴格排在前面！若將無預設值參數放在預設參數後面，直譯器會當場引爆 SyntaxError！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：將無預設值的 b 排在有預設值的 a=10 後方",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：將無預設值的 b 排在有預設值的 a=10 後方</span>",
+        "alt": "語法錯誤地雷說明",
+        "why": "參數宣告順序違規",
+        "mean": "地雷註解"
+      },
+      {
+        "num": 2,
+        "code": "def bad_func(a=10, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">bad_func</span>(<span class=\"token-ident\">a</span>=<span class=\"token-number\">10</span>, <span class=\"token-ident\"><span class=\"token-wavy-err\">b</span></span>):",
+        "alt": "違規參數順序引爆 SyntaxError",
+        "diff": true,
+        "why": "無預設值參數不能跟在預設參數後",
+        "mean": "違規宣告"
+      },
+      {
+        "num": 3,
+        "code": "    return a + b",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span> + <span class=\"token-ident\">b</span>",
+        "alt": "函數本體",
+        "why": "甚至還沒執行到此就直接崩潰",
+        "mean": "函數本體"
+      }
+    ],
+    "output": "<span class=\"output-error\">SyntaxError: parameter without a default follows parameter with a default</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>考場 SyntaxError 紅線</strong>：在考場上若寫出 <code>def func(x=0, y):</code>，程式連執行都不會開始，直接以 Compile Error（CE）慘烈爆零！請謹記「必填在前、預設在後」。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "必填排在前，預設殿其後"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3 考場地雷二：就地排序 .sort() 回傳 None 導致變數被洗白",
+    "titleZh": "考場致命地雷二：誤將 .sort() 賦值覆蓋，串列瞬間變 None",
+    "titleEn": "Trap 2: Assigning .sort() Result Wipes List to None",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [3, 1, 4, 2]",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">2</span>]",
+        "alt": "待排序串列",
+        "why": "原始雜亂數據",
+        "mean": "原始串列"
+      },
+      {
+        "num": 2,
+        "code": "# 💥 考場慘劇：誤以為 nums.sort() 會回傳新串列！",
+        "html": "<span class=\"token-comment\"># 💥 考場慘劇：誤以為 nums.sort() 會回傳新串列！</span>",
+        "alt": "賦值覆蓋地雷警告",
+        "why": "初學者極常犯的盲點",
+        "mean": "賦值覆蓋說明"
+      },
+      {
+        "num": 3,
+        "code": "nums = nums.sort()  # .sort() 回傳 None，nums 當場被洗白！",
+        "html": "<span class=\"token-ident\">nums</span> = <span class=\"token-ident\">nums</span>.<span class=\"token-func\"><span class=\"token-wavy-err\">sort</span></span>()  <span class=\"token-comment\"># .sort() 回傳 None，nums 當場被洗白！</span>",
+        "alt": "錯誤將 None 指派給 nums",
+        "diff": true,
+        "why": ".sort() 回傳值是 None",
+        "mean": "錯誤指派"
+      },
+      {
+        "num": 4,
+        "code": "print(\"nums 的真面目:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;nums 的真面目:&quot;</span>, <span class=\"token-ident\">nums</span>)",
+        "alt": "印出 nums 變成 None！",
+        "diff": true,
+        "why": "印出 None 慘劇",
+        "mean": "輸出洗白結果"
+      }
+    ],
+    "output": "nums 的真面目: None",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>就地方法無回傳</strong>：<code>.sort()</code> 與 <code>.reverse()</code> 是直接原處修改串列，其回傳值是 <code>None</code>！請直接寫 <code>nums.sort()</code>，或改用有回傳新串列的 <code>nums = sorted(nums)</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "就地排序法，賦值變空值"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3 考場地雷三：字串為不可變物件，嘗試原地索引修改引爆 TypeError",
+    "titleZh": "考場致命地雷三：字串不可變，嘗試索引竄改引爆 TypeError",
+    "titleEn": "Trap 3: Modifying String In-place Raises TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "text = \"hello\"",
+        "html": "<span class=\"token-ident\">text</span> = <span class=\"token-string\">&quot;hello&quot;</span>",
+        "alt": "宣告字串變數 text",
+        "why": "字串屬於不可變物件",
+        "mean": "宣告字串"
+      },
+      {
+        "num": 2,
+        "code": "# 💥 考場地雷：試圖透過索引就地修改字串首字",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：試圖透過索引就地修改字串首字</span>",
+        "alt": "字串索引賦值地雷",
+        "why": "字串不支援 item assignment",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 3,
+        "code": "text[0] = \"H\"",
+        "html": "<span class=\"token-ident\">text</span>[<span class=\"token-number\"><span class=\"token-wavy-err\">0</span></span>] = <span class=\"token-string\">&quot;H&quot;</span>",
+        "alt": "試圖竄改不可變字串",
+        "diff": true,
+        "why": "字串不可變，引發 TypeError",
+        "mean": "違規索引賦值"
+      }
+    ],
+    "output": "<span class=\"output-error\">TypeError: 'str' object does not support item assignment</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>字串不可變鐵律</strong>：字串（str）與元組（tuple）相同，無法透過 <code>text[0] = 'H'</code> 原地竄改！若要修改，必須透過切片拼接 <code>'H' + text[1:]</code> 生成全新字串！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "字串不可變，索引改噴錯"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.3 綜合驗收",
+    "titleZh": "單元 11.3 綜合驗收：參數傳遞與副作用防禦大融會",
+    "titleEn": "Comprehensive Mastery: Parameter Passing and Defense",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 綜合實戰：防禦性名冊處理系統",
+        "html": "<span class=\"token-comment\"># 綜合實戰：防禦性名冊處理系統</span>",
+        "alt": "名冊系統註解",
+        "why": "整合防禦性複製與 None 預設值",
+        "mean": "實戰說明"
+      },
+      {
+        "num": 2,
+        "code": "def enroll_students(new_names, current_roster=None):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">enroll_students</span>(<span class=\"token-ident\">new_names</span>, <span class=\"token-ident\">current_roster</span>=<span class=\"token-keyword\">None</span>):",
+        "alt": "預設值為 None 守護防線",
+        "why": "避免跨呼叫污染",
+        "mean": "定義防禦名冊函數"
+      },
+      {
+        "num": 3,
+        "code": "    if current_roster is None:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">current_roster</span> <span class=\"token-keyword\">is</span> <span class=\"token-keyword\">None</span>:",
+        "alt": "無外部名冊時新建",
+        "why": "獨立新名冊",
+        "mean": "None 判定"
+      },
+      {
+        "num": 4,
+        "code": "        roster = []",
+        "html": "        <span class=\"token-ident\">roster</span> = []",
+        "alt": "初始化新空串列",
+        "why": "全新記憶體",
+        "mean": "建立新名冊"
+      },
+      {
+        "num": 5,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span>:",
+        "alt": "有外部名冊時",
+        "why": "需保護外部資料",
+        "mean": "現有名冊分支"
+      },
+      {
+        "num": 6,
+        "code": "        roster = current_roster.copy()  # 防禦性複製！",
+        "html": "        <span class=\"token-ident\">roster</span> = <span class=\"token-ident\">current_roster</span>.<span class=\"token-func\">copy</span>()  <span class=\"token-comment\"># 防禦性複製！</span>",
+        "alt": "防禦性複製保護外部名冊",
+        "diff": true,
+        "why": "確保外部名冊不被污染",
+        "mean": "防禦性複製"
+      },
+      {
+        "num": 7,
+        "code": "    for name in new_names:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">new_names</span>:",
+        "alt": "走訪新學員名單",
+        "why": "逐一加入名冊",
+        "mean": "走訪名單"
+      },
+      {
+        "num": 8,
+        "code": "        roster.append(name.strip())",
+        "html": "        <span class=\"token-ident\">roster</span>.<span class=\"token-func\">append</span>(<span class=\"token-ident\">name</span>.<span class=\"token-func\">strip</span>())",
+        "alt": "清理字串後加入副本",
+        "why": "加入內部副本",
+        "mean": "新增學員"
+      },
+      {
+        "num": 9,
+        "code": "    return roster",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">roster</span>",
+        "alt": "回傳新名冊",
+        "why": "安全產出新資料",
+        "mean": "回傳新名冊"
+      },
+      {
+        "num": 10,
+        "code": "base_list = [\"小明\", \"小華\"]",
+        "html": "<span class=\"token-ident\">base_list</span> = [<span class=\"token-string\">&quot;小明&quot;</span>, <span class=\"token-string\">&quot;小華&quot;</span>]",
+        "alt": "外部基礎名冊",
+        "why": "受保護的原始名冊",
+        "mean": "基礎名冊"
+      },
+      {
+        "num": 11,
+        "code": "class_a = enroll_students([\"小美\", \"小強\"], base_list)",
+        "html": "<span class=\"token-ident\">class_a</span> = <span class=\"token-func\">enroll_students</span>([<span class=\"token-string\">&quot;小美&quot;</span>, <span class=\"token-string\">&quot;小強&quot;</span>], <span class=\"token-ident\">base_list</span>)",
+        "alt": "呼叫產生班級 A",
+        "diff": true,
+        "why": "傳入基礎名冊進行延伸",
+        "mean": "產出班級A"
+      },
+      {
+        "num": 12,
+        "code": "print(\"班級 A 名冊:\", class_a)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;班級 A 名冊:&quot;</span>, <span class=\"token-ident\">class_a</span>)",
+        "alt": "印出班級 A",
+        "why": "包含四位學員",
+        "mean": "輸出班級A"
+      },
+      {
+        "num": 13,
+        "code": "print(\"外部基礎名冊:\", base_list)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;外部基礎名冊:&quot;</span>, <span class=\"token-ident\">base_list</span>)",
+        "alt": "印出外部基礎名冊完好如初",
+        "diff": true,
+        "why": "仍維持兩位學員無被竄改",
+        "mean": "輸出基礎名冊"
+      }
+    ],
+    "output": "班級 A 名冊: ['小明', '小華', '小美', '小強']\n外部基礎名冊: ['小明', '小華']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>副作用防禦全套大功告成！</strong>：透過 <code>None</code> 慣用法防禦預設值污染，配合 <code>.copy()</code> 阻斷就地修改對外部變數的滲透竄改，你的函數既安全又具備高度適應力！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "副本防竄改，名冊保安康"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.3",
+      "title": "參數傳遞機制與副作用防禦掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心機制",
+          "val": "參照傳遞 / 副本防禦"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "11.4",
+        "title": "變數作用域：區域變數（Local Scope）與同名變數遮蔽（Shadowing）",
+        "desc": "即將深入函數內部獨立小王國，徹底釐清區域變數生命週期與同名變數遮蔽機制！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-3_parameter_passing_and_side_effects.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

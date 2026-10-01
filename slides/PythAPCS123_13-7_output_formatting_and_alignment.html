@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "The Formatting Assassin: Character-Level Comparison",
+    "titleZh": "格式殺手：字元級嚴格比對的殘酷現實",
+    "desc": "線上評判系統（OJ）是字元級別逐 Byte 比對！哪怕你的演算法再精妙，多一個尾隨空格或少一個換行，就會痛失滿分判定 WA！",
+    "codeLines": [
+      {
+        "code": "# 模擬 OJ 評判系統比對標準答案 vs 學生輸出\nexpected = \"10 20 30\"\n# 學生輸出末尾帶有多餘空格\nactual_bug = \"10 20 30 \"\n\nprint(f\"標準答案字元數: {len(expected)} -> repr: {repr(expected)}\")\nprint(f\"學生輸出字元數: {len(actual_bug)} -> repr: {repr(actual_bug)}\")\nprint(f\"OJ 比對結果: {expected == actual_bug} (直接判定 WA/PE！)\")",
+        "html": "<span class=\"c1\"># 模擬 OJ 評判系統比對標準答案 vs 學生輸出</span><br><span class=\"n\">expected</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;10 20 30&quot;</span><br><span class=\"c1\"># 學生輸出末尾帶有多餘空格</span><br><span class=\"n\">actual_bug</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;10 20 30 &quot;</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;標準答案字元數: </span><span class=\"si\">{</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">expected</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\"> -&gt; repr: </span><span class=\"si\">{</span><span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">expected</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;學生輸出字元數: </span><span class=\"si\">{</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">actual_bug</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\"> -&gt; repr: </span><span class=\"si\">{</span><span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">actual_bug</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;OJ 比對結果: </span><span class=\"si\">{</span><span class=\"n\">expected</span><span class=\"w\"> </span><span class=\"o\">==</span><span class=\"w\"> </span><span class=\"n\">actual_bug</span><span class=\"si\">}</span><span class=\"s2\"> (直接判定 WA/PE！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範字元級比對嚴苛性",
+        "mean": "肉眼看似相同但字串不相等",
+        "alt": "比對嚴苛性示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "expected 長度 8，actual_bug 長度 9",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "比對結果為 False",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "標準答案字元數: 8 -> repr: '10 20 30'\n學生輸出字元數: 9 -> repr: '10 20 30 '\nOJ 比對結果: False (直接判定 WA/PE！)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "字元級比對空格換行準"
+      },
+      {
+        "type": "point",
+        "content": "現代 OJ（如 ZeroJudge、APCS 官方系統）採嚴格模式時，尾隨空格會直接判 WA！"
+      },
+      {
+        "type": "tip",
+        "content": "掌握正確的格式化輸出技巧，杜絕一切因格式細節被扣分的冤枉悲劇！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Pitfall 1: Trailing Space in Loops",
+    "titleZh": "格式雷區一：迴圈結尾多餘空格（Trailing Whitespace）",
+    "desc": "在 for 迴圈中隨手寫 print(x, end=' ')，最後一個元素後面必然留下一顆隱形空格地雷！",
+    "codeLines": [
+      {
+        "code": "# 典型新手寫法：在迴圈內印空格\narr = [1, 2, 3]\nimport io, sys\nsys_stdout_bak = sys.stdout\nsys.stdout = buffer = io.StringIO()\n\nfor x in arr:\n    print(x, end=' ')\n\nsys.stdout = sys_stdout_bak\noutput_str = buffer.getvalue()\nprint(f\"新手迴圈輸出: {repr(output_str)} (末尾有多餘空格！)\")",
+        "html": "<span class=\"c1\"># 典型新手寫法：在迴圈內印空格</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">]</span><br><span class=\"k\">import</span> <span class=\"nn\">io</span><span class=\"o\">,</span> <span class=\"nn\">sys</span><br><span class=\"n\">sys_stdout_bak</span> <span class=\"o\">=</span> <span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">stdout</span><br><span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">stdout</span> <span class=\"o\">=</span> <span class=\"n\">buffer</span> <span class=\"o\">=</span> <span class=\"n\">io</span><span class=\"o\">.</span><span class=\"n\">StringIO</span><span class=\"p\">()</span><br><br><span class=\"k\">for</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"n\">arr</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">x</span><span class=\"p\">,</span> <span class=\"n\">end</span><span class=\"o\">=</span><span class=\"s1\">&#39; &#39;</span><span class=\"p\">)</span><br><br><span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">stdout</span> <span class=\"o\">=</span> <span class=\"n\">sys_stdout_bak</span><br><span class=\"n\">output_str</span> <span class=\"o\">=</span> <span class=\"n\">buffer</span><span class=\"o\">.</span><span class=\"n\">getvalue</span><span class=\"p\">()</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;新手迴圈輸出: </span><span class=\"si\">{</span><span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">output_str</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\"> (末尾有多餘空格！)&quot;</span><span class=\"p\">)</span>",
+        "why": "攔截標準輸出揭示多餘空格",
+        "mean": "尾端帶有 ' '",
+        "alt": "尾隨空格揭露"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "依序印出 1, 2, 3 搭配 end=' '",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "擷取輸出得 '1 2 3 '",
+        "vars": {
+          "output_str": "1 2 3 "
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "新手迴圈輸出: '1 2 3 ' (末尾有多餘空格！)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "尾隨空格陷阱終端難察"
+      },
+      {
+        "type": "point",
+        "content": "終端機黑底白字很難肉眼看出字串結尾是 '3' 還是 '3 '。"
+      },
+      {
+        "type": "tip",
+        "content": "下一頁介紹兩大神器，一勞永逸消滅所有行末空格！"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Cure 1: The Star Unpacking print(*arr)",
+    "titleZh": "消滅行末空格神器一：print(*arr) 星號解包法",
+    "desc": "Python 最優雅的輸出魔法！星號解包 print(*arr) 自動在元素間放置空格，結尾純淨無多餘空格且自帶換行！",
+    "codeLines": [
+      {
+        "code": "# 神器一：星號解包 print(*arr)\narr = [10, 20, 30, 40]\nimport io, sys\nbuf = io.StringIO()\nsys.stdout = buf\n\n# 一行搞定標準格式輸出！\nprint(*arr)\n\nsys.stdout = sys.__stdout__\nres = buf.getvalue()\nprint(\"星號解包實際輸出:\", repr(res), \"(完美無多餘空格，AC！)\")",
+        "html": "<span class=\"c1\"># 神器一：星號解包 print(*arr)</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">40</span><span class=\"p\">]</span><br><span class=\"k\">import</span> <span class=\"nn\">io</span><span class=\"o\">,</span> <span class=\"nn\">sys</span><br><span class=\"n\">buf</span> <span class=\"o\">=</span> <span class=\"n\">io</span><span class=\"o\">.</span><span class=\"n\">StringIO</span><span class=\"p\">()</span><br><span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">stdout</span> <span class=\"o\">=</span> <span class=\"n\">buf</span><br><br><span class=\"c1\"># 一行搞定標準格式輸出！</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"o\">*</span><span class=\"n\">arr</span><span class=\"p\">)</span><br><br><span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">stdout</span> <span class=\"o\">=</span> <span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">__stdout__</span><br><span class=\"n\">res</span> <span class=\"o\">=</span> <span class=\"n\">buf</span><span class=\"o\">.</span><span class=\"n\">getvalue</span><span class=\"p\">()</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;星號解包實際輸出:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">res</span><span class=\"p\">),</span> <span class=\"s2\">&quot;(完美無多餘空格，AC！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 print(*arr) 完美輸出格式",
+        "mean": "自動 sep=' ' 與 end='\\n'",
+        "alt": "星號解包輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "print(*arr) 解包輸出",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "擷取輸出為 '10 20 30 40\\n'",
+        "vars": {
+          "res": "10 20 30 40\n"
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "星號解包實際輸出: '10 20 30 40\\n' (完美無多餘空格，AC！)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "星號解包印空格不超尾"
+      },
+      {
+        "type": "point",
+        "content": "print(*arr) 等價於 print(arr[0], arr[1], ..., sep=' ', end='\\n')。"
+      },
+      {
+        "type": "tip",
+        "content": "元素若不是字串也可以直接解包，print 內部會自動轉型，全題通用！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Cure 2: ' '.join(map(str, arr)) Formatting",
+    "titleZh": "消滅行末空格神器二：' '.join(map(str, arr))",
+    "desc": "字串 join 是跨語言共通的最高防禦！若需要把輸出存入變數或進行自訂組合，join 是唯一真神！",
+    "codeLines": [
+      {
+        "code": "# 神器二：' '.join(map(str, arr))\nnums = [5, 10, 15, 20]\n# 先將整數轉為字串迭代器，再以空白黏合\nformatted_text = \" \".join(map(str, nums))\nprint(\"join 生成字串:\", repr(formatted_text))\nprint(\"字串最後一個字元:\", repr(formatted_text[-1]), \"(絕對是數字而非空格！)\")",
+        "html": "<span class=\"c1\"># 神器二：&#39; &#39;.join(map(str, arr))</span><br><span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">15</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">]</span><br><span class=\"c1\"># 先將整數轉為字串迭代器，再以空白黏合</span><br><span class=\"n\">formatted_text</span> <span class=\"o\">=</span> <span class=\"s2\">&quot; &quot;</span><span class=\"o\">.</span><span class=\"n\">join</span><span class=\"p\">(</span><span class=\"nb\">map</span><span class=\"p\">(</span><span class=\"nb\">str</span><span class=\"p\">,</span> <span class=\"n\">nums</span><span class=\"p\">))</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;join 生成字串:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">formatted_text</span><span class=\"p\">))</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;字串最後一個字元:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">formatted_text</span><span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"p\">]),</span> <span class=\"s2\">&quot;(絕對是數字而非空格！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 join 夾帶空格防禦法",
+        "mean": "尾端絕對無多餘空格",
+        "alt": "join 防禦示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "map(str, nums) 轉為字串串流",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "' '.join 組合出 '5 10 15 20'",
+        "vars": {
+          "formatted_text": "5 10 15 20"
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "join 生成字串: '5 10 15 20'\n字串最後一個字元: '0' (絕對是數字而非空格！)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "字串串接法元素夾空格"
+      },
+      {
+        "type": "point",
+        "content": "join 只會在相鄰元素「之間」插入分隔符號，首尾絕不外溢！"
+      },
+      {
+        "type": "tip",
+        "content": "若要求用逗號分隔，只需寫 ','.join(map(str, arr))，靈活無比。"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Pitfall 2: Trailing Newline vs Missing EOF Newline",
+    "titleZh": "格式雷區二：末行多餘換行 vs 漏掉結尾換行",
+    "desc": "APCS 與 OJ 絕大多數要求「每行輸出末尾都必須帶有換行符號 \\n」，但嚴禁在全檔末尾多印一個空白空行！",
+    "codeLines": [
+      {
+        "code": "# 典型換行控制規範：\n# print() 預設自帶 end='\\n'，這是標準正確行為！\n# 錯誤寫法：刻意多加 print(\"\") 導致全檔末尾出現雙換行空行\nprint(\"Line 1: 標準換行輸出\")\nprint(\"Line 2: 乾淨俐落結尾\")",
+        "html": "<span class=\"c1\"># 典型換行控制規範：</span><br><span class=\"c1\"># print() 預設自帶 end=&#39;\\n&#39;，這是標準正確行為！</span><br><span class=\"c1\"># 錯誤寫法：刻意多加 print(&quot;&quot;) 導致全檔末尾出現雙換行空行</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;Line 1: 標準換行輸出&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;Line 2: 乾淨俐落結尾&quot;</span><span class=\"p\">)</span>",
+        "why": "示範標準換行行為",
+        "mean": "每行末尾自帶 \\n",
+        "alt": "標準換行輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "印出 Line 1 配 \\n",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "印出 Line 2 配 \\n",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "Line 1: 標準換行輸出\nLine 2: 乾淨俐落結尾\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "末行換行符號依題嚴守"
+      },
+      {
+        "type": "point",
+        "content": "在 Linux 評判伺服器中，文字檔結尾通常都具備單一 \\n，切勿漏寫。"
+      },
+      {
+        "type": "tip",
+        "content": "若題目沒有特別指明「最後不得換行」，維持 print() 預設的 end='\\n' 即可。"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Pitfall 3: Case Sensitivity (YES vs Yes)",
+    "titleZh": "格式雷區三：字串大小寫與嚴格字樣偏差",
+    "desc": "痛心疾首的冤枉扣分！題目要求全大寫 YES，考生寫成了 Yes 或 True；要求 Case #1: 考生漏了空格寫成 Case#1:！",
+    "codeLines": [
+      {
+        "code": "# 檢查數字是否為正數\nx = 10\n# 脆弱寫法：隨意依直覺輸出\n# print(x > 0)  -> 輸出 True (WA！)\n# print(\"Yes\")  -> 輸出 Yes (首字母大寫，依然 WA！)\n\n# 正確防禦寫法：嚴格複製題幹字串\nif x > 0:\n    print(\"YES\")  # 題目要求全大寫 YES\nelse:\n    print(\"NO\")",
+        "html": "<span class=\"c1\"># 檢查數字是否為正數</span><br><span class=\"n\">x</span> <span class=\"o\">=</span> <span class=\"mi\">10</span><br><span class=\"c1\"># 脆弱寫法：隨意依直覺輸出</span><br><span class=\"c1\"># print(x &gt; 0)  -&gt; 輸出 True (WA！)</span><br><span class=\"c1\"># print(&quot;Yes&quot;)  -&gt; 輸出 Yes (首字母大寫，依然 WA！)</span><br><br><span class=\"c1\"># 正確防禦寫法：嚴格複製題幹字串</span><br><span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">&gt;</span> <span class=\"mi\">0</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;YES&quot;</span><span class=\"p\">)</span>  <span class=\"c1\"># 題目要求全大寫 YES</span><br><span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;NO&quot;</span><span class=\"p\">)</span>",
+        "why": "示範大小寫精準對照",
+        "mean": "直接複製題幹字樣避免手殘",
+        "alt": "大小寫對照"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "x > 0 成立",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "嚴格輸出全大寫 'YES'",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "YES\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "大小寫標點一字不差對"
+      },
+      {
+        "type": "point",
+        "content": "字串比對不容許任何大小寫差異，'YES' != 'Yes' != 'yes'！"
+      },
+      {
+        "type": "tip",
+        "content": "考場守則：答案字串直接從 PDF 題目範例中「複製貼上」，絕不用手打！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Pitfall 4: Rounding Half to Even & f-string",
+    "titleZh": "格式雷區四：浮點數格式化與四捨五入陷阱",
+    "desc": "Python 內建 round() 是「四捨六入五成雙」（Banker's Rounding），round(2.5) == 2！格式化輸出浮點數一律使用 f-string！",
+    "codeLines": [
+      {
+        "code": "# 典型陷阱：round(2.5) 竟然是 2！因為 2 是偶數（五成雙）！\nprint(f\"round(2.5) 銀行家捨入結果: {round(2.5)} (不是 3！)\")\n\n# 格式化輸出標準解法：使用 f-string 固定小數位數\nval = 3.1415926\n# 保留兩位小數：{val:.2f} 自動進行精確小數格式化\nprint(f\"保留兩位小數: {val:.2f}\")\nprint(f\"保留四位小數: {val:.4f}\")",
+        "html": "<span class=\"c1\"># 典型陷阱：round(2.5) 竟然是 2！因為 2 是偶數（五成雙）！</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;round(2.5) 銀行家捨入結果: </span><span class=\"si\">{</span><span class=\"nb\">round</span><span class=\"p\">(</span><span class=\"mf\">2.5</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\"> (不是 3！)&quot;</span><span class=\"p\">)</span><br><br><span class=\"c1\"># 格式化輸出標準解法：使用 f-string 固定小數位數</span><br><span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"mf\">3.1415926</span><br><span class=\"c1\"># 保留兩位小數：{val:.2f} 自動進行精確小數格式化</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;保留兩位小數: </span><span class=\"si\">{</span><span class=\"n\">val</span><span class=\"si\">:</span><span class=\"s2\">.2f</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;保留四位小數: </span><span class=\"si\">{</span><span class=\"n\">val</span><span class=\"si\">:</span><span class=\"s2\">.4f</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範浮點數 f-string .2f 格式化",
+        "mean": "固定位數精準輸出",
+        "alt": "浮點格式化"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "說明 round(2.5) = 2 特性",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "f'{val:.2f}' 輸出 3.14",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "f'{val:.4f}' 輸出 3.1416",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "round(2.5) 銀行家捨入結果: 2 (不是 3！)\n保留兩位小數: 3.14\n保留四位小數: 3.1416\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "小數格式化字串點二福"
+      },
+      {
+        "type": "point",
+        "content": "題幹要求「輸出至小數點後第 K 位」時，絕對不要用 round()，一律寫 f'{x:.Kf}'！"
+      },
+      {
+        "type": "tip",
+        "content": "若末尾是 0（如 3.50），.2f 會忠實保留 3.50，而 float 會吃掉變成 3.5 導致 WA！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Pitfall 5: Zero-Padding & Width Alignment",
+    "titleZh": "格式雷區五：整數補零與固定寬度對齊",
+    "desc": "時鐘問題 08:05、編號問題 0042，漏掉前導零（Leading Zeros）是常見格式失分點！",
+    "codeLines": [
+      {
+        "code": "# 典型場景：時鐘時間輸出（時、分皆為 2 位數）\nh, m = 8, 5\n# 脆弱寫法：print(f\"{h}:{m}\") -> 輸出 8:5 (WA！)\n\n# 正確補零寫法一：f-string 格式化 {val:02d}\nformatted_time = f\"{h:02d}:{m:02d}\"\n# 正確補零寫法二：str.zfill(2)\nzfill_time = f\"{str(h).zfill(2)}:{str(m).zfill(2)}\"\n\nprint(f\"f-string 補零輸出: {formatted_time} (AC)\")\nprint(f\"str.zfill 補零輸出: {zfill_time} (AC)\")",
+        "html": "<span class=\"c1\"># 典型場景：時鐘時間輸出（時、分皆為 2 位數）</span><br><span class=\"n\">h</span><span class=\"p\">,</span> <span class=\"n\">m</span> <span class=\"o\">=</span> <span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">5</span><br><span class=\"c1\"># 脆弱寫法：print(f&quot;{h}:{m}&quot;) -&gt; 輸出 8:5 (WA！)</span><br><br><span class=\"c1\"># 正確補零寫法一：f-string 格式化 {val:02d}</span><br><span class=\"n\">formatted_time</span> <span class=\"o\">=</span> <span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">h</span><span class=\"si\">:</span><span class=\"s2\">02d</span><span class=\"si\">}</span><span class=\"s2\">:</span><span class=\"si\">{</span><span class=\"n\">m</span><span class=\"si\">:</span><span class=\"s2\">02d</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><br><span class=\"c1\"># 正確補零寫法二：str.zfill(2)</span><br><span class=\"n\">zfill_time</span> <span class=\"o\">=</span> <span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"nb\">str</span><span class=\"p\">(</span><span class=\"n\">h</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"n\">zfill</span><span class=\"p\">(</span><span class=\"mi\">2</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\">:</span><span class=\"si\">{</span><span class=\"nb\">str</span><span class=\"p\">(</span><span class=\"n\">m</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"n\">zfill</span><span class=\"p\">(</span><span class=\"mi\">2</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;f-string 補零輸出: </span><span class=\"si\">{</span><span class=\"n\">formatted_time</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;str.zfill 補零輸出: </span><span class=\"si\">{</span><span class=\"n\">zfill_time</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範前導零補齊技巧",
+        "mean": "02d 與 zfill(2)",
+        "alt": "前導零示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "h:02d 補零為 '08'",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "m:02d 補零為 '05'",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "f-string 補零輸出: 08:05 (AC)\nstr.zfill 補零輸出: 08:05 (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "時間編號補零點二低"
+      },
+      {
+        "type": "point",
+        "content": "{x:02d} 代表寬度為 2、不足以 0 補齊的十進位整數。"
+      },
+      {
+        "type": "tip",
+        "content": "若是字串物件，直接呼叫 .zfill(寬度) 也是極度方便的捷徑。"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Pitfall 6: 2D Grid & Matrix Row Output",
+    "titleZh": "格式雷區六：矩陣與二維網格格式化輸出",
+    "desc": "APCS 矩陣旋轉與模擬題：輸出二維網格時，每列元素以空白隔開，行末無多餘空格，列間精準換行！",
+    "codeLines": [
+      {
+        "code": "# 二維矩陣標準輸出模板\ngrid = [\n    [1, 2, 3],\n    [4, 5, 6],\n    [7, 8, 9]\n]\n# 專業寫法：遍歷每一列，利用 print(*row) 瞬間出解！\nprint(\"=== 矩陣標準格式輸出 ===\")\nfor row in grid:\n    print(*row)",
+        "html": "<span class=\"c1\"># 二維矩陣標準輸出模板</span><br><span class=\"n\">grid</span> <span class=\"o\">=</span> <span class=\"p\">[</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">],</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">[</span><span class=\"mi\">4</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">6</span><span class=\"p\">],</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">[</span><span class=\"mi\">7</span><span class=\"p\">,</span> <span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">9</span><span class=\"p\">]</span><br><span class=\"p\">]</span><br><span class=\"c1\"># 專業寫法：遍歷每一列，利用 print(*row) 瞬間出解！</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;=== 矩陣標準格式輸出 ===&quot;</span><span class=\"p\">)</span><br><span class=\"k\">for</span> <span class=\"n\">row</span> <span class=\"ow\">in</span> <span class=\"n\">grid</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"o\">*</span><span class=\"n\">row</span><span class=\"p\">)</span>",
+        "why": "示範二維陣列逐列解包輸出",
+        "mean": "完美符合 APCS 矩陣格式",
+        "alt": "矩陣輸出模板"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "逐列解包印出",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "=== 矩陣標準格式輸出 ===\n1 2 3\n4 5 6\n7 8 9\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "二維矩陣每列星號解包"
+      },
+      {
+        "type": "point",
+        "content": "for row in grid: print(*row) 既簡短又 100% 免疫行末空格！"
+      },
+      {
+        "type": "tip",
+        "content": "APCS 第九章二維陣列所有題目，此寫法均為滿分通關利刃。"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Pitfall 7: Stray Debug Prints Poisoning stdout",
+    "titleZh": "格式雷區七：除錯 print 忘記移除導致的 WA",
+    "desc": "全場最冤枉！中途寫的 print('debug:', x) 會被評測機當成正式答案比對，原本滿分的程式直接全盤吞下 0 分 WA！",
+    "codeLines": [
+      {
+        "code": "# 典型慘案：忘記註解除錯輸出\n# print(\"[DEBUG] 目前總和:\", current_sum)  # 致命污染！\n\n# 專業做法：定義 debug 開關，或送出前全文搜尋 print！\nDEBUG_MODE = False\ndef dprint(*args):\n    if DEBUG_MODE:\n        print(\"[DEBUG]\", *args)\n\ndprint(\"這句除錯訊息在正式送出時會自動安靜，絕不污染輸出！\")\nprint(\"正式答案: 100 (AC)\")",
+        "html": "<span class=\"c1\"># 典型慘案：忘記註解除錯輸出</span><br><span class=\"c1\"># print(&quot;[DEBUG] 目前總和:&quot;, current_sum)  # 致命污染！</span><br><br><span class=\"c1\"># 專業做法：定義 debug 開關，或送出前全文搜尋 print！</span><br><span class=\"n\">DEBUG_MODE</span> <span class=\"o\">=</span> <span class=\"kc\">False</span><br><span class=\"k\">def</span> <span class=\"nf\">dprint</span><span class=\"p\">(</span><span class=\"o\">*</span><span class=\"n\">args</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">DEBUG_MODE</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;[DEBUG]&quot;</span><span class=\"p\">,</span> <span class=\"o\">*</span><span class=\"n\">args</span><span class=\"p\">)</span><br><br><span class=\"n\">dprint</span><span class=\"p\">(</span><span class=\"s2\">&quot;這句除錯訊息在正式送出時會自動安靜，絕不污染輸出！&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;正式答案: 100 (AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範除錯輸出隔離策略",
+        "mean": "防止雜訊流入 stdout",
+        "alt": "除錯開關示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "DEBUG_MODE 為 False，dprint 安靜略過",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "只輸出乾淨的正式答案",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "正式答案: 100 (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "送出前清空除錯輸出列"
+      },
+      {
+        "type": "point",
+        "content": "任何印出至標準輸出的字元都會被 OJ 比對，除錯旁白一律視為錯誤輸出！"
+      },
+      {
+        "type": "tip",
+        "content": "按 Ctrl+F 搜尋整份代碼的所有 print，只留下題目真正要求輸出的那一兩行！"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Debug Tool: repr() Revealing Hidden Whitespace",
+    "titleZh": "格式比對利器：repr() 顯式透視空格與換行",
+    "desc": "終端機肉眼分不清 'abc' 與 'abc ' 的差別！利用 repr() 可以將所有 \\n、\\t 與空白字元顯式印出，照妖鏡無所遁形！",
+    "codeLines": [
+      {
+        "code": "# 使用 repr() 顯式透視字串細節\ns1 = \"hello\\n\"\ns2 = \"hello \"\ns3 = \"hello\\t\"\n\nprint(\"一般 print 看起來全部很像:\")\nprint(s1, s2, s3, sep=\"|\")\n\nprint(\"repr() 顯式透視真實原形:\")\nprint(repr(s1), repr(s2), repr(s3), sep=\" | \")",
+        "html": "<span class=\"c1\"># 使用 repr() 顯式透視字串細節</span><br><span class=\"n\">s1</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;hello</span><span class=\"se\">\\n</span><span class=\"s2\">&quot;</span><br><span class=\"n\">s2</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;hello &quot;</span><br><span class=\"n\">s3</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;hello</span><span class=\"se\">\\t</span><span class=\"s2\">&quot;</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;一般 print 看起來全部很像:&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">s1</span><span class=\"p\">,</span> <span class=\"n\">s2</span><span class=\"p\">,</span> <span class=\"n\">s3</span><span class=\"p\">,</span> <span class=\"n\">sep</span><span class=\"o\">=</span><span class=\"s2\">&quot;|&quot;</span><span class=\"p\">)</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;repr() 顯式透視真實原形:&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">s1</span><span class=\"p\">),</span> <span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">s2</span><span class=\"p\">),</span> <span class=\"nb\">repr</span><span class=\"p\">(</span><span class=\"n\">s3</span><span class=\"p\">),</span> <span class=\"n\">sep</span><span class=\"o\">=</span><span class=\"s2\">&quot; | &quot;</span><span class=\"p\">)</span>",
+        "why": "示範 repr() 透視字元細節",
+        "mean": "顯式印出跳脫字元與尾隨空格",
+        "alt": "repr 透視示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "直接 print 會觸發換行與縮排混淆",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "repr() 將 \\n, ' ', \\t 完整顯影",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "一般 print 看起來全部很像:\nhello\n|hello |hello\t\nrepr() 顯式透視真實原形:\n'hello\\n' | 'hello ' | 'hello\\t'\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "用瑞普字串透視空字元"
+      },
+      {
+        "type": "point",
+        "content": "repr() 會顯示字串在 Python 內部的字面表示法，引號、跳脫符號一覽無餘！"
+      },
+      {
+        "type": "tip",
+        "content": "在本機測試時懷疑有格式錯誤，直接寫 print(repr(my_output)) 即可秒破案！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Diagnosing Output Space Pitfall",
+    "titleZh": "關鍵理解測驗：行末空格與印出方式診斷",
+    "desc": "給定數列 arr = [10, 20, 30]，以下哪種寫法輸出後「尾端絕無多餘空格」且「完全符合 APCS 格式要求」？",
+    "codeLines": [
+      {
+        "code": "# 方案 A：\n# for x in arr:\n#     print(x, end=' ')\n# print()\n\n# 方案 B：\n# print(*arr)",
+        "html": "<span class=\"c1\"># 方案 A：</span><br><span class=\"c1\"># for x in arr:</span><br><span class=\"c1\">#     print(x, end=&#39; &#39;)</span><br><span class=\"c1\"># print()</span><br><br><span class=\"c1\"># 方案 B：</span><br><span class=\"c1\"># print(*arr)</span>",
+        "why": "測驗題目情境代碼說明",
+        "mean": "二擇一判斷何者無多餘空格",
+        "alt": "考題情境"
+      },
+      {
+        "code": "print(\"請預測哪種寫法尾端純淨無瑕，在嚴格 OJ 評判下能順暢滿分 AC！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;請預測哪種寫法尾端純淨無瑕，在嚴格 OJ 評判下能順暢滿分 AC！&quot;</span><span class=\"p\">)</span>",
+        "why": "引導預測",
+        "mean": "選擇 A 或 B",
+        "alt": "預測題目"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "請學生分析方案 A 與 B 的尾隨字元差異",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "揭曉正解為方案 B (print(*arr))",
+        "vars": {},
+        "output": "請預測哪種寫法尾端純淨無瑕，在嚴格 OJ 評判下能順暢滿分 AC！\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "輸出串列 [10, 20, 30] 時，哪種寫法輸出的最後一個元素後「絕無多餘空格」且符合 APCS 格式？",
+      "options": [
+        "A. 方案 B：print(*arr)（星號解包自動在元素間加空格，結尾純淨無多餘空格）",
+        "B. 方案 A：for 迴圈配 end=' '（每次都印空格，最後元素後方帶有空格）"
+      ],
+      "answer": "A",
+      "explanation": "方案 A 在最後一個數字 30 後面依然會印出 end=' ' 指定的空格，導致輸出成為 '10 20 30 \\n'！而在方案 B 中，print(*arr) 只會在元素「之間」放置空格，結尾直接接換行，完全沒有多餘空格，滿分 AC！"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "星號解包無尾隨空格勝"
+      },
+      {
+        "type": "point",
+        "content": "記住這個差異，在考場上永遠優先使用 print(*arr)！"
+      },
+      {
+        "type": "tip",
+        "content": "若是字串串列，' '.join(arr) 亦具備完全相同的零多餘空格優勢。"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Blank Lines Between Testcases Pattern",
+    "titleZh": "多測資間隔空行：最後一筆不印空行技巧",
+    "desc": "APCS 經典刁難格式：「各組輸出之間以一空行隔開，但最後一組後面不得有空行」！學會旗標標記法輕鬆破解！",
+    "codeLines": [
+      {
+        "code": "# 模擬 3 組測資輸出，組與組之間隔一空行，末組後無空行\ntest_cases = [\"Case A 答案\", \"Case B 答案\", \"Case C 答案\"]\nfirst = True\nfor ans in test_cases:\n    if not first:\n        print()  # 非第一筆時，在印出前先印出空行！\n    print(ans)\n    first = False",
+        "html": "<span class=\"c1\"># 模擬 3 組測資輸出，組與組之間隔一空行，末組後無空行</span><br><span class=\"n\">test_cases</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s2\">&quot;Case A 答案&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;Case B 答案&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;Case C 答案&quot;</span><span class=\"p\">]</span><br><span class=\"n\">first</span> <span class=\"o\">=</span> <span class=\"kc\">True</span><br><span class=\"k\">for</span> <span class=\"n\">ans</span> <span class=\"ow\">in</span> <span class=\"n\">test_cases</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"ow\">not</span> <span class=\"n\">first</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">()</span>  <span class=\"c1\"># 非第一筆時，在印出前先印出空行！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">ans</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">first</span> <span class=\"o\">=</span> <span class=\"kc\">False</span>",
+        "why": "示範測資間隔空行經典寫法",
+        "mean": "非第一筆前印空行，保證末尾無空行",
+        "alt": "間隔空行旗標法"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "第一筆直接印 Case A",
+        "vars": {
+          "first": false
+        }
+      },
+      {
+        "step": 2,
+        "action": "第二筆先印空行再印 Case B",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "第三筆先印空行再印 Case C，結束無多餘空行",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "Case A 答案\n\nCase B 答案\n\nCase C 答案\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "測資空行首筆標記旗標"
+      },
+      {
+        "type": "point",
+        "content": "很多考生習慣在後面 print()，導致最後一筆多出空行；「在前面印」才能精準控制！"
+      },
+      {
+        "type": "tip",
+        "content": "first 旗標法是所有競賽中處理「組間分隔、結尾不隔」的萬靈丹。"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Pre-Submit 1-Minute Formatting Checklist",
+    "titleZh": "送出前 1 分鐘格式查核清單",
+    "desc": "在按下 Submit 送出前，花 60 秒依序檢核這 5 項格式細節，鎖定最後一哩路的滿分榮耀！",
+    "codeLines": [
+      {
+        "code": "# 考場格式 5 大必檢清單：\n# 1. 大小寫字樣：YES/NO、Case #1: 是否完全精準吻合？\n# 2. 串列輸出：是否使用 print(*arr) 杜絕行末空格？\n# 3. 浮點小數：是否使用 f'{val:.2f}' 保留指定位數？\n# 4. 前導補零：時鐘或編號是否有 f'{x:02d}' 補零？\n# 5. 除錯殘留：中途的 print('[DEBUG]') 是否已全數清理？\nprint(\"五大格式守門員已全部就緒，送出即 AC！\")",
+        "html": "<span class=\"c1\"># 考場格式 5 大必檢清單：</span><br><span class=\"c1\"># 1. 大小寫字樣：YES/NO、Case #1: 是否完全精準吻合？</span><br><span class=\"c1\"># 2. 串列輸出：是否使用 print(*arr) 杜絕行末空格？</span><br><span class=\"c1\"># 3. 浮點小數：是否使用 f&#39;{val:.2f}&#39; 保留指定位數？</span><br><span class=\"c1\"># 4. 前導補零：時鐘或編號是否有 f&#39;{x:02d}&#39; 補零？</span><br><span class=\"c1\"># 5. 除錯殘留：中途的 print(&#39;[DEBUG]&#39;) 是否已全數清理？</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;五大格式守門員已全部就緒，送出即 AC！&quot;</span><span class=\"p\">)</span>",
+        "why": "總結送出前格式檢核清單",
+        "mean": "五道防禦關卡確保格式無懈可擊",
+        "alt": "格式檢核清單"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立考前格式掃描肌肉記憶",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出備戰信號",
+        "vars": {},
+        "output": "五大格式守門員已全部就緒，送出即 AC！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "送出前核對五項格式單"
+      },
+      {
+        "type": "point",
+        "content": "細節決定成敗，考場上 20% 的失分往往只是因為粗心遺漏了格式要求。"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將整合全章所有除錯技巧，傳授「考場系統化除錯戰略」終極心法！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 13.7 Summary & Mastery Card",
+    "titleZh": "單元 13.7 綜合驗收：輸出格式防禦與對齊心法",
+    "desc": "恭喜完成單元 13.7！你已徹底征服行末空格、浮點捨入、大小寫對齊、矩陣輸出與 repr() 透視除錯神技！",
+    "codeLines": [
+      {
+        "code": "# 輸出格式防禦全能對照地圖",
+        "html": "<span class=\"c1\"># 輸出格式防禦全能對照地圖</span>",
+        "why": "總結全單元格式化技能",
+        "mean": "格式防禦速查表",
+        "alt": "格式地圖展示"
+      },
+      {
+        "code": "format_map = {\n    '串列單行輸出': '使用 print(*arr) 消除行末空格',\n    '字串組合分隔': '使用 \" \".join(map(str, arr))',\n    '浮點保留位數': '使用 f\"{val:.2f}\" 避免 round 陷阱',\n    '整數前導補零': '使用 f\"{val:02d}\" 或 str.zfill(2)',\n    '二維矩陣輸出': 'for row in grid: print(*row)',\n    '組間空行控制': 'first 旗標法，非首筆前印空行',\n    '透視隱藏字元': '本機測試用 print(repr(output))'\n}\nfor scenario, solution in format_map.items():\n    print(f\"{scenario:14s}: {solution}\")",
+        "html": "<span class=\"n\">format_map</span> <span class=\"o\">=</span> <span class=\"p\">{</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;串列單行輸出&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;使用 print(*arr) 消除行末空格&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;字串組合分隔&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;使用 &quot; &quot;.join(map(str, arr))&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;浮點保留位數&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;使用 f&quot;{val:.2f}&quot; 避免 round 陷阱&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;整數前導補零&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;使用 f&quot;{val:02d}&quot; 或 str.zfill(2)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;二維矩陣輸出&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;for row in grid: print(*row)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;組間空行控制&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;first 旗標法，非首筆前印空行&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;透視隱藏字元&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;本機測試用 print(repr(output))&#39;</span><br><span class=\"p\">}</span><br><span class=\"k\">for</span> <span class=\"n\">scenario</span><span class=\"p\">,</span> <span class=\"n\">solution</span> <span class=\"ow\">in</span> <span class=\"n\">format_map</span><span class=\"o\">.</span><span class=\"n\">items</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">scenario</span><span class=\"si\">:</span><span class=\"s2\">14s</span><span class=\"si\">}</span><span class=\"s2\">: </span><span class=\"si\">{</span><span class=\"n\">solution</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "印出完整 7 大格式防禦地圖",
+        "mean": "考前格式對齊速查",
+        "alt": "格式地圖輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "彙總 7 大格式防禦方針",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出完整驗收對照地圖",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "完成單元驗收",
+        "vars": {}
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 13.7 通關：格式精算大師！",
+      "summary": "太棒了！你已全面掌握 print(*arr) 解包、浮點數格式化、補零對齊與行末空格防禦心法！",
+      "nextUnit": "13.8 考場系統化除錯戰略：錯誤重現、二分隔離與送出前 SOP"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "格式分毫不差滿分通關"
+      },
+      {
+        "type": "point",
+        "content": "恭喜你完封輸出格式防禦全單元，彻底終結所有因字元細節丟分的遺憾！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元為第十三章大結局，將傳授考場高手的全套系統化除錯實戰 SOP！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec13-7",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_13-7_output_formatting_and_alignment.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

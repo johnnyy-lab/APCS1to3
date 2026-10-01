@@ -177,8 +177,8 @@ const courseCurriculum = [
       { id: "sec13-4", title: "13.4 例外捕捉語法：try ... except 架構與未知長度輸入處理", available: true, url: "PythAPCS123_13-4_try_except_and_eof_handling.html" },
       { id: "sec13-5", title: "13.5 語意錯誤（Logic Error）與常見邏輯盲點排查（WA 防範）", available: true, url: "PythAPCS123_13-5_logic_errors_and_wa_prevention.html" },
       { id: "sec13-6", title: "13.6 時間超限（TLE）診斷：運算量估算與隱形效能坑洞", available: true, url: "PythAPCS123_13-6_tle_diagnosis_and_complexity_pitfalls.html" },
-      { id: "sec13-7", title: "13.7 輸出格式防禦與對齊心法（Presentation WA 防範）", available: false },
-      { id: "sec13-8", title: "13.8 考場系統化除錯戰略：錯誤重現、二分隔離與送出前 SOP", available: false }
+      { id: "sec13-7", title: "13.7 輸出格式防禦與對齊心法（Presentation WA 防範）", available: true, url: "PythAPCS123_13-7_output_formatting_and_alignment.html" },
+      { id: "sec13-8", title: "13.8 考場系統化除錯戰略：錯誤重現、二分隔離與送出前 SOP", available: true, url: "PythAPCS123_13-8_systematic_exam_debugging_and_sop.html" }
     ]
   },
   {

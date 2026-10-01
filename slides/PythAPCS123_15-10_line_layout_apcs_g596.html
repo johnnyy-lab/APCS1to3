@@ -1,0 +1,3275 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "單元導引：APCS 實作真題特訓 —— 動線安排 (g596)",
+    "subtitle": "二維網格射線連線與動態幾何瓦解模擬",
+    "desc": "本題出自 APCS 2021 年 11 月實作題第二題（ZeroJudge g596）。在 M×N 網格中，玩家依序立柱拉線或拔柱拆線，考驗二維陣列、位元狀態編碼與四向射線搜尋！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 15.10 APCS 2021-11 實作題第二題：動線安排 (ZeroJudge g596)",
+        "highlight": "<span class=\"token-comment\"># 15.10 APCS 2021-11 實作題第二題：動線安排 (ZeroJudge g596)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "真題導引註解",
+        "why": "單元起點"
+      },
+      {
+        "line": 2,
+        "code": "print('=== APCS 2021-11 實作題：動線安排 ===')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;=== APCS 2021-11 實作題：動線安排 ===&#x27;</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出真題標題",
+        "why": "考題定錨"
+      },
+      {
+        "line": 3,
+        "code": "m, n, h = 3, 5, 6",
+        "highlight": "<span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "網格維度與操作數",
+        "why": "3列5行6次操作"
+      },
+      {
+        "line": 4,
+        "code": "print(f'網格尺寸: {m} x {n}，操作次數: {h}')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;網格尺寸: <span class=\"token-op\">{</span><span class=\"token-ident\">m</span><span class=\"token-op\">}</span> x <span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>，操作次數: <span class=\"token-op\">{</span><span class=\"token-ident\">h</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出規格資訊",
+        "why": "格式化字串"
+      },
+      {
+        "line": 5,
+        "code": "print('核心機制：四向射線立柱拉線、拔柱連鎖瓦解')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;核心機制：四向射線立柱拉線、拔柱連鎖瓦解&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出核心機制說明",
+        "why": "射線與位元"
+      }
+    ],
+    "output": "=== APCS 2021-11 實作題：動線安排 ===\n網格尺寸: 3 x 5，操作次數: 6\n核心機制：四向射線立柱拉線、拔柱連鎖瓦解",
+    "diagram": {
+      "type": "flowchart",
+      "title": "動線安排核心循環",
+      "content": "輸入 M, N, H ➔ 初始全零網格 ➔ 迴圈執行立柱或拔柱 ➔ 動態統計當前覆蓋面積 ➔ 輸出最大值與最終值"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "題目等級與重要性",
+        "content": "本題為標準的二維模擬題，考點涵蓋座標射線探索、障礙阻隔判定、位元遮罩疊加與消解，是 APCS 實作 3 級分以上的分水嶺！"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "題目規格與操作形式定義",
+    "subtitle": "網格維度、操作次數 H 與三元組 (r, c, t) 詳解",
+    "desc": "輸入包含三個參數：列數 M、行數 N (1 ≤ M, N ≤ 100) 與操作次數 H (1 ≤ H ≤ 100)。接下來 H 列，每列有 r, c, t 三個整數，t=0 代表立柱，t=1 代表拔柱。",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 題目規格與操作形式解析",
+        "highlight": "<span class=\"token-comment\"># 題目規格與操作形式解析</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "規格註釋",
+        "why": "輸入結構"
+      },
+      {
+        "line": 2,
+        "code": "m, n, h = 3, 5, 4",
+        "highlight": "<span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "定義網格規格",
+        "why": "M=3, N=5, H=4"
+      },
+      {
+        "line": 3,
+        "code": "ops = [(0, 0, 0), (0, 2, 0), (2, 2, 0), (2, 2, 1)]",
+        "highlight": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "操作串列三元組",
+        "why": "(r, c, t)"
+      },
+      {
+        "line": 4,
+        "code": "for i, (r, c, t) in enumerate(ops):",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">t</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪每筆操作",
+        "why": "enumerate"
+      },
+      {
+        "line": 5,
+        "code": "    action = '立柱並向四方拉線' if t == 0 else '拔柱並清除所屬連線'",
+        "highlight": "    <span class=\"token-ident\">action</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&#x27;立柱並向四方拉線&#x27;</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">&#x27;拔柱並清除所屬連線&#x27;</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "判定操作類型",
+        "why": "t==0立柱, t==1拔柱"
+      },
+      {
+        "line": 6,
+        "code": "    print(f'操作 {i+1}: ({r}, {c}) -> {action}')",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;操作 <span class=\"token-op\">{</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">}</span>: (<span class=\"token-op\">{</span><span class=\"token-ident\">r</span><span class=\"token-op\">}</span>, <span class=\"token-op\">{</span><span class=\"token-ident\">c</span><span class=\"token-op\">}</span>) -&gt; <span class=\"token-op\">{</span><span class=\"token-ident\">action</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出操作日誌",
+        "why": "直觀展示"
+      }
+    ],
+    "output": "操作 1: (0, 0) -> 立柱並向四方拉線\n操作 2: (0, 2) -> 立柱並向四方拉線\n操作 3: (2, 2) -> 立柱並向四方拉線\n操作 4: (2, 2) -> 拔柱並清除所屬連線",
+    "diagram": {
+      "type": "flowchart",
+      "title": "操作類型分支",
+      "content": "t = 0 ➔ 立木樁 (4)，四向射線找最近木樁拉線\nt = 1 ➔ 拔木樁 (0)，四向追蹤並清除該柱延伸之線段"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "操作有效性保證",
+        "content": "題目保證立木樁的位置一定沒有木樁；拔木樁的位置一定已有木樁，不需處理重複立柱或拔空柱的非法例外。"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "幾何連線機制：兩柱共線與無障礙拉線",
+    "subtitle": "四向射線搜尋：向上、向下、向左、向右找最近木樁",
+    "desc": "新立木樁時，向四個方向發射射線。若在同一直線上發現另一根木樁，且兩柱之間「沒有其他木樁阻擋」，兩柱之間的所有空格都會被拉上一條動線！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 幾何連線機制：兩柱同列且無阻隔時拉線",
+        "highlight": "<span class=\"token-comment\"># 幾何連線機制：兩柱同列且無阻隔時拉線</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "連線機制註釋",
+        "why": "核心概念"
+      },
+      {
+        "line": 2,
+        "code": "grid_row = [4, 0, 4]  # 4代表木樁，0代表空格",
+        "highlight": "<span class=\"token-ident\">grid_row</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 4代表木樁，0代表空格</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "初始化網格列狀態",
+        "why": "[4, 0, 4]"
+      },
+      {
+        "line": 3,
+        "code": "# 索引 0 與 2 為木樁，中途無阻隔",
+        "highlight": "<span class=\"token-comment\"># 索引 0 與 2 為木樁，中途無阻隔</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "判斷說明",
+        "why": "射線抵達"
+      },
+      {
+        "line": 4,
+        "code": "if grid_row[0] == 4 and grid_row[2] == 4 and grid_row[1] == 0:",
+        "highlight": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">grid_row</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">4</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">grid_row</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">4</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">grid_row</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "判斷兩端木樁與中間空",
+        "why": "無阻隔"
+      },
+      {
+        "line": 5,
+        "code": "    grid_row[1] = 1  # 1代表水平連線",
+        "highlight": "    <span class=\"token-ident\">grid_row</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 1代表水平連線</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "拉水平線賦值 1",
+        "why": "連線染色"
+      },
+      {
+        "line": 6,
+        "code": "print('連線後的網格行狀態:', grid_row)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;連線後的網格行狀態:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">grid_row</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出連線後列狀態",
+        "why": "[4, 1, 4]"
+      },
+      {
+        "line": 7,
+        "code": "print('兩柱之間成功拉出連線！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;兩柱之間成功拉出連線！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出成功訊息",
+        "why": "連線成功"
+      }
+    ],
+    "output": "連線後的網格行狀態: [4, 1, 4]\n兩柱之間成功拉出連線！",
+    "diagram": {
+      "type": "flowchart",
+      "title": "拉線射線搜尋條件",
+      "content": "新立木樁 (r, c) ➔ 四向延伸探索 ➔ 若遇木樁且中間無阻隔 ➔ 兩柱之間連線填充"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "障礙阻隔原則",
+        "content": "如果同一條線上有多根木樁，射線只會連到「最近」的那一根，絕不會穿透既有木樁去連更遠的木樁！"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "拔柱瓦解機制：拆除木樁與所屬連線隨之瓦解",
+    "subtitle": "動態骨牌效應：失去支撐的動線必須徹底清除",
+    "desc": "當某木樁被拔除時，原本由它支撐連接的所有連線（四個方向）將同時瓦解。清除動線時，沿著該方向一直清除，直到抵達邊界、或原本就沒有連線、或遇到另一木樁為止！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 拔柱瓦解機制：拔除木樁後，其延伸連線瓦解",
+        "highlight": "<span class=\"token-comment\"># 拔柱瓦解機制：拔除木樁後，其延伸連線瓦解</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "瓦解機制註釋",
+        "why": "t=1 邏輯"
+      },
+      {
+        "line": 2,
+        "code": "line = [4, 1, 1, 4]  # 兩木樁間有水平連線",
+        "highlight": "<span class=\"token-ident\">line</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 兩木樁間有水平連線</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "初始線段狀態",
+        "why": "兩端有柱中途有線"
+      },
+      {
+        "line": 3,
+        "code": "print('初始狀態:', line)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;初始狀態:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">line</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出初始狀態",
+        "why": "[4, 1, 1, 4]"
+      },
+      {
+        "line": 4,
+        "code": "# 拔除右側木樁 (索引 3)",
+        "highlight": "<span class=\"token-comment\"># 拔除右側木樁 (索引 3)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "拔柱說明",
+        "why": "拔除"
+      },
+      {
+        "line": 5,
+        "code": "line[3] = 0",
+        "highlight": "<span class=\"token-ident\">line</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "木樁自身歸零",
+        "why": "line[3] = 0"
+      },
+      {
+        "line": 6,
+        "code": "# 清除向左延伸的水平連線 (遇 1 則清 0)",
+        "highlight": "<span class=\"token-comment\"># 清除向左延伸的水平連線 (遇 1 則清 0)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "拆線說明",
+        "why": "沿線追溯"
+      },
+      {
+        "line": 7,
+        "code": "idx = 2",
+        "highlight": "<span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "向左追蹤指標",
+        "why": "從鄰格開始"
+      },
+      {
+        "line": 8,
+        "code": "while idx >= 0 and line[idx] == 1:",
+        "highlight": "<span class=\"token-keyword\">while</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">line</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "迴圈條件判斷",
+        "why": "直到無連線"
+      },
+      {
+        "line": 9,
+        "code": "    line[idx] = 0",
+        "highlight": "    <span class=\"token-ident\">line</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "線段歸零",
+        "why": "消除"
+      },
+      {
+        "line": 10,
+        "code": "    idx -= 1",
+        "highlight": "    <span class=\"token-ident\">idx</span> <span class=\"token-op\">-=</span> <span class=\"token-number\">1</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "指標左移",
+        "why": "前進"
+      },
+      {
+        "line": 11,
+        "code": "print('拔柱拆線後狀態:', line)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;拔柱拆線後狀態:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">line</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出拆線後狀態",
+        "why": "[4, 0, 0, 0]"
+      }
+    ],
+    "output": "初始狀態: [4, 1, 1, 4]\n拔柱拆線後狀態: [4, 0, 0, 0]",
+    "diagram": {
+      "type": "flowchart",
+      "title": "拔柱瓦解流程",
+      "content": "拔除柱子 (r, c) = 0 ➔ 沿四方向追蹤連線 ➔ 清除該方向連線位元 ➔ 遇無連線或另一木樁即停止"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "拔柱停止邊界",
+        "content": "拔除木樁後，拆線遇到另一根木樁時必須停下來，不能把另一根木樁也刪掉！"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "狀態編碼設計：二進位位元遮罩 (Bitmask)",
+    "subtitle": "0:空、1:橫線、2:直線、3:十字交錯、4:木樁",
+    "desc": "在同一格子中，水平線與垂直線可能同時存在（十字交錯）。若用不同數值表示，我們可以使用位元權重：1 代表水平線 (bit 0)，2 代表垂直線 (bit 1)，1|2 = 3 代表十字交錯，4 代表木樁！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 狀態編碼設計：二進位位元遮罩",
+        "highlight": "<span class=\"token-comment\"># 狀態編碼設計：二進位位元遮罩</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "編碼定義註釋",
+        "why": "Bitmask 概念"
+      },
+      {
+        "line": 2,
+        "code": "EMPTY, HORIZ, VERT, POST = 0, 1, 2, 4",
+        "highlight": "<span class=\"token-ident\">EMPTY</span><span class=\"token-op\">,</span> <span class=\"token-ident\">HORIZ</span><span class=\"token-op\">,</span> <span class=\"token-ident\">VERT</span><span class=\"token-op\">,</span> <span class=\"token-ident\">POST</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "四大常數定義",
+        "why": "0, 1, 2, 4"
+      },
+      {
+        "line": 3,
+        "code": "cross = HORIZ | VERT  # 十字交錯 1 | 2 = 3",
+        "highlight": "<span class=\"token-ident\">cross</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">HORIZ</span> <span class=\"token-op\">|</span> <span class=\"token-ident\">VERT</span>  <span class=\"token-comment\"># 十字交錯 1 | 2 = 3</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "位元或運算生成十字",
+        "why": "1 | 2 = 3"
+      },
+      {
+        "line": 4,
+        "code": "print('水平線編碼:', HORIZ)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;水平線編碼:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">HORIZ</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出水平線編碼",
+        "why": "1"
+      },
+      {
+        "line": 5,
+        "code": "print('垂直線編碼:', VERT)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;垂直線編碼:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">VERT</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出垂直線編碼",
+        "why": "2"
+      },
+      {
+        "line": 6,
+        "code": "print('十字交錯編碼 (1|2):', cross)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;十字交錯編碼 (1|2):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cross</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出十字交錯編碼",
+        "why": "3"
+      },
+      {
+        "line": 7,
+        "code": "print('木樁編碼:', POST)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;木樁編碼:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">POST</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出木樁編碼",
+        "why": "4"
+      },
+      {
+        "line": 8,
+        "code": "print('十字交錯包含水平線:', bool(cross & HORIZ))",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;十字交錯包含水平線:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-ident\">cross</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">HORIZ</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "檢測是否含水平線",
+        "why": "3 & 1 != 0"
+      },
+      {
+        "line": 9,
+        "code": "print('十字交錯包含垂直線:', bool(cross & VERT))",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;十字交錯包含垂直線:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-ident\">cross</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">VERT</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "檢測是否含垂直線",
+        "why": "3 & 2 != 0"
+      }
+    ],
+    "output": "水平線編碼: 1\n垂直線編碼: 2\n十字交錯編碼 (1|2): 3\n木樁編碼: 4\n十字交錯包含水平線: True\n十字交錯包含垂直線: True",
+    "diagram": {
+      "type": "flowchart",
+      "title": "二進位位元編碼結構",
+      "content": "Bit 0 (1): 水平線\nBit 1 (2): 垂直線\nBit 0 + 1 (3): 十字交叉\nBit 2 (4): 木樁實體"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "位元運算的巨大優勢",
+        "content": "使用位元遮罩時，拆除水平線只需 `cell &= ~1`，原本的垂直線會完美保留；疊加連線只需 `cell |= bit`，優雅簡潔！"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "動態面積統計與歷史最大值追蹤",
+    "subtitle": "統計非零格子總數，維護 max_area 與 final_area",
+    "desc": "每次操作完成後，所有非空格子（包含木樁與所有連線格子，即值 != 0）所佔有的格子總數即為當前覆蓋面積。題目要求輸出歷程中的「最大覆蓋面積」與「最終覆蓋面積」！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 動態面積統計與歷史最大值追蹤",
+        "highlight": "<span class=\"token-comment\"># 動態面積統計與歷史最大值追蹤</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "面積統計註釋",
+        "why": "統計架構"
+      },
+      {
+        "line": 2,
+        "code": "history_areas = [1, 3, 7, 10, 6]  # 歷次操作後非 0 格數",
+        "highlight": "<span class=\"token-ident\">history_areas</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">7</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 歷次操作後非 0 格數</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "模擬歷史面積串列",
+        "why": "測試數據"
+      },
+      {
+        "line": 3,
+        "code": "max_area = 0",
+        "highlight": "<span class=\"token-ident\">max_area</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "初始化歷史最大值為0",
+        "why": "max_area = 0"
+      },
+      {
+        "line": 4,
+        "code": "for cur in history_areas:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">cur</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">history_areas</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪歷次面積",
+        "why": "for 迴圈"
+      },
+      {
+        "line": 5,
+        "code": "    if cur > max_area:",
+        "highlight": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">cur</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">max_area</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "大於歷史最大判定",
+        "why": "cur > max"
+      },
+      {
+        "line": 6,
+        "code": "        max_area = cur",
+        "highlight": "        <span class=\"token-ident\">max_area</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cur</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "更新歷史最大值",
+        "why": "維持最大"
+      },
+      {
+        "line": 7,
+        "code": "final_area = history_areas[-1]",
+        "highlight": "<span class=\"token-ident\">final_area</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">history_areas</span><span class=\"token-op\">[</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "取最後一輪最終值",
+        "why": "final_area"
+      },
+      {
+        "line": 8,
+        "code": "print('歷程最大覆蓋面積:', max_area)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;歷程最大覆蓋面積:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">max_area</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出最大覆蓋面積",
+        "why": "10"
+      },
+      {
+        "line": 9,
+        "code": "print('最終覆蓋面積:', final_area)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;最終覆蓋面積:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">final_area</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出最終覆蓋面積",
+        "why": "6"
+      }
+    ],
+    "output": "歷程最大覆蓋面積: 10\n最終覆蓋面積: 6",
+    "diagram": {
+      "type": "flowchart",
+      "title": "面積統計雙指針更新",
+      "content": "每次操作後 ➔ current_area = sum(cell != 0) ➔ max_area = max(max_area, cur) ➔ final_area = cur"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "輸出格式提醒",
+        "content": "第一行印出歷程中出現過的最大面積，第二行印出最後一次操作完成後的最終面積，順序切勿顛倒！"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "語法鐵律一：二維網格初始化避坑",
+    "subtitle": "列表生成式 vs. 乘號淺拷貝的血淚教訓",
+    "desc": "在 Python 中建立 M×N 矩陣時，若使用 `[[0] * n] * m`，所有列將指向同一個記憶體串列，修改一列會導致整張地圖全列連動！必須嚴格使用列表生成式！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 語法鐵律一：二維網格初始化避坑",
+        "highlight": "<span class=\"token-comment\"># 語法鐵律一：二維網格初始化避坑</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始化鐵律註釋",
+        "why": "避坑指南"
+      },
+      {
+        "line": 2,
+        "code": "m, n = 3, 4",
+        "highlight": "<span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "設定列與行維度",
+        "why": "3x4"
+      },
+      {
+        "line": 3,
+        "code": "correct_grid = [[0] * n for _ in range(m)]",
+        "highlight": "<span class=\"token-ident\">correct_grid</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "列表推導式建立獨立列",
+        "why": "獨立記憶體空間"
+      },
+      {
+        "line": 4,
+        "code": "correct_grid[0][1] = 4  # 僅修改第 0 列第 1 行",
+        "highlight": "<span class=\"token-ident\">correct_grid</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>  <span class=\"token-comment\"># 僅修改第 0 列第 1 行</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "修改首列特定元素為4",
+        "why": "立木樁"
+      },
+      {
+        "line": 5,
+        "code": "print('正確獨立列初始化:', correct_grid[0])",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;正確獨立列初始化:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">correct_grid</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出首列驗證",
+        "why": "[0, 4, 0, 0]"
+      },
+      {
+        "line": 6,
+        "code": "print('第二列不受影響:', correct_grid[1])",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;第二列不受影響:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">correct_grid</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出次列證明不受影響",
+        "why": "[0, 0, 0, 0]"
+      },
+      {
+        "line": 7,
+        "code": "# 錯誤寫法 [[0]*n]*m 會使所有列共享同一物件！",
+        "highlight": "<span class=\"token-comment\"># 錯誤寫法 [[0]*n]*m 會使所有列共享同一物件！</span>",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "致命錯誤警告",
+        "why": "禁止 [[0]*n]*m"
+      }
+    ],
+    "output": "正確獨立列初始化: [0, 4, 0, 0]\n第二列不受影響: [0, 0, 0, 0]",
+    "diagram": {
+      "type": "warning",
+      "title": "淺拷貝乘法陷阱",
+      "content": "[[0]*n]*m ➔ 全列共用同一指標 ➔ 改一格全列變更 ➔ 考場爆零！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "標準初始化公式",
+        "content": "牢記公式：`grid = [[0] * n for _ in range(m)]`，M 在外層 range，N 在內層乘號。"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "語法鐵律二：位元遮罩運算與複合狀態",
+    "subtitle": "用 |= 疊加連線，&= ~ 瓦解連線，& 檢測狀態",
+    "desc": "熟練運用三大二進位位元運算子：`cell |= bit`（將該方向連線疊加）、`cell &= ~bit`（精準消除該方向連線且保留其他方向）、`bool(cell & bit)`（判定是否已有該連線）。",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 語法鐵律二：位元遮罩運算與複合狀態",
+        "highlight": "<span class=\"token-comment\"># 語法鐵律二：位元遮罩運算與複合狀態</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "位元運算註釋",
+        "why": "Bitmask 鐵律"
+      },
+      {
+        "line": 2,
+        "code": "cell = 0",
+        "highlight": "<span class=\"token-ident\">cell</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始值 0",
+        "why": "空"
+      },
+      {
+        "line": 3,
+        "code": "cell |= 1  # 加入水平線 (bit 1)",
+        "highlight": "<span class=\"token-ident\">cell</span> <span class=\"token-op\">|=</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 加入水平線 (bit 1)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "加入水平線 bit 1",
+        "why": "cell |= 1"
+      },
+      {
+        "line": 4,
+        "code": "cell |= 2  # 加入垂直線 (bit 2) -> 變成十字 3",
+        "highlight": "<span class=\"token-ident\">cell</span> <span class=\"token-op\">|=</span> <span class=\"token-number\">2</span>  <span class=\"token-comment\"># 加入垂直線 (bit 2) -&gt; 變成十字 3</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "加入垂直線 bit 2",
+        "why": "cell |= 2 ➔ 3"
+      },
+      {
+        "line": 5,
+        "code": "print('疊加兩方向連線後:', cell)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;疊加兩方向連線後:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cell</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出十字交錯值",
+        "why": "輸出 3"
+      },
+      {
+        "line": 6,
+        "code": "# 拔除垂直線：利用位元反轉與遮罩 &= ~2",
+        "highlight": "<span class=\"token-comment\"># 拔除垂直線：利用位元反轉與遮罩 &amp;= ~2</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "清除解說",
+        "why": "~2 取反"
+      },
+      {
+        "line": 7,
+        "code": "cell &= ~2",
+        "highlight": "<span class=\"token-ident\">cell</span> <span class=\"token-op\">&amp;=</span> <span class=\"token-op\">~</span><span class=\"token-number\">2</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "位元清除垂直線",
+        "why": "3 & ~2 ➔ 1"
+      },
+      {
+        "line": 8,
+        "code": "print('清除垂直線後保留水平線:', cell)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;清除垂直線後保留水平線:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cell</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出保留水平線結果",
+        "why": "輸出 1"
+      }
+    ],
+    "output": "疊加兩方向連線後: 3\n清除垂直線後保留水平線: 1",
+    "diagram": {
+      "type": "flowchart",
+      "title": "位元運算心法",
+      "content": "疊加：x |= bit (染線)\n清除：x &= ~bit (擦線)\n檢驗：(x & bit) != 0 (探線)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "運算子優先級",
+        "content": "`&` 優先級低於比較運算子，檢驗時請務必加上括號：`if (g[r][c] & bit):`。"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "語法鐵律三：四向對稱常數結構 (dr, dc, bit)",
+    "subtitle": "用資料驅動取代複製貼上，消除重複程式碼",
+    "desc": "垂直方向對應行座標不變、列座標變化，連線為垂直線 (bit 2)；水平方向對應列座標不變、行座標變化，連線為水平線 (bit 1)。將方向向量與對應位元打包成常數串列！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 語法鐵律三：四向對稱常數結構 (dr, dc, bit)",
+        "highlight": "<span class=\"token-comment\"># 語法鐵律三：四向對稱常數結構 (dr, dc, bit)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "方向常數註釋",
+        "why": "資料驅動"
+      },
+      {
+        "line": 2,
+        "code": "DIRS = [",
+        "highlight": "<span class=\"token-ident\">DIRS</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "定義常數清單開頭",
+        "why": "DIRS"
+      },
+      {
+        "line": 3,
+        "code": "    (-1, 0, 2),  # 向上：垂直線 (bit 2)",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>  <span class=\"token-comment\"># 向上：垂直線 (bit 2)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "向上向量與 bit 2",
+        "why": "(-1, 0, 2)"
+      },
+      {
+        "line": 4,
+        "code": "    (1, 0, 2),   # 向下：垂直線 (bit 2)",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>   <span class=\"token-comment\"># 向下：垂直線 (bit 2)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "向下向量與 bit 2",
+        "why": "(1, 0, 2)"
+      },
+      {
+        "line": 5,
+        "code": "    (0, -1, 1),  # 向左：水平線 (bit 1)",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>  <span class=\"token-comment\"># 向左：水平線 (bit 1)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "向左向量與 bit 1",
+        "why": "(0, -1, 1)"
+      },
+      {
+        "line": 6,
+        "code": "    (0, 1, 1)    # 向右：水平線 (bit 1)",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span>    <span class=\"token-comment\"># 向右：水平線 (bit 1)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "向右向量與 bit 1",
+        "why": "(0, 1, 1)"
+      },
+      {
+        "line": 7,
+        "code": "]",
+        "highlight": "<span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "清單結尾",
+        "why": "對稱優雅"
+      },
+      {
+        "line": 8,
+        "code": "for dr, dc, b in DIRS:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪方向常數",
+        "why": "dr, dc, b"
+      },
+      {
+        "line": 9,
+        "code": "    name = '垂直' if b == 2 else '水平'",
+        "highlight": "    <span class=\"token-ident\">name</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&#x27;垂直&#x27;</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">==</span> <span class=\"token-number\">2</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">&#x27;水平&#x27;</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "判定線段名稱",
+        "why": "垂直/水平"
+      },
+      {
+        "line": 10,
+        "code": "    print(f'向量 ({dr:+d}, {dc:+d}) -> {name}線 (bit {b})')",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;向量 (<span class=\"token-op\">{</span><span class=\"token-ident\">dr</span><span class=\"token-op\">:</span>+d<span class=\"token-op\">}</span>, <span class=\"token-op\">{</span><span class=\"token-ident\">dc</span><span class=\"token-op\">:</span>+d<span class=\"token-op\">}</span>) -&gt; <span class=\"token-op\">{</span><span class=\"token-ident\">name</span><span class=\"token-op\">}</span>線 (bit <span class=\"token-op\">{</span><span class=\"token-ident\">b</span><span class=\"token-op\">}</span>)&#x27;<span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "格式化印出向量與位元",
+        "why": "清楚對照"
+      }
+    ],
+    "output": "向量 (-1, +0) -> 垂直線 (bit 2)\n向量 (+1, +0) -> 垂直線 (bit 2)\n向量 (+0, -1) -> 水平線 (bit 1)\n向量 (+0, +1) -> 水平線 (bit 1)",
+    "diagram": {
+      "type": "flowchart",
+      "title": "方向常數與位元對應表",
+      "content": "[-1, 0, 2] ➔ 上 (垂直)\n[+1, 0, 2] ➔ 下 (垂直)\n[0, -1, 1] ➔ 左 (水平)\n[0, +1, 1] ➔ 右 (水平)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "架構精簡化",
+        "content": "使用此常數結構，立柱搜尋與拔柱清除只需一個統一的 `for dr, dc, bit in DIRS:` 迴圈，程式碼行數直接砍半！"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "語法鐵律四：射線探測最近木樁演算法",
+    "subtitle": "沿著向量推進，邊界守衛與首根木樁鎖定",
+    "desc": "從起點 (r, c) 出發，每次前進向量 (dr, dc)。在不出界的前提下，若當前格不是木樁（`!= 4`），就繼續推進；一旦撞上木樁（`== 4`）或超出邊界便立即停止！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 語法鐵律四：射線探測最近木樁演算法",
+        "highlight": "<span class=\"token-comment\"># 語法鐵律四：射線探測最近木樁演算法</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "射線演算法註釋",
+        "why": "Raycasting 核心"
+      },
+      {
+        "line": 2,
+        "code": "m, n = 5, 5",
+        "highlight": "<span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "設定網格維度",
+        "why": "5x5"
+      },
+      {
+        "line": 3,
+        "code": "grid = [[0] * n for _ in range(m)]",
+        "highlight": "<span class=\"token-ident\">grid</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始化網格",
+        "why": "全零"
+      },
+      {
+        "line": 4,
+        "code": "grid[0][2] = 4  # 在 (0, 2) 放置一木樁",
+        "highlight": "<span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>  <span class=\"token-comment\"># 在 (0, 2) 放置一木樁</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "設定目標木樁在 (0, 2)",
+        "why": "木樁 4"
+      },
+      {
+        "line": 5,
+        "code": "r, c, dr, dc = 3, 2, -1, 0  # 從 (3, 2) 向上搜尋",
+        "highlight": "<span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 從 (3, 2) 向上搜尋</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "設定起點與向上向量",
+        "why": "dr=-1, dc=0"
+      },
+      {
+        "line": 6,
+        "code": "nr, nc = r + dr, c + dc",
+        "highlight": "<span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "前進第一步",
+        "why": "nr, nc"
+      },
+      {
+        "line": 7,
+        "code": "while 0 <= nr < m and 0 <= nc < n and grid[nr][nc] != 4:",
+        "highlight": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">4</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "邊界與非木樁條件",
+        "why": "0<=nr<m and !=4"
+      },
+      {
+        "line": 8,
+        "code": "    nr += dr; nc += dc",
+        "highlight": "    <span class=\"token-ident\">nr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "沿射線步進",
+        "why": "nr+=dr"
+      },
+      {
+        "line": 9,
+        "code": "found = (0 <= nr < m and 0 <= nc < n and grid[nr][nc] == 4)",
+        "highlight": "<span class=\"token-ident\">found</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">4</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "判定是否成功鎖定木樁",
+        "why": "界內且值為4"
+      },
+      {
+        "line": 10,
+        "code": "print(f'從 (3, 2) 向上射線是否探測到木樁: {found}，座標: ({nr}, {nc})')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;從 (3, 2) 向上射線是否探測到木樁: <span class=\"token-op\">{</span><span class=\"token-ident\">found</span><span class=\"token-op\">}</span>，座標: (<span class=\"token-op\">{</span><span class=\"token-ident\">nr</span><span class=\"token-op\">}</span>, <span class=\"token-op\">{</span><span class=\"token-ident\">nc</span><span class=\"token-op\">}</span>)&#x27;<span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出探測結果與座標",
+        "why": "True, (0, 2)"
+      }
+    ],
+    "output": "從 (3, 2) 向上射線是否探測到木樁: True，座標: (0, 2)",
+    "diagram": {
+      "type": "flowchart",
+      "title": "射線探測狀態機",
+      "content": "(r, c) ➔ nr += dr, nc += dc ➔ 越界？➔ 失敗停止\n未越界 ➔ 是木樁(4)？➔ 鎖定目標，準備拉線！\n未越界 ➔ 是空格/線？➔ 繼續前進"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "短路求值保證安全",
+        "content": "`while` 條件中必須將邊界判定 `0 <= nr < m and 0 <= nc < n` 寫在 `grid[nr][nc]` 之前，利用短路求值防止 IndexError！"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "語法鐵律五：區間線段位元染色演算法",
+    "subtitle": "從起點推進至目標木樁，使用 |= 逐格疊加連線",
+    "desc": "探測到最近木樁 (nr, nc) 後，從起點出發走訪中間所有格子，直到抵達目標木樁座標為止。對區間內每格執行 `grid[tr][tc] |= bit`，精準完成連線染色！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 語法鐵律五：區間線段位元染色演算法",
+        "highlight": "<span class=\"token-comment\"># 語法鐵律五：區間線段位元染色演算法</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "染色演算法註釋",
+        "why": "染色實作"
+      },
+      {
+        "line": 2,
+        "code": "m, n = 5, 5",
+        "highlight": "<span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "設定維度",
+        "why": "5x5"
+      },
+      {
+        "line": 3,
+        "code": "grid = [[0] * n for _ in range(m)]",
+        "highlight": "<span class=\"token-ident\">grid</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始化網格",
+        "why": "全零"
+      },
+      {
+        "line": 4,
+        "code": "r, c, target_r, target_c, bit = 3, 2, 0, 2, 2",
+        "highlight": "<span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">target_r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">target_c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">bit</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "設定起點、目標點與垂直bit",
+        "why": "bit=2"
+      },
+      {
+        "line": 5,
+        "code": "tr, tc = r - 1, c",
+        "highlight": "<span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "從起點前一格出發",
+        "why": "tr, tc"
+      },
+      {
+        "line": 6,
+        "code": "while (tr, tc) != (target_r, target_c):",
+        "highlight": "<span class=\"token-keyword\">while</span> <span class=\"token-op\">(</span><span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span><span class=\"token-op\">)</span> <span class=\"token-op\">!=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">target_r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">target_c</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "直到抵達目標木樁座標",
+        "why": "!="
+      },
+      {
+        "line": 7,
+        "code": "    grid[tr][tc] |= bit",
+        "highlight": "    <span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-ident\">tr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">tc</span><span class=\"token-op\">]</span> <span class=\"token-op\">|=</span> <span class=\"token-ident\">bit</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "疊加染色 |= bit",
+        "why": "|= 2"
+      },
+      {
+        "line": 8,
+        "code": "    tr -= 1",
+        "highlight": "    <span class=\"token-ident\">tr</span> <span class=\"token-op\">-=</span> <span class=\"token-number\">1</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "向目標前進",
+        "why": "tr -= 1"
+      },
+      {
+        "line": 9,
+        "code": "col_vals = [grid[i][2] for i in range(m)]",
+        "highlight": "<span class=\"token-ident\">col_vals</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "收集該行所有數值",
+        "why": "行切片"
+      },
+      {
+        "line": 10,
+        "code": "print('染色後第 2 行的值 (0..4):', col_vals)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;染色後第 2 行的值 (0..4):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">col_vals</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出該行各格數值",
+        "why": "[0, 2, 2, 0, 0]"
+      },
+      {
+        "line": 11,
+        "code": "print('成功在 (3,2) 與 (0,2) 中間拉上垂直線！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;成功在 (3,2) 與 (0,2) 中間拉上垂直線！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出成功訊息",
+        "why": "連線成功"
+      }
+    ],
+    "output": "染色後第 2 行的值 (0..4): [0, 2, 2, 0, 0]\n成功在 (3,2) 與 (0,2) 中間拉上垂直線！",
+    "diagram": {
+      "type": "flowchart",
+      "title": "區間染色軌跡",
+      "content": "(3, 2) 起點 ➔ (2, 2) 染 2 ➔ (1, 2) 染 2 ➔ 抵達 (0, 2) 停 ➔ 成功保留兩端！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "兩端木樁不被染色覆蓋",
+        "content": "區間只染「中間」的格子，兩端木樁的值維持 4，千萬不能把目標木樁覆蓋成 2 或 1！"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "語法鐵律六：沿線回溯拆除演算法",
+    "subtitle": "沿方向推進，利用 &= ~bit 瓦解連線，遇障即停",
+    "desc": "拔除木樁後，沿四方向推進。只要當前格含有該方向連線（`grid[nr][nc] & bit` 為真），就執行 `grid[nr][nc] &= ~bit`。因為木樁 4 的前兩位元為 0，遇木樁會自然中斷！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 語法鐵律六：沿線回溯拆除演算法",
+        "highlight": "<span class=\"token-comment\"># 語法鐵律六：沿線回溯拆除演算法</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "回溯拆線註釋",
+        "why": "拔柱拆線"
+      },
+      {
+        "line": 2,
+        "code": "row = [4, 1, 1, 0, 4]  # 索引 0, 4 為木樁，1, 2 為水平線",
+        "highlight": "<span class=\"token-ident\">row</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 索引 0, 4 為木樁，1, 2 為水平線</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始列資料",
+        "why": "[4, 1, 1, 0, 4]"
+      },
+      {
+        "line": 3,
+        "code": "row[0] = 0  # 拔除索引 0 木樁",
+        "highlight": "<span class=\"token-ident\">row</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 拔除索引 0 木樁</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "拔除首格木樁置0",
+        "why": "木樁拔除"
+      },
+      {
+        "line": 4,
+        "code": "c, dc, bit = 1, 1, 1",
+        "highlight": "<span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">bit</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "向右追蹤與水平bit",
+        "why": "dc=1, bit=1"
+      },
+      {
+        "line": 5,
+        "code": "while 0 <= c < 5 and (row[c] & bit):",
+        "highlight": "<span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">&lt;</span> <span class=\"token-number\">5</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-ident\">row</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">bit</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "在界內且包含水平線條件",
+        "why": "row[c] & 1"
+      },
+      {
+        "line": 6,
+        "code": "    row[c] &= ~bit",
+        "highlight": "    <span class=\"token-ident\">row</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;=</span> <span class=\"token-op\">~</span><span class=\"token-ident\">bit</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "精準清除水平線",
+        "why": "&= ~1"
+      },
+      {
+        "line": 7,
+        "code": "    c += dc",
+        "highlight": "    <span class=\"token-ident\">c</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "指標推進",
+        "why": "c += dc"
+      },
+      {
+        "line": 8,
+        "code": "print('消除後該列狀態:', row)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;消除後該列狀態:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">row</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出消除後列狀態",
+        "why": "[0, 0, 0, 0, 4]"
+      },
+      {
+        "line": 9,
+        "code": "print('遇非連線格自動停止，後方木樁完好無損！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;遇非連線格自動停止，後方木樁完好無損！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出安全防禦說明",
+        "why": "後方不受波及"
+      }
+    ],
+    "output": "消除後該列狀態: [0, 0, 0, 0, 4]\n遇非連線格自動停止，後方木樁完好無損！",
+    "diagram": {
+      "type": "flowchart",
+      "title": "位元拆線終止機制",
+      "content": "若遇空格 (0): 0 & bit == 0 ➔ 終止\n若遇木樁 (4): 4 & 1 == 0, 4 & 2 == 0 ➔ 終止\n若無該向連線: ➔ 終止！自然天然停機！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "二進位天生屏障",
+        "content": "木樁是 4 (二進位 100)，水平是 1 (001)，垂直是 2 (010)。4 與 1、2 做 AND 運算皆為 0，拆線絕對不會誤傷木樁！"
+      }
+    ]
+  },
+  {
+    "page": 13,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷一：既有連線重複立柱防拉線",
+    "subtitle": "真題核心陷阱：若立柱點已有該向連線，則不向該向拉線",
+    "desc": "APCS 官方真題規則明訂：「若新立柱點本身『已有該方向的連線』，表示該方向已被兩端的木樁貫通，此時不沿該方向拉新線！」立柱時必須先檢查 `not (grid[r][c] & bit)`！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 考場地雷一：既有連線重複立柱防拉線",
+        "highlight": "<span class=\"token-comment\"># 考場地雷一：既有連線重複立柱防拉線</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "地雷一註釋",
+        "why": "真題必考"
+      },
+      {
+        "line": 2,
+        "code": "grid = [[4, 1, 1, 4]]",
+        "highlight": "<span class=\"token-ident\">grid</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "已有一條水平貫通連線",
+        "why": "兩端有柱中有線"
+      },
+      {
+        "line": 3,
+        "code": "r, c = 0, 1  # 準備在 (0, 1) 新增木樁",
+        "highlight": "<span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 準備在 (0, 1) 新增木樁</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "欲在中間線段立木樁",
+        "why": "線段中途立柱"
+      },
+      {
+        "line": 4,
+        "code": "has_horiz_line = bool(grid[r][c] & 1)",
+        "highlight": "<span class=\"token-ident\">has_horiz_line</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "檢測該格是否已有水平線",
+        "why": "grid[r][c] & 1"
+      },
+      {
+        "line": 5,
+        "code": "print(f'位置 ({r}, {c}) 是否已存在水平線: {has_horiz_line}')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;位置 (<span class=\"token-op\">{</span><span class=\"token-ident\">r</span><span class=\"token-op\">}</span>, <span class=\"token-op\">{</span><span class=\"token-ident\">c</span><span class=\"token-op\">}</span>) 是否已存在水平線: <span class=\"token-op\">{</span><span class=\"token-ident\">has_horiz_line</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出檢測結果",
+        "why": "True"
+      },
+      {
+        "line": 6,
+        "code": "print('防禦原則：若已存在該向連線，則該方向不進行射線搜尋與拉線！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;防禦原則：若已存在該向連線，則該方向不進行射線搜尋與拉線！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出真題防禦原則",
+        "why": "避免重複拉線與錯誤覆蓋"
+      }
+    ],
+    "output": "位置 (0, 1) 是否已存在水平線: True\n防禦原則：若已存在該向連線，則該方向不進行射線搜尋與拉線！",
+    "diagram": {
+      "type": "warning",
+      "title": "既有線條檢查",
+      "content": "若 not (grid[r][c] & bit) ➔ 才發射該方向射線！否則該方向直接略過！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "真題細節",
+        "content": "此判斷是本題能否拿滿 100 分的關鍵之一，許多考生因為漏了這個防護而在特定測資吞下 WA。"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷二：拔柱瓦解誤拆十字交錯",
+    "subtitle": "十字交錯格值為 3，拔除單向時嚴禁直接歸零",
+    "desc": "當一條水平線與一條垂直線在某格相交時，該格數值為 3 (1|2)。拔除水平方向木樁時，該格只能清除水平線 (bit 1)，垂直線 (bit 2) 必須完整保留！若寫 `grid[r][c] = 0` 會當場破壞垂直動線！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 考場地雷二：拔柱瓦解誤拆十字交錯",
+        "highlight": "<span class=\"token-comment\"># 考場地雷二：拔柱瓦解誤拆十字交錯</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "地雷二註釋",
+        "why": "交錯拆線"
+      },
+      {
+        "line": 2,
+        "code": "cell = 3  # 十字交錯 (1 | 2 = 3)",
+        "highlight": "<span class=\"token-ident\">cell</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>  <span class=\"token-comment\"># 十字交錯 (1 | 2 = 3)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "設定格子為十字交錯值 3",
+        "why": "cross = 3"
+      },
+      {
+        "line": 3,
+        "code": "cell &= ~1  # 僅清除水平線 (bit 1)",
+        "highlight": "<span class=\"token-ident\">cell</span> <span class=\"token-op\">&amp;=</span> <span class=\"token-op\">~</span><span class=\"token-number\">1</span>  <span class=\"token-comment\"># 僅清除水平線 (bit 1)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "位元清除水平線 bit 1",
+        "why": "&= ~1"
+      },
+      {
+        "line": 4,
+        "code": "print('清除水平線後殘留值:', cell)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;清除水平線後殘留值:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cell</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出消除後數值",
+        "why": "2"
+      },
+      {
+        "line": 5,
+        "code": "print('是否仍保有垂直線:', bool(cell & 2))",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;是否仍保有垂直線:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">bool</span><span class=\"token-op\">(</span><span class=\"token-ident\">cell</span> <span class=\"token-op\">&amp;</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "檢驗是否保留垂直線",
+        "why": "True"
+      },
+      {
+        "line": 6,
+        "code": "print('防禦原則：嚴禁直接賦值 0，必須使用 &= ~bit 精準清除！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;防禦原則：嚴禁直接賦值 0，必須使用 &amp;= ~bit 精準清除！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出位元反轉清除原則",
+        "why": "嚴禁 cell = 0"
+      }
+    ],
+    "output": "清除水平線後殘留值: 2\n是否仍保有垂直線: True\n防禦原則：嚴禁直接賦值 0，必須使用 &= ~bit 精準清除！",
+    "diagram": {
+      "type": "warning",
+      "title": "十字交叉防禦",
+      "content": "❌ 踩雷寫法：grid[r][c] = 0 (全毀)\n✅ 安全寫法：grid[r][c] &= ~bit (精準消線)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "位元運算的妙用",
+        "content": "`&= ~bit` 在單線格會把 1 變 0，在交錯格會把 3 變 2，不需寫任何 `if-else`，一行搞定！"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷三：拔柱後未清木樁自身編碼",
+    "subtitle": "拔除木樁時，木樁座標本身必須明確重設為 0",
+    "desc": "在拔除木樁操作中，除了向四方清除連線外，最常見的失誤是「忘記將木樁座標本身清為 0」！若該格仍然殘留 4，後續射線搜尋會將已拔除的幽靈木樁誤認為有效障礙，導致全面出錯！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 考場地雷三：拔柱後未清木樁自身編碼",
+        "highlight": "<span class=\"token-comment\"># 考場地雷三：拔柱後未清木樁自身編碼</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "地雷三註釋",
+        "why": "幽靈木樁陷阱"
+      },
+      {
+        "line": 2,
+        "code": "grid_val = 4  # 原始木樁",
+        "highlight": "<span class=\"token-ident\">grid_val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>  <span class=\"token-comment\"># 原始木樁</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "原始木樁數值 4",
+        "why": "4"
+      },
+      {
+        "line": 3,
+        "code": "# 錯誤示範：只清四方連線，漏清木樁自身",
+        "highlight": "<span class=\"token-comment\"># 錯誤示範：只清四方連線，漏清木樁自身</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "錯誤示範說明",
+        "why": "常見遺漏"
+      },
+      {
+        "line": 4,
+        "code": "# 正確示範：拔柱第一步必須清除本樁",
+        "highlight": "<span class=\"token-comment\"># 正確示範：拔柱第一步必須清除本樁</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "正確步驟說明",
+        "why": "首要動作"
+      },
+      {
+        "line": 5,
+        "code": "grid_val = 0  # 徹底清除本樁",
+        "highlight": "<span class=\"token-ident\">grid_val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 徹底清除本樁</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "木樁自身賦值為 0",
+        "why": "grid[r][c] = 0"
+      },
+      {
+        "line": 6,
+        "code": "print('拔柱後當前格數值:', grid_val)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;拔柱後當前格數值:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">grid_val</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出木樁格數值",
+        "why": "0"
+      },
+      {
+        "line": 7,
+        "code": "print('防禦原則：拔柱第一步必須先執行 grid[r][c] = 0！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;防禦原則：拔柱第一步必須先執行 grid[r][c] = 0！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出防禦原則",
+        "why": "徹底消除"
+      }
+    ],
+    "output": "拔柱後當前格數值: 0\n防禦原則：拔柱第一步必須先執行 grid[r][c] = 0！",
+    "diagram": {
+      "type": "warning",
+      "title": "拔柱標準 SOP",
+      "content": "Step 1: grid[r][c] = 0 (消滅木樁實體)\nStep 2: for dr, dc, bit in DIRS ➔ 清除四方延伸連線"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "先拔樁再拆線",
+        "content": "拔柱必須第一時間把 `grid[r][c]` 設為 0，避免在四向回溯時把自身當作連線起點或終點。"
+      }
+    ]
+  },
+  {
+    "page": 16,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷四：全拔除歸零與歷程最大值",
+    "subtitle": "若所有木樁全被拔除，面積可降為 0，初始 max=0",
+    "desc": "在某些極端測資中，所有的木樁最後都被拔光，此時最終覆蓋面積為 0。歷史最大面積的初始值應設為 0，每輪操作後動態維護 `max_area = max(max_area, cur)`，即可安全應對所有極端情況！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 考場地雷四：全拔除歸零與歷程最大值",
+        "highlight": "<span class=\"token-comment\"># 考場地雷四：全拔除歸零與歷程最大值</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "地雷四註釋",
+        "why": "歸零邊界"
+      },
+      {
+        "line": 2,
+        "code": "history = [2, 5, 0]  # 若全部木樁均被拔除，面積可降為 0",
+        "highlight": "<span class=\"token-ident\">history</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 若全部木樁均被拔除，面積可降為 0</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "模擬歷史面積包含歸零",
+        "why": "極端測資"
+      },
+      {
+        "line": 3,
+        "code": "max_val = 0",
+        "highlight": "<span class=\"token-ident\">max_val</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "初始最大值為0",
+        "why": "max_val = 0"
+      },
+      {
+        "line": 4,
+        "code": "for h in history:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">h</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">history</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪每輪面積",
+        "why": "for 迴圈"
+      },
+      {
+        "line": 5,
+        "code": "    max_val = max(max_val, h)",
+        "highlight": "    <span class=\"token-ident\">max_val</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">max_val</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "取最大值",
+        "why": "max 函式"
+      },
+      {
+        "line": 6,
+        "code": "final_val = history[-1]",
+        "highlight": "<span class=\"token-ident\">final_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">history</span><span class=\"token-op\">[</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "取最後一輪數值",
+        "why": "history[-1]"
+      },
+      {
+        "line": 7,
+        "code": "print('歷程最大面積:', max_val)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;歷程最大面積:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">max_val</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出最大面積",
+        "why": "5"
+      },
+      {
+        "line": 8,
+        "code": "print('最終面積:', final_val)",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;最終面積:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">final_val</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出最終面積",
+        "why": "0"
+      },
+      {
+        "line": 9,
+        "code": "print('防禦原則：初始 max 設 0，即使最終歸零亦能如實記錄！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;防禦原則：初始 max 設 0，即使最終歸零亦能如實記錄！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出防禦總結",
+        "why": "魯棒性滿分"
+      }
+    ],
+    "output": "歷程最大面積: 5\n最終面積: 0\n防禦原則：初始 max 設 0，即使最終歸零亦能如實記錄！",
+    "diagram": {
+      "type": "flowchart",
+      "title": "極限全拔除推演",
+      "content": "立柱 ➔ 面積 2 ➔ 拉線 ➔ 面積 5 ➔ 拔除全空 ➔ 面積 0 ➔ 輸出：最大 5，最終 0"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "嚴謹變數維護",
+        "content": "每次操作結束都即時結算一次面積，絕不在迴圈結束後才回推，邏輯最為清爽。"
+      }
+    ]
+  },
+  {
+    "page": 17,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "官方範例一步步手動推演 (3×5 網格, 6次操作)",
+    "subtitle": "立柱 (0,0),(0,2),(2,2),(2,0),(2,4)，拔柱 (2,2)",
+    "desc": "官方範例一：3×5 網格進行 6 次操作。依序立柱拉線，覆蓋面積逐步擴大至 10 格（歷程最大）；最後拔除中心樞紐 (2,2)，三向連線瓦解，面積降為 6 格！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 官方範例一步步推演 (3x5 網格, 6次操作)",
+        "highlight": "<span class=\"token-comment\"># 官方範例一步步推演 (3x5 網格, 6次操作)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "範例一推演註釋",
+        "why": "真題範例一"
+      },
+      {
+        "line": 2,
+        "code": "steps = [",
+        "highlight": "<span class=\"token-ident\">steps</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "操作歷程步驟串列",
+        "why": "steps"
+      },
+      {
+        "line": 3,
+        "code": "    (1, '立 (0,0) 面積 1'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (0,0) 面積 1&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 1 說明",
+        "why": "面積1"
+      },
+      {
+        "line": 4,
+        "code": "    (2, '立 (0,2) 拉線至 (0,0) 面積 3'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (0,2) 拉線至 (0,0) 面積 3&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 2 說明",
+        "why": "水平拉線"
+      },
+      {
+        "line": 5,
+        "code": "    (3, '立 (2,2) 拉線至 (0,2) 面積 5'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (2,2) 拉線至 (0,2) 面積 5&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 3 說明",
+        "why": "垂直拉線"
+      },
+      {
+        "line": 6,
+        "code": "    (4, '立 (2,0) 拉線至 (0,0) 與 (2,2) 面積 8'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (2,0) 拉線至 (0,0) 與 (2,2) 面積 8&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 4 說明",
+        "why": "雙向拉線"
+      },
+      {
+        "line": 7,
+        "code": "    (5, '立 (2,4) 拉線至 (2,2) 面積 10 (歷程最大)'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (2,4) 拉線至 (2,2) 面積 10 (歷程最大)&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 5 說明 (歷程最大)",
+        "why": "覆蓋達10"
+      },
+      {
+        "line": 8,
+        "code": "    (6, '拔 (2,2) 瓦解三向連線 面積降為 6 (最終值)')",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;拔 (2,2) 瓦解三向連線 面積降為 6 (最終值)&#x27;</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 6 說明 (拔柱最終)",
+        "why": "拔除瓦解"
+      },
+      {
+        "line": 9,
+        "code": "]",
+        "highlight": "<span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "串列結束",
+        "why": "對照"
+      },
+      {
+        "line": 10,
+        "code": "for step, desc in steps:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">step</span><span class=\"token-op\">,</span> <span class=\"token-ident\">desc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">steps</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪每步驟",
+        "why": "for"
+      },
+      {
+        "line": 11,
+        "code": "    print(f'Step {step}: {desc}')",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;Step <span class=\"token-op\">{</span><span class=\"token-ident\">step</span><span class=\"token-op\">}</span>: <span class=\"token-op\">{</span><span class=\"token-ident\">desc</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出步驟日誌",
+        "why": "印出"
+      },
+      {
+        "line": 12,
+        "code": "print('範例一驗證結果: 最大 10，最終 6')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;範例一驗證結果: 最大 10，最終 6&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出範例一總結",
+        "why": "10 與 6"
+      }
+    ],
+    "output": "Step 1: 立 (0,0) 面積 1\nStep 2: 立 (0,2) 拉線至 (0,0) 面積 3\nStep 3: 立 (2,2) 拉線至 (0,2) 面積 5\nStep 4: 立 (2,0) 拉線至 (0,0) 與 (2,2) 面積 8\nStep 5: 立 (2,4) 拉線至 (2,2) 面積 10 (歷程最大)\nStep 6: 拔 (2,2) 瓦解三向連線 面積降為 6 (最終值)\n範例一驗證結果: 最大 10，最終 6",
+    "diagram": {
+      "type": "flowchart",
+      "title": "範例一面積消長圖",
+      "content": "0 ➔ 1 ➔ 3 ➔ 5 ➔ 8 ➔ 10 (MAX) ➔ 拔除 (2,2) ➔ 6 (FINAL)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "樞紐拔除影響",
+        "content": "(2,2) 原本連接著 (0,2)、(2,0)、(2,4)，拔除後這三條線全部瓦解，面積一口氣減少 4 格！"
+      }
+    ]
+  },
+  {
+    "page": 18,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "官方範例二十字交錯手動推演 (5×5 網格, 7次操作)",
+    "subtitle": "十字穿透、孤立木樁與局部拔柱綜合檢驗",
+    "desc": "官方範例二展示了更複雜的情境：包含孤立無連線的木樁 (0,3)、十字穿透連線與多柱阻隔。第七步拔除 (4,3) 後，面積由 12 降至 7！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 官方範例二推演 (5x5 網格, 7次操作十字交錯)",
+        "highlight": "<span class=\"token-comment\"># 官方範例二推演 (5x5 網格, 7次操作十字交錯)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "範例二推演註釋",
+        "why": "真題範例二"
+      },
+      {
+        "line": 2,
+        "code": "steps2 = [",
+        "highlight": "<span class=\"token-ident\">steps2</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "操作歷程串列",
+        "why": "steps2"
+      },
+      {
+        "line": 3,
+        "code": "    (1, '立 (2,2) 面積 1'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (2,2) 面積 1&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 1 說明",
+        "why": "首柱"
+      },
+      {
+        "line": 4,
+        "code": "    (2, '立 (2,4) 水平拉線 面積 3'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (2,4) 水平拉線 面積 3&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 2 說明",
+        "why": "橫向"
+      },
+      {
+        "line": 5,
+        "code": "    (3, '立 (4,4) 垂直拉線 面積 5'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (4,4) 垂直拉線 面積 5&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 3 說明",
+        "why": "縱向"
+      },
+      {
+        "line": 6,
+        "code": "    (4, '立 (4,0) 水平拉線 面積 9'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (4,0) 水平拉線 面積 9&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 4 說明",
+        "why": "長線"
+      },
+      {
+        "line": 7,
+        "code": "    (5, '立 (0,3) 孤立無拉線 面積 10'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (0,3) 孤立無拉線 面積 10&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 5 孤立柱說明",
+        "why": "孤立柱+1"
+      },
+      {
+        "line": 8,
+        "code": "    (6, '立 (4,3) 上下拉線穿過 面積 12 (歷程最大)'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;立 (4,3) 上下拉線穿過 面積 12 (歷程最大)&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 6 上下拉線 (歷程最大)",
+        "why": "交錯達到12"
+      },
+      {
+        "line": 9,
+        "code": "    (7, '拔 (4,3) 瓦解連線 面積降為 7 (最終值)')",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-number\">7</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;拔 (4,3) 瓦解連線 面積降為 7 (最終值)&#x27;</span><span class=\"token-op\">)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "步驟 7 拔柱瓦解",
+        "why": "拔除降為7"
+      },
+      {
+        "line": 10,
+        "code": "]",
+        "highlight": "<span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪步驟",
+        "why": "for"
+      },
+      {
+        "line": 11,
+        "code": "for step, desc in steps2:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">step</span><span class=\"token-op\">,</span> <span class=\"token-ident\">desc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">steps2</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出每步說明",
+        "why": "印出"
+      },
+      {
+        "line": 12,
+        "code": "    print(f'Step {step}: {desc}')",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;Step <span class=\"token-op\">{</span><span class=\"token-ident\">step</span><span class=\"token-op\">}</span>: <span class=\"token-op\">{</span><span class=\"token-ident\">desc</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出範例二總結",
+        "why": "12 與 7"
+      },
+      {
+        "line": 13,
+        "code": "print('範例二驗證結果: 最大 12，最終 7')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;範例二驗證結果: 最大 12，最終 7&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "執行第 13 行",
+        "why": "邏輯處理"
+      }
+    ],
+    "output": "Step 1: 立 (2,2) 面積 1\nStep 2: 立 (2,4) 水平拉線 面積 3\nStep 3: 立 (4,4) 垂直拉線 面積 5\nStep 4: 立 (4,0) 水平拉線 面積 9\nStep 5: 立 (0,3) 孤立無拉線 面積 10\nStep 6: 立 (4,3) 上下拉線穿過 面積 12 (歷程最大)\nStep 7: 拔 (4,3) 瓦解連線 面積降為 7 (最終值)\n範例二驗證結果: 最大 12，最終 7",
+    "diagram": {
+      "type": "flowchart",
+      "title": "範例二關鍵看點",
+      "content": "(0,3) 孤立柱不連線 ➔ 面積正常 +1\n(4,3) 拔除 ➔ 縱向連線消除，左右水平線因其他柱支撐而受保留！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "多柱交錯考驗",
+        "content": "範例二充分檢驗了位元遮罩在十字交叉時的獨立消線能力，再次印證位元編碼的正確性！"
+      }
+    ]
+  },
+  {
+    "page": 19,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "雙平台滿分通關解答庫：架構解析",
+    "subtitle": "針對 APCS 考場環境與 ZeroJudge 評判系統的差異化適配",
+    "desc": "APCS 考場著重於清晰的單筆輸入與除錯速度；ZeroJudge 線上評判需要支援多筆測資循環輸入與 EOF 串流。本解答庫提供雙平台完全適配版！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 雙平台通用演算法核心架構：位元狀態與四向射線",
+        "highlight": "<span class=\"token-comment\"># 雙平台通用演算法核心架構：位元狀態與四向射線</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "核心架構註釋",
+        "why": "架構解析"
+      },
+      {
+        "line": 2,
+        "code": "DIRS = [(-1, 0, 2), (1, 0, 2), (0, -1, 1), (0, 1, 1)]",
+        "highlight": "<span class=\"token-ident\">DIRS</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "四向常數清單",
+        "why": "DIRS"
+      },
+      {
+        "line": 3,
+        "code": "def ray_cast(r, c, dr, dc, g, m, n):",
+        "highlight": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">ray_cast</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">g</span><span class=\"token-op\">,</span> <span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "射線探測函式",
+        "why": "ray_cast"
+      },
+      {
+        "line": 4,
+        "code": "    nr, nc = r + dr, c + dc",
+        "highlight": "    <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "沿向量位移",
+        "why": "nr, nc"
+      },
+      {
+        "line": 5,
+        "code": "    while 0 <= nr < m and 0 <= nc < n and g[nr][nc] != 4:",
+        "highlight": "    <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">4</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "界內非木樁迴圈",
+        "why": "邊界與防護"
+      },
+      {
+        "line": 6,
+        "code": "        nr += dr; nc += dc",
+        "highlight": "        <span class=\"token-ident\">nr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "推進座標",
+        "why": "步進"
+      },
+      {
+        "line": 7,
+        "code": "    return (nr, nc) if 0 <= nr < m and 0 <= nc < n else None",
+        "highlight": "    <span class=\"token-keyword\">return</span> <span class=\"token-op\">(</span><span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">else</span> <span class=\"token-keyword\">None</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "回傳找到座標或None",
+        "why": "三元運算子"
+      },
+      {
+        "line": 8,
+        "code": "print('通用射線探測架構定義完成！')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;通用射線探測架構定義完成！&#x27;</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出就緒訊息",
+        "why": "就緒"
+      }
+    ],
+    "output": "通用射線探測架構定義完成！",
+    "diagram": {
+      "type": "flowchart",
+      "title": "解答庫三版本體系",
+      "content": "版本一：APCS 淺顯易懂版 (新手友好)\n版本二：APCS 極簡精煉版 (高手必備)\n版本三：ZeroJudge 萬用 AC 版 (多筆EOF)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "架構規劃",
+        "content": "接下來三頁將分別展示 APCS 新手版、APCS 極簡版與 ZeroJudge 萬用版，滿足不同學習層次需求！"
+      }
+    ]
+  },
+  {
+    "page": 20,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "版本一：APCS 官方實作考場專用版（淺顯易懂版）",
+    "subtitle": "步驟明確、新手友善、平鋪直敘穩健滿分",
+    "desc": "APCS 官方實作考場專用版 —— 淺顯易懂一般版。平鋪直敘、步驟明確、不使用生僻語法，考場除錯最不易出錯的穩健滿分方案！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "import sys",
+        "highlight": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "引入sys模組",
+        "why": "sys"
+      },
+      {
+        "line": 2,
+        "code": "I = list(map(int, sys.stdin.read().split()))",
+        "highlight": "<span class=\"token-ident\">I</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sys</span><span class=\"token-op\">.</span><span class=\"token-ident\">stdin</span><span class=\"token-op\">.</span><span class=\"token-ident\">read</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "整數快速讀取",
+        "why": "最速讀取"
+      },
+      {
+        "line": 3,
+        "code": "if I:",
+        "highlight": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">I</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "非空安全防禦",
+        "why": "安全"
+      },
+      {
+        "line": 4,
+        "code": "    m, n, h = I[0], I[1], I[2]",
+        "highlight": "    <span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "解析地圖與次數",
+        "why": "m, n, h"
+      },
+      {
+        "line": 5,
+        "code": "    g, mx, fin = [[0]*n for _ in range(m)], 0, 0",
+        "highlight": "    <span class=\"token-ident\">g</span><span class=\"token-op\">,</span> <span class=\"token-ident\">mx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">fin</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">*</span><span class=\"token-ident\">n</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始化網格與統計",
+        "why": "g, mx, fin"
+      },
+      {
+        "line": 6,
+        "code": "    DIRS = [(-1, 0, 2), (1, 0, 2), (0, -1, 1), (0, 1, 1)]",
+        "highlight": "    <span class=\"token-ident\">DIRS</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "方向與位元常數",
+        "why": "DIRS"
+      },
+      {
+        "line": 7,
+        "code": "    for i in range(3, 3 + 3 * h, 3):",
+        "highlight": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span> <span class=\"token-op\">+</span> <span class=\"token-number\">3</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪所有操作",
+        "why": "range step 3"
+      },
+      {
+        "line": 8,
+        "code": "        r, c, t = I[i], I[i+1], I[i+2]",
+        "highlight": "        <span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "解包每筆操作",
+        "why": "r, c, t"
+      },
+      {
+        "line": 9,
+        "code": "        if t == 0:",
+        "highlight": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "立柱分支判斷",
+        "why": "t==0"
+      },
+      {
+        "line": 10,
+        "code": "            for dr, dc, b in DIRS:",
+        "highlight": "            <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "走訪四方向",
+        "why": "DIRS"
+      },
+      {
+        "line": 11,
+        "code": "                if not (g[r][c] & b):",
+        "highlight": "                <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">b</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "無該向連線判定",
+        "why": "既有線防護"
+      },
+      {
+        "line": 12,
+        "code": "                    nr, nc = r + dr, c + dc",
+        "highlight": "                    <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "探測起點",
+        "why": "nr, nc"
+      },
+      {
+        "line": 13,
+        "code": "                    while 0 <= nr < m and 0 <= nc < n and g[nr][nc] != 4: nr += dr; nc += dc",
+        "highlight": "                    <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">4</span><span class=\"token-op\">:</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "射線搜尋最近木樁",
+        "why": "射線掃描"
+      },
+      {
+        "line": 14,
+        "code": "                    if 0 <= nr < m and 0 <= nc < n:",
+        "highlight": "                    <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "找到木樁判斷",
+        "why": "合法木樁"
+      },
+      {
+        "line": 15,
+        "code": "                        tr, tc = r + dr, c + dc",
+        "highlight": "                        <span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "染色起點",
+        "why": "tr, tc"
+      },
+      {
+        "line": 16,
+        "code": "                        while (tr, tc) != (nr, nc): g[tr][tc] |= b; tr += dr; tc += dc",
+        "highlight": "                        <span class=\"token-keyword\">while</span> <span class=\"token-op\">(</span><span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span><span class=\"token-op\">)</span> <span class=\"token-op\">!=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">tr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">tc</span><span class=\"token-op\">]</span> <span class=\"token-op\">|=</span> <span class=\"token-ident\">b</span><span class=\"token-op\">;</span> <span class=\"token-ident\">tr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">tc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "區間位元染色",
+        "why": "|= b"
+      },
+      {
+        "line": 17,
+        "code": "            g[r][c] = 4",
+        "highlight": "            <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "當前格設為木樁",
+        "why": "g[r][c]=4"
+      },
+      {
+        "line": 18,
+        "code": "        else:",
+        "highlight": "        <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "拔柱分支",
+        "why": "t==1"
+      },
+      {
+        "line": 19,
+        "code": "            g[r][c] = 0",
+        "highlight": "            <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "木樁自身歸零",
+        "why": "清樁"
+      },
+      {
+        "line": 20,
+        "code": "            for dr, dc, b in DIRS:",
+        "highlight": "            <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "走訪四方向",
+        "why": "DIRS"
+      },
+      {
+        "line": 21,
+        "code": "                nr, nc = r + dr, c + dc",
+        "highlight": "                <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "拆線起點",
+        "why": "nr, nc"
+      },
+      {
+        "line": 22,
+        "code": "                while 0 <= nr < m and 0 <= nc < n and (g[nr][nc] & b): g[nr][nc] &= ~b; nr += dr; nc += dc",
+        "highlight": "                <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">b</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;=</span> <span class=\"token-op\">~</span><span class=\"token-ident\">b</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "沿線位元反轉清除",
+        "why": "&= ~b"
+      },
+      {
+        "line": 23,
+        "code": "        cur = sum(v != 0 for row in g for v in row)",
+        "highlight": "        <span class=\"token-ident\">cur</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">v</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">g</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "統計當前非零格數",
+        "why": "sum 統計"
+      },
+      {
+        "line": 24,
+        "code": "        if cur > mx: mx = cur",
+        "highlight": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">cur</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">mx</span><span class=\"token-op\">:</span> <span class=\"token-ident\">mx</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cur</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "更新歷程最大值",
+        "why": "mx"
+      },
+      {
+        "line": 25,
+        "code": "        fin = cur",
+        "highlight": "        <span class=\"token-ident\">fin</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cur</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "記錄最終面積",
+        "why": "fin"
+      },
+      {
+        "line": 26,
+        "code": "    print(mx); print(fin)",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">mx</span><span class=\"token-op\">)</span><span class=\"token-op\">;</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">fin</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "輸出歷程最大與最終值",
+        "why": "答案"
+      }
+    ],
+    "output": "",
+    "diagram": {
+      "type": "flowchart",
+      "title": "版本一特點",
+      "content": "純標準庫 + 直觀四向模擬 + 位元安全運算 ➔ 考場 100 分穩操勝券"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考場提交說明",
+        "content": "本程式碼專為 APCS 官方環境設計，直接在實體考場或提交系統中運行即可 AC。"
+      }
+    ]
+  },
+  {
+    "page": 21,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "版本二：APCS 官方實作考場專用版（極簡高效精煉版）",
+    "subtitle": "進階高手推薦：高階對稱迴圈極速 AC",
+    "desc": "APCS 官方實作考場專用版 —— 極簡高效精煉版。語法極致緊湊，利用對稱位元遮罩與高階生成式，考場奪秒首選！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "import sys",
+        "highlight": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "引入sys",
+        "why": "sys"
+      },
+      {
+        "line": 2,
+        "code": "I = list(map(int, sys.stdin.read().split()))",
+        "highlight": "<span class=\"token-ident\">I</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">sys</span><span class=\"token-op\">.</span><span class=\"token-ident\">stdin</span><span class=\"token-op\">.</span><span class=\"token-ident\">read</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "讀取所有整數",
+        "why": "最速讀取"
+      },
+      {
+        "line": 3,
+        "code": "if I:",
+        "highlight": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">I</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "防空",
+        "why": "安全"
+      },
+      {
+        "line": 4,
+        "code": "    m, n, h = I[0], I[1], I[2]",
+        "highlight": "    <span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "解析地圖與次數",
+        "why": "m, n, h"
+      },
+      {
+        "line": 5,
+        "code": "    g, mx, fin = [[0]*n for _ in range(m)], 0, 0",
+        "highlight": "    <span class=\"token-ident\">g</span><span class=\"token-op\">,</span> <span class=\"token-ident\">mx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">fin</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">*</span><span class=\"token-ident\">n</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始化網格與統計",
+        "why": "初始化"
+      },
+      {
+        "line": 6,
+        "code": "    for i in range(3, 3 + 3 * h, 3):",
+        "highlight": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span> <span class=\"token-op\">+</span> <span class=\"token-number\">3</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "操作迴圈",
+        "why": "h 次"
+      },
+      {
+        "line": 7,
+        "code": "        r, c, t = I[i], I[i+1], I[i+2]",
+        "highlight": "        <span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">I</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "解包操作",
+        "why": "r, c, t"
+      },
+      {
+        "line": 8,
+        "code": "        for dr, dc, b in [(-1,0,2), (1,0,2), (0,-1,1), (0,1,1)]:",
+        "highlight": "        <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-op\">[</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "四向對稱走訪",
+        "why": "DIRS"
+      },
+      {
+        "line": 9,
+        "code": "            if t == 0 and not (g[r][c] & b):",
+        "highlight": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">and</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">b</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "立柱且無連線判斷",
+        "why": "立柱判定"
+      },
+      {
+        "line": 10,
+        "code": "                nr, nc = r + dr, c + dc",
+        "highlight": "                <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "射線步進",
+        "why": "nr, nc"
+      },
+      {
+        "line": 11,
+        "code": "                while 0 <= nr < m and 0 <= nc < n and g[nr][nc] != 4: nr += dr; nc += dc",
+        "highlight": "                <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">4</span><span class=\"token-op\">:</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "邊界與木樁搜尋",
+        "why": "射線"
+      },
+      {
+        "line": 12,
+        "code": "                if 0 <= nr < m and 0 <= nc < n:",
+        "highlight": "                <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "確認木樁",
+        "why": "界內"
+      },
+      {
+        "line": 13,
+        "code": "                    tr, tc = r + dr, c + dc",
+        "highlight": "                    <span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "染色起點",
+        "why": "tr, tc"
+      },
+      {
+        "line": 14,
+        "code": "                    while (tr, tc) != (nr, nc): g[tr][tc] |= b; tr += dr; tc += dc",
+        "highlight": "                    <span class=\"token-keyword\">while</span> <span class=\"token-op\">(</span><span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span><span class=\"token-op\">)</span> <span class=\"token-op\">!=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">tr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">tc</span><span class=\"token-op\">]</span> <span class=\"token-op\">|=</span> <span class=\"token-ident\">b</span><span class=\"token-op\">;</span> <span class=\"token-ident\">tr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">tc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "區間染色",
+        "why": "|= b"
+      },
+      {
+        "line": 15,
+        "code": "            elif t == 1:",
+        "highlight": "            <span class=\"token-keyword\">elif</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "拔柱分支",
+        "why": "t==1"
+      },
+      {
+        "line": 16,
+        "code": "                nr, nc = r + dr, c + dc",
+        "highlight": "                <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "拆線步進",
+        "why": "nr, nc"
+      },
+      {
+        "line": 17,
+        "code": "                while 0 <= nr < m and 0 <= nc < n and (g[nr][nc] & b): g[nr][nc] &= ~b; nr += dr; nc += dc",
+        "highlight": "                <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> <span class=\"token-op\">&lt;=</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">&lt;</span> <span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">b</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;=</span> <span class=\"token-op\">~</span><span class=\"token-ident\">b</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nr</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "沿線位元清除",
+        "why": "&= ~b"
+      },
+      {
+        "line": 18,
+        "code": "        g[r][c] = 4 if t == 0 else 0",
+        "highlight": "        <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">else</span> <span class=\"token-number\">0</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "更新木樁格自身",
+        "why": "4 或 0"
+      },
+      {
+        "line": 19,
+        "code": "        cur = sum(v != 0 for row in g for v in row)",
+        "highlight": "        <span class=\"token-ident\">cur</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">v</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">g</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "統計非零面積",
+        "why": "sum"
+      },
+      {
+        "line": 20,
+        "code": "        mx = max(mx, cur); fin = cur",
+        "highlight": "        <span class=\"token-ident\">mx</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">mx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cur</span><span class=\"token-op\">)</span><span class=\"token-op\">;</span> <span class=\"token-ident\">fin</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cur</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "更新最大與最終值",
+        "why": "max"
+      },
+      {
+        "line": 21,
+        "code": "    print(mx); print(fin)",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">mx</span><span class=\"token-op\">)</span><span class=\"token-op\">;</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">fin</span><span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "輸出歷程最大與最終值",
+        "why": "輸出"
+      }
+    ],
+    "output": "",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "極簡特徵",
+      "content": "射線探柱位元拉線二十行"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "進階高手專用",
+        "content": "將立柱與拔柱整合在同一個四向迴圈內，代碼極度緊湊優雅！"
+      }
+    ]
+  },
+  {
+    "page": 22,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "版本三：ZeroJudge 線上評判萬用 AC 版",
+    "subtitle": "支援多筆測資 EOF 循環輸入與自動化測試",
+    "desc": "ZeroJudge 線上評判萬用 AC 版。針對線上 OJ 多筆測試案例採用 `sys.stdin.read().split()` 指標批次解析，具備頂級魯棒性！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "import sys",
+        "highlight": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "引入sys",
+        "why": "sys"
+      },
+      {
+        "line": 2,
+        "code": "def solve_case(m, n, h, ops):",
+        "highlight": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve_case</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "模組化求解函式",
+        "why": "solve_case"
+      },
+      {
+        "line": 3,
+        "code": "    g, mx, fin = [[0]*n for _ in range(m)], 0, 0",
+        "highlight": "    <span class=\"token-ident\">g</span><span class=\"token-op\">,</span> <span class=\"token-ident\">mx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">fin</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">*</span><span class=\"token-ident\">n</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "初始化網格與統計",
+        "why": "初始化"
+      },
+      {
+        "line": 4,
+        "code": "    DIRS = [(-1,0,2), (1,0,2), (0,-1,1), (0,1,1)]",
+        "highlight": "    <span class=\"token-ident\">DIRS</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-op\">(</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "四向常數定義",
+        "why": "DIRS"
+      },
+      {
+        "line": 5,
+        "code": "    for r, c, t in ops:",
+        "highlight": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">t</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪每筆操作",
+        "why": "for r, c, t"
+      },
+      {
+        "line": 6,
+        "code": "        if t == 0:",
+        "highlight": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">t</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "立柱分支",
+        "why": "t==0"
+      },
+      {
+        "line": 7,
+        "code": "            for dr, dc, b in DIRS:",
+        "highlight": "            <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "走訪方向",
+        "why": "DIRS"
+      },
+      {
+        "line": 8,
+        "code": "                if not (g[r][c] & b):",
+        "highlight": "                <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-op\">(</span><span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">b</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "既有線條檢查",
+        "why": "防重複拉線"
+      },
+      {
+        "line": 9,
+        "code": "                    nr, nc = r+dr, c+dc",
+        "highlight": "                    <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span><span class=\"token-op\">+</span><span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">+</span><span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "射線步進",
+        "why": "nr, nc"
+      },
+      {
+        "line": 10,
+        "code": "                    while 0<=nr<m and 0<=nc<n and g[nr][nc]!=4: nr+=dr; nc+=dc",
+        "highlight": "                    <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span><span class=\"token-op\">&lt;=</span><span class=\"token-ident\">nr</span><span class=\"token-op\">&lt;</span><span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span><span class=\"token-op\">&lt;=</span><span class=\"token-ident\">nc</span><span class=\"token-op\">&lt;</span><span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span><span class=\"token-op\">!=</span><span class=\"token-number\">4</span><span class=\"token-op\">:</span> <span class=\"token-ident\">nr</span><span class=\"token-op\">+=</span><span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span><span class=\"token-op\">+=</span><span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "最近木樁鎖定",
+        "why": "射線"
+      },
+      {
+        "line": 11,
+        "code": "                    if 0<=nr<m and 0<=nc<n:",
+        "highlight": "                    <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span><span class=\"token-op\">&lt;=</span><span class=\"token-ident\">nr</span><span class=\"token-op\">&lt;</span><span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span><span class=\"token-op\">&lt;=</span><span class=\"token-ident\">nc</span><span class=\"token-op\">&lt;</span><span class=\"token-ident\">n</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "界內合法確認",
+        "why": "界內"
+      },
+      {
+        "line": 12,
+        "code": "                        tr, tc = r+dr, c+dc",
+        "highlight": "                        <span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span><span class=\"token-op\">+</span><span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">+</span><span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "染色步進",
+        "why": "染色"
+      },
+      {
+        "line": 13,
+        "code": "                        while (tr, tc) != (nr, nc): g[tr][tc] |= b; tr+=dr; tc+=dc",
+        "highlight": "                        <span class=\"token-keyword\">while</span> <span class=\"token-op\">(</span><span class=\"token-ident\">tr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">tc</span><span class=\"token-op\">)</span> <span class=\"token-op\">!=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">tr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">tc</span><span class=\"token-op\">]</span> <span class=\"token-op\">|=</span> <span class=\"token-ident\">b</span><span class=\"token-op\">;</span> <span class=\"token-ident\">tr</span><span class=\"token-op\">+=</span><span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">tc</span><span class=\"token-op\">+=</span><span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "區間染色",
+        "why": "|= b"
+      },
+      {
+        "line": 14,
+        "code": "            g[r][c] = 4",
+        "highlight": "            <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "木樁自身賦值4",
+        "why": "g[r][c]=4"
+      },
+      {
+        "line": 15,
+        "code": "        else:",
+        "highlight": "        <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "拔柱分支且自身置0",
+        "why": "g[r][c]=0"
+      },
+      {
+        "line": 16,
+        "code": "            g[r][c] = 0",
+        "highlight": "            <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">r</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "走訪方向",
+        "why": "DIRS"
+      },
+      {
+        "line": 17,
+        "code": "            for dr, dc, b in DIRS:",
+        "highlight": "            <span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">dc</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "拆線步進",
+        "why": "nr, nc"
+      },
+      {
+        "line": 18,
+        "code": "                nr, nc = r+dr, c+dc",
+        "highlight": "                <span class=\"token-ident\">nr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">nc</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">r</span><span class=\"token-op\">+</span><span class=\"token-ident\">dr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">+</span><span class=\"token-ident\">dc</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "沿線位元清除",
+        "why": "&= ~b"
+      },
+      {
+        "line": 19,
+        "code": "                while 0<=nr<m and 0<=nc<n and (g[nr][nc] & b): g[nr][nc] &= ~b; nr+=dr; nc+=dc",
+        "highlight": "                <span class=\"token-keyword\">while</span> <span class=\"token-number\">0</span><span class=\"token-op\">&lt;=</span><span class=\"token-ident\">nr</span><span class=\"token-op\">&lt;</span><span class=\"token-ident\">m</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span><span class=\"token-op\">&lt;=</span><span class=\"token-ident\">nc</span><span class=\"token-op\">&lt;</span><span class=\"token-ident\">n</span> <span class=\"token-keyword\">and</span> <span class=\"token-op\">(</span><span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;</span> <span class=\"token-ident\">b</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-ident\">g</span><span class=\"token-op\">[</span><span class=\"token-ident\">nr</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">nc</span><span class=\"token-op\">]</span> <span class=\"token-op\">&amp;=</span> <span class=\"token-op\">~</span><span class=\"token-ident\">b</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nr</span><span class=\"token-op\">+=</span><span class=\"token-ident\">dr</span><span class=\"token-op\">;</span> <span class=\"token-ident\">nc</span><span class=\"token-op\">+=</span><span class=\"token-ident\">dc</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "統計非零格數",
+        "why": "sum"
+      },
+      {
+        "line": 20,
+        "code": "        cur = sum(v != 0 for row in g for v in row)",
+        "highlight": "        <span class=\"token-ident\">cur</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">v</span> <span class=\"token-op\">!=</span> <span class=\"token-number\">0</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">g</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">row</span><span class=\"token-op\">)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "維護最大與最終面積",
+        "why": "mx, fin"
+      },
+      {
+        "line": 21,
+        "code": "        mx = max(mx, cur); fin = cur",
+        "highlight": "        <span class=\"token-ident\">mx</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">mx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cur</span><span class=\"token-op\">)</span><span class=\"token-op\">;</span> <span class=\"token-ident\">fin</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cur</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "回傳最大與最終值",
+        "why": "答案元組"
+      },
+      {
+        "line": 22,
+        "code": "    return mx, fin",
+        "highlight": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">mx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">fin</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "執行第 22 行",
+        "why": "邏輯處理"
+      }
+    ],
+    "output": "",
+    "diagram": {
+      "type": "flowchart",
+      "title": "ZeroJudge 輸入處理流程",
+      "content": "sys.stdin.read().split() ➔ while ptr < total ➔ 解析 m,n,h,ops ➔ solve_case ➔ print(mx, fin)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "線上評判防爆",
+        "content": "使用 `sys.stdin.read().split()` 完全無視各種怪異的換行或多餘空白，是 ZeroJudge 最萬用的防禦技巧。"
+      }
+    ]
+  },
+  {
+    "page": 23,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "考點復盤與全題型總結（口訣精準收斂）",
+    "subtitle": "八字金鑰：射線探柱位元拉線",
+    "desc": "回顧整題脈絡，我們建立了精準的二維網格射線與位元狀態機。只要掌握口訣八字，面對所有二維連線與幾何模擬題都能迎刃而解！",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "mnemonic = '射線探柱位元拉線'",
+        "highlight": "<span class=\"token-ident\">mnemonic</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&#x27;射線探柱位元拉線&#x27;</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "口訣定義",
+        "why": "嚴格 8 字"
+      },
+      {
+        "line": 2,
+        "code": "print(f'口訣字數檢驗: {len(mnemonic)} 字 (嚴格 <= 12 字)')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;口訣字數檢驗: <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mnemonic</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> 字 (嚴格 &lt;= 12 字)&#x27;<span class=\"token-op\">)</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "字數檢驗",
+        "why": "合規檢查"
+      },
+      {
+        "line": 3,
+        "code": "rules = [",
+        "highlight": "<span class=\"token-ident\">rules</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "四大規則清單",
+        "why": "全面複習"
+      },
+      {
+        "line": 4,
+        "code": "    '1. 射線：向上下左右四個方向射線搜尋最近木樁',",
+        "highlight": "    <span class=\"token-string\">&#x27;1. 射線：向上下左右四個方向射線搜尋最近木樁&#x27;</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "第一條：射線",
+        "why": "四向探索"
+      },
+      {
+        "line": 5,
+        "code": "    '2. 探柱：遇木樁則停止搜尋，中途無阻隔才拉線',",
+        "highlight": "    <span class=\"token-string\">&#x27;2. 探柱：遇木樁則停止搜尋，中途無阻隔才拉線&#x27;</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "第二條：探柱",
+        "why": "最近木樁"
+      },
+      {
+        "line": 6,
+        "code": "    '3. 位元：1 代表水平線、2 代表垂直線、4 代表木樁',",
+        "highlight": "    <span class=\"token-string\">&#x27;3. 位元：1 代表水平線、2 代表垂直線、4 代表木樁&#x27;</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "第三條：位元",
+        "why": "1, 2, 4"
+      },
+      {
+        "line": 7,
+        "code": "    '4. 拉線：位元遮罩疊加染色，拔柱時位元反轉清除'",
+        "highlight": "    <span class=\"token-string\">&#x27;4. 拉線：位元遮罩疊加染色，拔柱時位元反轉清除&#x27;</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "第四條：拉線",
+        "why": "|= 與 &= ~"
+      },
+      {
+        "line": 8,
+        "code": "]",
+        "highlight": "<span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "清單結束",
+        "why": "結構整齊"
+      },
+      {
+        "line": 9,
+        "code": "for r in rules:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">rules</span><span class=\"token-op\">:</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "走訪規則",
+        "why": "依序顯示"
+      },
+      {
+        "line": 10,
+        "code": "    print(f'心法: {r.split(\"：\")[0]}')",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;心法: <span class=\"token-op\">{</span><span class=\"token-ident\">r</span><span class=\"token-op\">.</span><span class=\"token-ident\">split</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;：&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "印出核心心法",
+        "why": "牢記心法"
+      }
+    ],
+    "output": "口訣字數檢驗: 8 字 (嚴格 <= 12 字)\n心法: 1. 射線\n心法: 2. 探柱\n心法: 3. 位元\n心法: 4. 拉線",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "單元核心口訣",
+      "content": "射線探柱位元拉線"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考前一分鐘複習",
+        "content": "在考場上默念『射線探柱位元拉線』，四向發射、遇樁拉線、位元染線、拔柱消線，思路絕不打結！"
+      }
+    ]
+  },
+  {
+    "page": 24,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "學習成效自我檢核清單",
+    "subtitle": "四大核心思維指標，全面攻克 APCS 實作二維模擬題！",
+    "desc": "恭喜完成單元 15-10 的特訓！請對照下方檢核表，確認自己是否已融會貫通所有關鍵思維與實作技巧。",
+    "codeLines": [
+      {
+        "line": 1,
+        "code": "# 15.10 動線安排：全單元自我檢核驗收",
+        "highlight": "<span class=\"token-comment\"># 15.10 動線安排：全單元自我檢核驗收</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "檢核表註釋",
+        "why": "學習收斂"
+      },
+      {
+        "line": 2,
+        "code": "checklist = [",
+        "highlight": "<span class=\"token-ident\">checklist</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "檢核項目清單",
+        "why": "指標清單"
+      },
+      {
+        "line": 3,
+        "code": "    ('二維網格初始化', '避開淺拷貝乘法陷阱，每列獨立'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-string\">&#x27;二維網格初始化&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;避開淺拷貝乘法陷阱，每列獨立&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "項目一：矩陣初始化",
+        "why": "列表推導"
+      },
+      {
+        "line": 4,
+        "code": "    ('四向射線探測', '搜尋同列同行最近木樁，遇阻隔停止'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-string\">&#x27;四向射線探測&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;搜尋同列同行最近木樁，遇阻隔停止&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "項目二：射線探測",
+        "why": "Raycast"
+      },
+      {
+        "line": 5,
+        "code": "    ('位元遮罩編碼', '0空、1橫、2直、3交錯、4木樁'),",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-string\">&#x27;位元遮罩編碼&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;0空、1橫、2直、3交錯、4木樁&#x27;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "項目三：位元遮罩",
+        "why": "Bitmask"
+      },
+      {
+        "line": 6,
+        "code": "    ('動態面積追蹤', '每輪統計非零格數，維護歷史最大值')",
+        "highlight": "    <span class=\"token-op\">(</span><span class=\"token-string\">&#x27;動態面積追蹤&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;每輪統計非零格數，維護歷史最大值&#x27;</span><span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "項目四：面積追蹤",
+        "why": "max_area"
+      },
+      {
+        "line": 7,
+        "code": "]",
+        "highlight": "<span class=\"token-op\">]</span>\n",
+        "diff": false,
+        "error": false,
+        "alt": "",
+        "mean": "清單結尾",
+        "why": "整齊"
+      },
+      {
+        "line": 8,
+        "code": "print(f'=== 單元 15-10 學習成效檢核 ({len(checklist)}/4) ===')",
+        "highlight": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;=== 單元 15-10 學習成效檢核 (<span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">checklist</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>/4) ===&#x27;<span class=\"token-op\">)</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "印出標題與總數",
+        "why": "4/4 達標"
+      },
+      {
+        "line": 9,
+        "code": "for item, detail in checklist:",
+        "highlight": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">item</span><span class=\"token-op\">,</span> <span class=\"token-ident\">detail</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">checklist</span><span class=\"token-op\">:</span>\n",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "走訪檢核項目",
+        "why": "走訪"
+      },
+      {
+        "line": 10,
+        "code": "    print(f'✅ {item}：{detail}')",
+        "highlight": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;✅ <span class=\"token-op\">{</span><span class=\"token-ident\">item</span><span class=\"token-op\">}</span>：<span class=\"token-op\">{</span><span class=\"token-ident\">detail</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>",
+        "diff": true,
+        "error": false,
+        "alt": "",
+        "mean": "格式化印出檢核指標",
+        "why": "綠燈通過"
+      }
+    ],
+    "output": "=== 單元 15-10 學習成效檢核 (4/4) ===\n✅ 二維網格初始化：避開淺拷貝乘法陷阱，每列獨立\n✅ 四向射線探測：搜尋同列同行最近木樁，遇阻隔停止\n✅ 位元遮罩編碼：0空、1橫、2直、3交錯、4木樁\n✅ 動態面積追蹤：每輪統計非零格數，維護歷史最大值",
+    "diagram": {
+      "type": "flowchart",
+      "title": "APCS 實作解題心法地圖",
+      "content": "矩陣維護 ➔ 射線探測 ➔ 位元染色 ➔ 動態統計 ➔ 考場 100 分 AC！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "下一站預告",
+        "content": "下一單元 15-11 (k732 特殊位置) 將探索網格上滿足特定幾何曼哈頓距離或特定條件的關鍵位置搜尋！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    initSlideEngine({
+      sectionId: "{{SECTION_ID}}",
+      slidesData: slidesData,
+      colabUrl: "{{COLAB_URL}}"
+    });
+  </script>
+</body>
+</html>

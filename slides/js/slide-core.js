@@ -210,8 +210,8 @@ const courseCurriculum = [
       { id: "sec15-6", title: "15.6 f606. 流量（APCS 2021-01 舊版第 2 題）", available: true, url: "PythAPCS123_15-6_traffic_cost_apcs_f606.html" },
       { id: "sec15-7", title: "15.7 f580. 骰子（APCS 2020-07 舊版第 2 題）", available: true, url: "PythAPCS123_15-7_dice_simulation_apcs_f580.html" },
       { id: "sec15-8", title: "15.8 c462. 交錯字串（APCS 2017-10 舊版第 2 題）", available: true, url: "PythAPCS123_15-8_alternating_string_apcs_c462.html" },
-      { id: "sec15-9", title: "15.9 g276. 魔王迷宮（APCS 2021-09 舊版第 2 題）", available: false },
-      { id: "sec15-10", title: "15.10 g596. 動線安排（APCS 2021-11 舊版第 2 題）", available: false },
+      { id: "sec15-9", title: "15.9 g276. 魔王迷宮（APCS 2021-09 舊版第 2 題）", available: true, url: "PythAPCS123_15-9_demon_maze_apcs_g276.html" },
+      { id: "sec15-10", title: "15.10 g596. 動線安排（APCS 2021-11 舊版第 2 題）", available: true, url: "PythAPCS123_15-10_line_layout_apcs_g596.html" },
       { id: "sec15-11", title: "15.11 k732. 特殊位置（官方中級範例第 1 題）", available: false },
       { id: "sec15-12", title: "15.12 o712. 蒐集寶石（官方中級範例第 2 題）", available: false },
       { id: "sec15-13", title: "15.13 i400. 字串解碼（官方中級範例第 3 題）", available: false }

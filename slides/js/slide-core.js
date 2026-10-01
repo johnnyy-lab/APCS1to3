@@ -531,13 +531,22 @@ function renderSlide(index) {
       else if (n.type === 'wa') badgeClass = 'wa-badge';
       else if (n.type) badgeClass = `${n.type}-badge`;
       const linesJson = JSON.stringify(n.lines || []);
-      const formattedText = (n.text || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      const rawText = n.text || n.content || '';
+      let badgeLabel = n.lineText || '';
+      if (!badgeLabel) {
+        if (n.type === 'mnemonic') badgeLabel = '考場口訣';
+        else if (n.type === 'wa' || n.type === 'error') badgeLabel = '考場避坑';
+        else if (n.type === 'radar') badgeLabel = '考點雷達';
+        else if (n.type === 'concept') badgeLabel = '核心觀念';
+        else badgeLabel = '重點解析';
+      }
+      const formattedText = rawText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       return `
         <li class="note-item" 
             onmouseenter='highlightLines(${linesJson})'
             onmouseleave='clearHighlightedLines()'
             onclick='onNoteClick(${linesJson})'>
-          <span class="line-badge ${badgeClass}">${n.lineText || ''}</span>
+          <span class="line-badge ${badgeClass}">${badgeLabel}</span>
           <div>${formattedText}</div>
         </li>
       `;

@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "Anatomy of Runtime Error & Non-Zero Exit Code",
+    "titleZh": "執行時期崩潰：RE 本質與非零退出碼",
+    "desc": "RE（Runtime Error）發生在程式已通過編譯並開始運行，卻在中途遭遇未受控例外而異常中斷（Exit Code != 0）！",
+    "codeLines": [
+      {
+        "code": "# 正常執行 vs 執行期中途崩潰演示\ndef safe_run():\n    print(\"步驟 1：正常啟動\")\n    print(\"步驟 2：正常運算\")\nsafe_run()",
+        "html": "<span class=\"c1\"># 正常執行 vs 執行期中途崩潰演示</span><br><span class=\"k\">def</span> <span class=\"nf\">safe_run</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;步驟 1：正常啟動&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;步驟 2：正常運算&quot;</span><span class=\"p\">)</span><br><span class=\"n\">safe_run</span><span class=\"p\">()</span>",
+        "why": "示範無例外時程式能順利執行至結尾",
+        "mean": "完整印出所有步驟",
+        "alt": "正常流程示範"
+      },
+      {
+        "code": "try:\n    arr = [10, 20]\n    print(arr[5])  # 存取不存在的索引\nexcept IndexError as e:\n    print(f\"直譯器攔截中斷：{e} (若未處理在 OJ 將獲得 RE)\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"mi\">5</span><span class=\"p\">])</span>  <span class=\"c1\"># 存取不存在的索引</span><br><span class=\"k\">except</span> <span class=\"ne\">IndexError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;直譯器攔截中斷：</span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"si\">}</span><span class=\"s2\"> (若未處理在 OJ 將獲得 RE)&quot;</span><span class=\"p\">)</span>",
+        "why": "模擬未受控例外引爆中斷",
+        "mean": "拋出 IndexError: list index out of range",
+        "alt": "例外攔截示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "正常印出步驟 1 與步驟 2",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "執行到 arr[5] 觸發 IndexError",
+        "vars": {
+          "len": 2,
+          "index": 5
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出中斷訊號",
+        "vars": {},
+        "output": "步驟 1：正常啟動\n步驟 2：正常運算\n直譯器攔截中斷：list index out of range (若未處理在 OJ 將獲得 RE)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "執行期拋例外退出非零"
+      },
+      {
+        "type": "point",
+        "content": "OJ 評判程式執行完畢後的 Exit Code，非 0 一律直接判定為 RE！"
+      },
+      {
+        "type": "tip",
+        "content": "範例測資通過但上傳 RE，99% 是被極端測資（空資料、邊界值）觸發了未捕捉例外。"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Rank 1: IndexError List Index Out of Range",
+    "titleZh": "RE 排行榜 No.1：IndexError 陣列越界",
+    "desc": "APCS 最常見的暴斃元凶！長度為 N 的陣列有效索引只有 0 到 N-1，存取超出邊界或對空串列取值立刻崩潰！",
+    "codeLines": [
+      {
+        "code": "# 經典陣列越界：長度為 3，合法索引為 0, 1, 2\nscores = [90, 85, 95]\ntry:\n    print(scores[3])  # 越界！不存在索引 3\nexcept IndexError as e:\n    print(\"越界報錯:\", e)",
+        "html": "<span class=\"c1\"># 經典陣列越界：長度為 3，合法索引為 0, 1, 2</span><br><span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">85</span><span class=\"p\">,</span> <span class=\"mi\">95</span><span class=\"p\">]</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">[</span><span class=\"mi\">3</span><span class=\"p\">])</span>  <span class=\"c1\"># 越界！不存在索引 3</span><br><span class=\"k\">except</span> <span class=\"ne\">IndexError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;越界報錯:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範標準正向索引越界",
+        "mean": "IndexError: list index out of range",
+        "alt": "正向越界示範"
+      },
+      {
+        "code": "# 空串列取第 0 個元素也是常見陷阱\nempty_list = []\ntry:\n    first_item = empty_list[0]\nexcept IndexError as e:\n    print(\"空串列取值報錯:\", e)",
+        "html": "<span class=\"c1\"># 空串列取第 0 個元素也是常見陷阱</span><br><span class=\"n\">empty_list</span> <span class=\"o\">=</span> <span class=\"p\">[]</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">first_item</span> <span class=\"o\">=</span> <span class=\"n\">empty_list</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">]</span><br><span class=\"k\">except</span> <span class=\"ne\">IndexError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;空串列取值報錯:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範空串列存取[0]陷阱",
+        "mean": "空串列沒有任何有效索引",
+        "alt": "空串列越界示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "scores 長度為 3，存取索引 3 拋出 IndexError",
+        "vars": {
+          "scores_len": 3
+        }
+      },
+      {
+        "step": 2,
+        "action": "empty_list 長度為 0，存取索引 0 拋出 IndexError",
+        "vars": {
+          "empty_len": 0
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "越界報錯: list index out of range\n空串列取值報錯: list index out of range\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "索引超範圍空陣列暴斃"
+      },
+      {
+        "type": "point",
+        "content": "迴圈終點寫成 range(len(arr) + 1) 是產生 IndexError 的常客！"
+      },
+      {
+        "type": "tip",
+        "content": "負向索引超出範圍（如 arr[-4] 當長度為 3）同樣會引爆 IndexError。"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Defense 1: Length Guards & Safe Indexing",
+    "titleZh": "防禦鐵律一：長度守衛與安全索引存取",
+    "desc": "在任何索引存取前，優先築起邊界守衛；或者在取出前確認串列非空！",
+    "codeLines": [
+      {
+        "code": "# 防禦技巧 1：真假值直接判斷串列是否為空\nitems = []\nif items:  # 空串列真值為 False，自動跳過\n    print(\"首項:\", items[0])\nelse:\n    print(\"串列為空，安全略過！\")",
+        "html": "<span class=\"c1\"># 防禦技巧 1：真假值直接判斷串列是否為空</span><br><span class=\"n\">items</span> <span class=\"o\">=</span> <span class=\"p\">[]</span><br><span class=\"k\">if</span> <span class=\"n\">items</span><span class=\"p\">:</span>  <span class=\"c1\"># 空串列真值為 False，自動跳過</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;首項:&quot;</span><span class=\"p\">,</span> <span class=\"n\">items</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">])</span><br><span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;串列為空，安全略過！&quot;</span><span class=\"p\">)</span>",
+        "why": "利用 if items 防禦空串列",
+        "mean": "空串列不進入分支",
+        "alt": "非空檢查"
+      },
+      {
+        "code": "# 防禦技巧 2：鏈狀邊界守衛 0 <= idx < len(arr)\nidx = 5\ndata = [10, 20, 30]\nif 0 <= idx < len(data):\n    print(data[idx])\nelse:\n    print(f\"索引 {idx} 超出合法範圍 [0, {len(data)-1}]，防禦成功！\")",
+        "html": "<span class=\"c1\"># 防禦技巧 2：鏈狀邊界守衛 0 &lt;= idx &lt; len(arr)</span><br><span class=\"n\">idx</span> <span class=\"o\">=</span> <span class=\"mi\">5</span><br><span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"k\">if</span> <span class=\"mi\">0</span> <span class=\"o\">&lt;=</span> <span class=\"n\">idx</span> <span class=\"o\">&lt;</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">[</span><span class=\"n\">idx</span><span class=\"p\">])</span><br><span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;索引 </span><span class=\"si\">{</span><span class=\"n\">idx</span><span class=\"si\">}</span><span class=\"s2\"> 超出合法範圍 [0, </span><span class=\"si\">{</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">)</span><span class=\"o\">-</span><span class=\"mi\">1</span><span class=\"si\">}</span><span class=\"s2\">]，防禦成功！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範通用鏈狀範圍檢核",
+        "mean": "確保索引在合法閉區間內",
+        "alt": "邊界守衛"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "檢驗 items 是否非空 -> False",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "印出串列為空安全略過",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "檢驗 0 <= 5 < 3 -> False，成功攔截防禦",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "串列為空，安全略過！\n索引 5 超出合法範圍 [0, 2]，防禦成功！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "存取前先檢查串列長度"
+      },
+      {
+        "type": "point",
+        "content": "Python 的空串列 [] 在 if 判斷中自動為 False，是最高雅的防禦寫法。"
+      },
+      {
+        "type": "tip",
+        "content": "善用 0 <= i < len(arr)，一行消滅所有越界威脅！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Rank 2: KeyError Missing Dictionary Key",
+    "titleZh": "RE 排行榜 No.2：KeyError 字典查無此鍵",
+    "desc": "以中括號 d[key] 存取字典時，一旦該鍵尚未登記，直譯器立即拋出致命的 KeyError 中斷執行！",
+    "codeLines": [
+      {
+        "code": "# 典型 KeyError 觸發場景：統計單字頻率未初始化\nword_counts = {'apple': 3, 'banana': 5}\ntry:\n    # 查詢不存在的 'orange'\n    print(word_counts['orange'])\nexcept KeyError as e:\n    print(\"KeyError 爆發: 鍵\", e, \"不存在！\")",
+        "html": "<span class=\"c1\"># 典型 KeyError 觸發場景：統計單字頻率未初始化</span><br><span class=\"n\">word_counts</span> <span class=\"o\">=</span> <span class=\"p\">{</span><span class=\"s1\">&#39;apple&#39;</span><span class=\"p\">:</span> <span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"s1\">&#39;banana&#39;</span><span class=\"p\">:</span> <span class=\"mi\">5</span><span class=\"p\">}</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 查詢不存在的 &#39;orange&#39;</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">word_counts</span><span class=\"p\">[</span><span class=\"s1\">&#39;orange&#39;</span><span class=\"p\">])</span><br><span class=\"k\">except</span> <span class=\"ne\">KeyError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;KeyError 爆發: 鍵&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">,</span> <span class=\"s2\">&quot;不存在！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範字典取不存在鍵拋出 KeyError",
+        "mean": "中括號查找未登記鍵",
+        "alt": "KeyError 示範"
+      },
+      {
+        "code": "# 考場常見錯誤：直接進行累加 d[k] += 1，第一筆必崩！\ncounts = {}\ntry:\n    counts['dog'] += 1  # 尚未賦值就做 += 1\nexcept KeyError as e:\n    print(\"累加未初始化報錯:\", e)",
+        "html": "<span class=\"c1\"># 考場常見錯誤：直接進行累加 d[k] += 1，第一筆必崩！</span><br><span class=\"n\">counts</span> <span class=\"o\">=</span> <span class=\"p\">{}</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">counts</span><span class=\"p\">[</span><span class=\"s1\">&#39;dog&#39;</span><span class=\"p\">]</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span>  <span class=\"c1\"># 尚未賦值就做 += 1</span><br><span class=\"k\">except</span> <span class=\"ne\">KeyError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;累加未初始化報錯:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範字典計數初值未設定陷阱",
+        "mean": "counts['dog'] 查無此鍵無法累加",
+        "alt": "計數未初始化陷阱"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "查找 'orange' 鍵不存在，拋出 KeyError",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "未初始化對 'dog' 做 += 1 拋出 KeyError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "KeyError 爆發: 鍵 'orange' 不存在！\n累加未初始化報錯: 'dog'\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "字典查無鍵中括號拋錯"
+      },
+      {
+        "type": "point",
+        "content": "dict[key] += 1 前提是 dict 內已有該 key，否則第一筆測資直接 RE！"
+      },
+      {
+        "type": "tip",
+        "content": "下一頁將介紹徹底告別 KeyError 的兩大神兵！"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Defense 2: dict.get() & defaultdict Defense",
+    "titleZh": "防禦鐵律二：dict.get 與 collections.defaultdict",
+    "desc": "淘汰脆弱的中括號取值！改用 .get(k, 預設值) 或 collections.defaultdict，永遠不再擔心 KeyError！",
+    "codeLines": [
+      {
+        "code": "# 處方 1：使用 dict.get(key, 0) 安全取值\nscores = {'Alice': 100}\n# 查 Bob 不存在，自動給予預設值 0\nbob_score = scores.get('Bob', 0)\nprint(\"Bob 分數 (安全查得):\", bob_score)",
+        "html": "<span class=\"c1\"># 處方 1：使用 dict.get(key, 0) 安全取值</span><br><span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">{</span><span class=\"s1\">&#39;Alice&#39;</span><span class=\"p\">:</span> <span class=\"mi\">100</span><span class=\"p\">}</span><br><span class=\"c1\"># 查 Bob 不存在，自動給予預設值 0</span><br><span class=\"n\">bob_score</span> <span class=\"o\">=</span> <span class=\"n\">scores</span><span class=\"o\">.</span><span class=\"n\">get</span><span class=\"p\">(</span><span class=\"s1\">&#39;Bob&#39;</span><span class=\"p\">,</span> <span class=\"mi\">0</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;Bob 分數 (安全查得):&quot;</span><span class=\"p\">,</span> <span class=\"n\">bob_score</span><span class=\"p\">)</span>",
+        "why": "示範 dict.get 提供安全預設值",
+        "mean": "查無鍵時回傳 0",
+        "alt": "dict.get 示範"
+      },
+      {
+        "code": "# 處方 2：使用 defaultdict(int) 自動初始化為 0\nfrom collections import defaultdict\nword_freq = defaultdict(int)\nwords = ['cat', 'dog', 'cat', 'bird']\nfor w in words:\n    word_freq[w] += 1  # 永遠不報錯！首見自動補 0\nprint(\"統計頻率:\", dict(word_freq))",
+        "html": "<span class=\"c1\"># 處方 2：使用 defaultdict(int) 自動初始化為 0</span><br><span class=\"k\">from</span> <span class=\"nn\">collections</span> <span class=\"k\">import</span> <span class=\"n\">defaultdict</span><br><span class=\"n\">word_freq</span> <span class=\"o\">=</span> <span class=\"n\">defaultdict</span><span class=\"p\">(</span><span class=\"nb\">int</span><span class=\"p\">)</span><br><span class=\"n\">words</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s1\">&#39;cat&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;dog&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;cat&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;bird&#39;</span><span class=\"p\">]</span><br><span class=\"k\">for</span> <span class=\"n\">w</span> <span class=\"ow\">in</span> <span class=\"n\">words</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">word_freq</span><span class=\"p\">[</span><span class=\"n\">w</span><span class=\"p\">]</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span>  <span class=\"c1\"># 永遠不報錯！首見自動補 0</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;統計頻率:&quot;</span><span class=\"p\">,</span> <span class=\"nb\">dict</span><span class=\"p\">(</span><span class=\"n\">word_freq</span><span class=\"p\">))</span>",
+        "why": "示範 defaultdict(int) 零門檻計數",
+        "mean": "自動建立初始鍵值 0",
+        "alt": "defaultdict 示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "scores.get('Bob', 0) 回傳預設值 0",
+        "vars": {
+          "bob_score": 0
+        }
+      },
+      {
+        "step": 2,
+        "action": "defaultdict 依序累加單字出現次數",
+        "vars": {
+          "cat": 2,
+          "dog": 1,
+          "bird": 1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "Bob 分數 (安全查得): 0\n統計頻率: {'cat': 2, 'dog': 1, 'bird': 1}\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "取值用蓋特計數用預設"
+      },
+      {
+        "type": "point",
+        "content": "使用 d.get(k, 0) 可以安全讀取；計數累加改寫 d[k] = d.get(k, 0) + 1。"
+      },
+      {
+        "type": "tip",
+        "content": "collections.defaultdict(int) 是 APCS 競賽解頻率統計題的最強利器！"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Rank 3: ValueError Conversion Failures",
+    "titleZh": "RE 排行榜 No.3：ValueError 轉型與解包崩潰",
+    "desc": "輸入轉整數包含小數或文字、或者單行多變數解包數量不對稱時，直譯器立即拋出 ValueError！",
+    "codeLines": [
+      {
+        "code": "# 陷阱 1：int() 無法直接解析含小數點的字串\ntry:\n    # 應寫 int(float(\"3.14\"))，直接 int(\"3.14\") 會爆！\n    val = int(\"3.14\")\nexcept ValueError as e:\n    print(\"轉型報錯:\", e)",
+        "html": "<span class=\"c1\"># 陷阱 1：int() 無法直接解析含小數點的字串</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 應寫 int(float(&quot;3.14&quot;))，直接 int(&quot;3.14&quot;) 會爆！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"s2\">&quot;3.14&quot;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;轉型報錯:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範 int('3.14') 拋出 ValueError",
+        "mean": "invalid literal for int() with base 10",
+        "alt": "轉型錯誤示範"
+      },
+      {
+        "code": "# 陷阱 2：解包變數個數與實際切出項目不一致\nline = \"10 20 30\"  # 切割出 3 個項目\ntry:\n    a, b = map(int, line.split())  # 期待 2 個變數，卻來了 3 個！\nexcept ValueError as e:\n    print(\"解包報錯:\", e)",
+        "html": "<span class=\"c1\"># 陷阱 2：解包變數個數與實際切出項目不一致</span><br><span class=\"n\">line</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;10 20 30&quot;</span>  <span class=\"c1\"># 切割出 3 個項目</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"n\">b</span> <span class=\"o\">=</span> <span class=\"nb\">map</span><span class=\"p\">(</span><span class=\"nb\">int</span><span class=\"p\">,</span> <span class=\"n\">line</span><span class=\"o\">.</span><span class=\"n\">split</span><span class=\"p\">())</span>  <span class=\"c1\"># 期待 2 個變數，卻來了 3 個！</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;解包報錯:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範多變數解包數量不匹配",
+        "mean": "too many values to unpack (expected 2)",
+        "alt": "解包數量不符"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "int('3.14') 拋出 ValueError",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "a, b = [10, 20, 30] 解包數量不符拋出 ValueError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "轉型報錯: invalid literal for int() with base 10: '3.14'\n解包報錯: too many values to unpack (expected 2)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "非純數轉整解包量不合"
+      },
+      {
+        "type": "point",
+        "content": "若測資可能包含小數點，請先轉 float 再轉 int：int(float(s))。"
+      },
+      {
+        "type": "tip",
+        "content": "若不確定輸入項目數量，建議讀入串列：items = list(map(int, line.split()))。"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Rank 4: ZeroDivisionError Division by Zero",
+    "titleZh": "RE 排行榜 No.4：ZeroDivisionError 除零崩潰",
+    "desc": "在數學上除以 0 是未定義的！在 Python 中，除法 /、整數除法 // 或取餘數 % 當除數為 0 時立刻引爆！",
+    "codeLines": [
+      {
+        "code": "# 示範三種除以零的暴斃型態\ntry:\n    res1 = 100 / 0\nexcept ZeroDivisionError as e:\n    print(\"浮點除零:\", e)",
+        "html": "<span class=\"c1\"># 示範三種除以零的暴斃型態</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">res1</span> <span class=\"o\">=</span> <span class=\"mi\">100</span> <span class=\"o\">/</span> <span class=\"mi\">0</span><br><span class=\"k\">except</span> <span class=\"ne\">ZeroDivisionError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;浮點除零:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範標準除法除零",
+        "mean": "ZeroDivisionError: division by zero",
+        "alt": "標準除法除零"
+      },
+      {
+        "code": "try:\n    res2 = 50 // 0  # 整數除法除零\nexcept ZeroDivisionError as e:\n    print(\"整數除零:\", e)\n\ntry:\n    res3 = 10 % 0   # 取餘數除零\nexcept ZeroDivisionError as e:\n    print(\"取餘除零:\", e)",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">res2</span> <span class=\"o\">=</span> <span class=\"mi\">50</span> <span class=\"o\">//</span> <span class=\"mi\">0</span>  <span class=\"c1\"># 整數除法除零</span><br><span class=\"k\">except</span> <span class=\"ne\">ZeroDivisionError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;整數除零:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span><br><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">res3</span> <span class=\"o\">=</span> <span class=\"mi\">10</span> <span class=\"o\">%</span> <span class=\"mi\">0</span>   <span class=\"c1\"># 取餘數除零</span><br><span class=\"k\">except</span> <span class=\"ne\">ZeroDivisionError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;取餘除零:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範整數商與取模除零",
+        "mean": "integer division or modulo by zero",
+        "alt": "整數與取模除零"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "100 / 0 拋出 ZeroDivisionError",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "50 // 0 拋出 ZeroDivisionError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "10 % 0 拋出 ZeroDivisionError",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "浮點除零: division by zero\n整數除零: integer division or modulo by zero\n取餘除零: integer modulo by zero\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "除數為零時除與模皆崩"
+      },
+      {
+        "type": "point",
+        "content": "取模運算子 % 底層也是除法，除以 0 一樣直接引爆 RE！"
+      },
+      {
+        "type": "tip",
+        "content": "平均值計算 sum(arr) / len(arr) 在 arr 為空時就是經典除零坑洞！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Defense 3: Denominator Guard & Short-Circuit",
+    "titleZh": "防禦鐵律三：分母非零守衛與短路保護",
+    "desc": "計算平均或比例時，必須養成「分母守衛」習慣，善用 and 短路求值避免除零崩潰！",
+    "codeLines": [
+      {
+        "code": "# 典型坑洞：計算班級平均，遇到 0 人受測\nscores = []\n# 脆弱寫法：avg = sum(scores) / len(scores)  -> 必爆！\n# 安全寫法：先檢查 len(scores) 是否非 0\nif len(scores) > 0:\n    avg = sum(scores) / len(scores)\nelse:\n    avg = 0.0\nprint(f\"班級平均 (安全防禦): {avg:.1f}\")",
+        "html": "<span class=\"c1\"># 典型坑洞：計算班級平均，遇到 0 人受測</span><br><span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[]</span><br><span class=\"c1\"># 脆弱寫法：avg = sum(scores) / len(scores)  -&gt; 必爆！</span><br><span class=\"c1\"># 安全寫法：先檢查 len(scores) 是否非 0</span><br><span class=\"k\">if</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">)</span> <span class=\"o\">&gt;</span> <span class=\"mi\">0</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">avg</span> <span class=\"o\">=</span> <span class=\"nb\">sum</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">)</span> <span class=\"o\">/</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">)</span><br><span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">avg</span> <span class=\"o\">=</span> <span class=\"mf\">0.0</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;班級平均 (安全防禦): </span><span class=\"si\">{</span><span class=\"n\">avg</span><span class=\"si\">:</span><span class=\"s2\">.1f</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範平均值除零防禦",
+        "mean": "空串列給予預設值 0.0",
+        "alt": "分母守衛"
+      },
+      {
+        "code": "# 善用 and 短路求值：左側為 False，右側除法根本不會被執行！\ndenom = 0\nnum = 100\nif denom != 0 and (num / denom) > 2:\n    print(\"比例大於 2\")\nelse:\n    print(\"分母為 0，短路保護成功觸發！\")",
+        "html": "<span class=\"c1\"># 善用 and 短路求值：左側為 False，右側除法根本不會被執行！</span><br><span class=\"n\">denom</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"n\">num</span> <span class=\"o\">=</span> <span class=\"mi\">100</span><br><span class=\"k\">if</span> <span class=\"n\">denom</span> <span class=\"o\">!=</span> <span class=\"mi\">0</span> <span class=\"ow\">and</span> <span class=\"p\">(</span><span class=\"n\">num</span> <span class=\"o\">/</span> <span class=\"n\">denom</span><span class=\"p\">)</span> <span class=\"o\">&gt;</span> <span class=\"mi\">2</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;比例大於 2&quot;</span><span class=\"p\">)</span><br><span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;分母為 0，短路保護成功觸發！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 and 短路保護",
+        "mean": "denom != 0 為假，跳過右側除法",
+        "alt": "短路保護示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "len(scores) 為 0，進入 else 分支 avg = 0.0",
+        "vars": {
+          "avg": 0.0
+        }
+      },
+      {
+        "step": 2,
+        "action": "denom != 0 為 False，觸發 and 短路跳過除法",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "班級平均 (安全防禦): 0.0\n分母為 0，短路保護成功觸發！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "分母先驗零短路免除零"
+      },
+      {
+        "type": "point",
+        "content": "Python 的 and 運算子具有短路特性，左側不成立時絕對不會計算右側！"
+      },
+      {
+        "type": "tip",
+        "content": "將「分母 != 0」放在 and 最左側，是考場免死金牌！"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Rank 5: TypeError Incompatible Type Operations",
+    "titleZh": "RE 排行榜 No.5：TypeError 型態不相容運算",
+    "desc": "字串與數字直接相加、對整數呼叫 len()、或者將 None 拿去做運算，直譯器立即抗議並拋出 TypeError！",
+    "codeLines": [
+      {
+        "code": "# 陷阱 1：字串與數字直接相加（強型態特性）\ntry:\n    # 應寫 \"總分: \" + str(100) 或 f\"總分: {100}\"\n    msg = \"總分: \" + 100\nexcept TypeError as e:\n    print(\"型態不相容:\", e)",
+        "html": "<span class=\"c1\"># 陷阱 1：字串與數字直接相加（強型態特性）</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 應寫 &quot;總分: &quot; + str(100) 或 f&quot;總分: {100}&quot;</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">msg</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;總分: &quot;</span> <span class=\"o\">+</span> <span class=\"mi\">100</span><br><span class=\"k\">except</span> <span class=\"ne\">TypeError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;型態不相容:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範 str + int 拋出 TypeError",
+        "mean": "can only concatenate str to str",
+        "alt": "字串加數字錯誤"
+      },
+      {
+        "code": "# 陷阱 2：對整數或非容器型態呼叫 len()\ntry:\n    n = 12345\n    print(len(n))  # 整數沒有長度！應寫 len(str(n))\nexcept TypeError as e:\n    print(\"長度呼叫報錯:\", e)",
+        "html": "<span class=\"c1\"># 陷阱 2：對整數或非容器型態呼叫 len()</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">n</span> <span class=\"o\">=</span> <span class=\"mi\">12345</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">n</span><span class=\"p\">))</span>  <span class=\"c1\"># 整數沒有長度！應寫 len(str(n))</span><br><span class=\"k\">except</span> <span class=\"ne\">TypeError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;長度呼叫報錯:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範對 int 呼叫 len 拋出 TypeError",
+        "mean": "object of type 'int' has no len()",
+        "alt": "非容器呼叫 len"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "'總分: ' + 100 拋出 TypeError",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "len(12345) 拋出 TypeError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "型態不相容: can only concatenate str (not \"int\") to str\n長度呼叫報錯: object of type 'int' has no len()\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "不同型相加長度量整數"
+      },
+      {
+        "type": "point",
+        "content": "Python 是強型態語言，絕對不會像 JavaScript 那樣自動把數字轉成字串相加。"
+      },
+      {
+        "type": "tip",
+        "content": "字串拼接一律使用 f-string：f'總分: {score}'，安全又有型！"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Rank 6: AttributeError NoneType Attribute Missing",
+    "titleZh": "RE 排行榜 No.6：AttributeError 物件屬性缺失",
+    "desc": "最隱蔽的幽靈！函式忘記 return 或物件找不到方法，變數變成 None，後續呼叫方法立刻引爆 AttributeError！",
+    "codeLines": [
+      {
+        "code": "# 典型陷阱：list.sort() 原地排序回傳 None！\narr = [3, 1, 2]\nres = arr.sort()  # 注意：arr.sort() 回傳 None！不是新串列！\ntry:\n    # 試圖對 None 呼叫 append\n    res.append(4)\nexcept AttributeError as e:\n    print(\"AttributeError 爆發:\", e)",
+        "html": "<span class=\"c1\"># 典型陷阱：list.sort() 原地排序回傳 None！</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">]</span><br><span class=\"n\">res</span> <span class=\"o\">=</span> <span class=\"n\">arr</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">()</span>  <span class=\"c1\"># 注意：arr.sort() 回傳 None！不是新串列！</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 試圖對 None 呼叫 append</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">res</span><span class=\"o\">.</span><span class=\"n\">append</span><span class=\"p\">(</span><span class=\"mi\">4</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">AttributeError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;AttributeError 爆發:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範 NoneType 物件缺少屬性方法",
+        "mean": "'NoneType' object has no attribute 'append'",
+        "alt": "NoneType 屬性錯誤"
+      },
+      {
+        "code": "# 函式忘記寫 return，預設回傳 None\ndef get_user_name():\n    name = \"David\"\n    # 漏寫 return name！\n\nval = get_user_name()\nprint(\"函式回傳值:\", val, \"(若對其呼叫 .lower() 將崩潰)\")",
+        "html": "<span class=\"c1\"># 函式忘記寫 return，預設回傳 None</span><br><span class=\"k\">def</span> <span class=\"nf\">get_user_name</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">name</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;David&quot;</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 漏寫 return name！</span><br><br><span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"n\">get_user_name</span><span class=\"p\">()</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;函式回傳值:&quot;</span><span class=\"p\">,</span> <span class=\"n\">val</span><span class=\"p\">,</span> <span class=\"s2\">&quot;(若對其呼叫 .lower() 將崩潰)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範漏寫 return 產生 None",
+        "mean": "val 取得 None",
+        "alt": "漏寫 return"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "arr.sort() 賦值給 res，res 為 None",
+        "vars": {
+          "res": null
+        }
+      },
+      {
+        "step": 2,
+        "action": "None.append(4) 拋出 AttributeError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "get_user_name() 漏寫 return 回傳 None",
+        "vars": {
+          "val": null
+        }
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "AttributeError 爆發: 'NoneType' object has no attribute 'append'\n函式回傳值: None (若對其呼叫 .lower() 將崩潰)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "物件為空值方法全失效"
+      },
+      {
+        "type": "point",
+        "content": "常見原罪：arr.sort() 與 arr.reverse() 是原地修改，回傳值永遠是 None！"
+      },
+      {
+        "type": "tip",
+        "content": "若要取得排序後的新串列，請使用 sorted(arr)。"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Rank 7: RecursionError Maximum Recursion Depth",
+    "titleZh": "RE 排行榜 No.7：RecursionError 遞迴堆疊爆發",
+    "desc": "APCS 搜尋與分治題常見死因！遞迴缺乏終止條件或深度過大，突破 Python 預設 1000 層限制直接崩潰！",
+    "codeLines": [
+      {
+        "code": "# 示範缺乏終止條件（Base Case）的失控遞迴\ndef infinite_recur(n):\n    return infinite_recur(n + 1)\n\ntry:\n    infinite_recur(1)\nexcept RecursionError as e:\n    print(\"遞迴爆發:\", e)",
+        "html": "<span class=\"c1\"># 示範缺乏終止條件（Base Case）的失控遞迴</span><br><span class=\"k\">def</span> <span class=\"nf\">infinite_recur</span><span class=\"p\">(</span><span class=\"n\">n</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">infinite_recur</span><span class=\"p\">(</span><span class=\"n\">n</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><span class=\"p\">)</span><br><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">infinite_recur</span><span class=\"p\">(</span><span class=\"mi\">1</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">RecursionError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;遞迴爆發:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範無窮遞迴拋出 RecursionError",
+        "mean": "maximum recursion depth exceeded",
+        "alt": "無窮遞迴示範"
+      },
+      {
+        "code": "# 處方：遞迴深題擴增深度上限\nimport sys\n# 查詢當前上限並示範調整（考場 DFS/樹遍歷時必備技巧）\ncurrent_limit = sys.getrecursionlimit()\nsys.setrecursionlimit(200000)\nprint(f\"原深度上限: {current_limit} -> 已擴展為: {sys.getrecursionlimit()}\")",
+        "html": "<span class=\"c1\"># 處方：遞迴深題擴增深度上限</span><br><span class=\"k\">import</span> <span class=\"nn\">sys</span><br><span class=\"c1\"># 查詢當前上限並示範調整（考場 DFS/樹遍歷時必備技巧）</span><br><span class=\"n\">current_limit</span> <span class=\"o\">=</span> <span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">getrecursionlimit</span><span class=\"p\">()</span><br><span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">setrecursionlimit</span><span class=\"p\">(</span><span class=\"mi\">200000</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;原深度上限: </span><span class=\"si\">{</span><span class=\"n\">current_limit</span><span class=\"si\">}</span><span class=\"s2\"> -&gt; 已擴展為: </span><span class=\"si\">{</span><span class=\"n\">sys</span><span class=\"o\">.</span><span class=\"n\">getrecursionlimit</span><span class=\"p\">()</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 sys.setrecursionlimit 防禦深度超標",
+        "mean": "將遞迴上限由 1000 提升至 200000",
+        "alt": "擴充遞迴深度"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "呼叫無窮遞迴，突破預設 1000 層限制",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "捕捉 RecursionError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "使用 sys.setrecursionlimit 調整上限",
+        "vars": {
+          "limit": 200000
+        }
+      },
+      {
+        "step": 4,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "遞迴爆發: maximum recursion depth exceeded\n原深度上限: 1000 -> 已擴展為: 200000\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "遞迴缺邊界千層堆疊爆"
+      },
+      {
+        "type": "point",
+        "content": "Python 預設遞迴上限僅 1000 層，深度 DFS 考題極易引爆 RE！"
+      },
+      {
+        "type": "tip",
+        "content": "在題幹 N 達 10^4 以上且使用遞迴時，務必在最上方宣告 sys.setrecursionlimit(200000)。"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Diagnosing Hidden Corner Case RE",
+    "titleZh": "關鍵理解測驗：OJ 隱藏測資觸發 RE 診斷",
+    "desc": "本機執行範例測資完美通過，一上傳 OJ 卻在第 4 筆測資獲得 Runtime Error，最可能的原因是什麼？",
+    "codeLines": [
+      {
+        "code": "# 某考生計算班級最高分與平均\n# 測資格式：第一行 N 代表人數，第二行 N 個整數\n# 本機測試 N=3, 分數 80 90 100 通過！\n# 但測資 4 隱藏了 N = 0！",
+        "html": "<span class=\"c1\"># 某考生計算班級最高分與平均</span><br><span class=\"c1\"># 測資格式：第一行 N 代表人數，第二行 N 個整數</span><br><span class=\"c1\"># 本機測試 N=3, 分數 80 90 100 通過！</span><br><span class=\"c1\"># 但測資 4 隱藏了 N = 0！</span>",
+        "why": "測驗題目情境代碼說明",
+        "mean": "考生忽略 N=0 極端邊界",
+        "alt": "情境說明"
+      },
+      {
+        "code": "def solve(n, scores):\n    # 考生寫法：\n    # avg = sum(scores) / n\n    # 如果 n == 0，將引發何種例外？\n    pass",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">solve</span><span class=\"p\">(</span><span class=\"n\">n</span><span class=\"p\">,</span> <span class=\"n\">scores</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 考生寫法：</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># avg = sum(scores) / n</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 如果 n == 0，將引發何種例外？</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">pass</span>",
+        "why": "提示考點為除零",
+        "mean": "n=0 時 sum(scores)/n 崩潰",
+        "alt": "考點提示"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "請學生預測 n=0 時觸發的崩潰型態",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "揭曉正解為 ZeroDivisionError",
+        "vars": {}
+      }
+    ],
+    "predictQuiz": {
+      "question": "當測資輸入 N = 0，執行 sum(scores) / n 會引發何種例外導致 OJ 判定 RE？",
+      "options": [
+        "A. ZeroDivisionError（分母為 0 引發除零崩潰）",
+        "B. IndexError（串列索引越界崩潰）"
+      ],
+      "answer": "A",
+      "explanation": "因為 n 為 0，任何數除以 0 都會直接引爆 ZeroDivisionError！題目並未存取 scores[i]，故不會是 IndexError。"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "範例雖通過極端值爆零"
+      },
+      {
+        "type": "point",
+        "content": "90% 的 RE 都是因為寫程式時只考慮了正常資料，遺漏了 N=0、空串列、負數等邊界測資！"
+      },
+      {
+        "type": "tip",
+        "content": "送出前養成自造「N=0」、「空行」、「單一元素」極限測資的超強防禦力！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "OJ Killer: Blank Lines & Unexpected EOF",
+    "titleZh": "OJ 隱形殺手：空行與多餘換行引爆解包",
+    "desc": "測資尾端經常伴隨空白行或多餘換行，直接使用 input().split() 解包會引爆 not enough values to unpack！",
+    "codeLines": [
+      {
+        "code": "# 脆弱寫法：遇到空行直接解包 -> 崩潰！\nblank_line = \"   \"  # 只有空白的行\ntry:\n    a, b = map(int, blank_line.split())\nexcept ValueError as e:\n    print(\"空行解包崩潰:\", e)",
+        "html": "<span class=\"c1\"># 脆弱寫法：遇到空行直接解包 -&gt; 崩潰！</span><br><span class=\"n\">blank_line</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;   &quot;</span>  <span class=\"c1\"># 只有空白的行</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"n\">b</span> <span class=\"o\">=</span> <span class=\"nb\">map</span><span class=\"p\">(</span><span class=\"nb\">int</span><span class=\"p\">,</span> <span class=\"n\">blank_line</span><span class=\"o\">.</span><span class=\"n\">split</span><span class=\"p\">())</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;空行解包崩潰:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範空行 split 後長度為 0 無法解包",
+        "mean": "not enough values to unpack (expected 2, got 0)",
+        "alt": "空行解包錯誤"
+      },
+      {
+        "code": "# 處方：解包前先檢查 parts 長度是否吻合！\nparts = blank_line.split()\nif len(parts) >= 2:\n    a, b = map(int, parts[:2])\nelse:\n    print(\"成功略過無效空行，守住考場滿分！\")",
+        "html": "<span class=\"c1\"># 處方：解包前先檢查 parts 長度是否吻合！</span><br><span class=\"n\">parts</span> <span class=\"o\">=</span> <span class=\"n\">blank_line</span><span class=\"o\">.</span><span class=\"n\">split</span><span class=\"p\">()</span><br><span class=\"k\">if</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">parts</span><span class=\"p\">)</span> <span class=\"o\">&gt;=</span> <span class=\"mi\">2</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"n\">b</span> <span class=\"o\">=</span> <span class=\"nb\">map</span><span class=\"p\">(</span><span class=\"nb\">int</span><span class=\"p\">,</span> <span class=\"n\">parts</span><span class=\"p\">[:</span><span class=\"mi\">2</span><span class=\"p\">])</span><br><span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;成功略過無效空行，守住考場滿分！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範安全長度檢驗解包",
+        "mean": "長度不足 2 則略過",
+        "alt": "解包長度檢查"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "空行 split() 結果為 []",
+        "vars": {
+          "parts": []
+        }
+      },
+      {
+        "step": 2,
+        "action": "直接解包給 a, b 拋出 ValueError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "檢查 len(parts) >= 2 為 False，安全跳過",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "空行解包崩潰: not enough values to unpack (expected 2, got 0)\n成功略過無效空行，守住考場滿分！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "空行解包崩讀取先去空"
+      },
+      {
+        "type": "point",
+        "content": "在競賽題目中，最後一筆測資後方常帶有多餘換行，直接讀取極易崩潰！"
+      },
+      {
+        "type": "tip",
+        "content": "養成 parts = line.split(); if not parts: continue 的防禦肌肉記憶！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Defensive Programming: Bulletproof Coding Habits",
+    "titleZh": "防禦型編程：在可能崩潰處築起安全防波堤",
+    "desc": "頂尖選手的秘密武器：不是不會犯錯，而是在代碼每個脆弱點都預先築起「防禦性編程」防波堤！",
+    "codeLines": [
+      {
+        "code": "# 4 大防禦金鐘罩代碼彙整：\n# 1. 字典查詢防禦：d.get(k, 0)\n# 2. 串列邊界防禦：0 <= i < len(arr)\n# 3. 除零分母防禦：d != 0 and (n / d)\n# 4. 遞迴深度防禦：sys.setrecursionlimit(200000)\nprint(\"四大防禦金鐘罩已全數就緒！\")",
+        "html": "<span class=\"c1\"># 4 大防禦金鐘罩代碼彙整：</span><br><span class=\"c1\"># 1. 字典查詢防禦：d.get(k, 0)</span><br><span class=\"c1\"># 2. 串列邊界防禦：0 &lt;= i &lt; len(arr)</span><br><span class=\"c1\"># 3. 除零分母防禦：d != 0 and (n / d)</span><br><span class=\"c1\"># 4. 遞迴深度防禦：sys.setrecursionlimit(200000)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;四大防禦金鐘罩已全數就緒！&quot;</span><span class=\"p\">)</span>",
+        "why": "彙整四大防禦寫法",
+        "mean": "建立防禦型編程反射神經",
+        "alt": "防禦金鐘罩總覽"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立防禦編程心智模型",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "印出防禦金鐘罩確認訊號",
+        "vars": {},
+        "output": "四大防禦金鐘罩已全數就緒！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "邊界全防禦代碼穩如山"
+      },
+      {
+        "type": "point",
+        "content": "多寫一行防禦檢查，換取考場 100 分 AC，報酬率無限大！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將介紹 try-except 異常捕捉語法，打造未知長度輸入處理神盾！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 13.3 Summary & Mastery Card",
+    "titleZh": "單元 13.3 綜合驗收：RE 常見排行榜與崩潰防禦",
+    "desc": "恭喜完成單元 13.3！你已全面征服 IndexError、KeyError、ValueError、ZeroDivisionError、TypeError、AttributeError 與 RecursionError 7 大 RE 殺手！",
+    "codeLines": [
+      {
+        "code": "# 7 大常見 RE 錯誤型態與防禦處方地圖",
+        "html": "<span class=\"c1\"># 7 大常見 RE 錯誤型態與防禦處方地圖</span>",
+        "why": "總結全單元核心錯誤型別",
+        "mean": "七大 RE 錯誤代碼速查",
+        "alt": "錯誤型態總覽"
+      },
+      {
+        "code": "re_remedies = {\n    'IndexError': '檢查 0 <= i < len(arr)，空串列先 if arr 判斷',\n    'KeyError': '改用 dict.get(k, 0) 或 collections.defaultdict',\n    'ValueError': '字串轉整數先確認純數字，解包前檢查長度',\n    'ZeroDivisionError': '計算平均與取模前，加入分母 != 0 守衛',\n    'TypeError': '字串拼接用 f-string，容器才呼叫 len()',\n    'AttributeError': '確認函式是否有 return，注意 sort() 原地修改回傳 None',\n    'RecursionError': '補充終止條件，頂部加入 sys.setrecursionlimit(200000)'\n}\nfor err, remedy in re_remedies.items():\n    print(f\"{err:18s}: {remedy}\")",
+        "html": "<span class=\"n\">re_remedies</span> <span class=\"o\">=</span> <span class=\"p\">{</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;IndexError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;檢查 0 &lt;= i &lt; len(arr)，空串列先 if arr 判斷&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;KeyError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;改用 dict.get(k, 0) 或 collections.defaultdict&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;ValueError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;字串轉整數先確認純數字，解包前檢查長度&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;ZeroDivisionError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;計算平均與取模前，加入分母 != 0 守衛&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;TypeError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;字串拼接用 f-string，容器才呼叫 len()&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;AttributeError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;確認函式是否有 return，注意 sort() 原地修改回傳 None&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;RecursionError&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;補充終止條件，頂部加入 sys.setrecursionlimit(200000)&#39;</span><br><span class=\"p\">}</span><br><span class=\"k\">for</span> <span class=\"n\">err</span><span class=\"p\">,</span> <span class=\"n\">remedy</span> <span class=\"ow\">in</span> <span class=\"n\">re_remedies</span><span class=\"o\">.</span><span class=\"n\">items</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">err</span><span class=\"si\">:</span><span class=\"s2\">18s</span><span class=\"si\">}</span><span class=\"s2\">: </span><span class=\"si\">{</span><span class=\"n\">remedy</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "印出完整 7 大 RE 錯誤與防禦處方地圖",
+        "mean": "條理分明，考前急救必備",
+        "alt": "處方地圖輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "彙總 7 大高頻 RE 崩潰原因與防禦方針",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出完整驗收對照地圖",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "完成單元驗收",
+        "vars": {}
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 13.3 通關：防禦編程大師！",
+      "summary": "太棒了！你已全面掌握 7 大常見 RE 執行期錯誤成因與防禦型編程核心技巧！",
+      "nextUnit": "13.4 例外捕捉語法：try ... except 架構與未知長度輸入處理"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "例外全防禦考場零崩潰"
+      },
+      {
+        "type": "point",
+        "content": "恭喜你完封 7 大常見執行時期錯誤，彻底終結考場 RE 暴斃慘劇！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將深入 try-except 例外捕捉語法，徹底征服未知長度輸入！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec13-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_13-3_runtime_errors_and_crash_defenses.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

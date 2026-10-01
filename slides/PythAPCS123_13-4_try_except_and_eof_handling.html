@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "Philosophy: EAFP vs LBYL Mental Model",
+    "titleZh": "例外處理哲學：EAFP vs LBYL 心智模型",
+    "desc": "Python 尊崇 EAFP（請求原諒比事前准許更容易）哲學！與其寫一堆繁複的 if 檢查，不如放手一試並以 try-except 優雅兜底！",
+    "codeLines": [
+      {
+        "code": "# LBYL（三思而後行）：多層 if 檢查\ns = \"123\"\nif s.isdigit():\n    num = int(s)\n    print(\"LBYL 轉換成功:\", num)",
+        "html": "<span class=\"c1\"># LBYL（三思而後行）：多層 if 檢查</span><br><span class=\"n\">s</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;123&quot;</span><br><span class=\"k\">if</span> <span class=\"n\">s</span><span class=\"o\">.</span><span class=\"n\">isdigit</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">num</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">s</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;LBYL 轉換成功:&quot;</span><span class=\"p\">,</span> <span class=\"n\">num</span><span class=\"p\">)</span>",
+        "why": "示範事前防禦寫法",
+        "mean": "先檢查再轉換",
+        "alt": "LBYL 示範"
+      },
+      {
+        "code": "# EAFP（放手一試）：直接轉，出錯再原諒補救\ns2 = \"abc\"\ntry:\n    num2 = int(s2)\nexcept ValueError:\n    num2 = 0\n    print(\"EAFP 捕捉並降級給予預設值:\", num2)",
+        "html": "<span class=\"c1\"># EAFP（放手一試）：直接轉，出錯再原諒補救</span><br><span class=\"n\">s2</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;abc&quot;</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">num2</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">s2</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">num2</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;EAFP 捕捉並降級給予預設值:&quot;</span><span class=\"p\">,</span> <span class=\"n\">num2</span><span class=\"p\">)</span>",
+        "why": "示範 Pythonic 的 EAFP 寫法",
+        "mean": "直接轉，轉不成走 except",
+        "alt": "EAFP 示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "LBYL 檢查 s.isdigit() 為 True 轉型印出 123",
+        "vars": {
+          "num": 123
+        }
+      },
+      {
+        "step": 2,
+        "action": "EAFP 嘗試 int('abc') 引發 ValueError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "進入 except 區塊給予 num2 = 0",
+        "vars": {
+          "num2": 0
+        }
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "LBYL 轉換成功: 123\nEAFP 捕捉並降級給予預設值: 0\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "搶先嘗試事後優雅補救"
+      },
+      {
+        "type": "point",
+        "content": "EAFP（Easier to Ask for Forgiveness than Permission）是 Python 設計的最高美學。"
+      },
+      {
+        "type": "tip",
+        "content": "在面對不可預測的外界輸入或資料流時，try-except 是最可靠的護身符！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "try-except Syntax: Catch & Graceful Degradation",
+    "titleZh": "try-except 語法骨架：捕捉與優雅降級",
+    "desc": "try 區塊如同安全實驗室，當內部發生例外時立刻由 except 區塊接手，避免程式崩潰暴斃！",
+    "codeLines": [
+      {
+        "code": "# 典型安全輸入轉整數函式\ndef safe_read_int(text):\n    try:\n        return int(text)\n    except ValueError:\n        return -1  # 降級預設值\n\nprint(\"有效輸入結果:\", safe_read_int(\"42\"))\nprint(\"異常輸入結果:\", safe_read_int(\"xyz\"))",
+        "html": "<span class=\"c1\"># 典型安全輸入轉整數函式</span><br><span class=\"k\">def</span> <span class=\"nf\">safe_read_int</span><span class=\"p\">(</span><span class=\"n\">text</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">text</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>  <span class=\"c1\"># 降級預設值</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;有效輸入結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">safe_read_int</span><span class=\"p\">(</span><span class=\"s2\">&quot;42&quot;</span><span class=\"p\">))</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;異常輸入結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">safe_read_int</span><span class=\"p\">(</span><span class=\"s2\">&quot;xyz&quot;</span><span class=\"p\">))</span>",
+        "why": "示範標準 try-except 降級模式",
+        "mean": "出錯時回傳 -1，程式不中斷",
+        "alt": "安全轉換函式"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "傳入 '42'，try 順利完成回傳 42",
+        "vars": {
+          "result1": 42
+        }
+      },
+      {
+        "step": 2,
+        "action": "傳入 'xyz'，拋出 ValueError 被 except 捕捉",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "except 回傳降級值 -1",
+        "vars": {
+          "result2": -1
+        }
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "有效輸入結果: 42\n異常輸入結果: -1\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "嘗試執行出錯捕捉降級"
+      },
+      {
+        "type": "point",
+        "content": "try 區塊內的程式一旦出錯，後續行數不再執行，直接跳轉到對應的 except。"
+      },
+      {
+        "type": "tip",
+        "content": "優雅降級（Graceful Degradation）是讓程式在惡劣測資下依然不崩潰的核心秘訣！"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Precision Catching: Ban Bare except:",
+    "titleZh": "精確捕捉原則：嚴禁裸寫 except",
+    "desc": "裸寫 except: 是惡魔寫法！它會無差別攔截包括鍵盤中斷與語法拼錯在內的所有例外，讓除錯徹底陷入黑暗！",
+    "codeLines": [
+      {
+        "code": "# 惡魔寫法：裸寫 except (Bare Except)\n# 試圖做計算，卻打錯變數名\ntry:\n    # prnit('hello')  # 拼錯 print！若是裸寫 except 會被吞噬成無聲 Bug！\n    val = int(\"999\")\nexcept:\n    val = 0\nprint(\"裸寫能跑但埋下巨大除錯隱患！\")",
+        "html": "<span class=\"c1\"># 惡魔寫法：裸寫 except (Bare Except)</span><br><span class=\"c1\"># 試圖做計算，卻打錯變數名</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># prnit(&#39;hello&#39;)  # 拼錯 print！若是裸寫 except 會被吞噬成無聲 Bug！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"s2\">&quot;999&quot;</span><span class=\"p\">)</span><br><span class=\"k\">except</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;裸寫能跑但埋下巨大除錯隱患！&quot;</span><span class=\"p\">)</span>",
+        "why": "警示裸寫 except 隱蔽 Bug",
+        "mean": "禁止無型別裸寫",
+        "alt": "裸寫警示"
+      },
+      {
+        "code": "# 正確寫法：永遠指名道姓具體的例外型別\ntry:\n    val = int(\"100\")\nexcept ValueError:\n    val = 0\nprint(\"指名捕捉 Value: val =\", val)",
+        "html": "<span class=\"c1\"># 正確寫法：永遠指名道姓具體的例外型別</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"s2\">&quot;100&quot;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;指名捕捉 Value: val =&quot;</span><span class=\"p\">,</span> <span class=\"n\">val</span><span class=\"p\">)</span>",
+        "why": "示範具體型別捕捉",
+        "mean": "明確只捕捉 ValueError",
+        "alt": "具體型別示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "說明裸寫 except 的致命弊病",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "指名捕捉 ValueError 成功轉換 100",
+        "vars": {
+          "val": 100
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "裸寫能跑但埋下巨大除錯隱患！\n指名捕捉 Value: val = 100\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "指名型別禁裸寫除錯難"
+      },
+      {
+        "type": "point",
+        "content": "裸寫 except: 連使用者按下 Ctrl+C 的 KeyboardInterrupt 都會吃掉，導致程式無法中斷。"
+      },
+      {
+        "type": "tip",
+        "content": "永遠只捕捉你「預期中且知道該怎麼處理」的具體例外！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Multiple except Blocks: Hierarchical Handling",
+    "titleZh": "多例外分支架構：階層分明與獨立急救",
+    "desc": "一個 try 可以掛載多個 except 區塊，如同醫院急診室依據不同病症分送專科診治！",
+    "codeLines": [
+      {
+        "code": "# 多例外專屬急救分流展示\ndef divide_lookup(data_list, idx, divisor_str):\n    try:\n        num = data_list[idx]\n        div = int(divisor_str)\n        return num / div\n    except IndexError:\n        return \"[急救] 串列索引越界！\"\n    except ValueError:\n        return \"[急救] 除數非有效整數！\"\n    except ZeroDivisionError:\n        return \"[急救] 除數不可為零！\"",
+        "html": "<span class=\"c1\"># 多例外專屬急救分流展示</span><br><span class=\"k\">def</span> <span class=\"nf\">divide_lookup</span><span class=\"p\">(</span><span class=\"n\">data_list</span><span class=\"p\">,</span> <span class=\"n\">idx</span><span class=\"p\">,</span> <span class=\"n\">divisor_str</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">num</span> <span class=\"o\">=</span> <span class=\"n\">data_list</span><span class=\"p\">[</span><span class=\"n\">idx</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">div</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">divisor_str</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">num</span> <span class=\"o\">/</span> <span class=\"n\">div</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">IndexError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"s2\">&quot;[急救] 串列索引越界！&quot;</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"s2\">&quot;[急救] 除數非有效整數！&quot;</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">ZeroDivisionError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"s2\">&quot;[急救] 除數不可為零！&quot;</span>",
+        "why": "示範多個 except 獨立分流",
+        "mean": "針對不同例外提供專屬處方",
+        "alt": "多例外分流"
+      },
+      {
+        "code": "arr = [100, 200]\nprint(divide_lookup(arr, 5, \"2\"))    # 越界\nprint(divide_lookup(arr, 0, \"abc\"))  # 轉型失敗\nprint(divide_lookup(arr, 0, \"0\"))    # 除零\nprint(\"正常結果:\", divide_lookup(arr, 1, \"4\"))",
+        "html": "<span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">100</span><span class=\"p\">,</span> <span class=\"mi\">200</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">divide_lookup</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"s2\">&quot;2&quot;</span><span class=\"p\">))</span>    <span class=\"c1\"># 越界</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">divide_lookup</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"s2\">&quot;abc&quot;</span><span class=\"p\">))</span>  <span class=\"c1\"># 轉型失敗</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">divide_lookup</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"s2\">&quot;0&quot;</span><span class=\"p\">))</span>    <span class=\"c1\"># 除零</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;正常結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">divide_lookup</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"s2\">&quot;4&quot;</span><span class=\"p\">))</span>",
+        "why": "測試四種情境輸出",
+        "mean": "印出對應專屬診斷",
+        "alt": "情境測試"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "測試索引 5 -> IndexError 攔截",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "測試字串 'abc' -> ValueError 攔截",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "測試除數 '0' -> ZeroDivisionError 攔截",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "正常計算 200 / 4 = 50.0",
+        "vars": {
+          "res": 50.0
+        }
+      },
+      {
+        "step": 5,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "[急救] 串列索引越界！\n[急救] 除數非有效整數！\n[急救] 除數不可為零！\n正常結果: 50.0\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "多例外分流各司其職救"
+      },
+      {
+        "type": "point",
+        "content": "直譯器會由上至下匹配第一個符合的 except 區塊，其餘區塊自動略過。"
+      },
+      {
+        "type": "tip",
+        "content": "也可寫 except (IndexError, ValueError): 將多個例外合併為同一急救處方。"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Exception Instance: as e Error Inspection",
+    "titleZh": "例外實體揭秘：as e 提取系統報錯訊息",
+    "desc": "加上 as e 可以捕獲直譯器封裝的例外物件實體，輕鬆萃取錯誤原因與型別名稱！",
+    "codeLines": [
+      {
+        "code": "# 擷取例外物件實體 as e\ntry:\n    num = int(\"999.88\")\nexcept ValueError as e:\n    err_type = type(e).__name__\n    err_msg = str(e)\n    print(f\"錯誤型別: {err_type}\")\n    print(f\"錯誤訊息: {err_msg}\")",
+        "html": "<span class=\"c1\"># 擷取例外物件實體 as e</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">num</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"s2\">&quot;999.88&quot;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">err_type</span> <span class=\"o\">=</span> <span class=\"nb\">type</span><span class=\"p\">(</span><span class=\"n\">e</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"vm\">__name__</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">err_msg</span> <span class=\"o\">=</span> <span class=\"nb\">str</span><span class=\"p\">(</span><span class=\"n\">e</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;錯誤型別: </span><span class=\"si\">{</span><span class=\"n\">err_type</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;錯誤訊息: </span><span class=\"si\">{</span><span class=\"n\">err_msg</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 as e 提取內部訊息",
+        "mean": "獲取精準診斷資訊",
+        "alt": "as e 實體示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "int('999.88') 拋出 ValueError",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "as e 綁定例外物件實體",
+        "vars": {
+          "err_type": "ValueError"
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出錯誤型別與原始報錯文字",
+        "vars": {},
+        "output": "錯誤型別: ValueError\n錯誤訊息: invalid literal for int() with base 10: '999.88'\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "取實體為依印出真報錯"
+      },
+      {
+        "type": "point",
+        "content": "在競賽練習階段，印出 str(e) 是快速找出測資格式偏差的超級捷徑！"
+      },
+      {
+        "type": "tip",
+        "content": "type(e).__name__ 能印出乾淨的字串 'ValueError'，方便做日誌或狀態分類。"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "The Complete Quartet: try-except-else-finally",
+    "titleZh": "完整四部曲：try - except - else - finally",
+    "desc": "例外結構完整四部曲：try 嘗試、except 救急、else 成功收割、finally 永遠善後清理！",
+    "codeLines": [
+      {
+        "code": "# 完整四部曲演示函式\ndef robust_process(val_str):\n    try:\n        val = int(val_str)\n    except ValueError:\n        print(\"[except] 發生例外，執行急救\")\n    else:\n        print(f\"[else] 運算順利無例外，數值平方為: {val**2}\")\n    finally:\n        print(\"[finally] 無論成敗，善後清理完成！\")",
+        "html": "<span class=\"c1\"># 完整四部曲演示函式</span><br><span class=\"k\">def</span> <span class=\"nf\">robust_process</span><span class=\"p\">(</span><span class=\"n\">val_str</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">val_str</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;[except] 發生例外，執行急救&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;[else] 運算順利無例外，數值平方為: </span><span class=\"si\">{</span><span class=\"n\">val</span><span class=\"o\">**</span><span class=\"mi\">2</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">finally</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;[finally] 無論成敗，善後清理完成！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 try-except-else-finally 四合一",
+        "mean": "完整的流程控制語法",
+        "alt": "四部曲架構"
+      },
+      {
+        "code": "print(\"--- 成功測試 ---\")\nrobust_process(\"5\")\nprint(\"--- 失敗測試 ---\")\nrobust_process(\"bad\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;--- 成功測試 ---&quot;</span><span class=\"p\">)</span><br><span class=\"n\">robust_process</span><span class=\"p\">(</span><span class=\"s2\">&quot;5&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;--- 失敗測試 ---&quot;</span><span class=\"p\">)</span><br><span class=\"n\">robust_process</span><span class=\"p\">(</span><span class=\"s2\">&quot;bad&quot;</span><span class=\"p\">)</span>",
+        "why": "印出成敗對照流程",
+        "mean": "觀察 else 與 finally 觸發條件",
+        "alt": "流程對照輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "傳入 '5'，無例外走 else，最後執行 finally",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "傳入 'bad'，拋出例外走 except，最後依然執行 finally",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "--- 成功測試 ---\n[else] 運算順利無例外，數值平方為: 25\n[finally] 無論成敗，善後清理完成！\n--- 失敗測試 ---\n[except] 發生例外，執行急救\n[finally] 無論成敗，善後清理完成！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "無錯走愛爾死終走凡諾"
+      },
+      {
+        "type": "point",
+        "content": "else 只有在 try 完全沒有拋出例外時才會執行。"
+      },
+      {
+        "type": "tip",
+        "content": "finally 具有最高執行保證，即使 try 或 except 裡面寫了 return，finally 依然會先執行！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "APCS Classic: EOFError & Unknown Length Input",
+    "titleZh": "APCS 經典實戰：EOFError 與未知筆數輸入",
+    "desc": "APCS 最經典的「讀到檔案結束（EOF）」題型！題目不告訴你有幾筆測資，一律使用 try-except EOFError 通殺！",
+    "codeLines": [
+      {
+        "code": "# 模擬 APCS 未知長度輸入資料流（字串流取代實體 stdin）\nimport io\nsimulated_input = io.StringIO(\"10 20\\n30 40\\n50 60\\n\")\n\ntotal_sum = 0\nwhile True:\n    try:\n        # 讀到 EOF 時 readline 會回傳空字串，或 input() 拋出 EOFError\n        line = simulated_input.readline()\n        if not line:  # 模擬 EOF\n            raise EOFError\n        a, b = map(int, line.split())\n        total_sum += (a + b)\n    except EOFError:\n        break  # 優雅退出無窮迴圈！\n\nprint(f\"全數資料累加總和: {total_sum}\")",
+        "html": "<span class=\"c1\"># 模擬 APCS 未知長度輸入資料流（字串流取代實體 stdin）</span><br><span class=\"k\">import</span> <span class=\"nn\">io</span><br><span class=\"n\">simulated_input</span> <span class=\"o\">=</span> <span class=\"n\">io</span><span class=\"o\">.</span><span class=\"n\">StringIO</span><span class=\"p\">(</span><span class=\"s2\">&quot;10 20</span><span class=\"se\">\\n</span><span class=\"s2\">30 40</span><span class=\"se\">\\n</span><span class=\"s2\">50 60</span><span class=\"se\">\\n</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><br><span class=\"n\">total_sum</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">while</span> <span class=\"kc\">True</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 讀到 EOF 時 readline 會回傳空字串，或 input() 拋出 EOFError</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">line</span> <span class=\"o\">=</span> <span class=\"n\">simulated_input</span><span class=\"o\">.</span><span class=\"n\">readline</span><span class=\"p\">()</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"ow\">not</span> <span class=\"n\">line</span><span class=\"p\">:</span>  <span class=\"c1\"># 模擬 EOF</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">raise</span> <span class=\"ne\">EOFError</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"n\">b</span> <span class=\"o\">=</span> <span class=\"nb\">map</span><span class=\"p\">(</span><span class=\"nb\">int</span><span class=\"p\">,</span> <span class=\"n\">line</span><span class=\"o\">.</span><span class=\"n\">split</span><span class=\"p\">())</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">total_sum</span> <span class=\"o\">+=</span> <span class=\"p\">(</span><span class=\"n\">a</span> <span class=\"o\">+</span> <span class=\"n\">b</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">EOFError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">break</span>  <span class=\"c1\"># 優雅退出無窮迴圈！</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;全數資料累加總和: </span><span class=\"si\">{</span><span class=\"n\">total_sum</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 APCS 經典 EOFError 處理架構",
+        "mean": "while True 配 except EOFError: break",
+        "alt": "EOFError 實戰範例"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "讀入第一筆 '10 20'，累加 30",
+        "vars": {
+          "total_sum": 30
+        }
+      },
+      {
+        "step": 2,
+        "action": "讀入第二筆 '30 40'，累加 70",
+        "vars": {
+          "total_sum": 100
+        }
+      },
+      {
+        "step": 3,
+        "action": "讀入第三筆 '50 60'，累加 110",
+        "vars": {
+          "total_sum": 210
+        }
+      },
+      {
+        "step": 4,
+        "action": "讀到檔尾觸發 EOFError 退出迴圈",
+        "vars": {}
+      },
+      {
+        "step": 5,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "全數資料累加總和: 210\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "讀到檔尾捕捉結束脫離"
+      },
+      {
+        "type": "point",
+        "content": "當使用標準 input() 讀到檔案尾端時，Python 會主動拋出 EOFError。"
+      },
+      {
+        "type": "tip",
+        "content": "這是 APCS 實作題每考必出的標準題型模版，牢記 while True + except EOFError！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Comparison: sys.stdin vs try-except EOF",
+    "titleZh": "對照方案：sys.stdin 串流讀取 vs try-except",
+    "desc": "APCS 雙雄對決：除了 while-try-except，更簡潔高效的寫法是直接對 sys.stdin 迭代遍歷！",
+    "codeLines": [
+      {
+        "code": "# 方案 A：try-except EOF 結構（適合互動式或中途需特殊判斷）\n# while True:\n#     try:\n#         s = input()\n#     except EOFError:\n#         break\n\n# 方案 B：sys.stdin 迭代（競賽極簡高效版，大推！）\nimport io, sys\nfake_stdin = io.StringIO(\"1\\n2\\n3\\n4\\n5\\n\")\nans = 0\nfor line in fake_stdin:  # 自動在 EOF 時優雅終止！\n    ans += int(line.strip())\nprint(f\"sys.stdin 自動讀至 EOF 累加結果: {ans}\")",
+        "html": "<span class=\"c1\"># 方案 A：try-except EOF 結構（適合互動式或中途需特殊判斷）</span><br><span class=\"c1\"># while True:</span><br><span class=\"c1\">#     try:</span><br><span class=\"c1\">#         s = input()</span><br><span class=\"c1\">#     except EOFError:</span><br><span class=\"c1\">#         break</span><br><br><span class=\"c1\"># 方案 B：sys.stdin 迭代（競賽極簡高效版，大推！）</span><br><span class=\"k\">import</span> <span class=\"nn\">io</span><span class=\"o\">,</span> <span class=\"nn\">sys</span><br><span class=\"n\">fake_stdin</span> <span class=\"o\">=</span> <span class=\"n\">io</span><span class=\"o\">.</span><span class=\"n\">StringIO</span><span class=\"p\">(</span><span class=\"s2\">&quot;1</span><span class=\"se\">\\n</span><span class=\"s2\">2</span><span class=\"se\">\\n</span><span class=\"s2\">3</span><span class=\"se\">\\n</span><span class=\"s2\">4</span><span class=\"se\">\\n</span><span class=\"s2\">5</span><span class=\"se\">\\n</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">for</span> <span class=\"n\">line</span> <span class=\"ow\">in</span> <span class=\"n\">fake_stdin</span><span class=\"p\">:</span>  <span class=\"c1\"># 自動在 EOF 時優雅終止！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">ans</span> <span class=\"o\">+=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"n\">line</span><span class=\"o\">.</span><span class=\"n\">strip</span><span class=\"p\">())</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;sys.stdin 自動讀至 EOF 累加結果: </span><span class=\"si\">{</span><span class=\"n\">ans</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "對比 sys.stdin 自動終止機制",
+        "mean": "for line in sys.stdin 自然終止",
+        "alt": "sys.stdin 對照"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "fake_stdin 依序讀入 1 至 5",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "EOF 時自動結束迴圈，ans 為 15",
+        "vars": {
+          "ans": 15
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "sys.stdin 自動讀至 EOF 累加結果: 15\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "串流自停捕捉跳出皆通"
+      },
+      {
+        "type": "point",
+        "content": "for line in sys.stdin 本質就是生成器迭代，遇到 EOF 自然終止，行數最少！"
+      },
+      {
+        "type": "tip",
+        "content": "兩者在 APCS 評判上皆可拿滿分，可依題目需求與個人習慣自由選用。"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Trap 1: Over-Catching Swallows Real Bugs",
+    "titleZh": "考場地雷一：過度捕捉吞噬真正 Bug",
+    "desc": "在全程式外圍包一個巨大的 try-except Exception: pass，只會把 RE 變成抓不到原因的 WA！",
+    "codeLines": [
+      {
+        "code": "# 典型錯誤：大包圍吞掉邏輯錯誤\ndef buggy_calc(data):\n    try:\n        # 本意想排除空資料，卻把打錯變數名的 NameError 一起吞掉了！\n        # result = date[0] * 2  # 拼錯成 date！\n        result = 0\n    except Exception:\n        result = -1  # 盲目吞噬，回傳 -1 導致 WA！\n    return result\n\nprint(\"盲目吞噬錯誤結果:\", buggy_calc([10, 20]))",
+        "html": "<span class=\"c1\"># 典型錯誤：大包圍吞掉邏輯錯誤</span><br><span class=\"k\">def</span> <span class=\"nf\">buggy_calc</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 本意想排除空資料，卻把打錯變數名的 NameError 一起吞掉了！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># result = date[0] * 2  # 拼錯成 date！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">result</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">Exception</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">result</span> <span class=\"o\">=</span> <span class=\"o\">-</span><span class=\"mi\">1</span>  <span class=\"c1\"># 盲目吞噬，回傳 -1 導致 WA！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">result</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;盲目吞噬錯誤結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">buggy_calc</span><span class=\"p\">([</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">]))</span>",
+        "why": "示範大包圍吞噬錯誤的害處",
+        "mean": "掩蓋真正 Bug 導致死得不明不白",
+        "alt": "過度捕捉示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "說明大範圍 try 吞噬真實問題的機制",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出警告訊息",
+        "vars": {},
+        "output": "盲目吞噬錯誤結果: 0\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "莫用大包攬吞錯變錯答"
+      },
+      {
+        "type": "point",
+        "content": "把整個解題主函式包進 try-except 是新手最常犯的偽防禦行為。"
+      },
+      {
+        "type": "tip",
+        "content": "只包圍真正高風險的一到兩行（如 input 讀取或 int 轉換）！"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Trap 2: Exception Inside Exception Handler",
+    "titleZh": "考場地雷二：急救區塊內再度引爆二次崩潰",
+    "desc": "在 except 區塊內寫的備案程式碼本身又出錯，引發連鎖崩潰（Chained Exception）依然以 RE 收場！",
+    "codeLines": [
+      {
+        "code": "# 示範急救區塊內再度崩潰\ntry:\n    val = int(\"bad_number\")\nexcept ValueError:\n    # 急救措施：試圖除以備用分母，但備用分母竟然是 0！\n    backup_denom = 0\n    try:\n        res = 100 / backup_denom\n    except ZeroDivisionError as e:\n        print(\"急救區塊內再次引爆:\", e)",
+        "html": "<span class=\"c1\"># 示範急救區塊內再度崩潰</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"s2\">&quot;bad_number&quot;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 急救措施：試圖除以備用分母，但備用分母竟然是 0！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">backup_denom</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">res</span> <span class=\"o\">=</span> <span class=\"mi\">100</span> <span class=\"o\">/</span> <span class=\"n\">backup_denom</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">ZeroDivisionError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;急救區塊內再次引爆:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範 except 內再次拋出例外",
+        "mean": "急救措施未保持極簡安全",
+        "alt": "二次崩潰示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "引發 ValueError 進入 except",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "except 內部除以 0 引發 ZeroDivisionError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出診斷",
+        "vars": {},
+        "output": "急救區塊內再次引爆: division by zero\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "急救代碼簡二次崩潰亡"
+      },
+      {
+        "type": "point",
+        "content": "except 區塊的代碼應該越單純越好，以直接賦值安全常數為主。"
+      },
+      {
+        "type": "tip",
+        "content": "切忌在 except 裡面執行繁瑣的運算或二度存取外部容器！"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Proactive Signaling: raise & Defensive assert",
+    "titleZh": "主動拋出例外：raise 與防禦性斷言 assert",
+    "desc": "防禦不只是被動接招！在模組與函式邊界，主動 raise 或 assert 能在錯誤剛萌芽時立刻亮出黃牌！",
+    "codeLines": [
+      {
+        "code": "# 示範主動拋出例外 raise\ndef register_age(age):\n    if age < 0 or age > 150:\n        raise ValueError(f\"年齡 {age} 不在合理生理區間！\")\n    return f\"登記成功: {age} 歲\"\n\ntry:\n    print(register_age(20))\n    print(register_age(-5))\nexcept ValueError as e:\n    print(\"主動攔截非法數值:\", e)",
+        "html": "<span class=\"c1\"># 示範主動拋出例外 raise</span><br><span class=\"k\">def</span> <span class=\"nf\">register_age</span><span class=\"p\">(</span><span class=\"n\">age</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">age</span> <span class=\"o\">&lt;</span> <span class=\"mi\">0</span> <span class=\"ow\">or</span> <span class=\"n\">age</span> <span class=\"o\">&gt;</span> <span class=\"mi\">150</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">raise</span> <span class=\"ne\">ValueError</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;年齡 </span><span class=\"si\">{</span><span class=\"n\">age</span><span class=\"si\">}</span><span class=\"s2\"> 不在合理生理區間！&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"sa\">f</span><span class=\"s2\">&quot;登記成功: </span><span class=\"si\">{</span><span class=\"n\">age</span><span class=\"si\">}</span><span class=\"s2\"> 歲&quot;</span><br><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">register_age</span><span class=\"p\">(</span><span class=\"mi\">20</span><span class=\"p\">))</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">register_age</span><span class=\"p\">(</span><span class=\"o\">-</span><span class=\"mi\">5</span><span class=\"p\">))</span><br><span class=\"k\">except</span> <span class=\"ne\">ValueError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;主動攔截非法數值:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"p\">)</span>",
+        "why": "示範主動 raise 守護業務邏輯",
+        "mean": "參數不合主動拋出",
+        "alt": "主動拋出例外"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "register_age(20) 檢驗合格回傳登記成功",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "register_age(-5) 觸發主動 raise ValueError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "登記成功: 20 歲\n主動攔截非法數值: 年齡 -5 不在合理生理區間！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "不合條件主動拋例外"
+      },
+      {
+        "type": "point",
+        "content": "主動 raise 能阻止無效資料深入複雜演算法造成無法挽回的邏輯破壞。"
+      },
+      {
+        "type": "tip",
+        "content": "除錯時可用 assert 0 <= x < 100, 'x 超標' 進行考前自我斷言驗證！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Handling EOF in APCS Problems",
+    "titleZh": "關鍵理解測驗：未知長度測資 EOF 處理",
+    "desc": "APCS 題目說明「每筆測資包含未知行數的整數對，直到檔案結束」，若使用 while True: line = input()，在測資尾端會發生何事？",
+    "codeLines": [
+      {
+        "code": "# 某考生寫法：\n# while True:\n#     line = input()  # 讀到檔案結尾時會怎樣？\n#     a, b = map(int, line.split())\n#     print(a + b)",
+        "html": "<span class=\"c1\"># 某考生寫法：</span><br><span class=\"c1\"># while True:</span><br><span class=\"c1\">#     line = input()  # 讀到檔案結尾時會怎樣？</span><br><span class=\"c1\">#     a, b = map(int, line.split())</span><br><span class=\"c1\">#     print(a + b)</span>",
+        "why": "題目情境展示",
+        "mean": "缺乏 EOFError 防禦的無窮迴圈",
+        "alt": "考題情境"
+      },
+      {
+        "code": "print(\"請預測未捕捉 EOFError 的考生送出至 OJ 時的評判結果！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;請預測未捕捉 EOFError 的考生送出至 OJ 時的評判結果！&quot;</span><span class=\"p\">)</span>",
+        "why": "引導預測",
+        "mean": "選擇 AC 還是 RE",
+        "alt": "預測題目"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "請學生選擇判定結果",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "揭曉正解為 Runtime Error (EOFError)",
+        "vars": {},
+        "output": "請預測未捕捉 EOFError 的考生送出至 OJ 時的評判結果！\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "若沒有用 try-except 包裹 input()，當讀取到測資檔尾時，OJ 系統會回傳何種結果？",
+      "options": [
+        "A. Runtime Error（拋出未受控的 EOFError 崩潰退出）",
+        "B. Accepted（input() 自動回傳 None 結束迴圈）"
+      ],
+      "answer": "A",
+      "explanation": "input() 在讀到檔案結束（EOF）時不會回傳 None，而是直接拋出 EOFError！若未以 try-except 捕捉並 break，直譯器會以異常退出碼終止，被 OJ 判定為 Runtime Error！"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "未知筆數捕捉檔尾脫離"
+      },
+      {
+        "type": "point",
+        "content": "這是大量 APCS 初學者首度遭遇 RE 的最痛領悟。"
+      },
+      {
+        "type": "tip",
+        "content": "看見題目寫「未知行數」或「EOF」，立刻寫出 while True + try-except EOFError！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Performance Cost: Exceptions Are Not Flow Control",
+    "titleZh": "效能代價：例外機制不可濫用於正常迴圈控制",
+    "desc": "例外機制的堆疊展開（Stack Unwinding）代價昂貴！千萬不要為了偷懶拿 try-except 取代常規的 for 迴圈！",
+    "codeLines": [
+      {
+        "code": "# 糟糕的反模式：用越界例外來當迴圈終止條件！\n# （在 10^5 筆大量資料下會引爆嚴重的效能拖累甚至 TLE！）\narr = [1, 2, 3]\ni = 0\nsum_val = 0\nwhile True:\n    try:\n        sum_val += arr[i]\n        i += 1\n    except IndexError:\n        break  # 拿例外當迴圈出口！大忌！\n\nprint(\"反模式雖然能算，但嚴禁在大數據下使用: sum =\", sum_val)",
+        "html": "<span class=\"c1\"># 糟糕的反模式：用越界例外來當迴圈終止條件！</span><br><span class=\"c1\"># （在 10^5 筆大量資料下會引爆嚴重的效能拖累甚至 TLE！）</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">]</span><br><span class=\"n\">i</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"n\">sum_val</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">while</span> <span class=\"kc\">True</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">sum_val</span> <span class=\"o\">+=</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">i</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">except</span> <span class=\"ne\">IndexError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">break</span>  <span class=\"c1\"># 拿例外當迴圈出口！大忌！</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;反模式雖然能算，但嚴禁在大數據下使用: sum =&quot;</span><span class=\"p\">,</span> <span class=\"n\">sum_val</span><span class=\"p\">)</span>",
+        "why": "警惕反模式效能陷阱",
+        "mean": "禁止用例外控制常規流程",
+        "alt": "反模式示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "說明例外機制開銷",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出警示結論",
+        "vars": {},
+        "output": "反模式雖然能算，但嚴禁在大數據下使用: sum = 6\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "例外有開銷不可替迴圈"
+      },
+      {
+        "type": "point",
+        "content": "常規遍歷請老老實實寫 for item in arr 或 for i in range(len(arr))。"
+      },
+      {
+        "type": "tip",
+        "content": "例外機制只應用於「罕見、不可預測的邊界異常」，而非「必然發生的常態流程」。"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Exam Defense SOP: Surgical Exception Targeting",
+    "titleZh": "考場防禦 SOP：try-except 的精準打擊心法",
+    "desc": "手術刀級精準打擊（Surgical Targeting）！包圍範疇最小化，指名道姓具體型別，打造無懈可擊的競賽代碼！",
+    "codeLines": [
+      {
+        "code": "# 考場 3 大黃金準則：\n# 1. 範疇最小：只包圍 input() 或 int() 單行\n# 2. 型別具體：指名 EOFError、ValueError\n# 3. 備案極簡：直接給 0 或 break，杜絕在 except 二度運算\nprint(\"三項防禦黃金準則銘記在心！\")",
+        "html": "<span class=\"c1\"># 考場 3 大黃金準則：</span><br><span class=\"c1\"># 1. 範疇最小：只包圍 input() 或 int() 單行</span><br><span class=\"c1\"># 2. 型別具體：指名 EOFError、ValueError</span><br><span class=\"c1\"># 3. 備案極簡：直接給 0 或 break，杜絕在 except 二度運算</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;三項防禦黃金準則銘記在心！&quot;</span><span class=\"p\">)</span>",
+        "why": "總結考場 SOP 準則",
+        "mean": "最小化、具體化、極簡備案",
+        "alt": "黃金準則總結"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "強化防禦 SOP 肌肉記憶",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出確認信號",
+        "vars": {},
+        "output": "三項防禦黃金準則銘記在心！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "縮小包覆圈單行精準打"
+      },
+      {
+        "type": "point",
+        "content": "範疇越小，定位 Bug 越快；型別越具體，程式越穩健。"
+      },
+      {
+        "type": "tip",
+        "content": "掌握這三條鐵律，你就是考場上永遠不會崩潰的代碼戰神！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 13.4 Summary & Mastery Card",
+    "titleZh": "單元 13.4 綜合驗收：try-except 與 EOF 處理",
+    "desc": "恭喜完成單元 13.4！你已透徹掌握 EAFP 哲學、精確捕捉原則、四部曲生命週期與 APCS 未知長度輸入神盾！",
+    "codeLines": [
+      {
+        "code": "# APCS 未知長度測資萬用滿分通關模版",
+        "html": "<span class=\"c1\"># APCS 未知長度測資萬用滿分通關模版</span>",
+        "why": "提供考場即用通關模版",
+        "mean": "標準 EOF 處理模式",
+        "alt": "模版展示"
+      },
+      {
+        "code": "# 模版演示（以 sys.stdin 流式讀取為尊）\nimport sys\n# for line in sys.stdin:\n#     line = line.strip()\n#     if not line:\n#         continue\n#     data = list(map(int, line.split()))\n#     solve(data)\nprint(\"萬用滿分通關模版隨查隨用！\")",
+        "html": "<span class=\"c1\"># 模版演示（以 sys.stdin 流式讀取為尊）</span><br><span class=\"k\">import</span> <span class=\"nn\">sys</span><br><span class=\"c1\"># for line in sys.stdin:</span><br><span class=\"c1\">#     line = line.strip()</span><br><span class=\"c1\">#     if not line:</span><br><span class=\"c1\">#         continue</span><br><span class=\"c1\">#     data = list(map(int, line.split()))</span><br><span class=\"c1\">#     solve(data)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;萬用滿分通關模版隨查隨用！&quot;</span><span class=\"p\">)</span>",
+        "why": "印出驗收模版宣告",
+        "mean": "完美應對未知長度測資",
+        "alt": "通關模版輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "彙總 try-except 與 EOF 處理精華",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "完成單元驗收",
+        "vars": {},
+        "output": "萬用滿分通關模版隨查隨用！\n"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 13.4 通關：例外防護宗師！",
+      "summary": "太棒了！你已全面掌握 try-except 架構、精確捕捉規範與 APCS 未知筆數 EOF 處理技巧！",
+      "nextUnit": "13.5 語意錯誤（Logic Error）與常見邏輯盲點排查（WA 防範）"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "例外神盾護未知輸入穩"
+      },
+      {
+        "type": "point",
+        "content": "恭喜你完封例外捕捉與未知筆數處理，自此徹底告別 EOFError 與 RE 威脅！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將攻克最磨人的「語意錯誤（Logic Error）」，斬斷 WA 邏輯盲點！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec13-4",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_13-4_try_except_and_eof_handling.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

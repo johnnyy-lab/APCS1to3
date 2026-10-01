@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 10.5 字典在 APCS 的經典解題模式 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 10.5 字典在 APCS 的經典解題模式
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.1 頻率統計模式：大數值與字串動態計數器",
+    "titleZh": "大數值計數的痛點——為何不能用串列當計數器？",
+    "titleEn": "Frequency Counter: Why Fixed Arrays Fail with Large Keys",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 考題出現身分證字號或十億級編號：",
+        "html": "<span class=\"token-comment\"># 考題出現身分證字號或十億級編號：</span>",
+        "alt": "註解：大數值鍵名說明",
+        "why": "點出考題極限情況",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "data = [1000000000, 5, 1000000000, 9999999999]",
+        "html": "<span class=\"token-ident\">data</span> = [<span class=\"token-number\">1000000000</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">1000000000</span>, <span class=\"token-number\">9999999999</span>]",
+        "alt": "宣告跨距極大的數值串列 data",
+        "why": "建立測試大數值",
+        "mean": "稀疏數據串列"
+      },
+      {
+        "num": 3,
+        "code": "# 錯誤思維：開百億長度串列 counts = [0] * 10000000001 (Memory Limit Exceeded 崩潰！)",
+        "html": "<span class=\"token-comment\"># 錯誤思維：開百億長度串列 counts = [0] * 10000000001 (記憶體爆掉！)</span>",
+        "alt": "註解：串列計數記憶體爆表",
+        "why": "揭示串列限制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "# 正解：以字典動態建立鍵，出現才配置記憶體！",
+        "html": "<span class=\"token-comment\"># 正解：以字典動態建立鍵，出現才配置記憶體！</span>",
+        "alt": "註解：字典動態配置正解",
+        "why": "展示字典解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "counts = {}",
+        "html": "<span class=\"token-ident\">counts</span> = {}",
+        "alt": "宣告空字典 counts",
+        "diff": true,
+        "why": "字典只占必要空間",
+        "mean": "空計數字典"
+      },
+      {
+        "num": 6,
+        "code": "for x in data:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">data</span>:",
+        "alt": "走訪數列元素",
+        "why": "輪詢各數值",
+        "mean": "走訪數據"
+      },
+      {
+        "num": 7,
+        "code": "    counts[x] = counts.get(x, 0) + 1",
+        "html": "    <span class=\"token-ident\">counts</span>[<span class=\"token-ident\">x</span>] = <span class=\"token-ident\">counts</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">x</span>, <span class=\"token-number\">0</span>) + <span class=\"token-number\">1</span>",
+        "alt": "以 get 累加頻率",
+        "diff": true,
+        "why": "單行動態計數",
+        "mean": "動態累加"
+      },
+      {
+        "num": 8,
+        "code": "print(\"動態計數成果:\", counts)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"動態計數成果:\"</span>, <span class=\"token-ident\">counts</span>)",
+        "alt": "印出計數成果",
+        "why": "驗證字典結構",
+        "mean": "輸出統計結果"
+      }
+    ],
+    "output": "動態計數成果: {1000000000: 2, 5: 1, 9999999999: 1}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>稀疏資料與大數計數</strong>：若數值範圍極大（例如 $10^9$）或鍵名為字串，絕對無法使用靜態陣列作為下標計數，必須以<strong>字典</strong>動態鍵名實現「有出現才紀錄」，節省超過 99.9% 空間！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>空間複雜度</strong>：字典空間僅取決於「相異元素個數」$O(U)$，完全不受數值大小上限影響。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "數值範圍大，字典動態計"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.1 頻率統計模式：大數值與字串動態計數器",
+    "titleZh": "找出眾數（Mode）——以 max 結合字典鍵值搜尋",
+    "titleEn": "Finding the Mode: Max Value Key in Frequency Counter",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "votes = [\"A\", \"B\", \"A\", \"C\", \"B\", \"A\", \"C\", \"A\"]",
+        "html": "<span class=\"token-ident\">votes</span> = [<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"C\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"C\"</span>, <span class=\"token-string\">\"A\"</span>]",
+        "alt": "宣告投票紀錄串列 votes",
+        "why": "建立測試候選人得票",
+        "mean": "投票紀錄串列"
+      },
+      {
+        "num": 2,
+        "code": "counts = {}",
+        "html": "<span class=\"token-ident\">counts</span> = {}",
+        "alt": "宣告空字典 counts",
+        "why": "計票器初始化",
+        "mean": "空字典"
+      },
+      {
+        "num": 3,
+        "code": "for v in votes:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">votes</span>:",
+        "alt": "逐票走訪",
+        "why": "走訪每張選票",
+        "mean": "輪詢選票"
+      },
+      {
+        "num": 4,
+        "code": "    counts[v] = counts.get(v, 0) + 1",
+        "html": "    <span class=\"token-ident\">counts</span>[<span class=\"token-ident\">v</span>] = <span class=\"token-ident\">counts</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">v</span>, <span class=\"token-number\">0</span>) + <span class=\"token-number\">1</span>",
+        "alt": "累計各候選人票數",
+        "diff": true,
+        "why": "累計得票數",
+        "mean": "單行累加"
+      },
+      {
+        "num": 5,
+        "code": "# 使用 max 找出得票最多（眾數）的候選人",
+        "html": "<span class=\"token-comment\"># 使用 max 找出得票最多（眾數）的候選人</span>",
+        "alt": "註解：max 取眾數說明",
+        "why": "展示最高票搜尋",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "winner = max(counts, key=counts.get)",
+        "html": "<span class=\"token-ident\">winner</span> = <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">counts</span>, <span class=\"token-ident\">key</span>=<span class=\"token-ident\">counts</span>.<span class=\"token-ident\">get</span>)",
+        "alt": "利用 key=counts.get 取得最大值之鍵",
+        "diff": true,
+        "why": "一行定位最高票候選人",
+        "mean": "最高票鍵名"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"當選人: {winner}, 票數: {counts[winner]}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"當選人: {winner}, 票數: {counts[winner]}\"</span>)",
+        "alt": "格式化輸出當選人與票數",
+        "why": "輸出眾數與最高次數",
+        "mean": "輸出勝選結果"
+      }
+    ],
+    "output": "當選人: A, 票數: 4",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 統計題標配心法</strong>：先以 <code>counts.get(x, 0) + 1</code> 建立計數器，接著使用 <code>max(counts, key=counts.get)</code> 瞬間挑出最高頻鍵名（眾數 Mode）！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>雙平手處理</strong>：若有多人同票，<code>max()</code> 預設回傳最早出現者；若需由小到大排序請搭配 <code>sorted()</code> 自訂雙重鍵。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "計數求眾數，max取最大"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.2 查表法（Lookup Table）：英文代碼與符號轉換",
+    "titleZh": "查表法心法——終結巢狀 if-elif-else 的典雅代碼",
+    "titleEn": "Lookup Table: Replacing Long if-elif Chains with Dict",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 傳統繁瑣寫法：12 個 elif 判斷月份",
+        "html": "<span class=\"token-comment\"># 傳統繁瑣寫法：12 個 elif 判斷月份</span>",
+        "alt": "註解：傳統 elif 繁瑣比對",
+        "why": "對比劣質代碼",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# 查表法（Lookup Table）優質寫法：常數表直接映射！",
+        "html": "<span class=\"token-comment\"># 查表法（Lookup Table）優質寫法：常數表直接映射！</span>",
+        "alt": "註解：查表法優勢說明",
+        "why": "引出常數映射表",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "month_map = {",
+        "html": "<span class=\"token-ident\">month_map</span> = {",
+        "alt": "宣告月份查表字典 month_map",
+        "why": "建立月份常數表",
+        "mean": "查表字典開頭"
+      },
+      {
+        "num": 4,
+        "code": "    \"Jan\": 1, \"Feb\": 2, \"Mar\": 3, \"Apr\": 4,",
+        "html": "    <span class=\"token-string\">\"Jan\"</span>: <span class=\"token-number\">1</span>, <span class=\"token-string\">\"Feb\"</span>: <span class=\"token-number\">2</span>, <span class=\"token-string\">\"Mar\"</span>: <span class=\"token-number\">3</span>, <span class=\"token-string\">\"Apr\"</span>: <span class=\"token-number\">4</span>,",
+        "alt": "前四個月映射",
+        "why": "填充月份鍵值",
+        "mean": "1至4月"
+      },
+      {
+        "num": 5,
+        "code": "    \"May\": 5, \"Jun\": 6, \"Jul\": 7, \"Aug\": 8",
+        "html": "    <span class=\"token-string\">\"May\"</span>: <span class=\"token-number\">5</span>, <span class=\"token-string\">\"Jun\"</span>: <span class=\"token-number\">6</span>, <span class=\"token-string\">\"Jul\"</span>: <span class=\"token-number\">7</span>, <span class=\"token-string\">\"Aug\"</span>: <span class=\"token-number\">8</span>",
+        "alt": "五至八月映射",
+        "why": "填充月份鍵值",
+        "mean": "5至8月"
+      },
+      {
+        "num": 6,
+        "code": "}",
+        "html": "}",
+        "alt": "字典結尾",
+        "why": "字典建立完成",
+        "mean": "字典結束"
+      },
+      {
+        "num": 7,
+        "code": "target = \"May\"",
+        "html": "<span class=\"token-ident\">target</span> = <span class=\"token-string\">\"May\"</span>",
+        "alt": "設定查詢目標月份 May",
+        "why": "指定查詢標的",
+        "mean": "查詢鍵"
+      },
+      {
+        "num": 8,
+        "code": "month_num = month_map.get(target, -1)",
+        "html": "<span class=\"token-ident\">month_num</span> = <span class=\"token-ident\">month_map</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">target</span>, -<span class=\"token-number\">1</span>)",
+        "alt": "以 get 快速查表",
+        "diff": true,
+        "why": "一行安全查表",
+        "mean": "取得月份數字"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"{target} 對應數字為: {month_num}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{target} 對應數字為: {month_num}\"</span>)",
+        "alt": "輸出轉換結果",
+        "why": "輸出數字 5",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "May 對應數字為: 5",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>查表法（Lookup Table）</strong>：當輸入為有限的字串、符號或代碼，且需要轉換為對應數值或動作時，建立字典查表能將多層 <code>if-elif</code> 化為單行 <code>dict.get()</code>，時間直接降至 $O(1)$！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>解題擴展性</strong>：若題目未來新增或修改代碼，只要微調字典內容，無需改動任何核心控制流程邏輯。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "查表代條件，程式極簡潔"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.2 查表法（Lookup Table）：英文代碼與符號轉換",
+    "titleZh": "查表法實戰——外幣匯率換算與符號累積",
+    "titleEn": "Lookup Table Practice: Currency Exchange Calculation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "rates = {\"USD\": 31, \"JPY\": 0.21, \"EUR\": 34}",
+        "html": "<span class=\"token-ident\">rates</span> = {<span class=\"token-string\">\"USD\"</span>: <span class=\"token-number\">31</span>, <span class=\"token-string\">\"JPY\"</span>: <span class=\"token-number\">0.21</span>, <span class=\"token-string\">\"EUR\"</span>: <span class=\"token-number\">34</span>}",
+        "alt": "宣告各國幣別對新台幣匯率字典",
+        "why": "建立外幣匯率查表",
+        "mean": "匯率字典"
+      },
+      {
+        "num": 2,
+        "code": "orders = [(\"USD\", 100), (\"JPY\", 10000), (\"EUR\", 50)]",
+        "html": "<span class=\"token-ident\">orders</span> = [(<span class=\"token-string\">\"USD\"</span>, <span class=\"token-number\">100</span>), (<span class=\"token-string\">\"JPY\"</span>, <span class=\"token-number\">10000</span>), (<span class=\"token-string\">\"EUR\"</span>, <span class=\"token-number\">50</span>)]",
+        "alt": "宣告兌換訂單串列 orders",
+        "why": "建立待處理交易訂單",
+        "mean": "交易紀錄串列"
+      },
+      {
+        "num": 3,
+        "code": "total_twd = 0",
+        "html": "<span class=\"token-ident\">total_twd</span> = <span class=\"token-number\">0</span>",
+        "alt": "累計總金額歸零",
+        "why": "初始金額計數",
+        "mean": "總金額初始值"
+      },
+      {
+        "num": 4,
+        "code": "for curr, amount in orders:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">curr</span>, <span class=\"token-ident\">amount</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">orders</span>:",
+        "alt": "解包走訪各訂單",
+        "why": "逐筆訂單處理",
+        "mean": "解包交易元組"
+      },
+      {
+        "num": 5,
+        "code": "    rate = rates.get(curr, 0)",
+        "html": "    <span class=\"token-ident\">rate</span> = <span class=\"token-ident\">rates</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">curr</span>, <span class=\"token-number\">0</span>)",
+        "alt": "查出該幣別匯率",
+        "diff": true,
+        "why": "以幣別極速查表",
+        "mean": "取得對應匯率"
+      },
+      {
+        "num": 6,
+        "code": "    total_twd += int(amount * rate)",
+        "html": "    <span class=\"token-ident\">total_twd</span> += <span class=\"token-builtin\">int</span>(<span class=\"token-ident\">amount</span> * <span class=\"token-ident\">rate</span>)",
+        "alt": "金額乘上匯率累加",
+        "why": "計算並累計台幣",
+        "mean": "累加總台幣"
+      },
+      {
+        "num": 7,
+        "code": "print(\"折合新台幣總額:\", total_twd)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"折合新台幣總額:\"</span>, <span class=\"token-ident\">total_twd</span>)",
+        "alt": "印出計算總金額",
+        "why": "驗證總金額結果",
+        "mean": "輸出 6900"
+      }
+    ],
+    "output": "折合新台幣總額: 6900",
+    "notes": [
+      {
+        "type": "tip",
+        "text": "<strong>APCS 實戰題材</strong>：包含羅馬數字轉換（如 <code>{'I': 1, 'V': 5, 'X': 10}</code>）、摩斯密碼編碼、化學分子量累計等，全都是查表法的直接應用！"
+      },
+      {
+        "type": "concept",
+        "text": "<strong>安全查表</strong>：搭配 <code>get(curr, 0)</code> 避免遇到未知幣別時引發中斷。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "幣別配匯率，查表秒折算"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.3 離散化 / 座標壓縮：以字典建立排名映射",
+    "titleZh": "座標壓縮核心概念——將龐大數值壓縮為緊湊排名",
+    "titleEn": "Coordinate Compression: Compressing Vast Space to Ranks",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 原始分數跨度極大，可能落在 1 ~ 1,000,000,000",
+        "html": "<span class=\"token-comment\"># 原始分數跨度極大，可能落在 1 ~ 1,000,000,000</span>",
+        "alt": "註解：離散化問題背景",
+        "why": "點出原始數據特性",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "scores = [88, 95, 70, 88, 100, 70]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">88</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">70</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">100</span>, <span class=\"token-number\">70</span>]",
+        "alt": "宣告測試分數 scores",
+        "why": "建立原始成績清單",
+        "mean": "原始成績串列"
+      },
+      {
+        "num": 3,
+        "code": "# 目標：保持「大小相對關係」，但將數值壓縮為 0, 1, 2...",
+        "html": "<span class=\"token-comment\"># 目標：保持「大小相對關係」，但將數值壓縮為 0, 1, 2...</span>",
+        "alt": "註解：壓縮目標",
+        "why": "闡明離散化核心目的",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "# 70 是最小 -> 排名 0",
+        "html": "<span class=\"token-comment\"># 70 是最小 -> 排名 0</span>",
+        "alt": "70 映射為 0",
+        "why": "排名分配示範",
+        "mean": "最小值說明"
+      },
+      {
+        "num": 5,
+        "code": "# 88 是次小 -> 排名 1",
+        "html": "<span class=\"token-comment\"># 88 是次小 -> 排名 1</span>",
+        "alt": "88 映射為 1",
+        "why": "排名分配示範",
+        "mean": "次小值說明"
+      },
+      {
+        "num": 6,
+        "code": "# 95 是第三 -> 排名 2",
+        "html": "<span class=\"token-comment\"># 95 是第三 -> 排名 2</span>",
+        "alt": "95 映射為 2",
+        "why": "排名分配示範",
+        "mean": "第三大說明"
+      },
+      {
+        "num": 7,
+        "code": "# 100 是最高 -> 排名 3",
+        "html": "<span class=\"token-comment\"># 100 是最高 -> 排名 3</span>",
+        "alt": "100 映射為 3",
+        "why": "排名分配示範",
+        "mean": "最大值說明"
+      },
+      {
+        "num": 8,
+        "code": "print(\"目標相對排名字典: {70: 0, 88: 1, 95: 2, 100: 3}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"目標相對排名字典: {70: 0, 88: 1, 95: 2, 100: 3}\"</span>)",
+        "alt": "印出預期字典映射結構",
+        "why": "呈現壓縮成果模型",
+        "mean": "輸出預期映射"
+      }
+    ],
+    "output": "目標相對排名字典: {70: 0, 88: 1, 95: 2, 100: 3}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>座標壓縮（離散化 Coordinate Compression）</strong>：將數值範圍巨大（如 $0 \\sim 10^9$）但實際相異元素有限（$N \\le 10^5$）的數據，按大小順序重新編號為 $0, 1, 2, \\dots$ 的過程。是樹狀陣列（BIT）、線段樹與動態規劃的關鍵前置處理！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "巨大數值縮，排名緊湊列"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.3 離散化 / 座標壓縮：以字典建立排名映射",
+    "titleZh": "座標壓縮實作——排序、去重與字典映射表建置",
+    "titleEn": "Coordinate Compression Implementation with Dict",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [88, 95, 70, 88, 100, 70]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">88</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">70</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">100</span>, <span class=\"token-number\">70</span>]",
+        "alt": "原始分數 scores",
+        "why": "原始數據含重複元素",
+        "mean": "原始成績串列"
+      },
+      {
+        "num": 2,
+        "code": "# 步驟一：排序並去重，取出嚴格遞增的相異元素",
+        "html": "<span class=\"token-comment\"># 步驟一：排序並去重，取出嚴格遞增的相異元素</span>",
+        "alt": "註解：排序與去重說明",
+        "why": "闡述標準前置步驟",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "unique_sorted = sorted(set(scores))",
+        "html": "<span class=\"token-ident\">unique_sorted</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-builtin\">set</span>(<span class=\"token-ident\">scores</span>))",
+        "alt": "以 set 去重後 sorted 遞增排序",
+        "diff": true,
+        "why": "取得 [70, 88, 95, 100]",
+        "mean": "去重排序清單"
+      },
+      {
+        "num": 4,
+        "code": "# 步驟二：以字典推導式建立「數值 -> 排名索引」的 O(1) 查表",
+        "html": "<span class=\"token-comment\"># 步驟二：以字典推導式建立「數值 -> 排名索引」的 O(1) 查表</span>",
+        "alt": "註解：字典推導建表",
+        "why": "說明字典索引映射",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "val_to_rank = {val: i for i, val in enumerate(unique_sorted)}",
+        "html": "<span class=\"token-ident\">val_to_rank</span> = {<span class=\"token-ident\">val</span>: <span class=\"token-ident\">i</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span>, <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">unique_sorted</span>)}",
+        "alt": "以 enumerate 生成 數值:排名 字典",
+        "diff": true,
+        "why": "一鍵生成數值映射字典",
+        "mean": "壓縮映射表"
+      },
+      {
+        "num": 6,
+        "code": "# 步驟三：將原始串列轉換為壓縮後的緊湊排名數列",
+        "html": "<span class=\"token-comment\"># 步驟三：將原始串列轉換為壓縮後的緊湊排名數列</span>",
+        "alt": "註解：轉換原始串列說明",
+        "why": "完成壓縮轉換",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "compressed = [val_to_rank[s] for s in scores]",
+        "html": "<span class=\"token-ident\">compressed</span> = [<span class=\"token-ident\">val_to_rank</span>[<span class=\"token-ident\">s</span>] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span>]",
+        "alt": "查表替換原始分數為排名",
+        "why": "產生壓縮串列",
+        "mean": "壓縮排名結果"
+      },
+      {
+        "num": 8,
+        "code": "print(\"壓縮後排名:\", compressed)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"壓縮後排名:\"</span>, <span class=\"token-ident\">compressed</span>)",
+        "alt": "印出壓縮後的排名串列",
+        "why": "驗證輸出結果",
+        "mean": "輸出 [1, 2, 0, 1, 3, 0]"
+      }
+    ],
+    "output": "壓縮後排名: [1, 2, 0, 1, 3, 0]",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 高級演算法必備神技</strong>：<code>val_to_rank = {v: i for i, v in enumerate(sorted(set(arr)))}</code>。僅需兩行，將數百萬跨度的離散數字化為連續非負整數下標，是許多難題突破記憶體限制的關鍵解法！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "去重排序列，字典射排名"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.4 雙向映射表：Key 與 Value 互換技巧",
+    "titleZh": "雙向映射表——正查與反查的雙字典架構",
+    "titleEn": "Two-Way Mapping: Bi-directional Dictionary Lookups",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 題目需同時支援：用工號查姓名，以及用姓名反查工號",
+        "html": "<span class=\"token-comment\"># 題目需同時支援：用工號查姓名，以及用姓名反查工號</span>",
+        "alt": "註解：雙向查詢需求說明",
+        "why": "呈現考題雙向查詢場景",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "id_to_name = {\"E101\": \"Alice\", \"E102\": \"Bob\", \"E103\": \"Charlie\"}",
+        "html": "<span class=\"token-ident\">id_to_name</span> = {<span class=\"token-string\">\"E101\"</span>: <span class=\"token-string\">\"Alice\"</span>, <span class=\"token-string\">\"E102\"</span>: <span class=\"token-string\">\"Bob\"</span>, <span class=\"token-string\">\"E103\"</span>: <span class=\"token-string\">\"Charlie\"</span>}",
+        "alt": "工號對姓名字典 id_to_name",
+        "why": "正向字典",
+        "mean": "工號轉姓名"
+      },
+      {
+        "num": 3,
+        "code": "# 快速自動生成反向字典：遍歷 items() 互換鍵值",
+        "html": "<span class=\"token-comment\"># 快速自動生成反向字典：遍歷 items() 互換鍵值</span>",
+        "alt": "註解：反向字典推導",
+        "why": "展示自動翻轉字典",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "name_to_id = {name: eid for eid, name in id_to_name.items()}",
+        "html": "<span class=\"token-ident\">name_to_id</span> = {<span class=\"token-ident\">name</span>: <span class=\"token-ident\">eid</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">eid</span>, <span class=\"token-ident\">name</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">id_to_name</span>.<span class=\"token-ident\">items</span>()}",
+        "alt": "推導式翻轉鍵值產生 name_to_id",
+        "diff": true,
+        "why": "一行建立反向字典",
+        "mean": "姓名轉工號"
+      },
+      {
+        "num": 5,
+        "code": "print(\"正查 E102:\", id_to_name.get(\"E102\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正查 E102:\"</span>, <span class=\"token-ident\">id_to_name</span>.<span class=\"token-ident\">get</span>(<span class=\"token-string\">\"E102\"</span>))",
+        "alt": "正向查詢工號 E102",
+        "why": "測試正向查詢",
+        "mean": "輸出 Bob"
+      },
+      {
+        "num": 6,
+        "code": "print(\"反查 Charlie:\", name_to_id.get(\"Charlie\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"反查 Charlie:\"</span>, <span class=\"token-ident\">name_to_id</span>.<span class=\"token-ident\">get</span>(<span class=\"token-string\">\"Charlie\"</span>))",
+        "alt": "反向查詢姓名 Charlie",
+        "why": "測試反向查詢",
+        "mean": "輸出 E103"
+      }
+    ],
+    "output": "正查 E102: Bob\n反查 Charlie: E103",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>雙向映射（Two-way Mapping）</strong>：在字典中，Key 查 Value 是 $O(1)$，但 Value 查 Key 只能線性遍歷 $O(N)$。若考題同時要求頻繁的雙向檢索，最佳策略是同時維護正向與反向兩張字典，雙向皆達 $O(1)$！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "雙向皆常數，正反雙字典"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.4 雙向映射表：Key 與 Value 互換技巧",
+    "titleZh": "一對多反向分組——同值資料反向收集為串列",
+    "titleEn": "One-to-Many Inversion: Mapping Duplicate Values to Lists",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = {\"Alice\": 90, \"Bob\": 80, \"Charlie\": 90, \"David\": 70}",
+        "html": "<span class=\"token-ident\">scores</span> = {<span class=\"token-string\">\"Alice\"</span>: <span class=\"token-number\">90</span>, <span class=\"token-string\">\"Bob\"</span>: <span class=\"token-number\">80</span>, <span class=\"token-string\">\"Charlie\"</span>: <span class=\"token-number\">90</span>, <span class=\"token-string\">\"David\"</span>: <span class=\"token-number\">70</span>}",
+        "alt": "學生成績字典 scores（存在同分 90）",
+        "why": "模擬 Value 重複場景",
+        "mean": "原始成績字典"
+      },
+      {
+        "num": 2,
+        "code": "# 注意：若直接反轉，Alice 會被 Charlie 覆蓋！",
+        "html": "<span class=\"token-comment\"># 注意：若直接反轉，Alice 會被 Charlie 覆蓋！</span>",
+        "alt": "註解：覆蓋警告",
+        "why": "提醒一對多翻轉要領",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "score_to_names = {}",
+        "html": "<span class=\"token-ident\">score_to_names</span> = {}",
+        "alt": "宣告分數對姓名清單字典",
+        "why": "建立反向分組字典",
+        "mean": "空反向分組字典"
+      },
+      {
+        "num": 4,
+        "code": "for name, sc in scores.items():",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, <span class=\"token-ident\">sc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">scores</span>.<span class=\"token-ident\">items</span>():",
+        "alt": "走訪姓名與分數",
+        "why": "遍歷學生成績",
+        "mean": "輪詢姓名分數對"
+      },
+      {
+        "num": 5,
+        "code": "    # 若分數不存在則建新 list，存在則直接 append 加入",
+        "html": "    <span class=\"token-comment\"># 若分數不存在則建新 list，存在則直接 append 加入</span>",
+        "alt": "註解：分組收集說明",
+        "why": "分組收集核心思維",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "    score_to_names.setdefault(sc, []).append(name)",
+        "html": "    <span class=\"token-ident\">score_to_names</span>.<span class=\"token-ident\">setdefault</span>(<span class=\"token-ident\">sc</span>, []).<span class=\"token-ident\">append</span>(<span class=\"token-ident\">name</span>)",
+        "alt": "利用 setdefault 加入姓名至串列",
+        "diff": true,
+        "why": "優雅分組收集",
+        "mean": "依分數追加姓名"
+      },
+      {
+        "num": 7,
+        "code": "print(\"同分分組字典:\", score_to_names)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"同分分組字典:\"</span>, <span class=\"token-ident\">score_to_names</span>)",
+        "alt": "輸出分組收集結果",
+        "why": "驗證同分名單收集",
+        "mean": "輸出完整字典"
+      }
+    ],
+    "output": "同分分組字典: {90: ['Alice', 'Charlie'], 80: ['Bob'], 70: ['David']}",
+    "notes": [
+      {
+        "type": "tip",
+        "text": "<strong>一對多反向映射</strong>：當 Value 出現重複時，反轉後的鍵值結構必須是 <code>Value: [Key1, Key2, ...]</code>。此模式正是圖論中由邊（Edges）建立<strong>鄰接表（Adjacency List）</strong>的同款核心手法！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "值若有重複，反轉包串列"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.5 分組聚合（Group By / Bucket）：以字典收集分類清單",
+    "titleZh": "分組聚合模式——以字典進行分類分桶（Bucket）",
+    "titleEn": "Group By Pattern: Classifying Elements into Buckets",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 待歸類的學生名冊：(年級, 姓名)",
+        "html": "<span class=\"token-comment\"># 待歸類的學生名冊：(年級, 姓名)</span>",
+        "alt": "註解：分組資料說明",
+        "why": "建立分組情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "students = [(7, \"Alice\"), (8, \"Bob\"), (7, \"Charlie\"), (9, \"David\"), (8, \"Eva\")]",
+        "html": "<span class=\"token-ident\">students</span> = [(<span class=\"token-number\">7</span>, <span class=\"token-string\">\"Alice\"</span>), (<span class=\"token-number\">8</span>, <span class=\"token-string\">\"Bob\"</span>), (<span class=\"token-number\">7</span>, <span class=\"token-string\">\"Charlie\"</span>), (<span class=\"token-number\">9</span>, <span class=\"token-string\">\"David\"</span>), (<span class=\"token-number\">8</span>, <span class=\"token-string\">\"Eva\"</span>)]",
+        "alt": "宣告學生名冊元組串列",
+        "why": "建立測試學生數據",
+        "mean": "年級與學生串列"
+      },
+      {
+        "num": 3,
+        "code": "grade_buckets = {}",
+        "html": "<span class=\"token-ident\">grade_buckets</span> = {}",
+        "alt": "宣告空年級分桶字典 grade_buckets",
+        "why": "分組字典初始化",
+        "mean": "空字典"
+      },
+      {
+        "num": 4,
+        "code": "for grade, name in students:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">grade</span>, <span class=\"token-ident\">name</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">students</span>:",
+        "alt": "走訪年級與姓名",
+        "why": "解包學生紀錄",
+        "mean": "輪詢學生"
+      },
+      {
+        "num": 5,
+        "code": "    if grade not in grade_buckets:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">grade</span> <span class=\"token-keyword\">not in</span> <span class=\"token-ident\">grade_buckets</span>:",
+        "alt": "檢查年級是否首次出現",
+        "why": "初次建立分桶",
+        "mean": "若鍵不存在"
+      },
+      {
+        "num": 6,
+        "code": "        grade_buckets[grade] = []",
+        "html": "        <span class=\"token-ident\">grade_buckets</span>[<span class=\"token-ident\">grade</span>] = []",
+        "alt": "初始化為空串列",
+        "why": "配置該年級專屬串列",
+        "mean": "建立空串列分桶"
+      },
+      {
+        "num": 7,
+        "code": "    grade_buckets[grade].append(name)",
+        "html": "    <span class=\"token-ident\">grade_buckets</span>[<span class=\"token-ident\">grade</span>].<span class=\"token-ident\">append</span>(<span class=\"token-ident\">name</span>)",
+        "alt": "加入學生姓名",
+        "diff": true,
+        "why": "追加學生到分桶",
+        "mean": "收集姓名"
+      },
+      {
+        "num": 8,
+        "code": "print(\"7 年級學生:\", grade_buckets[7])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"7 年級學生:\"</span>, <span class=\"token-ident\">grade_buckets</span>[<span class=\"token-number\">7</span>])",
+        "alt": "輸出 7 年級學生清單",
+        "why": "驗證分組輸出",
+        "mean": "輸出 ['Alice', 'Charlie']"
+      }
+    ],
+    "output": "7 年級學生: ['Alice', 'Charlie']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>分組聚合模式（Group By / Bucket）</strong>：以分類特徵（年級、首字母、餘數、城市）為 Key，以串列 <code>list</code> 為 Value。此結構可動態收集任意數量的歸屬物件，是資料處理與演算法題目的核心基本功！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "分類設為鍵，內容包串列"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.5 分組聚合（Group By / Bucket）：以字典收集分類清單",
+    "titleZh": "單字首字母分組歸檔——字典有序走訪輸出",
+    "titleEn": "Grouping by Prefix: Ordered Output of Buckets",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "words = [\"apple\", \"ant\", \"banana\", \"bear\", \"cat\"]",
+        "html": "<span class=\"token-ident\">words</span> = [<span class=\"token-string\">\"apple\"</span>, <span class=\"token-string\">\"ant\"</span>, <span class=\"token-string\">\"banana\"</span>, <span class=\"token-string\">\"bear\"</span>, <span class=\"token-string\">\"cat\"</span>]",
+        "alt": "單字串列 words",
+        "why": "測試單字串列",
+        "mean": "單字串列"
+      },
+      {
+        "num": 2,
+        "code": "letter_buckets = {}",
+        "html": "<span class=\"token-ident\">letter_buckets</span> = {}",
+        "alt": "首字母分組字典",
+        "why": "初始化首字母字典",
+        "mean": "空字典"
+      },
+      {
+        "num": 3,
+        "code": "for w in words:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">words</span>:",
+        "alt": "走訪各單字",
+        "why": "輪詢各單字",
+        "mean": "走訪單字"
+      },
+      {
+        "num": 4,
+        "code": "    first = w[0].upper()",
+        "html": "    <span class=\"token-ident\">first</span> = <span class=\"token-ident\">w</span>[<span class=\"token-number\">0</span>].<span class=\"token-ident\">upper</span>()",
+        "alt": "取首字母並轉大寫",
+        "why": "提取分類特徵鍵",
+        "mean": "大寫首字母"
+      },
+      {
+        "num": 5,
+        "code": "    letter_buckets.setdefault(first, []).append(w)",
+        "html": "    <span class=\"token-ident\">letter_buckets</span>.<span class=\"token-ident\">setdefault</span>(<span class=\"token-ident\">first</span>, []).<span class=\"token-ident\">append</span>(<span class=\"token-ident\">w</span>)",
+        "alt": "setdefault 單行追加分組單字",
+        "diff": true,
+        "why": "單行優雅歸檔",
+        "mean": "歸類至字母清單"
+      },
+      {
+        "num": 6,
+        "code": "for ch in sorted(letter_buckets.keys()):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">ch</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">letter_buckets</span>.<span class=\"token-ident\">keys</span>()):",
+        "alt": "依字母 A 到 Z 排序走訪鍵名",
+        "diff": true,
+        "why": "按字母順序輸出",
+        "mean": "排序鍵走訪"
+      },
+      {
+        "num": 7,
+        "code": "    print(f\"{ch} : {letter_buckets[ch]}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{ch} : {letter_buckets[ch]}\"</span>)",
+        "alt": "印出分組結果",
+        "why": "逐一印出分組歸檔",
+        "mean": "格式化輸出分組"
+      }
+    ],
+    "output": "A : ['apple', 'ant']\nB : ['banana', 'bear']\nC : ['cat']",
+    "notes": [
+      {
+        "type": "tip",
+        "text": "<strong>排序鍵有序輸出</strong>：分組聚合後，題目常要求「由小到大」或「按字母順序」輸出各分組。使用 <code>sorted(d.keys())</code> 走訪即可保證輸出嚴格有序！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "分組歸檔完，排序印整齊"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5.6 字典與串列效能實測對比：O(1) vs O(N) 查詢速度震撼體驗",
+    "titleZh": "字典 vs 串列效能對決——O(1) 雜湊 vs O(N) 線性比對",
+    "titleEn": "Performance Duel: O(1) Hash vs O(N) Linear Scan",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬 10,000 筆資料的查詢比對步數",
+        "html": "<span class=\"token-comment\"># 模擬 10,000 筆資料的查詢比對步數</span>",
+        "alt": "註解：效能模擬說明",
+        "why": "設定效能比對基準",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "data_size = 10000",
+        "html": "<span class=\"token-ident\">data_size</span> = <span class=\"token-number\">10000</span>",
+        "alt": "資料量一萬筆",
+        "why": "模擬中型考題規模",
+        "mean": "數據長度"
+      },
+      {
+        "num": 3,
+        "code": "target = 9999",
+        "html": "<span class=\"token-ident\">target</span> = <span class=\"token-number\">9999</span>",
+        "alt": "查詢最末端元素 9999",
+        "why": "測試最差比對情況",
+        "mean": "目標鍵名"
+      },
+      {
+        "num": 4,
+        "code": "# 1. 串列 in 走訪比對：最差情況需掃描所有元素",
+        "html": "<span class=\"token-comment\"># 1. 串列 in 走訪比對：最差情況需掃描所有元素</span>",
+        "alt": "註解：串列 O(N) 比對說明",
+        "why": "點出線性掃描弱點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "list_steps = target + 1",
+        "html": "<span class=\"token-ident\">list_steps</span> = <span class=\"token-ident\">target</span> + <span class=\"token-number\">1</span>",
+        "alt": "串列比對步數一萬次",
+        "why": "線性比對累加",
+        "mean": "串列比對 10000 步"
+      },
+      {
+        "num": 6,
+        "code": "# 2. 字典 in 雜湊比對：計算 Hash 桶位直接命中！",
+        "html": "<span class=\"token-comment\"># 2. 字典 in 雜湊比對：計算 Hash 桶位直接命中！</span>",
+        "alt": "註解：字典 O(1) 比對說明",
+        "why": "點出雜湊極速優勢",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "dict_steps = 1",
+        "html": "<span class=\"token-ident\">dict_steps</span> = <span class=\"token-number\">1</span>",
+        "alt": "字典常數級 1 步定位",
+        "diff": true,
+        "why": "雜湊常數比對",
+        "mean": "字典比對 1 步"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"串列走訪需比對: {list_steps} 步\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"串列走訪需比對: {list_steps} 步\"</span>)",
+        "alt": "輸出串列步數",
+        "why": "輸出 10000 步",
+        "mean": "印出串列步數"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"字典雜湊只需比對: {dict_steps} 步！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"字典雜湊只需比對: {dict_steps} 步！\"</span>)",
+        "alt": "輸出字典步數",
+        "why": "輸出 1 步",
+        "mean": "印出字典步數"
+      }
+    ],
+    "output": "串列走訪需比對: 10000 步\n字典雜湊只需比對: 1 步！",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考場超時（TLE）生死線</strong>：當迴圈 $M$ 次查詢且每次都在串列中用 <code>x in list</code> 時，總時間為 $O(M \times N) \u0007pprox 10^8$ 步直接超時；若改用字典 <code>x in dict</code>，總時間僅需 $O(M \times 1) \u0007pprox 10^4$ 步，速度暴增數千倍！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "串列查一萬，字典一步明"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5 字典 APCS 解題模式",
+    "titleZh": "考場地雷①——二擇一預測卡：反轉字典時重複值被覆蓋",
+    "titleEn": "Pitfall 1: Predict Quiz - Lost Keys When Inverting Non-Unique Values",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 原始學生成績：Alice 與 Charlie 分數皆為 95 分",
+        "html": "<span class=\"token-comment\"># 原始學生成績：Alice 與 Charlie 分數皆為 95 分</span>",
+        "alt": "註解：同分情況說明",
+        "why": "設定重複值前提",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "raw_scores = {\"Alice\": 95, \"Bob\": 80, \"Charlie\": 95}",
+        "html": "<span class=\"token-ident\">raw_scores</span> = {<span class=\"token-string\">\"Alice\"</span>: <span class=\"token-number\">95</span>, <span class=\"token-string\">\"Bob\"</span>: <span class=\"token-number\">80</span>, <span class=\"token-string\">\"Charlie\"</span>: <span class=\"token-number\">95</span>}",
+        "alt": "宣告成績字典 raw_scores",
+        "why": "含重複分數的字典",
+        "mean": "成績字典"
+      },
+      {
+        "num": 3,
+        "code": "# 粗心寫法：直接以推導式翻轉鍵值，未考慮 Value 重複！",
+        "html": "<span class=\"token-comment\"># 粗心寫法：直接以推導式翻轉鍵值，未考慮 Value 重複！</span>",
+        "alt": "註解：危險推導式翻轉",
+        "why": "揭露覆蓋地雷",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "inverted = {sc: name for name, sc in raw_scores.items()}",
+        "html": "<span class=\"token-ident\">inverted</span> = {<span class=\"token-ident\">sc</span>: <span class=\"token-ident\">name</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, <span class=\"token-ident\">sc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_scores</span>.<span class=\"token-ident\">items</span>()}",
+        "alt": "字典推導式直接反轉鍵值",
+        "diff": true,
+        "why": "觸發 Key 碰撞覆蓋",
+        "mean": "反轉後字典"
+      },
+      {
+        "num": 5,
+        "code": "# 請問：len(inverted) 與 inverted[95] 的結果為何？",
+        "html": "<span class=\"token-comment\"># 請問：len(inverted) 與 inverted[95] 的結果為何？</span>",
+        "alt": "二擇一考題提問",
+        "why": "引導思考鍵名覆蓋",
+        "mean": "提問"
+      },
+      {
+        "num": 6,
+        "code": "print(\"反轉字典長度:\", len(inverted))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"反轉字典長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">inverted</span>))",
+        "alt": "印出反轉後長度",
+        "why": "驗證長度縮水為 2",
+        "mean": "輸出長度 2"
+      },
+      {
+        "num": 7,
+        "code": "print(\"95 分對應姓名:\", inverted[95])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"95 分對應姓名:\"</span>, <span class=\"token-ident\">inverted</span>[<span class=\"token-number\">95</span>])",
+        "alt": "印出 95 分對應姓名",
+        "why": "確認 Alice 被 Charlie 覆蓋",
+        "mean": "輸出 Charlie"
+      }
+    ],
+    "output": "反轉字典長度: 2\n95 分對應姓名: Charlie",
+    "predictQuiz": {
+      "question": "執行上述反轉字典推導式後，字典 `inverted` 的長度為何？`inverted[95]` 是誰？",
+      "options": [
+        "長度為 3，且 95 對應元組 ('Alice', 'Charlie')",
+        "長度為 2，且 Alice 被後來的 Charlie 覆蓋，95 對應 'Charlie'"
+      ],
+      "answer": 1,
+      "correct": 1,
+      "explanation": "字典的 Key 具有嚴格唯一性！當字典推導式遇到重複的 Value（95 分）作為新 Key 時，後面的鍵值對（Charlie）會直接無情覆蓋前面的鍵值對（Alice），導致字典長度縮水且舊資料永遠消失！"
+    },
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 考場奪命連環雷</strong>：只有在保證「所有 Value 均不重複」時才能用 <code>{v: k for k, v in d.items()}</code>！若 Value 可能重複，必須使用 <code>d.setdefault(v, []).append(k)</code> 反向收集成串列！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "值有重複莫直轉，防鍵覆蓋"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5 字典 APCS 解題模式",
+    "titleZh": "考場地雷②——座標壓縮未去重導致同分不同排名",
+    "titleEn": "Pitfall 2: Coordinate Compression without Unique Deduplication",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw = [100, 50, 100, 20]",
+        "html": "<span class=\"token-ident\">raw</span> = [<span class=\"token-number\">100</span>, <span class=\"token-number\">50</span>, <span class=\"token-number\">100</span>, <span class=\"token-number\">20</span>]",
+        "alt": "宣告原始串列 raw",
+        "why": "含重複數值 100",
+        "mean": "原始數列"
+      },
+      {
+        "num": 2,
+        "code": "# 致命錯誤：直接 sorted(raw) 沒有先 set 去重！",
+        "html": "<span class=\"token-comment\"># 致命錯誤：直接 sorted(raw) 沒有先 set 去重！</span>",
+        "alt": "註解：未去重錯誤示範",
+        "why": "揭露同分不同名謬誤",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "bad_sorted = sorted(raw)  # [20, 50, 100, 100]",
+        "html": "<span class=\"token-ident\">bad_sorted</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">raw</span>)  <span class=\"token-comment\"># [20, 50, 100, 100]</span>",
+        "alt": "未去重的排序結果",
+        "why": "包含兩個 100",
+        "mean": "未去重串列"
+      },
+      {
+        "num": 4,
+        "code": "bad_map = {val: i for i, val in enumerate(bad_sorted)}",
+        "html": "<span class=\"token-ident\">bad_map</span> = {<span class=\"token-ident\">val</span>: <span class=\"token-ident\">i</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span>, <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">bad_sorted</span>)}",
+        "alt": "建表時 100 被索引 3 覆蓋（原本應為 2）",
+        "diff": true,
+        "why": "映射排名跳號失準",
+        "mean": "錯誤映射字典"
+      },
+      {
+        "num": 5,
+        "code": "print(\"錯誤映射表:\", bad_map)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"錯誤映射表:\"</span>, <span class=\"token-ident\">bad_map</span>)",
+        "alt": "印出錯誤映射表",
+        "why": "排名變成 0, 1, 3 跳過了 2！",
+        "mean": "輸出 {20: 0, 50: 1, 100: 3}"
+      },
+      {
+        "num": 6,
+        "code": "# 正確做法：必須嚴格 sorted(set(raw))",
+        "html": "<span class=\"token-comment\"># 正確做法：必須嚴格 sorted(set(raw))</span>",
+        "alt": "註解：正確去重做法",
+        "why": "展示正確標準寫法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "good_map = {val: i for i, val in enumerate(sorted(set(raw)))}",
+        "html": "<span class=\"token-ident\">good_map</span> = {<span class=\"token-ident\">val</span>: <span class=\"token-ident\">i</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span>, <span class=\"token-ident\">val</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-builtin\">sorted</span>(<span class=\"token-builtin\">set</span>(<span class=\"token-ident\">raw</span>)))}",
+        "alt": "正確去重建表",
+        "diff": true,
+        "why": "排名連續且精準",
+        "mean": "正確映射表"
+      },
+      {
+        "num": 8,
+        "code": "print(\"正確映射表:\", good_map)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正確映射表:\"</span>, <span class=\"token-ident\">good_map</span>)",
+        "alt": "印出正確映射表",
+        "why": "排名為 0, 1, 2 連續緊湊",
+        "mean": "輸出 {20: 0, 50: 1, 100: 2}"
+      }
+    ],
+    "output": "錯誤映射表: {20: 0, 50: 1, 100: 3}\n正確映射表: {20: 0, 50: 1, 100: 2}",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 座標壓縮必備口訣</strong>：離散化建表前，必須牢記<strong>「先 set 去重，再 sorted 排序」</strong>！若跳過 set，重複元素會在 enumerate 中佔據多個連續索引，後者覆蓋前者導致排名空洞跳號（如 0, 1, 3 跳過 2），造成陣列開過大或二分搜出錯！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "壓縮先去重，排名不跳號"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5 字典 APCS 解題模式",
+    "titleZh": "考場地雷③——分組聚合誤用 fromkeys 可變預設值",
+    "titleEn": "Pitfall 3: dict.fromkeys() Shared Mutable List Disaster",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 致命陷阱：試圖用 fromkeys 預先建立三個組別的空串列",
+        "html": "<span class=\"token-comment\"># 致命陷阱：試圖用 fromkeys 預先建立三個組別的空串列</span>",
+        "alt": "註解：fromkeys 陷阱說明",
+        "why": "展示新手最常見誤區",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "bad_buckets = dict.fromkeys([\"A\", \"B\", \"C\"], [])",
+        "html": "<span class=\"token-ident\">bad_buckets</span> = <span class=\"token-builtin\">dict</span>.<span class=\"token-ident\">fromkeys</span>([<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"C\"</span>], [])",
+        "alt": "以 fromkeys 帶入空串列 [] 作為值",
+        "diff": true,
+        "why": "所有 Key 引用同一個 list 物件！",
+        "mean": "共享串列陷阱"
+      },
+      {
+        "num": 3,
+        "code": "bad_buckets[\"A\"].append(\"Apple\")  # 原意只想加入 A 組",
+        "html": "<span class=\"token-ident\">bad_buckets</span>[<span class=\"token-string\">\"A\"</span>].<span class=\"token-ident\">append</span>(<span class=\"token-string\">\"Apple\"</span>)  <span class=\"token-comment\"># 原意只想加入 A 組</span>",
+        "alt": "向 A 組 append 加入元素",
+        "why": "觸發共享連動",
+        "mean": "添加元素"
+      },
+      {
+        "num": 4,
+        "code": "print(\"慘劇：B 與 C 竟然全被污染:\", bad_buckets)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"慘劇：B 與 C 竟然全被污染:\"</span>, <span class=\"token-ident\">bad_buckets</span>)",
+        "alt": "印出連帶受污染的字典",
+        "why": "A, B, C 全變成 ['Apple']",
+        "mean": "輸出全污染字典"
+      },
+      {
+        "num": 5,
+        "code": "# 正確做法：推導式為每個鍵獨立建立全新 list [] 物件",
+        "html": "<span class=\"token-comment\"># 正確做法：推導式為每個鍵獨立建立全新 list [] 物件</span>",
+        "alt": "註解：字典推導正確獨立初始化",
+        "why": "提供正確安全解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "good_buckets = {k: [] for k in [\"A\", \"B\", \"C\"]}",
+        "html": "<span class=\"token-ident\">good_buckets</span> = {<span class=\"token-ident\">k</span>: [] <span class=\"token-keyword\">for</span> <span class=\"token-ident\">k</span> <span class=\"token-keyword\">in</span> [<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"C\"</span>]}",
+        "alt": "推導式獨立生成不同 list 物件",
+        "diff": true,
+        "why": "每個 list 擁有獨立記憶體位址",
+        "mean": "獨立分桶字典"
+      },
+      {
+        "num": 7,
+        "code": "good_buckets[\"A\"].append(\"Apple\")",
+        "html": "<span class=\"token-ident\">good_buckets</span>[<span class=\"token-string\">\"A\"</span>].<span class=\"token-ident\">append</span>(<span class=\"token-string\">\"Apple\"</span>)",
+        "alt": "安全向 A 組加入元素",
+        "why": "僅影響 A 組",
+        "mean": "獨立添加"
+      },
+      {
+        "num": 8,
+        "code": "print(\"正確獨立分組:\", good_buckets)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"正確獨立分組:\"</span>, <span class=\"token-ident\">good_buckets</span>)",
+        "alt": "印出正確獨立分組結果",
+        "why": "B 與 C 仍保持獨立空串列",
+        "mean": "輸出正常字典"
+      }
+    ],
+    "output": "慘劇：B 與 C 竟然全被污染: {'A': ['Apple'], 'B': ['Apple'], 'C': ['Apple']}\n正確獨立分組: {'A': ['Apple'], 'B': [], 'C': []}",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 記憶體共用毒藥</strong>：<code>dict.fromkeys(keys, [])</code> 會讓所有 Key 共享同一個記憶體位址的 <code>list</code>！只要改動其中一個組別，其他所有組別將全體連動受害。請務必使用字典推導式 <code>{k: [] for k in keys}</code> 確保彼此記憶體獨立！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "分組初始化，禁共享串列"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.5 學習總結與核心技能檢核",
+    "titleZh": "APCS 綜合實戰——英文字元頻率統計與分組排行榜",
+    "titleEn": "Comprehensive Practice: Word Character Frequency Ranking",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "text = \"apcs python dict\"",
+        "html": "<span class=\"token-ident\">text</span> = <span class=\"token-string\">\"apcs python dict\"</span>",
+        "alt": "宣告輸入字串 text",
+        "why": "測試字串",
+        "mean": "輸入文字"
+      },
+      {
+        "num": 2,
+        "code": "freq = {}",
+        "html": "<span class=\"token-ident\">freq</span> = {}",
+        "alt": "宣告頻率統計字典 freq",
+        "why": "統計字典",
+        "mean": "空字典"
+      },
+      {
+        "num": 3,
+        "code": "for ch in text:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">ch</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">text</span>:",
+        "alt": "走訪每個字元",
+        "why": "逐字統計",
+        "mean": "輪詢字元"
+      },
+      {
+        "num": 4,
+        "code": "    if ch != ' ':",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">ch</span> != <span class=\"token-string\">' '</span>:",
+        "alt": "過濾空格",
+        "why": "排除空白字元",
+        "mean": "非空格條件"
+      },
+      {
+        "num": 5,
+        "code": "        freq[ch] = freq.get(ch, 0) + 1",
+        "html": "        <span class=\"token-ident\">freq</span>[<span class=\"token-ident\">ch</span>] = <span class=\"token-ident\">freq</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">ch</span>, <span class=\"token-number\">0</span>) + <span class=\"token-number\">1</span>",
+        "alt": "get 單行累加字元頻率",
+        "diff": true,
+        "why": "頻率統計模式",
+        "mean": "字元累加"
+      },
+      {
+        "num": 6,
+        "code": "# 雙重排序：次數降序 (-x[1])，字母升序 (x[0])",
+        "html": "<span class=\"token-comment\"># 雙重排序：次數降序 (-x[1])，字母升序 (x[0])</span>",
+        "alt": "註解：雙重排序規格說明",
+        "why": "APCS 典型排序要求",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "ranking = sorted(freq.items(), key=lambda x: (-x[1], x[0]))",
+        "html": "<span class=\"token-ident\">ranking</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">freq</span>.<span class=\"token-ident\">items</span>(), <span class=\"token-ident\">key</span>=<span class=\"token-keyword\">lambda</span> <span class=\"token-ident\">x</span>: (-<span class=\"token-ident\">x</span>[<span class=\"token-number\">1</span>], <span class=\"token-ident\">x</span>[<span class=\"token-number\">0</span>]))",
+        "alt": "排序元組串列",
+        "diff": true,
+        "why": "次數多者在前，同次數按字典序",
+        "mean": "雙重排序結果"
+      },
+      {
+        "num": 8,
+        "code": "top3 = ranking[:3]",
+        "html": "<span class=\"token-ident\">top3</span> = <span class=\"token-ident\">ranking</span>[:<span class=\"token-number\">3</span>]",
+        "alt": "切片取出前三名",
+        "why": "取得榜首榜眼探花",
+        "mean": "前三名串列"
+      },
+      {
+        "num": 9,
+        "code": "print(\"高頻字元前三名:\", top3)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"高頻字元前三名:\"</span>, <span class=\"token-ident\">top3</span>)",
+        "alt": "印出前三高頻字元",
+        "why": "輸出前三名",
+        "mean": "印出排行榜"
+      }
+    ],
+    "output": "高頻字元前三名: [('c', 2), ('p', 2), ('t', 2)]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 考題完全通關</strong>：本題融合了「動態頻率統計 <code>get()</code>」、「元組清單轉換 <code>items()</code>」以及「雙重條件排序 <code>key=lambda</code>」，是 APCS 實作題第二題中出現率極高的標準題型！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "統計轉元組，雙鍵排序出"
+      }
+    ],
+    "completionCard": {
+      "unit": "10.5",
+      "title": "字典 APCS 經典解題模式掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心模式",
+          "val": "5 大解題模式"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "10.6",
+        "title": "集合（Set）的建立、特性與成員運算",
+        "desc": "即將探索 Python 集合的獨特世界，體驗極速去重與數學集合運算的威力！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec10-5",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_10-5_dictionary_methods_and_traversal.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

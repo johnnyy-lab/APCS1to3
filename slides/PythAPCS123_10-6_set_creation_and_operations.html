@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 10.6 集合特性、建立與元素操作 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 10.6 集合特性、建立與元素操作
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.1 集合概念：無序性（Unordered）與元素唯一性（Unique）",
+    "titleZh": "集合核心本質——元素唯一性與無序性",
+    "titleEn": "Set Core Traits: Element Uniqueness & Unordered Nature",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 集合使用大括號宣告，但僅包含「單一元素」而非鍵值對：",
+        "html": "<span class=\"token-comment\"># 集合使用大括號宣告，但僅包含「單一元素」而非鍵值對：</span>",
+        "alt": "註解：集合宣告語法說明",
+        "why": "區分集合與字典語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "fruits = {\"apple\", \"banana\", \"orange\"}",
+        "html": "<span class=\"token-ident\">fruits</span> = {<span class=\"token-string\">\"apple\"</span>, <span class=\"token-string\">\"banana\"</span>, <span class=\"token-string\">\"orange\"</span>}",
+        "alt": "宣告水果集合 fruits",
+        "diff": true,
+        "why": "建立基本集合",
+        "mean": "水果字串集合"
+      },
+      {
+        "num": 3,
+        "code": "print(\"集合內容 (排序):\", sorted(fruits))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"集合內容 (排序):\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">fruits</span>))",
+        "alt": "sorted 排序輸出集合內容",
+        "why": "展示集合元素",
+        "mean": "輸出排序清單"
+      },
+      {
+        "num": 4,
+        "code": "print(\"集合元素個數:\", len(fruits))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"集合元素個數:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">fruits</span>))",
+        "alt": "量測集合長度",
+        "why": "輸出長度 3",
+        "mean": "輸出個數"
+      },
+      {
+        "num": 5,
+        "code": "print(\"檢查 'apple' 是否在集合中:\", \"apple\" in fruits)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"檢查 'apple' 是否在集合中:\"</span>, <span class=\"token-string\">\"apple\"</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">fruits</span>)",
+        "alt": "in 運算子 O(1) 檢查元素存在",
+        "diff": true,
+        "why": "常數時間檢驗",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "集合內容 (排序): ['apple', 'banana', 'orange']\n集合元素個數: 3\n檢查 'apple' 是否在集合中: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>集合（Set）的兩大鋼鐵定律</strong>：<br>1. <strong>元素唯一性（Unique）</strong>：內部絕對不允許出現重複元素。<br>2. <strong>無序性（Unordered）</strong>：元素沒有固定的先後排列順序，因此<strong>絕對無法使用索引下標（如 <code>s[0]</code>）取值</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>超高速成員檢查</strong>：集合底層以雜湊表（Hash Table）實現，<code>x in s</code> 是 $O(1)$ 常數時間！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "集合無順序，元素不重複"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.1 集合概念：無序性（Unordered）與元素唯一性（Unique）",
+    "titleZh": "天然去重神器——重複元素自動消滅機制",
+    "titleEn": "Natural Deduplication: Automatic Elimination of Duplicates",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 刻意在大括號內放入大量重複數字：",
+        "html": "<span class=\"token-comment\"># 刻意在大括號內放入大量重複數字：</span>",
+        "alt": "註解：重複元素集合宣告說明",
+        "why": "示範自動消滅機制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "numbers = {1, 3, 2, 3, 1, 2, 5, 1}",
+        "html": "<span class=\"token-ident\">numbers</span> = {<span class=\"token-number\">1</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">1</span>}",
+        "alt": "宣告含重複值的集合 numbers",
+        "diff": true,
+        "why": "測試去重機制",
+        "mean": "含重複數字集合"
+      },
+      {
+        "num": 3,
+        "code": "print(\"集合自動去重結果:\", numbers)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"集合自動去重結果:\"</span>, <span class=\"token-ident\">numbers</span>)",
+        "alt": "印出去重後的集合",
+        "why": "驗證僅保留相異值",
+        "mean": "輸出 {1, 2, 3, 5}"
+      },
+      {
+        "num": 4,
+        "code": "print(\"相異數字種類數:\", len(numbers))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"相異數字種類數:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">numbers</span>))",
+        "alt": "量測去重後長度",
+        "why": "長度縮減為 4",
+        "mean": "輸出長度 4"
+      }
+    ],
+    "output": "集合自動去重結果: {1, 2, 3, 5}\n相異數字種類數: 4",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 資料清洗核心心法</strong>：當輸入資料中包含大量雜訊或重複項目時，集合是 Python 語言內建最強大且效率最高的「去重神器」。所有重複項目進入集合的瞬間，會自動被底層雜湊機制吞噬，僅保留唯一一份！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "重複進集合，自動變唯一"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.2 集合建立語法與空集合陷阱",
+    "titleZh": "大括號空集合陷阱——{} 到底是字典還是集合？",
+    "titleEn": "Empty Set Pitfall: Why {} is Dict, Not Set!",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 嘗試使用空大括號建立物件：",
+        "html": "<span class=\"token-comment\"># 嘗試使用空大括號建立物件：</span>",
+        "alt": "註解：空大括號示範說明",
+        "why": "點出最常見致命誤解",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "empty_obj = {}",
+        "html": "<span class=\"token-ident\">empty_obj</span> = {}",
+        "alt": "宣告空大括號 empty_obj",
+        "why": "建立測試物件",
+        "mean": "空大括號"
+      },
+      {
+        "num": 3,
+        "code": "print(\"empty_obj 的型別為:\", type(empty_obj))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"empty_obj 的型別為:\"</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">empty_obj</span>))",
+        "alt": "印出 empty_obj 的型別",
+        "diff": true,
+        "why": "驗證型別為 dict 而非 set！",
+        "mean": "輸出 <class 'dict'>"
+      },
+      {
+        "num": 4,
+        "code": "# 請問：是否為集合？",
+        "html": "<span class=\"token-comment\"># 請問：是否為集合？</span>",
+        "alt": "註解：型別提問",
+        "why": "引導思考判定",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "print(\"isinstance(empty_obj, set):\", isinstance(empty_obj, set))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"isinstance(empty_obj, set):\"</span>, <span class=\"token-builtin\">isinstance</span>(<span class=\"token-ident\">empty_obj</span>, <span class=\"token-builtin\">set</span>))",
+        "alt": "檢查是否為 set",
+        "why": "確認結果為 False",
+        "mean": "輸出 False"
+      }
+    ],
+    "output": "empty_obj 的型別為: <class 'dict'>\nisinstance(empty_obj, set): False",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 Python 歷史包袱陷阱</strong>：在 Python 歷史中，字典（dict）比集合（set）更早誕生，因此 <code>{}</code> 符號被優先分配給<strong>「空字典」</strong>！如果寫 <code>s = {}</code>，建立出來的是空字典，後續呼叫 <code>s.add()</code> 將直接引發 <code>AttributeError</code> 崩潰！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "括號為字典，空集寫set"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.2 集合建立語法與空集合陷阱",
+    "titleZh": "宣告空集合唯一正解——必須使用 set() 函式",
+    "titleEn": "Proper Empty Set Creation: Using set() Constructor",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 正確建立空集合的唯一寫法：呼叫 set() 建構函式",
+        "html": "<span class=\"token-comment\"># 正確建立空集合的唯一寫法：呼叫 set() 建構函式</span>",
+        "alt": "註解：正確空集合語法說明",
+        "why": "闡述唯一正確規範",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "true_empty_set = set()",
+        "html": "<span class=\"token-ident\">true_empty_set</span> = <span class=\"token-builtin\">set</span>()",
+        "alt": "以 set() 建立空集合",
+        "diff": true,
+        "why": "建立真正的空集合",
+        "mean": "空集合實例"
+      },
+      {
+        "num": 3,
+        "code": "print(\"型別檢驗:\", type(true_empty_set))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"型別檢驗:\"</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">true_empty_set</span>))",
+        "alt": "印出型別",
+        "why": "輸出 <class 'set'>",
+        "mean": "印出型別"
+      },
+      {
+        "num": 4,
+        "code": "print(\"集合長度:\", len(true_empty_set))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"集合長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">true_empty_set</span>))",
+        "alt": "印出長度",
+        "why": "輸出長度 0",
+        "mean": "輸出長度 0"
+      },
+      {
+        "num": 5,
+        "code": "# 正確新增元素：使用 .add() 方法",
+        "html": "<span class=\"token-comment\"># 正確新增元素：使用 .add() 方法</span>",
+        "alt": "註解：add 新增元素",
+        "why": "示範向集合加入元素",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "true_empty_set.add(42)",
+        "html": "<span class=\"token-ident\">true_empty_set</span>.<span class=\"token-ident\">add</span>(<span class=\"token-number\">42</span>)",
+        "alt": "使用 add 加入數字 42",
+        "diff": true,
+        "why": "成功新增至集合",
+        "mean": "集合加入 42"
+      },
+      {
+        "num": 7,
+        "code": "print(\"新增後內容:\", true_empty_set)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"新增後內容:\"</span>, <span class=\"token-ident\">true_empty_set</span>)",
+        "alt": "輸出新增後集合",
+        "why": "驗證集合內容",
+        "mean": "輸出 {42}"
+      }
+    ],
+    "output": "型別檢驗: <class 'set'>\n集合長度: 0\n新增後內容: {42}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>空集合正解</strong>：宣告空集合只能寫 <code>s = set()</code>。非空集合才可以使用大括號列舉（如 <code>s = {1, 2, 3}</code>）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "括號為字典，空集寫set"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.3 可迭代物件快速去重：set(my_list) 與去重後長度量測 len(s)",
+    "titleZh": "串列秒速去重與相異個數計數",
+    "titleEn": "Instant List Deduplication & Unique Item Counting",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "logs = [\"Alice\", \"Bob\", \"Alice\", \"David\", \"Bob\", \"Alice\"]",
+        "html": "<span class=\"token-ident\">logs</span> = [<span class=\"token-string\">\"Alice\"</span>, <span class=\"token-string\">\"Bob\"</span>, <span class=\"token-string\">\"Alice\"</span>, <span class=\"token-string\">\"David\"</span>, <span class=\"token-string\">\"Bob\"</span>, <span class=\"token-string\">\"Alice\"</span>]",
+        "alt": "宣告打卡紀錄清單 logs",
+        "why": "測試打卡紀錄",
+        "mean": "打卡紀錄串列"
+      },
+      {
+        "num": 2,
+        "code": "# 1. 利用 set(iterable) 一秒完成去重",
+        "html": "<span class=\"token-comment\"># 1. 利用 set(iterable) 一秒完成去重</span>",
+        "alt": "註解：set 建構子去重說明",
+        "why": "介紹集合轉型去重法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "unique_users = set(logs)",
+        "html": "<span class=\"token-ident\">unique_users</span> = <span class=\"token-builtin\">set</span>(<span class=\"token-ident\">logs</span>)",
+        "alt": "將串列轉為集合",
+        "diff": true,
+        "why": "瞬間消除重複姓名",
+        "mean": "去重使用者集合"
+      },
+      {
+        "num": 4,
+        "code": "# 2. 量測相異訪客人數",
+        "html": "<span class=\"token-comment\"># 2. 量測相異訪客人數</span>",
+        "alt": "註解：量測長度說明",
+        "why": "長度量測應用",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "user_count = len(unique_users)",
+        "html": "<span class=\"token-ident\">user_count</span> = <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">unique_users</span>)",
+        "alt": "計算集合長度",
+        "diff": true,
+        "why": "取得不重複人數",
+        "mean": "相異人數"
+      },
+      {
+        "num": 6,
+        "code": "print(\"不重複訪客名單:\", sorted(unique_users))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"不重複訪客名單:\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">unique_users</span>))",
+        "alt": "sorted 排序輸出不重複訪客",
+        "why": "輸出整齊名單",
+        "mean": "輸出排序清單"
+      },
+      {
+        "num": 7,
+        "code": "print(\"今日不重複打卡人數:\", user_count)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"今日不重複打卡人數:\"</span>, <span class=\"token-ident\">user_count</span>)",
+        "alt": "輸出不重複人數",
+        "why": "輸出 3",
+        "mean": "印出人數"
+      }
+    ],
+    "output": "不重複訪客名單: ['Alice', 'Bob', 'David']\n今日不重複打卡人數: 3",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考場標準一行解</strong>：計算相異元素數量直接寫 <code>len(set(arr))</code>！比手寫迴圈比對省下 5~10 行程式碼，時間複雜度更是從 $O(N^2)$ 巨幅降至 $O(N)$！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>重複性檢測</strong>：若 <code>len(arr) == len(set(arr))</code> 成立，代表該序列中<strong>完全沒有任何重複元素</strong>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "串列轉集合，去重秒算出"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.4 元素動態增刪：.add(x)、.remove(x) 與防報錯 .discard(x)",
+    "titleZh": "元素動態新增——.add(x) 與批次擴充 .update()",
+    "titleEn": "Adding Elements: .add(x) and Batch .update()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = set()",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-builtin\">set</span>()",
+        "alt": "初始化空集合 s",
+        "why": "建立集合容器",
+        "mean": "空集合"
+      },
+      {
+        "num": 2,
+        "code": "# 1. 使用 .add(x) 加入單一元素",
+        "html": "<span class=\"token-comment\"># 1. 使用 .add(x) 加入單一元素</span>",
+        "alt": "註解：add 單一新增說明",
+        "why": "示範單一新增",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "s.add(10)",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">add</span>(<span class=\"token-number\">10</span>)",
+        "alt": "加入數字 10",
+        "diff": true,
+        "why": "加入新元素 10",
+        "mean": "加入 10"
+      },
+      {
+        "num": 4,
+        "code": "s.add(20)",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">add</span>(<span class=\"token-number\">20</span>)",
+        "alt": "加入數字 20",
+        "why": "加入新元素 20",
+        "mean": "加入 20"
+      },
+      {
+        "num": 5,
+        "code": "# 重複加入 10：靜默忽略，長度不變，絕不噴錯！",
+        "html": "<span class=\"token-comment\"># 重複加入 10：靜默忽略，長度不變，絕不噴錯！</span>",
+        "alt": "註解：重複加入特性說明",
+        "why": "展現安全冪等性",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "s.add(10)",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">add</span>(<span class=\"token-number\">10</span>)",
+        "alt": "再次加入 10",
+        "why": "測試重複元素加入",
+        "mean": "重複加入"
+      },
+      {
+        "num": 7,
+        "code": "# 2. 使用 .update(iterable) 批次吸納多個元素",
+        "html": "<span class=\"token-comment\"># 2. 使用 .update(iterable) 批次吸納多個元素</span>",
+        "alt": "註解：update 批次吸納說明",
+        "why": "示範批次擴充",
+        "mean": "說明文字"
+      },
+      {
+        "num": 8,
+        "code": "s.update([20, 30, 40])",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">update</span>([<span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>])",
+        "alt": "批次加入串列元素",
+        "diff": true,
+        "why": "一口氣加入多個元素",
+        "mean": "批次合併"
+      },
+      {
+        "num": 9,
+        "code": "print(\"擴充後集合內容:\", sorted(s))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"擴充後集合內容:\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">s</span>))",
+        "alt": "sorted 排序輸出集合內容",
+        "why": "驗證集合包含 10, 20, 30, 40",
+        "mean": "輸出排序清單"
+      }
+    ],
+    "output": "擴充後集合內容: [10, 20, 30, 40]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>新增元素兩大語法</strong>：<br>• <code>s.add(x)</code>：新增<strong>單一純量元素</strong>。<br>• <code>s.update(iterable)</code>：傳入串列或集合，將其中所有元素<strong>批次吸納進集合</strong>中！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "單增用add，多增用更新"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.4 元素動態增刪：.add(x)、.remove(x) 與防報錯 .discard(x)",
+    "titleZh": "元素刪除兩大方法——.remove() vs .discard()",
+    "titleEn": "Removing Elements: .remove() vs Safe .discard()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = {\"A\", \"B\", \"C\"}",
+        "html": "<span class=\"token-ident\">s</span> = {<span class=\"token-string\">\"A\"</span>, <span class=\"token-string\">\"B\"</span>, <span class=\"token-string\">\"C\"</span>}",
+        "alt": "宣告集合 s",
+        "why": "建立測試集合",
+        "mean": "字母集合"
+      },
+      {
+        "num": 2,
+        "code": "# 1. 使用 .remove() 移除存在的元素：正常成功",
+        "html": "<span class=\"token-comment\"># 1. 使用 .remove() 移除存在的元素：正常成功</span>",
+        "alt": "註解：remove 正常刪除",
+        "why": "展示正常移除",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "s.remove(\"A\")",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">remove</span>(<span class=\"token-string\">\"A\"</span>)",
+        "alt": "呼叫 remove 刪除 A",
+        "diff": true,
+        "why": "移除元素 A",
+        "mean": "刪除 A"
+      },
+      {
+        "num": 4,
+        "code": "print(\"remove('A') 後:\", sorted(s))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"remove('A') 後:\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">s</span>))",
+        "alt": "sorted 印出剩餘元素",
+        "why": "輸出 ['B', 'C']",
+        "mean": "輸出排序名冊"
+      },
+      {
+        "num": 5,
+        "code": "# 2. 若使用 .remove() 移除「不存在」的元素：直接噴出 KeyError 崩潰！",
+        "html": "<span class=\"token-comment\"># 2. 若使用 .remove() 移除「不存在」的元素：直接噴出 KeyError 崩潰！</span>",
+        "alt": "註解：remove 查無噴錯警告",
+        "why": "點出 remove 考場崩潰陷阱",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "# 3. 使用安全神器 .discard()：查無元素優雅靜默，絕不噴錯！",
+        "html": "<span class=\"token-comment\"># 3. 使用安全神器 .discard()：查無元素優雅靜默，絕不噴錯！</span>",
+        "alt": "註解：discard 安全機制說明",
+        "why": "介紹防崩潰解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "s.discard(\"Z\")  # Z 不在集合中",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">discard</span>(<span class=\"token-string\">\"Z\"</span>)  <span class=\"token-comment\"># Z 不在集合中</span>",
+        "alt": "安全呼叫 discard 嘗試刪除 Z",
+        "diff": true,
+        "why": "查無安全通過",
+        "mean": "安全刪除"
+      },
+      {
+        "num": 8,
+        "code": "print(\"discard('Z') 安全通過，內容不變:\", sorted(s))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"discard('Z') 安全通過，內容不變:\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">s</span>))",
+        "alt": "sorted 印出安全通過後的集合",
+        "why": "驗證集合不受影響",
+        "mean": "輸出排序名冊"
+      }
+    ],
+    "output": "remove('A') 後: ['B', 'C']\ndiscard('Z') 安全通過，內容不變: ['B', 'C']",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考場免噴錯防身術</strong>：在題目的操作指令中（如動態使用者登出、剔除黑名單），極常出現「要求刪除某元素，但該元素從未加入過」的情況。此時使用 <code>.discard(x)</code> 能完全免疫 <code>KeyError</code>，程式流暢通關！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "查無不噴錯，首選安全刪"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.4 元素動態增刪：.add(x)、.remove(x) 與防報錯 .discard(x)",
+    "titleZh": "黑名單批次安全過濾——discard 實戰防護",
+    "titleEn": "Blacklist Batch Filtering with Safe .discard()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "approved = {\"id_1\", \"id_2\", \"id_3\", \"id_4\", \"id_5\"}",
+        "html": "<span class=\"token-ident\">approved</span> = {<span class=\"token-string\">\"id_1\"</span>, <span class=\"token-string\">\"id_2\"</span>, <span class=\"token-string\">\"id_3\"</span>, <span class=\"token-string\">\"id_4\"</span>, <span class=\"token-string\">\"id_5\"</span>}",
+        "alt": "核准名單 approved 集合",
+        "why": "建立已核准帳號集合",
+        "mean": "白名單集合"
+      },
+      {
+        "num": 2,
+        "code": "blacklist = [\"id_2\", \"id_999\", \"id_4\"]",
+        "html": "<span class=\"token-ident\">blacklist</span> = [<span class=\"token-string\">\"id_2\"</span>, <span class=\"token-string\">\"id_999\"</span>, <span class=\"token-string\">\"id_4\"</span>]",
+        "alt": "違規黑名單串列 blacklist",
+        "why": "內含不存在的帳號 id_999",
+        "mean": "黑名單串列"
+      },
+      {
+        "num": 3,
+        "code": "for b_id in blacklist:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">b_id</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">blacklist</span>:",
+        "alt": "走訪黑名單",
+        "why": "逐一剔除黑名單",
+        "mean": "輪詢黑名單"
+      },
+      {
+        "num": 4,
+        "code": "    # 若用 remove(b_id) 遇到 id_999 會當場爆炸！",
+        "html": "    <span class=\"token-comment\"># 若用 remove(b_id) 遇到 id_999 會當場爆炸！</span>",
+        "alt": "註解：remove 致命警告",
+        "why": "強調使用 discard 的必要性",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "    approved.discard(b_id)",
+        "html": "    <span class=\"token-ident\">approved</span>.<span class=\"token-ident\">discard</span>(<span class=\"token-ident\">b_id</span>)",
+        "alt": "呼叫 discard 安全剔除",
+        "diff": true,
+        "why": "安全移除存在或不存在之元素",
+        "mean": "安全剔除"
+      },
+      {
+        "num": 6,
+        "code": "print(\"過濾後剩餘核准人數:\", len(approved))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"過濾後剩餘核准人數:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">approved</span>))",
+        "alt": "輸出剩餘人數",
+        "why": "輸出 3",
+        "mean": "印出人數"
+      },
+      {
+        "num": 7,
+        "code": "print(\"剩餘名冊:\", sorted(approved))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"剩餘名冊:\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">approved</span>))",
+        "alt": "排序輸出剩餘名單",
+        "why": "驗證只剩 id_1, id_3, id_5",
+        "mean": "輸出排序清單"
+      }
+    ],
+    "output": "過濾後剩餘核准人數: 3\n剩餘名冊: ['id_1', 'id_3', 'id_5']",
+    "notes": [
+      {
+        "type": "tip",
+        "text": "<strong>最佳防禦性編程</strong>：在任何批次刪除或迴圈過濾任務中，若無法 100% 保證待刪元素一定存在於集合中，<strong>一律首選 <code>.discard()</code></strong>，徹底封殺 <code>KeyError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "批次刪元素，安全防噴錯"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.5 集合生成式（Set Comprehension）語法與動態過濾",
+    "titleZh": "集合推導式——動態過濾與自動去重一氣呵成",
+    "titleEn": "Set Comprehension: Dynamic Filtering with Unique Guarantee",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "numbers = [1, 2, 3, 4, 5, 2, 4, 6, 8, 10]",
+        "html": "<span class=\"token-ident\">numbers</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">6</span>, <span class=\"token-number\">8</span>, <span class=\"token-number\">10</span>]",
+        "alt": "宣告測試整數串列 numbers",
+        "why": "建立含重複數值之數據",
+        "mean": "整數串列"
+      },
+      {
+        "num": 2,
+        "code": "# 集合推導式：{運算式 for 變數 in 迭代物件 if 條件}",
+        "html": "<span class=\"token-comment\"># 集合推導式：{運算式 for 變數 in 迭代物件 if 條件}</span>",
+        "alt": "註解：集合推導式語法結構說明",
+        "why": "闡述推導式語法架構",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "even_squares = {x ** 2 for x in numbers if x % 2 == 0}",
+        "html": "<span class=\"token-ident\">even_squares</span> = {<span class=\"token-ident\">x</span> ** <span class=\"token-number\">2</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">numbers</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">x</span> % <span class=\"token-number\">2</span> == <span class=\"token-number\">0</span>}",
+        "alt": "集合推導式篩選偶數平方",
+        "diff": true,
+        "why": "一行完成過濾、平方與去重",
+        "mean": "偶數平方集合"
+      },
+      {
+        "num": 4,
+        "code": "print(\"偶數平方集合 (自動去重):\", sorted(even_squares))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"偶數平方集合 (自動去重):\"</span>, <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">even_squares</span>))",
+        "alt": "印出排序後的平方結果",
+        "why": "輸出 [4, 16, 36, 64, 100]",
+        "mean": "輸出排序清單"
+      },
+      {
+        "num": 5,
+        "code": "# 單字長度集合：一行統計相異長度",
+        "html": "<span class=\"token-comment\"># 單字長度集合：一行統計相異長度</span>",
+        "alt": "註解：單字長度推導說明",
+        "why": "展示字串處理應用",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "words = [\"cat\", \"apple\", \"dog\", \"banana\", \"pie\"]",
+        "html": "<span class=\"token-ident\">words</span> = [<span class=\"token-string\">\"cat\"</span>, <span class=\"token-string\">\"apple\"</span>, <span class=\"token-string\">\"dog\"</span>, <span class=\"token-string\">\"banana\"</span>, <span class=\"token-string\">\"pie\"</span>]",
+        "alt": "宣告單字串列 words",
+        "why": "建立測試單字",
+        "mean": "單字串列"
+      },
+      {
+        "num": 7,
+        "code": "lengths = {len(w) for w in words}",
+        "html": "<span class=\"token-ident\">lengths</span> = {<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">w</span>) <span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">words</span>}",
+        "alt": "集合推導式求相異字長",
+        "diff": true,
+        "why": "統計所有出現過的單字長度",
+        "mean": "長度集合"
+      },
+      {
+        "num": 8,
+        "code": "print(\"相異單字長度集合:\", lengths)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"相異單字長度集合:\"</span>, <span class=\"token-ident\">lengths</span>)",
+        "alt": "輸出相異長度",
+        "why": "輸出 {3, 5, 6}",
+        "mean": "輸出長度集合"
+      }
+    ],
+    "output": "偶數平方集合 (自動去重): [4, 16, 36, 64, 100]\n相異單字長度集合: {3, 5, 6}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>集合推導式（Set Comprehension）</strong>：外層使用大括號 <code>{expr for x in iterable}</code>，但內部不帶冒號 <code>:</code>（若帶冒號則為字典推導式）。推導過程具備天然去重功能！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "大括號無冒號，集合推導式"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.6 集合元素限制：必須是可雜湊物件",
+    "titleZh": "集合元素限制——必須是可雜湊物件（Hashable）",
+    "titleEn": "Set Element Constraints: Must Be Hashable",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 集合由雜湊表實現，因此內部元素必須是「可雜湊且不可變（Immutable）」物件：",
+        "html": "<span class=\"token-comment\"># 集合由雜湊表實現，因此內部元素必須是「可雜湊且不可變（Immutable）」物件：</span>",
+        "alt": "註解：可雜湊限制說明",
+        "why": "解釋集合元素底層要求",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# 合法元素：int, float, str, bool, tuple",
+        "html": "<span class=\"token-comment\"># 合法元素：int, float, str, bool, tuple</span>",
+        "alt": "註解：合法型別清單",
+        "why": "列舉合法型別",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "valid_set = {10, 3.14, \"hello\", (1, 2)}",
+        "html": "<span class=\"token-ident\">valid_set</span> = {<span class=\"token-number\">10</span>, <span class=\"token-number\">3.14</span>, <span class=\"token-string\">\"hello\"</span>, (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>)}",
+        "alt": "宣告包含合法型別的集合",
+        "diff": true,
+        "why": "不可變物件皆可安全存入",
+        "mean": "合法多元集合"
+      },
+      {
+        "num": 4,
+        "code": "print(\"合法多元集合建立成功:\", len(valid_set))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"合法多元集合建立成功:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">valid_set</span>))",
+        "alt": "印出合法集合長度",
+        "why": "輸出長度 4",
+        "mean": "輸出長度 4"
+      },
+      {
+        "num": 5,
+        "code": "# 違法元素：可變物件（如 list, dict, set）嚴禁作為集合元素！",
+        "html": "<span class=\"token-comment\"># 違法元素：可變物件（如 list, dict, set）嚴禁作為集合元素！</span>",
+        "alt": "註解：違法可變型別警告",
+        "why": "嚴禁放入可變物件",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "# 嘗試 {[1, 2], [3, 4]} 將拋出 TypeError: unhashable type: 'list'！",
+        "html": "<span class=\"token-comment\"># 嘗試 {[1, 2], [3, 4]} 將拋出 TypeError: unhashable type: 'list'！</span>",
+        "alt": "註解：報錯示範說明",
+        "why": "展示考場致命型別錯誤",
+        "mean": "說明文字"
+      }
+    ],
+    "output": "合法多元集合建立成功: 4",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考場鐵律</strong>：集合元素限制與字典的 Key <strong>完全一模一樣</strong>！只有不可變的物件（如整數、字串、元組）才有資格進入集合。想要記錄二維座標點，必須使用元組 <code>(r, c)</code>，絕對不能寫串列 <code>[r, c]</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "集合收不可變，禁放串列"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6.6 集合元素限制：必須是可雜湊物件",
+    "titleZh": "以座標元組 (r, c) 記錄二維地圖已拜訪軌跡",
+    "titleEn": "Tracking Visited Grid Coordinates with Tuple in Set",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 搜尋題（DFS / BFS）標配：以 set 記錄已走訪座標點",
+        "html": "<span class=\"token-comment\"># APCS 搜尋題（DFS / BFS）標配：以 set 記錄已走訪座標點</span>",
+        "alt": "註解：走訪座標集合情境",
+        "why": "連結 APCS 圖論經典",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "visited = set()",
+        "html": "<span class=\"token-ident\">visited</span> = <span class=\"token-builtin\">set</span>()",
+        "alt": "宣告空拜訪集合 visited",
+        "why": "建立已走訪集合",
+        "mean": "已走訪集合"
+      },
+      {
+        "num": 3,
+        "code": "path = [(0, 0), (0, 1), (1, 1), (0, 1), (2, 2)]",
+        "html": "<span class=\"token-ident\">path</span> = [(<span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>)]",
+        "alt": "機器人移動軌跡元組串列",
+        "why": "模擬二維路徑包含重複踩踏",
+        "mean": "軌跡串列"
+      },
+      {
+        "num": 4,
+        "code": "repeated = []",
+        "html": "<span class=\"token-ident\">repeated</span> = []",
+        "alt": "記錄重複踩踏點",
+        "why": "收集重複點",
+        "mean": "重複點串列"
+      },
+      {
+        "num": 5,
+        "code": "for pt in path:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">pt</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">path</span>:",
+        "alt": "走訪每個座標點",
+        "why": "檢驗軌跡點",
+        "mean": "走訪路徑"
+      },
+      {
+        "num": 6,
+        "code": "    if pt in visited:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">pt</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">visited</span>:",
+        "alt": "O(1) 判定座標是否曾走過",
+        "diff": true,
+        "why": "極速常數時間重複判定",
+        "mean": "檢查已踩踏"
+      },
+      {
+        "num": 7,
+        "code": "        repeated.append(pt)",
+        "html": "        <span class=\"token-ident\">repeated</span>.<span class=\"token-ident\">append</span>(<span class=\"token-ident\">pt</span>)",
+        "alt": "加入重複清單",
+        "why": "記錄踩踏點",
+        "mean": "追加重複點"
+      },
+      {
+        "num": 8,
+        "code": "    visited.add(pt)",
+        "html": "    <span class=\"token-ident\">visited</span>.<span class=\"token-ident\">add</span>(<span class=\"token-ident\">pt</span>)",
+        "alt": "將座標元組標記進 visited",
+        "diff": true,
+        "why": "加入已走訪集合",
+        "mean": "標記已踩踏"
+      },
+      {
+        "num": 9,
+        "code": "print(\"重複踩踏座標:\", repeated)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"重複踩踏座標:\"</span>, <span class=\"token-ident\">repeated</span>)",
+        "alt": "輸出重複踩踏點",
+        "why": "輸出 [(0, 1)]",
+        "mean": "印出重複點"
+      }
+    ],
+    "output": "重複踩踏座標: [(0, 1)]",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 廣度優先（BFS）/ 深度優先（DFS）必考招式</strong>：以 <code>(r, c)</code> 元組記錄座標並存進 <code>visited = set()</code>，利用 <code>pt in visited</code> 的 $O(1)$ 特性徹底杜絕走進死循環！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "元組記座標，集合防循環"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6 集合特性與操作",
+    "titleZh": "考場地雷①——二擇一預測卡：s = {} 型別陷阱",
+    "titleEn": "Pitfall 1: Predict Quiz - The s = {} Type Trap",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 某考生試圖建立空集合並加入數字 10：",
+        "html": "<span class=\"token-comment\"># 某考生試圖建立空集合並加入數字 10：</span>",
+        "alt": "註解：考場空集合題目情境",
+        "why": "重現經典易錯題目",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "s = {}",
+        "html": "<span class=\"token-ident\">s</span> = {}",
+        "alt": "宣告 s = {}",
+        "why": "誤以為是空集合",
+        "mean": "誤區代碼"
+      },
+      {
+        "num": 3,
+        "code": "# 接著執行集合專屬方法 .add(10)：",
+        "html": "<span class=\"token-comment\"># 接著執行集合專屬方法 .add(10)：</span>",
+        "alt": "註解：呼叫 add 方法說明",
+        "why": "引導思考執行後果",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "捕捉例外區塊",
+        "why": "安全示範報錯",
+        "mean": "例外監控"
+      },
+      {
+        "num": 5,
+        "code": "    s.add(10)",
+        "html": "    <span class=\"token-ident\">s</span>.<span class=\"token-ident\">add</span>(<span class=\"token-number\">10</span>)",
+        "alt": "對 dict 物件呼叫 add() 方法",
+        "diff": true,
+        "why": "觸發 AttributeError 崩潰！",
+        "mean": "引發例外"
+      },
+      {
+        "num": 6,
+        "code": "except AttributeError as e:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-builtin\">AttributeError</span> <span class=\"token-keyword\">as</span> <span class=\"token-ident\">e</span>:",
+        "alt": "捕捉屬性錯誤",
+        "why": "捕捉 dict 物件無 add 方法之錯誤",
+        "mean": "捕捉錯誤"
+      },
+      {
+        "num": 7,
+        "code": "    print(\"崩潰噴錯: dict 物件沒有 add 方法！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"崩潰噴錯: dict 物件沒有 add 方法！\"</span>)",
+        "alt": "印出錯誤原因",
+        "why": "提示報錯訊息",
+        "mean": "輸出崩潰訊息"
+      }
+    ],
+    "output": "崩潰噴錯: dict 物件沒有 add 方法！",
+    "predictQuiz": {
+      "question": "考生寫出 `s = {}; s.add(10)`，在 Python 直譯器中執行會發生何種結果？",
+      "options": [
+        "順利執行，s 變成 {10} 且型別為 set",
+        "拋出 AttributeError: 'dict' object has no attribute 'add'"
+      ],
+      "answer": 1,
+      "correct": 1,
+      "explanation": "{} 在 Python 中是「空字典（dict）」而非空集合！字典沒有 .add() 方法，呼叫 s.add() 會直接拋出 AttributeError 導致程式直接當場終止！建立空集合請務必寫 s = set()！"
+    },
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 考場最慘烈翻車點</strong>：很多同學寫 <code>s = {}</code> 以為是空集合，接著寫 <code>s.add(x)</code> 得到 0 分！請刻在腦海中：<strong>大括號裡面有東西才是集合 <code>{1}</code>，大括號空空如也百分之百是字典 <code>{}</code>！</strong>"
+      },
+      {
+        "type": "mnemonic",
+        "text": "括號為字典，空集寫set"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6 集合特性與操作",
+    "titleZh": "考場地雷②——試圖以索引取值或切片引發 TypeError",
+    "titleEn": "Pitfall 2: Indexing and Slicing a Set Triggers TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = {10, 20, 30, 40}",
+        "html": "<span class=\"token-ident\">s</span> = {<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>, <span class=\"token-number\">40</span>}",
+        "alt": "宣告集合 s",
+        "why": "建立測試集合",
+        "mean": "整數集合"
+      },
+      {
+        "num": 2,
+        "code": "# 致命錯誤：習慣性把集合當串列，試圖寫 s[0] 取出第一個元素！",
+        "html": "<span class=\"token-comment\"># 致命錯誤：習慣性把集合當串列，試圖寫 s[0] 取出第一個元素！</span>",
+        "alt": "註解：索引下標錯誤說明",
+        "why": "揭露集合無序性限制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "捕捉例外",
+        "why": "捕捉下標操作錯誤",
+        "mean": "監控例外"
+      },
+      {
+        "num": 4,
+        "code": "    val = s[0]",
+        "html": "    <span class=\"token-ident\">val</span> = <span class=\"token-ident\">s</span>[<span class=\"token-number\">0</span>]",
+        "alt": "執行 s[0]",
+        "diff": true,
+        "why": "觸發 TypeError: 'set' object is not subscriptable",
+        "mean": "下標操作"
+      },
+      {
+        "num": 5,
+        "code": "except TypeError as e:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-builtin\">TypeError</span> <span class=\"token-keyword\">as</span> <span class=\"token-ident\">e</span>:",
+        "alt": "捕捉 TypeError",
+        "why": "捕捉無法下標之錯誤",
+        "mean": "型別錯誤"
+      },
+      {
+        "num": 6,
+        "code": "    print(\"崩潰噴錯: 集合不支援下標索引取值！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"崩潰噴錯: 集合不支援下標索引取值！\"</span>)",
+        "alt": "印出錯誤警告",
+        "why": "展示報錯訊息",
+        "mean": "輸出錯誤說明"
+      },
+      {
+        "num": 7,
+        "code": "# 正解：若需按順序取值，必須先轉為 list 或使用 sorted()！",
+        "html": "<span class=\"token-comment\"># 正解：若需按順序取值，必須先轉為 list 或使用 sorted()！</span>",
+        "alt": "註解：正確取出集合元素方式",
+        "why": "提供標準解決方案",
+        "mean": "說明文字"
+      },
+      {
+        "num": 8,
+        "code": "first_elem = sorted(s)[0]",
+        "html": "<span class=\"token-ident\">first_elem</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">s</span>)[<span class=\"token-number\">0</span>]",
+        "alt": "使用 sorted(s) 轉為有序串列後取 [0]",
+        "diff": true,
+        "why": "安全取得最小值",
+        "mean": "有序第一元素"
+      },
+      {
+        "num": 9,
+        "code": "print(\"透過 sorted 取得最小首位元素:\", first_elem)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"透過 sorted 取得最小首位元素:\"</span>, <span class=\"token-ident\">first_elem</span>)",
+        "alt": "印出取出的首位元素",
+        "why": "輸出 10",
+        "mean": "印出 10"
+      }
+    ],
+    "output": "崩潰噴錯: 集合不支援下標索引取值！\n透過 sorted 取得最小首位元素: 10",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 集合無序不認下標</strong>：集合在記憶體中元素位置會隨雜湊動態變動，完全沒有第 0 個、第 1 個的概念。若要按大小順序取值或切片，必須先透過 <code>sorted(s)</code> 轉為串列！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "集合無下標，排序轉串列"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6 集合特性與操作",
+    "titleZh": "考場地雷③——集合內部放入可變物件引發 TypeError",
+    "titleEn": "Pitfall 3: Placing Mutable Objects in Set Triggers TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 考生試圖以串列記錄二維座標點並放入集合：",
+        "html": "<span class=\"token-comment\"># 考生試圖以串列記錄二維座標點並放入集合：</span>",
+        "alt": "註解：二維座標串列錯誤情境",
+        "why": "呈現新手常見可變物件誤用",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "s = set()",
+        "html": "<span class=\"token-ident\">s</span> = <span class=\"token-builtin\">set</span>()",
+        "alt": "建立空集合 s",
+        "why": "建立集合容器",
+        "mean": "空集合"
+      },
+      {
+        "num": 3,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "監控例外",
+        "why": "捕捉 unhashable 例外",
+        "mean": "監控區塊"
+      },
+      {
+        "num": 4,
+        "code": "    s.add([1, 2])  # 傳入 list 可變物件",
+        "html": "    <span class=\"token-ident\">s</span>.<span class=\"token-ident\">add</span>([<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>])  <span class=\"token-comment\"># 傳入 list 可變物件</span>",
+        "alt": "呼叫 add 傳入串列 [1, 2]",
+        "diff": true,
+        "why": "觸發 TypeError: unhashable type: 'list'",
+        "mean": "加入串列"
+      },
+      {
+        "num": 5,
+        "code": "except TypeError as e:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-builtin\">TypeError</span> <span class=\"token-keyword\">as</span> <span class=\"token-ident\">e</span>:",
+        "alt": "捕捉 TypeError",
+        "why": "攔截不可雜湊錯誤",
+        "mean": "型別錯誤"
+      },
+      {
+        "num": 6,
+        "code": "    print(\"崩潰噴錯: 串列為可變物件，無法計算 Hash 值！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"崩潰噴錯: 串列為可變物件，無法計算 Hash 值！\"</span>)",
+        "alt": "印出錯誤訊息",
+        "why": "展示 unhashable 警告",
+        "mean": "輸出不可雜湊訊息"
+      },
+      {
+        "num": 7,
+        "code": "# 正解：改用「不可變的元組 (1, 2)」即可完美過關！",
+        "html": "<span class=\"token-comment\"># 正解：改用「不可變的元組 (1, 2)」即可完美過關！</span>",
+        "alt": "註解：正解改用元組說明",
+        "why": "提供不可變元組解法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 8,
+        "code": "s.add((1, 2))",
+        "html": "<span class=\"token-ident\">s</span>.<span class=\"token-ident\">add</span>((<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>))",
+        "alt": "以元組 (1, 2) 安全加入集合",
+        "diff": true,
+        "why": "元組可雜湊，成功加入",
+        "mean": "加入元組"
+      },
+      {
+        "num": 9,
+        "code": "print(\"加入元組後集合內容:\", s)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"加入元組後集合內容:\"</span>, <span class=\"token-ident\">s</span>)",
+        "alt": "印出集合成果",
+        "why": "輸出 {(1, 2)}",
+        "mean": "輸出 {(1, 2)}"
+      }
+    ],
+    "output": "崩潰噴錯: 串列為可變物件，無法計算 Hash 值！\n加入元組後集合內容: {(1, 2)}",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>💣 unhashable type 絕對禁忌</strong>：集合內部絕不可出現 <code>list</code>、<code>dict</code> 或另一個 <code>set</code>！多維座標、多重特徵必須一律封裝成 <code>tuple</code> 才能成為集合的合法元素！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "集合禁串列，座標用元組"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.6 學習總結與核心技能檢核",
+    "titleZh": "APCS 綜合實戰——訪客去重、安全過濾與相異統計",
+    "titleEn": "Comprehensive Practice: Visitor Filtering & Unique Audit",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "visitors = [\"Alice\", \"Bob\", \"Charlie\", \"Alice\", \"David\", \"Bob\"]",
+        "html": "<span class=\"token-ident\">visitors</span> = [<span class=\"token-string\">\"Alice\"</span>, <span class=\"token-string\">\"Bob\"</span>, <span class=\"token-string\">\"Charlie\"</span>, <span class=\"token-string\">\"Alice\"</span>, <span class=\"token-string\">\"David\"</span>, <span class=\"token-string\">\"Bob\"</span>]",
+        "alt": "原始訪客簽到清單",
+        "why": "建立測試訪客名單",
+        "mean": "簽到串列"
+      },
+      {
+        "num": 2,
+        "code": "blacklist = [\"Charlie\", \"Unknown_User\"]",
+        "html": "<span class=\"token-ident\">blacklist</span> = [<span class=\"token-string\">\"Charlie\"</span>, <span class=\"token-string\">\"Unknown_User\"</span>]",
+        "alt": "管制黑名單（含不存在用戶）",
+        "why": "建立過濾名單",
+        "mean": "黑名單串列"
+      },
+      {
+        "num": 3,
+        "code": "# 1. 一秒去重：轉為集合",
+        "html": "<span class=\"token-comment\"># 1. 一秒去重：轉為集合</span>",
+        "alt": "註解：轉集合去重",
+        "why": "瞬間去重",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "valid_users = set(visitors)",
+        "html": "<span class=\"token-ident\">valid_users</span> = <span class=\"token-builtin\">set</span>(<span class=\"token-ident\">visitors</span>)",
+        "alt": "集合建構子瞬間去重",
+        "diff": true,
+        "why": "去除重複簽到紀錄",
+        "mean": "訪客集合"
+      },
+      {
+        "num": 5,
+        "code": "# 2. 安全剃除黑名單：使用 discard 杜絕 KeyError",
+        "html": "<span class=\"token-comment\"># 2. 安全剃除黑名單：使用 discard 杜絕 KeyError</span>",
+        "alt": "註解：安全刪除說明",
+        "why": "消除潛在崩潰風險",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "for b in blacklist:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">b</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">blacklist</span>:",
+        "alt": "走訪黑名單",
+        "why": "輪詢黑名單",
+        "mean": "走訪名單"
+      },
+      {
+        "num": 7,
+        "code": "    valid_users.discard(b)",
+        "html": "    <span class=\"token-ident\">valid_users</span>.<span class=\"token-ident\">discard</span>(<span class=\"token-ident\">b</span>)",
+        "alt": "呼叫 discard 安全移除",
+        "diff": true,
+        "why": "安全剔除黑名單",
+        "mean": "安全剔除"
+      },
+      {
+        "num": 8,
+        "code": "# 3. 排序輸出名冊與相異人數",
+        "html": "<span class=\"token-comment\"># 3. 排序輸出名冊與相異人數</span>",
+        "alt": "註解：排序與計數說明",
+        "why": "最終結算",
+        "mean": "說明文字"
+      },
+      {
+        "num": 9,
+        "code": "final_list = sorted(valid_users)",
+        "html": "<span class=\"token-ident\">final_list</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">valid_users</span>)",
+        "alt": "sorted 排序集合為串列",
+        "why": "生成整齊名冊",
+        "mean": "排序名單"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"合格訪客共 {len(final_list)} 人: {final_list}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"合格訪客共 {len(final_list)} 人: {final_list}\"</span>)",
+        "alt": "格式化輸出結果",
+        "why": "輸出合格名單",
+        "mean": "輸出統計與名單"
+      }
+    ],
+    "output": "合格訪客共 3 人: ['Alice', 'Bob', 'David']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>APCS 解題完整鏈</strong>：先用 <code>set(list)</code> 極速去重，再用 <code>.discard()</code> 安全過濾例外項目，最後以 <code>sorted()</code> 產出規格嚴謹的排序解答，完美掌握集合操作的核心精髓！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "去重剔黑名，排序出名單"
+      }
+    ],
+    "completionCard": {
+      "unit": "10.6",
+      "title": "集合建立、特性與成員操作掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "操作方法",
+          "val": "add/discard/update"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "10.7",
+        "title": "集合運算符與文氏圖應用",
+        "desc": "即將學習聯集、交集、差集與對稱差集運算符號與解題大招！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec10-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_10-6_dictionary_methods_and_traversal.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -132,10 +132,10 @@ const courseCurriculum = [
       { id: "sec10-2", title: "10.2 序對高階應用與 Hashable 鍵值要求", available: true, url: "PythAPCS123_10-2_tuple_advanced_and_hashable.html" },
       { id: "sec10-3", title: "10.3 字典概念、建立與基本存取", available: true, url: "PythAPCS123_10-3_dictionary_concept_creation_and_access.html" },
       { id: "sec10-4", title: "10.4 字典常用方法與走訪技巧", available: true, url: "PythAPCS123_10-4_dictionary_methods_and_traversal.html" },
-      { id: "sec10-5", title: "10.5 APCS 字典解題模式：頻率統計與映射加速", available: false },
-      { id: "sec10-6", title: "10.6 集合建立、去重與成員查詢", available: false },
-      { id: "sec10-7", title: "10.7 集合運算子與文氏圖模式", available: false },
-      { id: "sec10-8", title: "10.8 雜湊容器綜合實戰：空間換取時間的極速思維", available: false }
+      { id: "sec10-5", title: "10.5 APCS 字典解題模式：頻率統計與映射加速", available: true, url: "PythAPCS123_10-5_dictionary_apcs_patterns.html" },
+      { id: "sec10-6", title: "10.6 集合建立、去重與成員查詢", available: true, url: "PythAPCS123_10-6_set_creation_and_operations.html" },
+      { id: "sec10-7", title: "10.7 集合運算子與文氏圖模式", available: true, url: "PythAPCS123_10-7_set_operations_and_venn_diagram.html" },
+      { id: "sec10-8", title: "10.8 雜湊容器綜合實戰：空間換取時間的極速思維", available: true, url: "PythAPCS123_10-8_hash_containers_comprehensive_practice.html" }
     ]
   },
   {

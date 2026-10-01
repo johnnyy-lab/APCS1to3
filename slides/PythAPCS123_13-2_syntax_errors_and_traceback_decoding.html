@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "SyntaxError & Traceback Decoding",
+    "titleZh": "語法門禁：SyntaxError 與 Traceback",
+    "desc": "Traceback 不是電腦在罵你，而是精準求救訊號！Python 啟動前進行位元組編譯，任何文法硬傷直接被拒之門外！",
+    "codeLines": [
+      {
+        "code": "# 語法錯誤攔截演示：編譯期未通過，程式連第 1 行都不會執行\nbad_code = \"print('開始')\\nif 10 > 5\\n    print('成功')\"",
+        "html": "<span class=\"c1\"># 語法錯誤攔截演示：編譯期未通過，程式連第 1 行都不會執行</span><br><span class=\"n\">bad_code</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;print(&#39;開始&#39;)</span><span class=\"se\">\\n</span><span class=\"s2\">if 10 &gt; 5</span><span class=\"se\">\\n</span><span class=\"s2\">    print(&#39;成功&#39;)&quot;</span>",
+        "why": "示範漏冒號的程式碼字串",
+        "mean": "包含語法硬傷的代碼",
+        "alt": "錯誤代碼字串"
+      },
+      {
+        "code": "try:\n    compile(bad_code, '<demo>', 'exec')\nexcept SyntaxError as e:\n    print(f\"直譯器在第 {e.lineno} 行攔截: {e.msg}\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"n\">bad_code</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;demo&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;直譯器在第 </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">lineno</span><span class=\"si\">}</span><span class=\"s2\"> 行攔截: </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">msg</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "模擬語法檢查攔截",
+        "mean": "compile 在第 2 行攔截 expected ':'",
+        "alt": "捕捉語法錯誤"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "直譯器掃描原始碼進行字節碼編譯",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "發現 if 漏冒號，立刻終止並拋出 SyntaxError",
+        "vars": {
+          "lineno": 2
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出診斷訊息",
+        "vars": {},
+        "output": "直譯器在第 2 行攔截: expected ':'\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "編譯門禁第一時間攔截"
+      },
+      {
+        "type": "point",
+        "content": "SyntaxError 屬於編譯期錯誤，在 OJ 上直接獲得 CE（Compile Error）。"
+      },
+      {
+        "type": "tip",
+        "content": "只要能看懂 Traceback，任何語法錯誤都能在 10 秒內秒殺！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Compile Phase vs Runtime Crash",
+    "titleZh": "兩期對照：編譯期攔截 vs 執行期暴斃",
+    "desc": "釐清本質：語法錯誤（SyntaxError）是一行都沒跑就被擋在門外；例外（如 10/0）則是跑到出錯行才中途崩潰！",
+    "codeLines": [
+      {
+        "code": "# 執行期例外：前面步驟能順利印出\nruntime_code = \"print('步驟1通過')\\nx = 10 / 0\\nprint('步驟2')\"",
+        "html": "<span class=\"c1\"># 執行期例外：前面步驟能順利印出</span><br><span class=\"n\">runtime_code</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;print(&#39;步驟1通過&#39;)</span><span class=\"se\">\\n</span><span class=\"s2\">x = 10 / 0</span><span class=\"se\">\\n</span><span class=\"s2\">print(&#39;步驟2&#39;)&quot;</span>",
+        "why": "示範語法合法但數值錯誤的代碼",
+        "mean": "語法能通過編譯",
+        "alt": "執行期代碼"
+      },
+      {
+        "code": "try:\n    exec(runtime_code)\nexcept ZeroDivisionError:\n    print(\"直到執行至第 2 行才引爆 ZeroDivisionError！\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">exec</span><span class=\"p\">(</span><span class=\"n\">runtime_code</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">ZeroDivisionError</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;直到執行至第 2 行才引爆 ZeroDivisionError！&quot;</span><span class=\"p\">)</span>",
+        "why": "對比執行期中途崩潰",
+        "mean": "步驟 1 有成功印出",
+        "alt": "執行期中斷示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "執行 runtime_code",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "步驟 1 成功印出",
+        "vars": {},
+        "output": "步驟1通過\n"
+      },
+      {
+        "step": 3,
+        "action": "第 2 行除以零引爆中斷",
+        "vars": {},
+        "output": "直到執行至第 2 行才引爆 ZeroDivisionError！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "語法錯誤一行都進不去"
+      },
+      {
+        "type": "point",
+        "content": "語法錯誤（CE）連第一行都不印，執行期錯誤（RE）會印到出錯行。"
+      },
+      {
+        "type": "tip",
+        "content": "如果終端機完全沒印出任何字，立刻檢查是否語法編譯未通過！"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Traceback Coordinates: Line, Text & Caret",
+    "titleZh": "解碼座標：行號、代碼片段與游標指標",
+    "desc": "直譯器的二維導航系統：Y 軸是 Line 行號，X 軸是游標指標（^）。精準指出直譯器是在哪一個字元發現不對勁！",
+    "codeLines": [
+      {
+        "code": "code_snippet = \"x = 10 + * 5\"",
+        "html": "<span class=\"n\">code_snippet</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;x = 10 + * 5&quot;</span>",
+        "why": "包含連續非法運算子的範例",
+        "mean": "加號與乘號連在一起不合文法",
+        "alt": "連續運算子錯誤"
+      },
+      {
+        "code": "try:\n    compile(code_snippet, '<test>', 'exec')\nexcept SyntaxError as e:\n    print(f\"錯誤行號: 第 {e.lineno} 行, 欄位字元: 第 {e.offset} 欄\")\n    print(f\"出錯語句: {e.text.strip()}\")\n    print(f\"游標指標: {' ' * (e.offset - 1)}^\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"n\">code_snippet</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;test&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;錯誤行號: 第 </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">lineno</span><span class=\"si\">}</span><span class=\"s2\"> 行, 欄位字元: 第 </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">offset</span><span class=\"si\">}</span><span class=\"s2\"> 欄&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;出錯語句: </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">text</span><span class=\"o\">.</span><span class=\"n\">strip</span><span class=\"p\">()</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;游標指標: </span><span class=\"si\">{</span><span class=\"s1\">&#39; &#39;</span><span class=\"w\"> </span><span class=\"o\">*</span><span class=\"w\"> </span><span class=\"p\">(</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">offset</span><span class=\"w\"> </span><span class=\"o\">-</span><span class=\"w\"> </span><span class=\"mi\">1</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\">^&quot;</span><span class=\"p\">)</span>",
+        "why": "視覺化呈現 Traceback 座標系",
+        "mean": "印出行號、片段與游標箭頭",
+        "alt": "座標解析演示"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "compile 抓出語法錯誤座標",
+        "vars": {
+          "lineno": 1,
+          "offset": 10
+        }
+      },
+      {
+        "step": 2,
+        "action": "箭頭精準指向乘號 * 位置",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出座標分解",
+        "vars": {},
+        "output": "錯誤行號: 第 1 行, 欄位字元: 第 10 欄\n出錯語句: x = 10 + * 5\n游標指標:          ^\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "報錯座標行號游標雙軸"
+      },
+      {
+        "type": "point",
+        "content": "Line X 指出 Y 軸行號，指標 ^ 指出 X 軸字元。"
+      },
+      {
+        "type": "tip",
+        "content": "Python 3.10+ 還會額外繪製波浪線 ~~~ 標注整個出錯區間！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Scapegoat Trap: Unclosed Bracket on Previous Line",
+    "titleZh": "黑鍋陷阱：上一行漏括號下一行背鍋",
+    "desc": "考場最大盲點！上一行右括號沒關，直譯器持續尋找終點，直到下一行才報錯！游標指著下行，罪魁禍首在前行！",
+    "codeLines": [
+      {
+        "code": "# 典型黑鍋：第 1 行漏右括號，報錯卻在第 2 行！\ntrap_code = \"total = sum([1, 2, 3\\nans = total * 2\"",
+        "html": "<span class=\"c1\"># 典型黑鍋：第 1 行漏右括號，報錯卻在第 2 行！</span><br><span class=\"n\">trap_code</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;total = sum([1, 2, 3</span><span class=\"se\">\\n</span><span class=\"s2\">ans = total * 2&quot;</span>",
+        "why": "建構上一行漏括號的黑鍋案例",
+        "mean": "第 1 行缺少 ])，第 2 行背鍋",
+        "alt": "黑鍋案例代碼"
+      },
+      {
+        "code": "try:\n    compile(trap_code, '<trap>', 'exec')\nexcept SyntaxError as e:\n    print(f\"直譯器指著第 {e.lineno} 行: {e.text.strip()}\")\n    print(\"💡 抬頭看前一行：第 1 行 sum([1, 2, 3 缺少閉合括號！\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"n\">trap_code</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;trap&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;直譯器指著第 </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">lineno</span><span class=\"si\">}</span><span class=\"s2\"> 行: </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">text</span><span class=\"o\">.</span><span class=\"n\">strip</span><span class=\"p\">()</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;💡 抬頭看前一行：第 1 行 sum([1, 2, 3 缺少閉合括號！&quot;</span><span class=\"p\">)</span>",
+        "why": "印出黑鍋現場並給予神經反射解方",
+        "mean": "報錯在第 2 行，真凶在第 1 行",
+        "alt": "黑鍋解析"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "編譯第 1 行未閉合表達式",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "讀取第 2 行 ans = 時語法斷裂",
+        "vars": {
+          "lineno": 2
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出避坑指引",
+        "vars": {},
+        "output": "直譯器指著第 2 行: ans = total * 2\n💡 抬頭看前一行：第 1 行 sum([1, 2, 3 缺少閉合括號！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "下行報錯抬頭查上一行"
+      },
+      {
+        "type": "warn",
+        "content": "若出錯行看起來無比正常，90% 是前一行的括號或引號沒關！"
+      },
+      {
+        "type": "tip",
+        "content": "遇到這種情況，養成立刻往上看一行的反射動作。"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Syntax Pitfall 1: Missing Colons in Statements",
+    "titleZh": "雷區一：結構控制語句漏打冒號 `:`",
+    "desc": "APCS 考場扣分之王！if、elif、else、for、while、def、try 是複合語句，標頭宣告結束時必須以英文冒號引導！",
+    "codeLines": [
+      {
+        "code": "# 考場最容易手滑漏冒號的六大族群\n# if x > 0:       <- 易漏\n# else:           <- 考場最高頻手滑！\n# for i in range: <- 易漏\n# def my_func():  <- 易漏",
+        "html": "<span class=\"c1\"># 考場最容易手滑漏冒號的六大族群</span><br><span class=\"c1\"># if x &gt; 0:       &lt;- 易漏</span><br><span class=\"c1\"># else:           &lt;- 考場最高頻手滑！</span><br><span class=\"c1\"># for i in range: &lt;- 易漏</span><br><span class=\"c1\"># def my_func():  &lt;- 易漏</span>",
+        "why": "列舉最易漏冒號的關鍵字",
+        "mean": "複合語句標頭必須帶冒號",
+        "alt": "易漏關鍵字"
+      },
+      {
+        "code": "sample_check = \"def add(a, b): return a + b\"\nprint(\"冒號是引導進入下一個縮排區塊的神聖標記！\")",
+        "html": "<span class=\"n\">sample_check</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;def add(a, b): return a + b&quot;</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;冒號是引導進入下一個縮排區塊的神聖標記！&quot;</span><span class=\"p\">)</span>",
+        "why": "強調冒號的文法引導功能",
+        "mean": "冒號是語法結構通行證",
+        "alt": "冒號的重要性"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "說明六大易漏冒號關鍵字",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "特別指出 else 後方無條件式最易直接按 Enter 漏打",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結論",
+        "vars": {},
+        "output": "冒號是引導進入下一個縮排區塊的神聖標記！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "開新區塊尾端必帶冒號"
+      },
+      {
+        "type": "point",
+        "content": "打完 if / elif / else / for / while / def 當下，右手小指立刻敲冒號。"
+      },
+      {
+        "type": "tip",
+        "content": "絕不要寫 C 語言的大括號 if (x > 0) {，Python 只認冒號加縮排！"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Syntax Pitfall 2: Mismatched Brackets & Quotes",
+    "titleZh": "雷區二：括號錯配與引號混用未閉合",
+    "desc": "括號引號必須鏡像對稱！圓括號配方括號 (1, 2, 3]、前單後雙 'hello\"，直譯器會拋出 unmatched 或 unterminated！",
+    "codeLines": [
+      {
+        "code": "# 錯誤 1：括號類型交叉錯配\ntry:\n    compile(\"nums = (1, 2, 3]\", '<b1>', 'exec')\nexcept SyntaxError as e:\n    print(\"括號錯配:\", e.msg)",
+        "html": "<span class=\"c1\"># 錯誤 1：括號類型交叉錯配</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"s2\">&quot;nums = (1, 2, 3]&quot;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;b1&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;括號錯配:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">msg</span><span class=\"p\">)</span>",
+        "why": "示範圓括號配方括號報錯",
+        "mean": "closing parenthesis ']' does not match '('",
+        "alt": "括號錯配示範"
+      },
+      {
+        "code": "# 錯誤 2：引號前單後雙混用\ntry:\n    compile(\"s = 'hello\\\"\", '<q1>', 'exec')\nexcept SyntaxError as e:\n    print(\"引號未閉合:\", e.msg)",
+        "html": "<span class=\"c1\"># 錯誤 2：引號前單後雙混用</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"s2\">&quot;s = &#39;hello</span><span class=\"se\">\\\\&quot;</span><span class=\"s2\">&quot;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;q1&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;引號未閉合:&quot;</span><span class=\"p\">,</span> <span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">msg</span><span class=\"p\">)</span>",
+        "why": "示範引號未匹配報錯",
+        "mean": "unterminated string literal",
+        "alt": "引號未閉合示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "compile 檢驗 (1, 2, 3]",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "compile 檢驗未閉合字串",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出攔截結果",
+        "vars": {},
+        "output": "括號錯配: closing parenthesis ']' does not match opening parenthesis '('\n引號未閉合: unterminated string literal (detected at line 1)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "括號對稱引號同型閉合"
+      },
+      {
+        "type": "point",
+        "content": "圓括號配圓括號，方括號對方括號，單引號對單引號。"
+      },
+      {
+        "type": "tip",
+        "content": "鍵入括號或引號時養成「一次打一對」的絕佳手感！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Apostrophe Crisis: Single vs Double Quotes",
+    "titleZh": "撇號截斷：內含 It's 外層改雙引號",
+    "desc": "字串內含英文縮寫撇號時，外層若用單引號會被提早截斷引爆語法崩潰！掌握單雙引號互補法則或反斜線跳脫！",
+    "codeLines": [
+      {
+        "code": "# 崩潰寫法：'It's fine' -> 第二個單引號提早截斷！\n# 安全寫法一：外層使用雙引號\ns1 = \"It's a beautiful day!\"\n# 安全寫法二：使用反斜線 \\ 跳脫\ns2 = 'It\\'s a beautiful day!'",
+        "html": "<span class=\"c1\"># 崩潰寫法：&#39;It&#39;s fine&#39; -&gt; 第二個單引號提早截斷！</span><br><span class=\"c1\"># 安全寫法一：外層使用雙引號</span><br><span class=\"n\">s1</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;It&#39;s a beautiful day!&quot;</span><br><span class=\"c1\"># 安全寫法二：使用反斜線 \\ 跳脫</span><br><span class=\"n\">s2</span> <span class=\"o\">=</span> <span class=\"s1\">&#39;It</span><span class=\"se\">\\&#39;</span><span class=\"s1\">s a beautiful day!&#39;</span>",
+        "why": "雙重解法示範",
+        "mean": "雙引號或跳脫字元皆安全",
+        "alt": "撇號解法"
+      },
+      {
+        "code": "print(s1)\nprint(\"兩者字串完全等價:\", s1 == s2)",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">s1</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;兩者字串完全等價:&quot;</span><span class=\"p\">,</span> <span class=\"n\">s1</span> <span class=\"o\">==</span> <span class=\"n\">s2</span><span class=\"p\">)</span>",
+        "why": "印出驗證結果",
+        "mean": "輸出字串並確認等價",
+        "alt": "等價驗證"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立含撇號字串 s1 與 s2",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "確認兩種方式皆能合法解析",
+        "vars": {
+          "s1": "It's a beautiful day!"
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出驗證",
+        "vars": {},
+        "output": "It's a beautiful day!\n兩者字串完全等價: True\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "內含撇號外層改雙引號"
+      },
+      {
+        "type": "point",
+        "content": "文字含單引號外層用雙引號；文字含雙引號外層用單引號。"
+      },
+      {
+        "type": "tip",
+        "content": "跨多行長文字，直接使用三引號 '''...''' 最萬無一失！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Syntax Pitfall 3: IndentationError & Empty Blocks",
+    "titleZh": "雷區三：縮排不一致與空區塊未寫 pass",
+    "desc": "縮排是 Python 的生命線！行首意外空格引發 unexpected indent；冒號下方留白未寫指令引爆 expected an indented block！",
+    "codeLines": [
+      {
+        "code": "# 錯誤示範：冒號下方只有註解或留白\n# if True:\n#     # 什麼都沒寫\n# print('done') -> 噴 IndentationError！",
+        "html": "<span class=\"c1\"># 錯誤示範：冒號下方只有註解或留白</span><br><span class=\"c1\"># if True:</span><br><span class=\"c1\">#     # 什麼都沒寫</span><br><span class=\"c1\"># print(&#39;done&#39;) -&gt; 噴 IndentationError！</span>",
+        "why": "剖析空區塊縮排報錯成因",
+        "mean": "直譯器預期看見縮排程式碼區塊",
+        "alt": "空區塊錯誤"
+      },
+      {
+        "code": "# 正確做法：若暫時留白，務必填入 pass 佔位！\nif True:\n    pass  # 佔位符，合法通過編譯\nprint(\"填入 pass 後編譯順暢通過！\")",
+        "html": "<span class=\"c1\"># 正確做法：若暫時留白，務必填入 pass 佔位！</span><br><span class=\"k\">if</span> <span class=\"kc\">True</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">pass</span>  <span class=\"c1\"># 佔位符，合法通過編譯</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;填入 pass 後編譯順暢通過！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 pass 佔位修復",
+        "mean": "以 pass 通過縮排審查",
+        "alt": "pass 佔位示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "說明直譯器不將註解視為有效縮排代碼",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "在冒號下方填寫 pass 佔位符",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "程式順利編譯並印出",
+        "vars": {},
+        "output": "填入 pass 後編譯順暢通過！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "冒號下方空區塊補佔位"
+      },
+      {
+        "type": "point",
+        "content": "在 def 或 if 結構下方若尚未寫完實作，先填寫 pass 保平安。"
+      },
+      {
+        "type": "tip",
+        "content": "最外層主程式行首切勿多打任何空白，否則噴 unexpected indent！"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Syntax Pitfall 4: TabError & Tab-Space Mixing",
+    "titleZh": "雷區四：Tab 與空格混用引發 TabError",
+    "desc": "肉眼看起來寬度一樣，但直譯器眼裡是天壤之別！同區塊混用 Tab 鍵與空格鍵，會引爆極難肉眼抓出的 TabError！",
+    "codeLines": [
+      {
+        "code": "# 混用代碼模擬：第 1 行用 4 空格，第 2 行用 Tab\ntab_mix_code = \"def test():\\n    a = 1\\n\\tb = 2\\n    return a + b\"",
+        "html": "<span class=\"c1\"># 混用代碼模擬：第 1 行用 4 空格，第 2 行用 Tab</span><br><span class=\"n\">tab_mix_code</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;def test():</span><span class=\"se\">\\n</span><span class=\"s2\">    a = 1</span><span class=\"se\">\\n\\t</span><span class=\"s2\">b = 2</span><span class=\"se\">\\n</span><span class=\"s2\">    return a + b&quot;</span>",
+        "why": "模擬 Tab 與空格混用代碼",
+        "mean": "混用 \\t 與空格",
+        "alt": "混用代碼"
+      },
+      {
+        "code": "try:\n    compile(tab_mix_code, '<tab_test>', 'exec')\nexcept TabError as e:\n    print(f\"[TabError 捕捉] {e.msg}\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"n\">tab_mix_code</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;tab_test&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">TabError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;[TabError 捕捉] </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">msg</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "捕捉 TabError 報錯",
+        "mean": "inconsistent use of tabs and spaces in indentation",
+        "alt": "捕捉 TabError"
+      },
+      {
+        "code": "print(\"解決之道：編輯器設定『Tab 自動轉為 4 個半形空格』！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;解決之道：編輯器設定『Tab 自動轉為 4 個半形空格』！&quot;</span><span class=\"p\">)</span>",
+        "why": "提出工程規範解法",
+        "mean": "全面統一空格縮排",
+        "alt": "解決建議"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "compile 檢驗混用代碼",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "直譯器偵測到縮排字元衝突引爆 TabError",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出指引",
+        "vars": {},
+        "output": "[TabError 捕捉] inconsistent use of tabs and spaces in indentation\n解決之道：編輯器設定『Tab 自動轉為 4 個半形空格』！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "全面統一四個半形空格"
+      },
+      {
+        "type": "point",
+        "content": "Python 3 嚴禁在同一區塊中混用 Tab 與空格縮排。"
+      },
+      {
+        "type": "tip",
+        "content": "進入考場第一步：將 IDE 設定為 Insert Spaces 模式！"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Syntax Pitfall 5: Fullwidth Unicode Ghosts",
+    "titleZh": "雷區五：全形空白與中文標點靈異事件",
+    "desc": "複製講義程式碼常夾帶全形空白（\\u3000）或中文冒號（：）。肉眼看似無礙，直譯器噴出 invalid character 靈異報錯！",
+    "codeLines": [
+      {
+        "code": "# 靈異代碼範例：夾帶中文冒號（U+FF1A）與全形空白（U+3000）\nghost_code = \"if True：\\n    x = 10\"",
+        "html": "<span class=\"c1\"># 靈異代碼範例：夾帶中文冒號（U+FF1A）與全形空白（U+3000）</span><br><span class=\"n\">ghost_code</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;if True：</span><span class=\"se\">\\n</span><span class=\"s2\">    x = 10&quot;</span>",
+        "why": "構建全形冒號範例",
+        "mean": "中文全形冒號導致文法中斷",
+        "alt": "全形代碼"
+      },
+      {
+        "code": "try:\n    compile(ghost_code, '<ghost>', 'exec')\nexcept SyntaxError as e:\n    print(f\"[全形捕捉] {e.msg}\")\n    print(\"💡 處方：輸入法強制切為純英文半形，全文取代中文標點！\")",
+        "html": "<span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"n\">ghost_code</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;ghost&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;[全形捕捉] </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">msg</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;💡 處方：輸入法強制切為純英文半形，全文取代中文標點！&quot;</span><span class=\"p\">)</span>",
+        "why": "捕捉全形報錯並提供解方",
+        "mean": "invalid character '：' (U+FF1A)",
+        "alt": "捕捉全形"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "compile 解析包含全形冒號的代碼",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "直譯器識別為非 ASCII 字元中斷編譯",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出排查提示",
+        "vars": {},
+        "output": "[全形捕捉] invalid character '：' (U+FF1A)\n💡 處方：輸入法強制切為純英文半形，全文取代中文標點！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "輸入法鎖純英文無全形"
+      },
+      {
+        "type": "warn",
+        "content": "全形空白 \\u3000 與中文括號（）外觀酷似半形，最常引發靈異報錯！"
+      },
+      {
+        "type": "tip",
+        "content": "遇到 invalid character 報錯，直接使用編輯器『尋找與取代』消滅全形！"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Syntax Pitfall 6: Operators & Invalid Assignment",
+    "titleZh": "雷區六：運算子誤用與禁止 i++",
+    "desc": "條件式誤用單等號 if x = 5:、賦值給常數 10 = x，以及 C 語言習慣 i++，在 Python 中全數違法！",
+    "codeLines": [
+      {
+        "code": "# 錯誤 1：條件式中誤用單等號指派\n# if x = 5: -> 直譯器警告 Maybe you meant '=='?\n# 錯誤 2：C 語言習慣 i++\n# count++   -> 直譯器直接噴 SyntaxError！",
+        "html": "<span class=\"c1\"># 錯誤 1：條件式中誤用單等號指派</span><br><span class=\"c1\"># if x = 5: -&gt; 直譯器警告 Maybe you meant &#39;==&#39;?</span><br><span class=\"c1\"># 錯誤 2：C 語言習慣 i++</span><br><span class=\"c1\"># count++   -&gt; 直譯器直接噴 SyntaxError！</span>",
+        "why": "點破三大運算子高頻錯誤",
+        "mean": "單等號與自增運算子在 Python 違法",
+        "alt": "運算子錯誤成因"
+      },
+      {
+        "code": "x = 5\nif x == 5:    # 正確：雙等號比較\n    x += 1    # 正確：複合賦值累加\nprint(\"正確寫法執行結果: x =\", x)",
+        "html": "<span class=\"n\">x</span> <span class=\"o\">=</span> <span class=\"mi\">5</span><br><span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">==</span> <span class=\"mi\">5</span><span class=\"p\">:</span>    <span class=\"c1\"># 正確：雙等號比較</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">x</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span>    <span class=\"c1\"># 正確：複合賦值累加</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;正確寫法執行結果: x =&quot;</span><span class=\"p\">,</span> <span class=\"n\">x</span><span class=\"p\">)</span>",
+        "why": "示範標準 Pythonic 寫法",
+        "mean": "輸出 x = 6",
+        "alt": "標準寫法"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "x 初始化為 5",
+        "vars": {
+          "x": 5
+        }
+      },
+      {
+        "step": 2,
+        "action": "以 x == 5 成功比對並執行 x += 1",
+        "vars": {
+          "x": 6
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "正確寫法執行結果: x = 6\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "條件雙等累加寫加等於"
+      },
+      {
+        "type": "point",
+        "content": "問問題用雙等號 ==，存資料用單等號 =。"
+      },
+      {
+        "type": "tip",
+        "content": "Python 根本沒有 i++ 運算子，一律寫 i += 1！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Line Number Diagnosis",
+    "titleZh": "關鍵理解測驗：報錯行號真凶診斷",
+    "desc": "測驗你對 Traceback 坐標軸的敏銳度！檢視以下兩行程式碼，請問 Python 直譯器會在哪一行噴出 SyntaxError 報錯？",
+    "codeLines": [
+      {
+        "code": "# 觀察以下兩行代碼：\n# 行 1: total = sum([10, 20, 30\n# 行 2: print(\"總和計算完成:\", total)",
+        "html": "<span class=\"c1\"># 觀察以下兩行代碼：</span><br><span class=\"c1\"># 行 1: total = sum([10, 20, 30</span><br><span class=\"c1\"># 行 2: print(&quot;總和計算完成:&quot;, total)</span>",
+        "why": "測驗經典上一行漏括號案例",
+        "mean": "行 1 缺少 ])",
+        "alt": "測驗代碼"
+      },
+      {
+        "code": "test_quiz = \"total = sum([10, 20, 30\\nprint('總和:', total)\"\ntry:\n    compile(test_quiz, '<quiz>', 'exec')\nexcept SyntaxError as e:\n    print(f\"直譯器回報行號: 第 {e.lineno} 行！\")",
+        "html": "<span class=\"n\">test_quiz</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;total = sum([10, 20, 30</span><span class=\"se\">\\n</span><span class=\"s2\">print(&#39;總和:&#39;, total)&quot;</span><br><span class=\"k\">try</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">compile</span><span class=\"p\">(</span><span class=\"n\">test_quiz</span><span class=\"p\">,</span> <span class=\"s1\">&#39;&lt;quiz&gt;&#39;</span><span class=\"p\">,</span> <span class=\"s1\">&#39;exec&#39;</span><span class=\"p\">)</span><br><span class=\"k\">except</span> <span class=\"ne\">SyntaxError</span> <span class=\"k\">as</span> <span class=\"n\">e</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;直譯器回報行號: 第 </span><span class=\"si\">{</span><span class=\"n\">e</span><span class=\"o\">.</span><span class=\"n\">lineno</span><span class=\"si\">}</span><span class=\"s2\"> 行！&quot;</span><span class=\"p\">)</span>",
+        "why": "印出實測驗證行號",
+        "mean": "報錯行號在第 2 行",
+        "alt": "行號驗證"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "行 1 括號未閉合，直譯器持續等待",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "讀到行 2 print 語法斷裂，在行 2 報錯",
+        "vars": {
+          "lineno": 2
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出測驗結果",
+        "vars": {},
+        "output": "直譯器回報行號: 第 2 行！\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "若行 1 寫 total = sum([10, 20, 30，行 2 寫 print(total)，直譯器會回報哪一行 SyntaxError？",
+      "options": [
+        "第 2 行（直譯器在第 2 行才發現括號接不起來，第 2 行背黑鍋）",
+        "第 1 行（直譯器具備心靈感應，能在第 1 行就立刻發現你沒打完）"
+      ],
+      "correct": 0,
+      "answer": "A",
+      "explanation": "因為 Python 允許括號跨多行書寫，直譯器在第 1 行末尾以為你還沒寫完，直到讀入第 2 行的 print 時才發現文法衝突，因此報錯行號會指出第 2 行！這就是最經典的黑鍋嫁禍陷阱。"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "括號未閉下行無辜背鍋"
+      },
+      {
+        "type": "point",
+        "content": "下行無辜背黑鍋，永遠抬頭看上一行！"
+      },
+      {
+        "type": "tip",
+        "content": "牢記此規律，省下 80% 無效盯著第 2 行發呆的時間！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Syntax Pitfall 7: Keywords Collision & f-string",
+    "titleZh": "雷區七：保留字衝突與 f-string 地雷",
+    "desc": "不可動搖的最高權力！35 個關鍵字（如 class, def, return）絕不可作為變數名；f-string 大括號內部必須是完整合法表達式！",
+    "codeLines": [
+      {
+        "code": "import keyword\n# 致命錯誤 1：使用保留字作為變數名稱\n# class = 'A班'  -> 噴 SyntaxError: invalid syntax！\n# 正確替代：class_name 或 cls\nclass_name = '三年甲班'",
+        "html": "<span class=\"k\">import</span> <span class=\"nn\">keyword</span><br><span class=\"c1\"># 致命錯誤 1：使用保留字作為變數名稱</span><br><span class=\"c1\"># class = &#39;A班&#39;  -&gt; 噴 SyntaxError: invalid syntax！</span><br><span class=\"c1\"># 正確替代：class_name 或 cls</span><br><span class=\"n\">class_name</span> <span class=\"o\">=</span> <span class=\"s1\">&#39;三年甲班&#39;</span>",
+        "why": "示範保留字衝突與安全命名",
+        "mean": "避開關鍵字避免語法崩潰",
+        "alt": "保留字避坑"
+      },
+      {
+        "code": "# 致命錯誤 2：f-string 內部殘留空大括號 f\"{}\" 或未完算式\nval = 100\nprint(f\"{class_name} 總分: {val} 分 (保留字清單共 {len(keyword.kwlist)} 個)\")",
+        "html": "<span class=\"c1\"># 致命錯誤 2：f-string 內部殘留空大括號 f&quot;{}&quot; 或未完算式</span><br><span class=\"n\">val</span> <span class=\"o\">=</span> <span class=\"mi\">100</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">class_name</span><span class=\"si\">}</span><span class=\"s2\"> 總分: </span><span class=\"si\">{</span><span class=\"n\">val</span><span class=\"si\">}</span><span class=\"s2\"> 分 (保留字清單共 </span><span class=\"si\">{</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">keyword</span><span class=\"o\">.</span><span class=\"n\">kwlist</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\"> 個)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範健全合法的 f-string 表達式",
+        "mean": "大括號內部表達式必須能單獨執行",
+        "alt": "f-string 規範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "class_name 設為三年甲班",
+        "vars": {
+          "class_name": "三年甲班"
+        }
+      },
+      {
+        "step": 2,
+        "action": "健全解析 f-string 表達式",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出字串",
+        "vars": {},
+        "output": "三年甲班 總分: 100 分 (保留字清單共 35 個)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "變數避開保留字免衝突"
+      },
+      {
+        "type": "point",
+        "content": "若想在 f-string 中印出大括號字元本身，連續打兩次 {{ 或 }}。"
+      },
+      {
+        "type": "tip",
+        "content": "使用 keyword.iskeyword(name) 可在程式中檢驗變數安全！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "1-Minute SOP: Rapid Syntax Triage in Exams",
+    "titleZh": "考場 SOP：1 分鐘極速語法除錯戰略",
+    "desc": "高壓考場黃金法則：看最底層描述 ➔ 看行號與箭頭 ➔ 抬頭檢查前一行 ➔ 每次只修 1 處立刻重新編譯！絕不盲改！",
+    "codeLines": [
+      {
+        "code": "# 考場極速除錯四步心法\n# 步一：看訊息（缺少冒號 / unterminated string / invalid char）\n# 步二：看行號與指標 ^（鎖定出錯位置）\n# 步三：當前行看似正常？立刻抬頭看上一行括號引號！\n# 步四：單點修復，立刻再次編譯！",
+        "html": "<span class=\"c1\"># 考場極速除錯四步心法</span><br><span class=\"c1\"># 步一：看訊息（缺少冒號 / unterminated string / invalid char）</span><br><span class=\"c1\"># 步二：看行號與指標 ^（鎖定出錯位置）</span><br><span class=\"c1\"># 步三：當前行看似正常？立刻抬頭看上一行括號引號！</span><br><span class=\"c1\"># 步四：單點修復，立刻再次編譯！</span>",
+        "why": "總結考場 SOP 流程",
+        "mean": "有條不紊，精準定位",
+        "alt": "SOP 心法"
+      },
+      {
+        "code": "print(\"每次只修一處，由上至下循序推進，直譯器會帶你通關！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;每次只修一處，由上至下循序推進，直譯器會帶你通關！&quot;</span><span class=\"p\">)</span>",
+        "why": "建立良好除錯心理建設",
+        "mean": "克服恐懼，從容除錯",
+        "alt": "心理建設"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "回顧除錯 SOP 流程圖",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "建立穩健除錯心態",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出信心宣告",
+        "vars": {},
+        "output": "每次只修一處，由上至下循序推進，直譯器會帶你通關！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "每次修一處由上至下查"
+      },
+      {
+        "type": "point",
+        "content": "因為直譯器只報第一個錯誤，修完一個跳出新行號是完全正常的。"
+      },
+      {
+        "type": "tip",
+        "content": "循序漸進，1 分鐘內即可肅清所有語法硬傷！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 13.2 Summary & Mastery Card",
+    "titleZh": "單元 13.2 綜合驗收：SyntaxError 深度排查",
+    "desc": "恭喜完成單元 13.2！你已克服紅色 Traceback 恐懼，全面精通 7 大高頻語法雷區與 1 分鐘極速除錯 SOP！",
+    "codeLines": [
+      {
+        "code": "# 7 大語法雷區速查全景圖",
+        "html": "<span class=\"c1\"># 7 大語法雷區速查全景圖</span>",
+        "why": "總結本節核心除錯技術",
+        "mean": "七大雷區總整理",
+        "alt": "全景總結"
+      },
+      {
+        "code": "pitfalls = [\n    '1. 結構漏冒號 (if/else/for/def: 補上冒號)',\n    '2. 上行漏括號 (下行背鍋，抬頭補齊括號)',\n    '3. 括號引號錯配 (圓方錯配、前單後雙)',\n    '4. 縮排與TabError (統一4半形空格、空區塊補pass)',\n    '5. 全形字元幽靈 (鎖純英文輸入，取代中文標點與\\u3000)',\n    '6. 運算子誤用 (條件用==、累加寫+=1、禁i++)',\n    '7. 保留字與f-string (避開35關鍵字、大括號表達式健全)'\n]\nfor p in pitfalls:\n    print(p)",
+        "html": "<span class=\"n\">pitfalls</span> <span class=\"o\">=</span> <span class=\"p\">[</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;1. 結構漏冒號 (if/else/for/def: 補上冒號)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;2. 上行漏括號 (下行背鍋，抬頭補齊括號)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;3. 括號引號錯配 (圓方錯配、前單後雙)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;4. 縮排與TabError (統一4半形空格、空區塊補pass)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;5. 全形字元幽靈 (鎖純英文輸入，取代中文標點與\\u3000)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;6. 運算子誤用 (條件用==、累加寫+=1、禁i++)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;7. 保留字與f-string (避開35關鍵字、大括號表達式健全)&#39;</span><br><span class=\"p\">]</span><br><span class=\"k\">for</span> <span class=\"n\">p</span> <span class=\"ow\">in</span> <span class=\"n\">pitfalls</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">p</span><span class=\"p\">)</span>",
+        "why": "印出完整 7 大雷區地圖",
+        "mean": "條列清楚，隨查隨用",
+        "alt": "雷區地圖輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "彙整 7 大高頻語法雷區與急救方針",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出完整驗收對照地圖",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "完成單元驗收",
+        "vars": {}
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 13.2 通關：語法神醫宗師！",
+      "summary": "太棒了！你已全面掌握位元組編譯門禁、Traceback 雙維度定位與 7 大語法雷區排查心法！",
+      "nextUnit": "13.3 執行時期錯誤（Runtime Error, RE）常見排行榜與崩潰防禦"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "語法排查七大雷區全清"
+      },
+      {
+        "type": "point",
+        "content": "恭喜你完封語法錯誤深度排查，徹底消除考場領 0 分 CE 危機！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將深入執行時期錯誤（RE），直擊陣列越界與除零崩潰防禦！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec13-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_13-2_syntax_errors_and_traceback_decoding.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

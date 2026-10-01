@@ -171,8 +171,8 @@ const courseCurriculum = [
     id: "ch13",
     title: "第十三章 程式除錯（Debug）與異常處理",
     sections: [
-      { id: "sec13-1", title: "13.1 競技程式線上評判系統（OJ）運作機制與評判型別", available: false },
-      { id: "sec13-2", title: "13.2 語法錯誤（SyntaxError）深度排查與 Traceback 閱讀心法", available: false },
+      { id: "sec13-1", title: "13.1 競技程式線上評判系統（OJ）運作機制與評判型別", available: true, url: "PythAPCS123_13-1_online_judge_mechanisms_and_verdicts.html" },
+      { id: "sec13-2", title: "13.2 語法錯誤（SyntaxError）深度排查與 Traceback 閱讀心法", available: true, url: "PythAPCS123_13-2_syntax_errors_and_traceback_decoding.html" },
       { id: "sec13-3", title: "13.3 執行時期錯誤（RE）常見排行榜與崩潰防禦", available: false },
       { id: "sec13-4", title: "13.4 例外捕捉語法：try ... except 架構與未知長度輸入處理", available: false },
       { id: "sec13-5", title: "13.5 語意錯誤（Logic Error）與常見邏輯盲點排查（WA 防範）", available: false },

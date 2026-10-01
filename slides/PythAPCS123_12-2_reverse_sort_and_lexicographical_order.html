@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.2 反向排序（reverse=True）與字典序原理 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Descending Order & Top-K Ranking",
+    "titleZh": "降序排列核心思維：由大到小的逆向排行榜世界",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 原始考試成績",
+        "html": "<span class=\"token-comment\"># 原始考試成績</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "scores = [65, 92, 78, 99, 84]",
+        "html": "scores = [<span class=\"token-number\">65</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">78</span>, <span class=\"token-number\">99</span>, <span class=\"token-number\">84</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "# 降序排列：數值由大到小",
+        "html": "<span class=\"token-comment\"># 降序排列：數值由大到小</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "scores.sort(reverse=True)",
+        "html": "scores.<span class=\"token-func\">sort</span>(reverse=True)",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"排行榜降序:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排行榜降序:&quot;</span>, scores)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "# 取出前三名",
+        "html": "<span class=\"token-comment\"># 取出前三名</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"前三名高分:\", scores[:3])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;前三名高分:&quot;</span>, scores[:<span class=\"token-number\">3</span>])",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "排行榜降序: [99, 92, 84, 78, 65]\n前三名高分: [99, 92, 84]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 1~5 行",
+        "text": "在 APCS 競賽或實務中，求前 K 名高分、最大資源分配時，都需要將資料由大到小排成降序。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 5 行",
+        "text": "透過傳入參數 <code>reverse=True</code>，不論是 <code>.sort()</code> 或 <code>sorted()</code> 都能立刻轉為降序。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "降序排列從大到小"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "The reverse=True Parameter",
+    "titleZh": "關鍵參數 reverse=True：串列方法與內建函式雙相容",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [10, 50, 30]",
+        "html": "nums = [<span class=\"token-number\">10</span>, <span class=\"token-number\">50</span>, <span class=\"token-number\">30</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 串列方法原地降序",
+        "html": "<span class=\"token-comment\"># 串列方法原地降序</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "nums.sort(reverse=True)",
+        "html": "nums.<span class=\"token-func\">sort</span>(reverse=True)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"nums 原地降序:\", nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;nums 原地降序:&quot;</span>, nums)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "# 內建函式產出全新降序串列",
+        "html": "<span class=\"token-comment\"># 內建函式產出全新降序串列</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "chars = ['a', 'c', 'b']",
+        "html": "chars = [&#x27;a&#x27;, &#x27;c&#x27;, &#x27;b&#x27;]",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "new_chars = sorted(chars, reverse=True)",
+        "html": "new_chars = <span class=\"token-builtin\">sorted</span>(chars, reverse=True)",
+        "alt": "第 9 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 10,
+        "code": "print(\"chars 全新降序:\", new_chars)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;chars 全新降序:&quot;</span>, new_chars)",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "nums 原地降序: [50, 30, 10]\nchars 全新降序: ['c', 'b', 'a']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4 行",
+        "text": "<code>nums.sort(reverse=True)</code> 直接在原串列內部將元素由大到小調頭重排。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9 行",
+        "text": "<code>sorted(chars, reverse=True)</code> 則生成全新的降序串列，不損害原始字元序列。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "反向旗標設True倒序"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Lexicographical Order & ASCII Values",
+    "titleZh": "字串字典序本質：逐字比對 ASCII 編碼數值",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 字串排序並非依照長度，而是按「字典序」",
+        "html": "<span class=\"token-comment\"># 字串排序並非依照長度，而是按「字典序」</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "words = [\"cat\", \"apple\", \"banana\"]",
+        "html": "words = [<span class=\"token-string\">&quot;cat&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>, <span class=\"token-string\">&quot;banana&quot;</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "sorted_words = sorted(words)",
+        "html": "sorted_words = <span class=\"token-builtin\">sorted</span>(words)",
+        "alt": "第 3 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "print(\"字典序升序:\", sorted_words)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;字典序升序:&quot;</span>, sorted_words)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "# ASCII 碼比較實證",
+        "html": "<span class=\"token-comment\"># ASCII 碼比較實證</span>",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "print(\"'a' < 'b'?\", 'a' < 'b', \"(ord:\", ord('a'), \"<\", ord('b'), \")\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;&#x27;a&#x27; &lt; &#x27;b&#x27;?&quot;</span>, &#x27;a&#x27; &lt; &#x27;b&#x27;, <span class=\"token-string\">&quot;(<span class=\"token-builtin\">ord</span>:&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;a&#x27;), <span class=\"token-string\">&quot;&lt;&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;b&#x27;), <span class=\"token-string\">&quot;)&quot;</span>)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "print(\"'a' < 'c'?\", 'a' < 'c', \"(ord:\", ord('a'), \"<\", ord('c'), \")\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;&#x27;a&#x27; &lt; &#x27;c&#x27;?&quot;</span>, &#x27;a&#x27; &lt; &#x27;c&#x27;, <span class=\"token-string\">&quot;(<span class=\"token-builtin\">ord</span>:&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;a&#x27;), <span class=\"token-string\">&quot;&lt;&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;c&#x27;), <span class=\"token-string\">&quot;)&quot;</span>)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "字典序升序: ['apple', 'banana', 'cat']\n'a' < 'b'? True (ord: 97 < 98 )\n'a' < 'c'? True (ord: 97 < 99 )",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 2~4 行",
+        "text": "字串排序不是看字數長短，而是從第 0 個字元開始逐一比對 ASCII 碼大小。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~8 行",
+        "text": "因為 <code>ord('a') == 97</code> 小於 <code>ord('b') == 98</code>，所以 <code>'apple'</code> 必然排在 <code>'banana'</code> 前面。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "字典序逐字比對碼"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Case-Sensitivity in ASCII Table",
+    "titleZh": "大小寫編碼差異：大寫字母永遠先於小寫字母",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 觀察大寫與小寫字母的 ASCII 編碼",
+        "html": "<span class=\"token-comment\"># 觀察大寫與小寫字母的 ASCII 編碼</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "print(\"大寫 A:\", ord('A'), \"| 大寫 Z:\", ord('Z'))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;大寫 A:&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;A&#x27;), <span class=\"token-string\">&quot;| 大寫 Z:&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;Z&#x27;))",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "print(\"小寫 a:\", ord('a'), \"| 小寫 z:\", ord('z'))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;小寫 a:&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;a&#x27;), <span class=\"token-string\">&quot;| 小寫 z:&quot;</span>, <span class=\"token-builtin\">ord</span>(&#x27;z&#x27;))",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "# 比對大寫與小寫",
+        "html": "<span class=\"token-comment\"># 比對大寫與小寫</span>",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"'Z' < 'a' 的結果是:\", 'Z' < 'a')",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;&#x27;Z&#x27; &lt; &#x27;a&#x27; 的結果是:&quot;</span>, &#x27;Z&#x27; &lt; &#x27;a&#x27;)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "大寫 A: 65 | 大寫 Z: 90\n小寫 a: 97 | 小寫 z: 122\n'Z' < 'a' 的結果是: True",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 2~3 行",
+        "text": "ASCII 碼表中，大寫字母 <code>'A'~'Z'</code> 位於 65~90，小寫字母 <code>'a'~'z'</code> 位於 97~122。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6 行",
+        "text": "極重要考點：任何大寫字母都小於任何小寫字母！因此 <code>'Z' &lt; 'a'</code> 結果為 <code>True</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "大寫ASCII優先小寫"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "In-Depth Syntax: reverse=True in Action",
+    "titleZh": "語法演練：數值與字串的降序排序操作全覽",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "points = [15, 3, 98, 42]",
+        "html": "points = [<span class=\"token-number\">15</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">98</span>, <span class=\"token-number\">42</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "fruits = [\"orange\", \"apple\", \"banana\"]",
+        "html": "fruits = [<span class=\"token-string\">&quot;orange&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>, <span class=\"token-string\">&quot;banana&quot;</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "# 原地降序數值",
+        "html": "<span class=\"token-comment\"># 原地降序數值</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "points.sort(reverse=True)",
+        "html": "points.<span class=\"token-func\">sort</span>(reverse=True)",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"數值降序:\", points)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;數值降序:&quot;</span>, points)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "# 函式降序字串",
+        "html": "<span class=\"token-comment\"># 函式降序字串</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "fruits_desc = sorted(fruits, reverse=True)",
+        "html": "fruits_desc = <span class=\"token-builtin\">sorted</span>(fruits, reverse=True)",
+        "alt": "第 9 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 10,
+        "code": "print(\"字串降序:\", fruits_desc)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;字串降序:&quot;</span>, fruits_desc)",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "數值降序: [98, 42, 15, 3]\n字串降序: ['orange', 'banana', 'apple']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 5 行",
+        "text": "<code>points.sort(reverse=True)</code> 修改本體為 <code>[98, 42, 15, 3]</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9 行",
+        "text": "字串降序時，首字元 ASCII 碼較大者排在前面，<code>'orange'</code> 優先於 <code>'banana'</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "參數reverse反向排"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Lexicographical Tie-Breaking by Length",
+    "titleZh": "前綴相同時的決策：字數較短者視為較小",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "items = [\"app\", \"apple\", \"application\"]",
+        "html": "items = [<span class=\"token-string\">&quot;app&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>, <span class=\"token-string\">&quot;application&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 前綴完全相同，比到盡頭後短者排在前",
+        "html": "<span class=\"token-comment\"># 前綴完全相同，比到盡頭後短者排在前</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "items.sort()",
+        "html": "items.<span class=\"token-func\">sort</span>()",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"排序結果:\", items)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序結果:&quot;</span>, items)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "print(\"'app' < 'apple'?\", 'app' < 'apple')",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;&#x27;app&#x27; &lt; &#x27;apple&#x27;?&quot;</span>, &#x27;app&#x27; &lt; &#x27;apple&#x27;)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "print(\"'apple' < 'application'?\", 'apple' < 'application')",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;&#x27;apple&#x27; &lt; &#x27;application&#x27;?&quot;</span>, &#x27;apple&#x27; &lt; &#x27;application&#x27;)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "排序結果: ['app', 'apple', 'application']\n'app' < 'apple'? True\n'apple' < 'application'? True",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "當一個字串是另一個字串的完整前綴時，較短的字串被視為較小，排在前方。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~8 行",
+        "text": "這就如同英文字典中的排列規則：<code>app</code> 必然出現在 <code>apple</code> 之前。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "首字相同往後比長度"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Mixed-Case String Sorting Mechanics",
+    "titleZh": "大小寫混雜排序實況：大寫單字群聚於前",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "names = [\"banana\", \"Apple\", \"cat\", \"Banana\", \"apple\"]",
+        "html": "names = [<span class=\"token-string\">&quot;banana&quot;</span>, <span class=\"token-string\">&quot;Apple&quot;</span>, <span class=\"token-string\">&quot;cat&quot;</span>, <span class=\"token-string\">&quot;Banana&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "sorted_names = sorted(names)",
+        "html": "sorted_names = <span class=\"token-builtin\">sorted</span>(names)",
+        "alt": "第 3 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "print(\"未忽略大小寫排序:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;未忽略大小寫排序:&quot;</span>)",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(sorted_names)",
+        "html": "<span class=\"token-builtin\">print</span>(sorted_names)",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "未忽略大小寫排序:\n['Apple', 'Banana', 'apple', 'banana', 'cat']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 3~5 行",
+        "text": "觀察輸出：大寫開頭的 <code>['Apple', 'Banana']</code> 全部排在最前面，隨後才是小寫 <code>['apple', 'banana', 'cat']</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 4 行",
+        "text": "如果不做特殊處理，大寫字母的 ASCII 優勢會打亂自然語言認知的字母順序。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "未設忽略大寫排前面"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Case-Insensitive Sorting with key=str.lower",
+    "titleZh": "大小寫不敏感排序：key=str.lower 統一基準線",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "names = [\"banana\", \"Apple\", \"cat\", \"Banana\", \"apple\"]",
+        "html": "names = [<span class=\"token-string\">&quot;banana&quot;</span>, <span class=\"token-string\">&quot;Apple&quot;</span>, <span class=\"token-string\">&quot;cat&quot;</span>, <span class=\"token-string\">&quot;Banana&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 統一轉為小寫作為比對依據，本體內容不變",
+        "html": "<span class=\"token-comment\"># 統一轉為小寫作為比對依據，本體內容不變</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "clean_sorted = sorted(names, key=str.lower)",
+        "html": "clean_sorted = <span class=\"token-builtin\">sorted</span>(names, key=<span class=\"token-builtin\">str</span>.lower)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"大小寫不敏感排序:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;大小寫不敏感排序:&quot;</span>)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(clean_sorted)",
+        "html": "<span class=\"token-builtin\">print</span>(clean_sorted)",
+        "alt": "第 6 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "大小寫不敏感排序:\n['Apple', 'apple', 'banana', 'Banana', 'cat']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4 行",
+        "text": "透過 <code>key=str.lower</code>，Python 在比對時會暫時以全小寫評估大小，但回傳的新串列保留原本字串外觀。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 5~6 行",
+        "text": "因為 Python 排序具備穩定性（Stability），先出現的 <code>'Apple'</code> 依然在同小寫基準下排在 <code>'apple'</code> 前面！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "轉小寫比對無視大小"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Deadly Trap 1: String Numbers '100' < '2' Catastrophe",
+    "titleZh": "考場世紀大陷阱：字串 '100' 小於 '2' 引爆榜單全毀",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "str_nums = [\"100\", \"2\", \"30\", \"4\"]",
+        "html": "str_nums = [<span class=\"token-string\">&quot;<span class=\"token-number\">100</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">2</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">30</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">4</span>&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 💥 致命地雷：字串比的是第 0 個字元！'1' < '2' 成立！",
+        "html": "<span class=\"token-comment\"># 💥 致命地雷：字串比的是第 0 個字元！&#x27;1&#x27; &lt; &#x27;2&#x27; 成立！</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "str_nums.sort()",
+        "html": "str_nums.<span class=\"token-func\">sort</span>()",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": true,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"💥 誤把字串當數值排:\", str_nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;💥 誤把字串當數值排:&quot;</span>, str_nums)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "# ✅ 正確解法：轉型為整數排序",
+        "html": "<span class=\"token-comment\"># ✅ 正確解法：轉型為整數排序</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "correct_nums = sorted(str_nums, key=int)",
+        "html": "correct_nums = <span class=\"token-builtin\">sorted</span>(str_nums, key=<span class=\"token-builtin\">int</span>)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"✅ 依整數數值排序    :\", correct_nums)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;✅ 依整數數值排序    :&quot;</span>, correct_nums)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "💥 誤把字串當數值排: ['100', '2', '30', '4']\n✅ 依整數數值排序    : ['2', '4', '30', '100']",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~5 行",
+        "text": "APCS 歷屆實作題最經典失分陷阱！字串 <code>'100'</code> 與 <code>'2'</code> 比對，因 <code>'1' &lt; '2'</code> 導致 100 排在 2 前面！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "讀取題目輸入若為 <code>input().split()</code>，務必轉為整數或加上 <code>key=int</code>，杜絕字典序悲劇！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "數字字串排大小噴地雷"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Deadly Trap 2: Typo 'reversed=True' Argument",
+    "titleZh": "考場致命地雷二：參數多打一個 d 引爆 TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "data = [5, 2, 8]",
+        "html": "data = [<span class=\"token-number\">5</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">8</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 誤拼成 reversed（反轉函式名）而非 reverse（參數名）",
+        "html": "<span class=\"token-comment\">    # 💥 誤拼成 reversed（反轉函式名）而非 reverse（參數名）</span>",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "    data.sort(reversed=True)",
+        "html": "    data.<span class=\"token-func\">sort</span>(<span class=\"token-builtin\">reversed</span>=True)",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": true,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "except TypeError as err:",
+        "html": "<span class=\"token-keyword\">except</span> TypeError <span class=\"token-keyword\">as</span> err:",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "    print(\"拋出錯誤:\", type(err).__name__)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;拋出錯誤:&quot;</span>, <span class=\"token-builtin\">type</span>(err).__name__)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "    print(\"原因說明: 'reversed' is an invalid keyword argument\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;原因說明: &#x27;<span class=\"token-builtin\">reversed</span>&#x27; is an invalid keyword argument&quot;</span>)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "拋出錯誤: TypeError\n原因說明: 'reversed' is an invalid keyword argument",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 5 行",
+        "text": "考生常將參數名 <code>reverse=True</code> 誤記為 Python 內建函式 <code>reversed()</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~8 行",
+        "text": "直譯器會直接噴出 <code>TypeError: sort() got an unexpected keyword argument 'reversed'</code> 導致編譯失敗。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "參數名reverse無d"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Deadly Trap 3: reversed() Function Returns an Iterator",
+    "titleZh": "考場致命地雷三：誤以為 reversed(a) 會直接回傳串列",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [1, 2, 3]",
+        "html": "nums = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 💥 reversed() 回傳的是反轉迭代器物件，不是 list！",
+        "html": "<span class=\"token-comment\"># 💥 reversed() 回傳的是反轉迭代器物件，不是 list！</span>",
+        "alt": "第 3 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "rev_obj = reversed(nums)",
+        "html": "rev_obj = <span class=\"token-builtin\">reversed</span>(nums)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"直接列印物件:\", rev_obj)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;直接列印物件:&quot;</span>, rev_obj)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "# ✅ 正確解法：手動包裹 list() 或使用切片 [::-1]",
+        "html": "<span class=\"token-comment\"># ✅ 正確解法：手動包裹 list() 或使用切片 [::-1]</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "real_list = list(rev_obj)",
+        "html": "real_list = <span class=\"token-builtin\">list</span>(rev_obj)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"轉成串列    :\", real_list)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;轉成串列    :&quot;</span>, real_list)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "直接列印物件: <list_reverseiterator object at 0x0000028F63655060>\n轉成串列    : [3, 2, 1]",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~5 行",
+        "text": "直接寫 <code>print(reversed(nums))</code> 只會印出記憶體位址 <code>&lt;list_reverseiterator object at ...&gt;</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "<code>reversed()</code> 僅做逆序反轉（不排序）；若要排序反向請一律使用 <code>sort(reverse=True)</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "反轉函式回傳迭代器"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Deadly Trap 4: String Array Sorting Order Prediction",
+    "titleZh": "考場致命地雷四：字串陣列字典序首位預測卡",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_strings = [\"2\", \"100\", \"20\", \"10\"]",
+        "html": "raw_strings = [<span class=\"token-string\">&quot;<span class=\"token-number\">2</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">100</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">20</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">10</span>&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 執行純字串升序排序",
+        "html": "<span class=\"token-comment\"># 執行純字串升序排序</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "raw_strings.sort()",
+        "html": "raw_strings.<span class=\"token-func\">sort</span>()",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"排序後結果:\", raw_strings)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序後結果:&quot;</span>, raw_strings)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"第一位元素:\", raw_strings[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;第一位元素:&quot;</span>, raw_strings[<span class=\"token-number\">0</span>])",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "排序後結果: ['10', '100', '2', '20']\n第一位元素: 10",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~6 行",
+        "text": "字串比對由左至右看字元：<code>'10'</code>、<code>'100'</code> 首字皆為 <code>'1'</code>，小於 <code>'2'</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6 行",
+        "text": "而在 <code>'10'</code> 與 <code>'100'</code> 之間，前綴相同時長度較短的 <code>'10'</code> 拔得頭籌！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "字串一零開頭排最前"
+      }
+    ],
+    "predictQuiz": {
+      "question": "預測思考：對字串清單 ['2', '100', '20', '10'] 執行未轉型的純字串排序後，排在第 0 個位置的元素是誰？",
+      "options": [
+        "'10'（因為 '1' < '2'，且 '10' 是 '100' 的較短前綴）",
+        "'2'（因為在數值世界中 2 是最小的數字）"
+      ],
+      "correct": 0,
+      "answer": 0,
+      "explanation": "未經 int() 轉型的字串清單嚴格依據 ASCII 字典序排序。所有以 '1' 開頭的字串必定排在 '2' 前面，而 '10' 與 '100' 相比，較短的 '10' 奪得第 0 位！"
+    }
+  },
+  {
+    "page": 13,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Numerical Inversion Trick: key=lambda x: -x",
+    "titleZh": "演算法加速技巧：純數值利用負號取反快速降序",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "values = [12, 45, 2, 89, 34]",
+        "html": "values = [<span class=\"token-number\">12</span>, <span class=\"token-number\">45</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">89</span>, <span class=\"token-number\">34</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 技巧：透過 -x 取反，將大數變成極小負數進行升序比對",
+        "html": "<span class=\"token-comment\"># 技巧：透過 -x 取反，將大數變成極小負數進行升序比對</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "desc_by_neg = sorted(values, key=lambda x: -x)",
+        "html": "desc_by_neg = <span class=\"token-builtin\">sorted</span>(values, key=<span class=\"token-keyword\">lambda</span> x: -x)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"負號取反降序:\", desc_by_neg)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;負號取反降序:&quot;</span>, desc_by_neg)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "# 等同於傳統 reverse=True",
+        "html": "<span class=\"token-comment\"># 等同於傳統 reverse=True</span>",
+        "alt": "第 7 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "desc_by_rev = sorted(values, reverse=True)",
+        "html": "desc_by_rev = <span class=\"token-builtin\">sorted</span>(values, reverse=True)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"reverse 降序:\", desc_by_rev)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;reverse 降序:&quot;</span>, desc_by_rev)",
+        "alt": "第 9 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "負號取反降序: [89, 45, 34, 12, 2]\nreverse 降序: [89, 45, 34, 12, 2]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "當 89 變成 -89，2 變成 -2 時，-89 &lt; -2。升序排列負數等於降序排列原正數！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~8 行",
+        "text": "這在多鍵值排序（例如：成績降序但座號升序）中是極為關鍵的競賽神技。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "負號取反數值速降序"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "APCS Contest Case: Safe Scoreboard Parser",
+    "titleZh": "競賽實戰：APCS 安全榜單處理器（防禦字串數字陷阱）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 輸入資料常為純文字字串",
+        "html": "<span class=\"token-comment\"># APCS 輸入資料常為純文字字串</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "raw_inputs = [\"75\", \"100\", \"8\", \"92\", \"40\"]",
+        "html": "raw_inputs = [<span class=\"token-string\">&quot;<span class=\"token-number\">75</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">100</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">8</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">92</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">40</span>&quot;</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "# 安全防禦流水線：轉成 int 數值後再進行降序",
+        "html": "<span class=\"token-comment\"># 安全防禦流水線：轉成 int 數值後再進行降序</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "clean_ranks = sorted([int(x) for x in raw_inputs], reverse=True)",
+        "html": "clean_ranks = <span class=\"token-builtin\">sorted</span>([<span class=\"token-builtin\">int</span>(x) <span class=\"token-keyword\">for</span> x <span class=\"token-keyword\">in</span> raw_inputs], reverse=True)",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "print(\"合格排行榜（由高到低）:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;合格排行榜（由高到低）:&quot;</span>)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "for rank, score in enumerate(clean_ranks, 1):",
+        "html": "<span class=\"token-keyword\">for</span> rank, score <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(clean_ranks, <span class=\"token-number\">1</span>):",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "    print(f\"  第 {rank} 名: {score} 分\")",
+        "html": "    <span class=\"token-builtin\">print</span>(f<span class=\"token-string\">&quot;  第 {rank} 名: {score} 分&quot;</span>)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "合格排行榜（由高到低）:\n  第 1 名: 100 分\n  第 2 名: 92 分\n  第 3 名: 75 分\n  第 4 名: 40 分\n  第 5 名: 8 分",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 5 行",
+        "text": "先以串列生成式 <code>[int(x) for x in raw_inputs]</code> 確保強型別數值化。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "再搭配 <code>reverse=True</code>，確保 100 分穩居榜首，8 分落於榜尾，徹底防禦 CE/WA！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "數值轉型防破題榜單"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.2 反向排序（reverse=True）與字典序原理",
+    "title": "Chapter 12.2 Mastery: reverse & Lexicographical Order",
+    "titleZh": "單元 12.2 綜合驗收：降序排序與字典序大融會",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 競賽滿分通關金律實證",
+        "html": "<span class=\"token-comment\"># APCS 競賽滿分通關金律實證</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 2,
+        "code": "def sort_scores_and_words():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">sort_scores_and_words</span>():",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 3,
+        "code": "    # 數值依據 int 降序",
+        "html": "<span class=\"token-comment\">    # 數值依據 int 降序</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 4,
+        "code": "    pts = sorted([\"80\", \"100\", \"9\"], key=int, reverse=True)",
+        "html": "    pts = <span class=\"token-builtin\">sorted</span>([<span class=\"token-string\">&quot;<span class=\"token-number\">80</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">100</span>&quot;</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">9</span>&quot;</span>], key=<span class=\"token-builtin\">int</span>, reverse=True)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 5,
+        "code": "    # 文字依據字典序忽略大小寫升序",
+        "html": "<span class=\"token-comment\">    # 文字依據字典序忽略大小寫升序</span>",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 6,
+        "code": "    wds = sorted([\"zebra\", \"Apple\", \"cat\"], key=str.lower)",
+        "html": "    wds = <span class=\"token-builtin\">sorted</span>([<span class=\"token-string\">&quot;zebra&quot;</span>, <span class=\"token-string\">&quot;Apple&quot;</span>, <span class=\"token-string\">&quot;cat&quot;</span>], key=<span class=\"token-builtin\">str</span>.lower)",
+        "alt": "第 6 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 7,
+        "code": "    return pts, wds",
+        "html": "    <span class=\"token-keyword\">return</span> pts, wds",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 8,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 9,
+        "code": "p_res, w_res = sort_scores_and_words()",
+        "html": "p_res, w_res = <span class=\"token-func\">sort_scores_and_words</span>()",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 10,
+        "code": "print(\"分數降序結果:\", p_res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;分數降序結果:&quot;</span>, p_res)",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      },
+      {
+        "num": 11,
+        "code": "print(\"單字字母結果:\", w_res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;單字字母結果:&quot;</span>, w_res)",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "降序與字典序實例操作",
+        "mean": "程式邏輯步驟"
+      }
+    ],
+    "output": "分數降序結果: ['100', '80', '9']\n單字字母結果: ['Apple', 'cat', 'zebra']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4 行",
+        "text": "<code>key=int, reverse=True</code> 雙效合一，保證數值降序正確性。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6 行",
+        "text": "<code>key=str.lower</code> 抹平 ASCII 大小寫差異，還原真實字母順序。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "文字轉數字反向設True"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 12.2 通關：字典序與反向排序破局者！",
+      "summary": "太棒了！你已徹底領悟 reverse=True 降序參數、字串字典序逐字 ASCII 比對原理、'100' < '2' 世紀大陷阱，以及 key=str.lower 不敏感排序！",
+      "nextUnit": "單元 12.3 自訂排序鍵值與具名函式 key="
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec12-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_12-2_reverse_sort_and_lexicographical_order.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

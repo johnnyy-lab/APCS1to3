@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Sorting Projection: The key= Concept",
+    "titleZh": "特徵投影核心思維：依抽取特徵值而非本體比大小",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 原始混雜正負數串列",
+        "html": "<span class=\"token-comment\"># 原始混雜正負數串列</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "nums = [-5, 2, -1, 4, -3]",
+        "html": "nums = [-<span class=\"token-number\">5</span>, <span class=\"token-number\">2</span>, -<span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>, -<span class=\"token-number\">3</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "# 依數值本體大小排序",
+        "html": "<span class=\"token-comment\"># 依數值本體大小排序</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"一般升序:\", sorted(nums))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;一般升序:&quot;</span>, <span class=\"token-builtin\">sorted</span>(nums))",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "# 依「絕對值」大小排序 (key=abs)",
+        "html": "<span class=\"token-comment\"># 依「絕對值」大小排序 (key=abs)</span>",
+        "alt": "第 7 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "print(\"絕對值升序:\", sorted(nums, key=abs))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;絕對值升序:&quot;</span>, <span class=\"token-builtin\">sorted</span>(nums, key=<span class=\"token-builtin\">abs</span>))",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "一般升序: [-5, -3, -1, 2, 4]\n絕對值升序: [-1, 2, -3, 4, -5]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 7 行",
+        "text": "<code>key=</code> 參數接收一個函式，Python 會將每個元素丟入此函式取得「特徵值」，再依特徵值大小重排。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7 行",
+        "text": "注意：排序產出的新串列中，元素依然保留原本的數值 <code>[-1, 2, -3, 4, -5]</code>，本體沒有被修改成正數！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "依特徵投影比大小"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Passing Function Objects: Do NOT Call!",
+    "titleZh": "傳入函式物件的本質：傳名字，絕對不要加小括號！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def get_length(s):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">get_length</span>(s):",
+        "alt": "第 1 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "    return len(s)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">len</span>(s)",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "words = [\"banana\", \"pie\", \"apple\"]",
+        "html": "words = [<span class=\"token-string\">&quot;banana&quot;</span>, <span class=\"token-string\">&quot;pie&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>]",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "# ✅ 正確：傳入函式物件本身（作為委託規則）",
+        "html": "<span class=\"token-comment\"># ✅ 正確：傳入函式物件本身（作為委託規則）</span>",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "res = sorted(words, key=get_length)",
+        "html": "res = <span class=\"token-builtin\">sorted</span>(words, key=get_length)",
+        "alt": "第 7 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "print(\"依字數長度排序:\", res)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;依字數長度排序:&quot;</span>, res)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "依字數長度排序: ['pie', 'apple', 'banana']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 7 行",
+        "text": "寫 <code>key=get_length</code> 代表「請 Python 在排序時，拿這個函式去幫我評估每個元素」。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7 行",
+        "text": "極重要：千萬不能寫 <code>key=get_length()</code>！加了括號代表立刻執行，會因為沒給引數而噴出錯誤。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "鍵值函式不可加小括號"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Built-in Functions as Keys: abs, len, str.lower",
+    "titleZh": "內建函式利器：常見 key=abs 與 key=len 全覽",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "strings = [\"cat\", \"elephant\", \"ox\", \"dog\"]",
+        "html": "strings = [<span class=\"token-string\">&quot;cat&quot;</span>, <span class=\"token-string\">&quot;elephant&quot;</span>, <span class=\"token-string\">&quot;ox&quot;</span>, <span class=\"token-string\">&quot;dog&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 依長度升序",
+        "html": "<span class=\"token-comment\"># 依長度升序</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "print(\"依長度排序:\", sorted(strings, key=len))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;依長度排序:&quot;</span>, <span class=\"token-builtin\">sorted</span>(strings, key=<span class=\"token-builtin\">len</span>))",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "# 依長度降序",
+        "html": "<span class=\"token-comment\"># 依長度降序</span>",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "print(\"長度降序  :\", sorted(strings, key=len, reverse=True))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;長度降序  :&quot;</span>, <span class=\"token-builtin\">sorted</span>(strings, key=<span class=\"token-builtin\">len</span>, reverse=True))",
+        "alt": "第 7 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "依長度排序: ['ox', 'cat', 'dog', 'elephant']\n長度降序  : ['elephant', 'cat', 'dog', 'ox']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4 行",
+        "text": "<code>key=len</code> 讓元素按照字串的字元數多寡（2, 3, 3, 8）進行排列。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7 行",
+        "text": "<code>key</code> 參數可以與 <code>reverse=True</code> 完美搭配，達成「特徵值由大到小降序」！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "內建函式皆可作鍵值"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Data Integrity: Keys do not Mutate Items",
+    "titleZh": "資料完整性守則：排序後元素本質絲毫不受扭曲",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "words = [\"Zero\", \"apple\", \"Banana\"]",
+        "html": "words = [<span class=\"token-string\">&quot;Zero&quot;</span>, <span class=\"token-string\">&quot;apple&quot;</span>, <span class=\"token-string\">&quot;Banana&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 依小寫字母排序，但原字串的大小寫完整保留",
+        "html": "<span class=\"token-comment\"># 依小寫字母排序，但原字串的大小寫完整保留</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "result = sorted(words, key=str.lower)",
+        "html": "result = <span class=\"token-builtin\">sorted</span>(words, key=<span class=\"token-builtin\">str</span>.lower)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"排序結果:\", result)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序結果:&quot;</span>, result)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "print(\"首位單字依然保有小寫:\", result[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;首位單字依然保有小寫:&quot;</span>, result[<span class=\"token-number\">0</span>])",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "print(\"末位單字依然保有大寫:\", result[-1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;末位單字依然保有大寫:&quot;</span>, result[-<span class=\"token-number\">1</span>])",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "排序結果: ['apple', 'Banana', 'Zero']\n首位單字依然保有小寫: apple\n末位單字依然保有大寫: Zero",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4 行",
+        "text": "<code>str.lower</code> 僅在比對的一瞬間提供評分依據，排好後擺入串列的依舊是原本的字串物件。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6~8 行",
+        "text": "這保證了資料呈現的真實性，不論 key 做多複雜的運算，都不會破壞原始物件型態。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "本體不變依鍵值排"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Tie-Breaking with Stable Sorting",
+    "titleZh": "特徵值相同時的決策：穩定排序維持輸入順序",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "animals = [\"fox\", \"cat\", \"dog\", \"bear\"]",
+        "html": "animals = [<span class=\"token-string\">&quot;fox&quot;</span>, <span class=\"token-string\">&quot;cat&quot;</span>, <span class=\"token-string\">&quot;dog&quot;</span>, <span class=\"token-string\">&quot;bear&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 依長度排序：fox, cat, dog 長度皆為 3",
+        "html": "<span class=\"token-comment\"># 依長度排序：fox, cat, dog 長度皆為 3</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "sorted_animals = sorted(animals, key=len)",
+        "html": "sorted_animals = <span class=\"token-builtin\">sorted</span>(animals, key=<span class=\"token-builtin\">len</span>)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"長度排序結果:\", sorted_animals)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;長度排序結果:&quot;</span>, sorted_animals)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "長度排序結果: ['fox', 'cat', 'dog', 'bear']",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~6 行",
+        "text": "<code>'fox'</code>, <code>'cat'</code>, <code>'dog'</code> 特徵值同為 3。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6 行",
+        "text": "輸出順序維持 <code>fox</code> ➔ <code>cat</code> ➔ <code>dog</code>！Python 穩定排序保證同鍵值不亂位。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "依長度排長度相同保序"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Custom Named Function: Complex Feature Extraction",
+    "titleZh": "自訂具名函式：定義 def 作為客製化評分標準",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def last_digit(n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">last_digit</span>(n):",
+        "alt": "第 1 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "    # 抽取個位數字作為排序依據",
+        "html": "<span class=\"token-comment\">    # 抽取個位數字作為排序依據</span>",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "    return n % 10",
+        "html": "    <span class=\"token-keyword\">return</span> n % <span class=\"token-number\">10</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "numbers = [15, 82, 39, 41, 28]",
+        "html": "numbers = [<span class=\"token-number\">15</span>, <span class=\"token-number\">82</span>, <span class=\"token-number\">39</span>, <span class=\"token-number\">41</span>, <span class=\"token-number\">28</span>]",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "# 依個位數字大小排序",
+        "html": "<span class=\"token-comment\"># 依個位數字大小排序</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "numbers.sort(key=last_digit)",
+        "html": "numbers.<span class=\"token-func\">sort</span>(key=last_digit)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"依個位數排序:\", numbers)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;依個位數排序:&quot;</span>, numbers)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "依個位數排序: [41, 82, 15, 28, 39]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 1~3 行",
+        "text": "當內建函式無法滿足需求時，自訂 <code>def</code> 函式是邏輯最清晰、最具可讀性的寫法。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "個位數分別為 1, 2, 5, 8, 9，串列即刻按照 41, 82, 15, 28, 39 原地排好。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "自訂具名函式作鍵值"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Sorting Tuples by Specified Column",
+    "titleZh": "多元資料結構：自訂函式抽取元組特定欄位排序",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 學生資料：(學號, 成績)",
+        "html": "<span class=\"token-comment\"># 學生資料：(學號, 成績)</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "records = [(103, 85), (101, 95), (102, 70)]",
+        "html": "records = [(<span class=\"token-number\">103</span>, <span class=\"token-number\">85</span>), (<span class=\"token-number\">101</span>, <span class=\"token-number\">95</span>), (<span class=\"token-number\">102</span>, <span class=\"token-number\">70</span>)]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "def get_score(student):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">get_score</span>(student):",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "    return student[1]  # 抽取第 1 個欄位：成績",
+        "html": "    <span class=\"token-keyword\">return</span> student[<span class=\"token-number\">1</span>]  # 抽取第 <span class=\"token-number\">1</span> 個欄位：成績",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "# 依成績由低到高排序",
+        "html": "<span class=\"token-comment\"># 依成績由低到高排序</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "records.sort(key=get_score)",
+        "html": "records.<span class=\"token-func\">sort</span>(key=get_score)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"依成績升序:\", records)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;依成績升序:&quot;</span>, records)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "依成績升序: [(102, 70), (103, 85), (101, 95)]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "若直接排元組，預設會先比第 0 欄（學號）；自訂函式回傳 <code>student[1]</code> 則強制改比成績。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "APCS 實作題經常出現「按座標 Y 排序」或「按結尾時間排序」，此為核心必備技巧。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "自訂取欄位排序元組"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Sorting Dictionary by Values via items()",
+    "titleZh": "字典資料排序：結合 d.items() 依 Value 高低排序",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "inventory = {\"apple\": 50, \"banana\": 20, \"orange\": 35}",
+        "html": "inventory = {<span class=\"token-string\">&quot;apple&quot;</span>: <span class=\"token-number\">50</span>, <span class=\"token-string\">&quot;banana&quot;</span>: <span class=\"token-number\">20</span>, <span class=\"token-string\">&quot;orange&quot;</span>: <span class=\"token-number\">35</span>}",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "def get_count(pair):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">get_count</span>(pair):",
+        "alt": "第 3 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "    return pair[1]  # pair 為 (key, value)，取 value",
+        "html": "    <span class=\"token-keyword\">return</span> pair[<span class=\"token-number\">1</span>]  # pair 為 (key, value)，取 value",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "# 依庫存數量由小到大排序",
+        "html": "<span class=\"token-comment\"># 依庫存數量由小到大排序</span>",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "sorted_inv = sorted(inventory.items(), key=get_count)",
+        "html": "sorted_inv = <span class=\"token-builtin\">sorted</span>(inventory.<span class=\"token-func\">items</span>(), key=get_count)",
+        "alt": "第 7 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "print(\"庫存數量排序:\", sorted_inv)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;庫存數量排序:&quot;</span>, sorted_inv)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "庫存數量排序: [('banana', 20), ('orange', 35), ('apple', 50)]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "<code>inventory.items()</code> 產出 <code>('apple', 50)</code> 鍵值對元組。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "透過 <code>get_count</code> 抽取數量比對，順利產出 <code>[('banana', 20), ...]</code> 排序串列。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "依字典值排需用items"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Deadly Trap 1: Calling Function in key=len()",
+    "titleZh": "考場致命地雷一：key 參數多加括號立即呼叫噴錯",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "names = [\"Tom\", \"Jerry\"]",
+        "html": "names = [<span class=\"token-string\">&quot;Tom&quot;</span>, <span class=\"token-string\">&quot;Jerry&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "    # 💥 致命地雷：誤寫成 len()，在當下立即呼叫卻沒給參數！",
+        "html": "<span class=\"token-comment\">    # 💥 致命地雷：誤寫成 len()，在當下立即呼叫卻沒給參數！</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "    names.sort(key=len())",
+        "html": "    names.<span class=\"token-func\">sort</span>(key=<span class=\"token-builtin\">len</span>())",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": true,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "except TypeError as err:",
+        "html": "<span class=\"token-keyword\">except</span> TypeError <span class=\"token-keyword\">as</span> err:",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "    print(\"拋出錯誤:\", type(err).__name__)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;拋出錯誤:&quot;</span>, <span class=\"token-builtin\">type</span>(err).__name__)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "    print(\"錯誤訊息: len() takes exactly one argument (0 given)\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;錯誤訊息: <span class=\"token-builtin\">len</span>() takes exactly one argument (<span class=\"token-number\">0</span> given)&quot;</span>)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "拋出錯誤: TypeError\n錯誤訊息: len() takes exactly one argument (0 given)",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 5 行",
+        "text": "考生最常犯的打字習慣地雷！寫 <code>len()</code> 會當場執行，但 <code>len</code> 要求 1 個引數，當場炸裂！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~8 行",
+        "text": "牢記心法：<strong>傳給 key 的是函式本體（Function Object），絕不加括號！</strong>"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "鍵值函式勿加括號呼叫"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Deadly Trap 2: Key Function Missing Return Statement",
+    "titleZh": "考場致命地雷二：自訂 key 函式漏寫 return 回傳值",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def bad_key(x):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">bad_key</span>(x):",
+        "alt": "第 1 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "    # 💥 計算了特徵值，卻忘了 return！預設回傳 None！",
+        "html": "<span class=\"token-comment\">    # 💥 計算了特徵值，卻忘了 return！預設回傳 None！</span>",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "    val = x % 10",
+        "html": "    val = x % <span class=\"token-number\">10</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "nums = [15, 82, 39]",
+        "html": "nums = [<span class=\"token-number\">15</span>, <span class=\"token-number\">82</span>, <span class=\"token-number\">39</span>]",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "    # 💥 排序時試圖比較 None < None，直接引爆 TypeError！",
+        "html": "<span class=\"token-comment\">    # 💥 排序時試圖比較 None &lt; None，直接引爆 TypeError！</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "    nums.sort(key=bad_key)",
+        "html": "    nums.<span class=\"token-func\">sort</span>(key=bad_key)",
+        "alt": "第 9 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 10,
+        "code": "except TypeError as err:",
+        "html": "<span class=\"token-keyword\">except</span> TypeError <span class=\"token-keyword\">as</span> err:",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 11,
+        "code": "    print(\"拋出錯誤:\", type(err).__name__)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;拋出錯誤:&quot;</span>, <span class=\"token-builtin\">type</span>(err).__name__)",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 12,
+        "code": "    print(\"原因說明: '<' not supported between instances of 'NoneType'\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;原因說明: &#x27;&lt;&#x27; not supported between instances of &#x27;NoneType&#x27;&quot;</span>)",
+        "alt": "第 12 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "拋出錯誤: TypeError\n原因說明: '<' not supported between instances of 'NoneType'",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 1~3 行",
+        "text": "若函式內部忘記寫 <code>return</code>，函式預設回傳 <code>None</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~12 行",
+        "text": "Python 3 不支援 <code>None &lt; None</code> 比對，排序會直接拋出 <code>TypeError</code> 崩潰！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "鍵值函式必具回傳值"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Deadly Trap 3: Sorting Dictionary directly yields Keys",
+    "titleZh": "考場致命地雷三：直接對字典 sorted(d) 只有 Key 參與",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = {\"Alice\": 95, \"Bob\": 70, \"Cindy\": 85}",
+        "html": "scores = {<span class=\"token-string\">&quot;Alice&quot;</span>: <span class=\"token-number\">95</span>, <span class=\"token-string\">&quot;Bob&quot;</span>: <span class=\"token-number\">70</span>, <span class=\"token-string\">&quot;Cindy&quot;</span>: <span class=\"token-number\">85</span>}",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 💥 誤以為 sorted(scores) 會包含成績",
+        "html": "<span class=\"token-comment\"># 💥 誤以為 sorted(scores) 會包含成績</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "wrong = sorted(scores)",
+        "html": "wrong = <span class=\"token-builtin\">sorted</span>(scores)",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"直接 sorted 字典:\", wrong)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;直接 <span class=\"token-builtin\">sorted</span> 字典:&quot;</span>, wrong)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "# ✅ 正確：依成績由高到低，必須使用 .items()",
+        "html": "<span class=\"token-comment\"># ✅ 正確：依成績由高到低，必須使用 .items()</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "correct = sorted(scores.items(), key=lambda p: p[1], reverse=True)",
+        "html": "correct = <span class=\"token-builtin\">sorted</span>(scores.<span class=\"token-func\">items</span>(), key=<span class=\"token-keyword\">lambda</span> p: p[<span class=\"token-number\">1</span>], reverse=True)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"依成績由高到低 :\", correct)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;依成績由高到低 :&quot;</span>, correct)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "直接 sorted 字典: ['Alice', 'Bob', 'Cindy']\n依成績由高到低 : [('Alice', 95), ('Cindy', 85), ('Bob', 70)]",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~5 行",
+        "text": "直接對 <code>scores</code> 排序，走訪的只有鍵名，得到 <code>['Alice', 'Bob', 'Cindy']</code>，成績全數遺失！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~9 行",
+        "text": "字典依值排序必搭配 <code>.items()</code>，這是歷年考場上高頻失分點。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "字典排值必用items"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Deadly Trap 4: Tie-breaking by Abs Prediction",
+    "titleZh": "考場致命地雷四：絕對值平手時的順序預測卡",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "data = [-3, 3, -1, 1]",
+        "html": "data = [-<span class=\"token-number\">3</span>, <span class=\"token-number\">3</span>, -<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "# 依絕對值升序排序：3 與 -3 的絕對值同為 3",
+        "html": "<span class=\"token-comment\"># 依絕對值升序排序：3 與 -3 的絕對值同為 3</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "sorted_data = sorted(data, key=abs)",
+        "html": "sorted_data = <span class=\"token-builtin\">sorted</span>(data, key=<span class=\"token-builtin\">abs</span>)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "print(\"絕對值排序結果:\", sorted_data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;絕對值排序結果:&quot;</span>, sorted_data)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "print(\"3 與 -3 先後順序:\", sorted_data[2], sorted_data[3])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;<span class=\"token-number\">3</span> 與 -<span class=\"token-number\">3</span> 先後順序:&quot;</span>, sorted_data[<span class=\"token-number\">2</span>], sorted_data[<span class=\"token-number\">3</span>])",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "絕對值排序結果: [-1, 1, -3, 3]\n3 與 -3 先後順序: -3 3",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~6 行",
+        "text": "在 <code>data</code> 中，<code>-3</code> 出現在索引 0，<code>3</code> 出現在索引 1。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6 行",
+        "text": "依照穩定排序規則，<code>-3</code> 依然在平手時穩居 <code>3</code> 前方，絕對不會被隨機互換！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "絕對值同分維持原序"
+      }
+    ],
+    "predictQuiz": {
+      "question": "預測思考：對清單 [-3, 3, -1, 1] 執行 sorted(data, key=abs) 後，-3 與 3 的相對順序會如何？",
+      "options": [
+        "-3 依然排在 3 前面（因為原始清單中 -3 先出現，符合穩定排序）",
+        "3 自動排在 -3 前面（因為正數 3 大於負數 -3）"
+      ],
+      "correct": 0,
+      "answer": 0,
+      "explanation": "Python 的 Timsort 具有嚴格的穩定性（Stable Sort）。當元素經由 key=abs 評估特徵值相同時（|-3| == |3| == 3），必定完整保留輸入時的先後順序！"
+    }
+  },
+  {
+    "page": 13,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Unit Testing Key Function in Isolation",
+    "titleZh": "除錯必備心法：單獨測試 key 函式抽取的特徵值",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 待排序的複雜資料 (座標與權重)",
+        "html": "<span class=\"token-comment\"># 待排序的複雜資料 (座標與權重)</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "item = (4, 3, 100)",
+        "html": "item = (<span class=\"token-number\">4</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">100</span>)",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "def distance_squared(pt):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">distance_squared</span>(pt):",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "    # 計算原點距離平方: x^2 + y^2",
+        "html": "<span class=\"token-comment\">    # 計算原點距離平方: x^2 + y^2</span>",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "    return pt[0]**2 + pt[1]**2",
+        "html": "    <span class=\"token-keyword\">return</span> pt[<span class=\"token-number\">0</span>]**<span class=\"token-number\">2</span> + pt[<span class=\"token-number\">1</span>]**<span class=\"token-number\">2</span>",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "# 除錯心法：排序前先單測單筆資料是否如預期輸出 25",
+        "html": "<span class=\"token-comment\"># 除錯心法：排序前先單測單筆資料是否如預期輸出 25</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "print(\"單筆測試特徵值:\", distance_squared(item))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;單筆測試特徵值:&quot;</span>, <span class=\"token-func\">distance_squared</span>(item))",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "單筆測試特徵值: 25",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~6 行",
+        "text": "在面對複雜幾何或 APCS 多條件題時，撰寫具名函式能讓你在單元測試時一目了然。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9 行",
+        "text": "先確定單筆特徵值抽取無誤（$4^2 + 3^2 = 25$），再放進 <code>key=</code>，除錯省時 10 倍！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "獨立單元測試鍵值函式"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "APCS Contest Case: Distance from Origin",
+    "titleZh": "競賽實戰：APCS 座標距離原點由近到遠排序",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 二維座標點清單 (x, y)",
+        "html": "<span class=\"token-comment\"># 二維座標點清單 (x, y)</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "points = [(3, 4), (1, 1), (0, 5), (2, 2)]",
+        "html": "points = [(<span class=\"token-number\">3</span>, <span class=\"token-number\">4</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">5</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>)]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "def dist_sq(p):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">dist_sq</span>(p):",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "    return p[0]**2 + p[1]**2",
+        "html": "    <span class=\"token-keyword\">return</span> p[<span class=\"token-number\">0</span>]**<span class=\"token-number\">2</span> + p[<span class=\"token-number\">1</span>]**<span class=\"token-number\">2</span>",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "# 依距離原點平方由近到遠升序排序",
+        "html": "<span class=\"token-comment\"># 依距離原點平方由近到遠升序排序</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "points.sort(key=dist_sq)",
+        "html": "points.<span class=\"token-func\">sort</span>(key=dist_sq)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 10,
+        "code": "print(\"最近到最遠座標:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;最近到最遠座標:&quot;</span>)",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 11,
+        "code": "for pt in points:",
+        "html": "<span class=\"token-keyword\">for</span> pt <span class=\"token-keyword\">in</span> points:",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 12,
+        "code": "    print(f\"  座標 {pt} -> 距離平方: {dist_sq(pt)}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(f<span class=\"token-string\">&quot;  座標 {pt} -&gt; 距離平方: {<span class=\"token-func\">dist_sq</span>(pt)}&quot;</span>)",
+        "alt": "第 12 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "最近到最遠座標:\n  座標 (1, 1) -> 距離平方: 2\n  座標 (2, 2) -> 距離平方: 8\n  座標 (3, 4) -> 距離平方: 25\n  座標 (0, 5) -> 距離平方: 25",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "不需要做開根號 <code>sqrt()</code>，直接比平方值不僅計算極快，更避免浮點數精度誤差！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8~12 行",
+        "text": "排序結果為 <code>(1, 1)</code> ➔ <code>(2, 2)</code> ➔ <code>(3, 4)</code> ➔ <code>(0, 5)</code>，標準 APCS 實作解題結構。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "座標距離特徵升序排"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.3 自訂排序鍵值與具名函式 key=",
+    "title": "Chapter 12.3 Mastery: Projection Sorting Blueprint",
+    "titleZh": "單元 12.3 綜合驗收：自訂鍵值與具名函式大融會",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 競賽滿分通關金律實證",
+        "html": "<span class=\"token-comment\"># APCS 競賽滿分通關金律實證</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 2,
+        "code": "def solve_contest_data(students):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">solve_contest_data</span>(students):",
+        "alt": "第 2 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 3,
+        "code": "    # 定義依成績抽取之具名函式",
+        "html": "<span class=\"token-comment\">    # 定義依成績抽取之具名函式</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 4,
+        "code": "    def score_key(s):",
+        "html": "    <span class=\"token-keyword\">def</span> <span class=\"token-func\">score_key</span>(s):",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 5,
+        "code": "        return s[1]",
+        "html": "        <span class=\"token-keyword\">return</span> s[<span class=\"token-number\">1</span>]",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 6,
+        "code": "    ",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 7,
+        "code": "    # 依成績由高到低降序",
+        "html": "<span class=\"token-comment\">    # 依成績由高到低降序</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 8,
+        "code": "    return sorted(students, key=score_key, reverse=True)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">sorted</span>(students, key=score_key, reverse=True)",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 9,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 10,
+        "code": "data = [(\"Alice\", 85), (\"Bob\", 95), (\"Cindy\", 90)]",
+        "html": "data = [(<span class=\"token-string\">&quot;Alice&quot;</span>, <span class=\"token-number\">85</span>), (<span class=\"token-string\">&quot;Bob&quot;</span>, <span class=\"token-number\">95</span>), (<span class=\"token-string\">&quot;Cindy&quot;</span>, <span class=\"token-number\">90</span>)]",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 11,
+        "code": "ranked = solve_contest_data(data)",
+        "html": "ranked = <span class=\"token-func\">solve_contest_data</span>(data)",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      },
+      {
+        "num": 12,
+        "code": "print(\"競賽總榜單:\", ranked)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;競賽總榜單:&quot;</span>, ranked)",
+        "alt": "第 12 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "鍵值特徵值投影運算",
+        "mean": "程式邏輯運作步驟"
+      }
+    ],
+    "output": "競賽總榜單: [('Bob', 95), ('Cindy', 90), ('Alice', 85)]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "具名函式 <code>score_key</code> 傳入 <code>key=</code>，可讀性高且容易單獨印出驗證。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 8 行",
+        "text": "結合 <code>reverse=True</code>，高分穩坐榜首，零破版通過所有測試。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "特徵投影排序精準破題"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 12.3 通關：自訂排序鍵值大師！",
+      "summary": "太棒了！你已徹底掌握 key= 特徵投影比大小思維、傳函式名不加括號黃金鐵律、自訂具名 def 取欄位，以及字典 .items() 值排序！",
+      "nextUnit": "單元 12.4 匿名函式 Lambda 與多鍵值排序"
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec12-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_12-3_custom_sort_key_and_named_functions.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

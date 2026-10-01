@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.1 就地排序（sort）與新物件排序（sorted） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Sorting Fundamentals & Ascending Order",
+    "titleZh": "排序核心思維：由小到大升序排列的秩序世界",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 原始混亂的分數串列",
+        "html": "<span class=\"token-comment\"># 原始混亂的分數串列</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 2,
+        "code": "scores = [78, 95, 62, 88, 70]",
+        "html": "scores = [<span class=\"token-number\">78</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">62</span>, <span class=\"token-number\">88</span>, <span class=\"token-number\">70</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "print(\"排序前:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序前:&quot;</span>, scores)",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 5,
+        "code": "# 升序排序：自然數值由小到大",
+        "html": "<span class=\"token-comment\"># 升序排序：自然數值由小到大</span>",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 6,
+        "code": "sorted_scores = sorted(scores)",
+        "html": "sorted_scores = <span class=\"token-builtin\">sorted</span>(scores)",
+        "alt": "第 6 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 7,
+        "code": "print(\"排序後:\", sorted_scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序後:&quot;</span>, sorted_scores)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "排序前: [78, 95, 62, 88, 70]\n排序後: [62, 70, 78, 88, 95]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 1~2 行",
+        "text": "無序的資料在電腦中搜尋成本極高；透過排序建立單調遞增秩序，是二分搜尋等高效演算法的前提。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 5~6 行",
+        "text": "Python 預設排序為「升序（Ascending Order）」，即數值由小到大或字元由 ASCII 碼小到大。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "排序預設從小到大"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Method vs Function: sort() vs sorted()",
+    "titleZh": "雙雄對決：串列方法 a.sort() vs 內建函式 sorted(a)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "data1 = [3, 1, 4]",
+        "html": "data1 = [<span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "data2 = [3, 1, 4]",
+        "html": "data2 = [<span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">4</span>]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "# 串列專屬方法：原地修改本體，無回傳值",
+        "html": "<span class=\"token-comment\"># 串列專屬方法：原地修改本體，無回傳值</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 5,
+        "code": "res1 = data1.sort()",
+        "html": "res1 = data1.<span class=\"token-func\">sort</span>()",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 6,
+        "code": "print(\"data1:\", data1, \"| res1:\", res1)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;data1:&quot;</span>, data1, <span class=\"token-string\">&quot;| res1:&quot;</span>, res1)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 8,
+        "code": "# 通用內建函式：保留本體不變，回傳全新串列",
+        "html": "<span class=\"token-comment\"># 通用內建函式：保留本體不變，回傳全新串列</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 9,
+        "code": "res2 = sorted(data2)",
+        "html": "res2 = <span class=\"token-builtin\">sorted</span>(data2)",
+        "alt": "第 9 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 10,
+        "code": "print(\"data2:\", data2, \"| res2:\", res2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;data2:&quot;</span>, data2, <span class=\"token-string\">&quot;| res2:&quot;</span>, res2)",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "data1: [1, 3, 4] | res1: None\ndata2: [3, 1, 4] | res2: [1, 3, 4]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 5~6 行",
+        "text": "<code>list.sort()</code> 是串列的方法（Method），其特點是直接對記憶體原物件進行原處調換。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9~10 行",
+        "text": "<code>sorted(iterable)</code> 是 Python 內建全域函式，任何可迭代物件皆可傳入，必定產出全新獨立串列。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "方法改本體函式生新串"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Memory Mechanics: In-Place Mutation",
+    "titleZh": "記憶體透視：就地修改（In-Place）的物理位址守恆",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [50, 20, 80]",
+        "html": "nums = [<span class=\"token-number\">50</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">80</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "id_before = id(nums)",
+        "html": "id_before = <span class=\"token-builtin\">id</span>(nums)",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "確認是否為同一物件在記憶體之唯一標識",
+        "mean": "檢驗記憶體位址"
+      },
+      {
+        "num": 3,
+        "code": "print(\"排序前記憶體位址:\", id_before)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序前記憶體位址:&quot;</span>, id_before)",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 5,
+        "code": "# 就地重排元素，不產生新物件",
+        "html": "<span class=\"token-comment\"># 就地重排元素，不產生新物件</span>",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 6,
+        "code": "nums.sort()",
+        "html": "nums.<span class=\"token-func\">sort</span>()",
+        "alt": "第 6 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 7,
+        "code": "id_after = id(nums)",
+        "html": "id_after = <span class=\"token-builtin\">id</span>(nums)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "確認是否為同一物件在記憶體之唯一標識",
+        "mean": "檢驗記憶體位址"
+      },
+      {
+        "num": 8,
+        "code": "print(\"排序後記憶體位址:\", id_after)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序後記憶體位址:&quot;</span>, id_after)",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 9,
+        "code": "print(\"是否同一個串列:\", id_before == id_after)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;是否同一個串列:&quot;</span>, id_before == id_after)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "排序前記憶體位址: 2105082024960\n排序後記憶體位址: 2105082024960\n是否同一個串列: True",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 1~3 行",
+        "text": "透過 <code>id()</code> 函式可檢驗物件在記憶體中的唯一標識。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6~9 行",
+        "text": "<code>nums.sort()</code> 執行前後 <code>id</code> 完全相同！這證明沒有建立任何新串列，節省記憶體。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "就地修改位址不變"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "phase": "concept",
+    "phaseZh": "觀念定錨",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Immutability & New Object Generation",
+    "titleZh": "獨立新宇宙：sorted() 生成獨立副本不傷本體",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "origin = [9, 3, 7]",
+        "html": "origin = [<span class=\"token-number\">9</span>, <span class=\"token-number\">3</span>, <span class=\"token-number\">7</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "result = sorted(origin)",
+        "html": "result = <span class=\"token-builtin\">sorted</span>(origin)",
+        "alt": "第 2 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "print(\"原始串列 origin:\", origin)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;原始串列 origin:&quot;</span>, origin)",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 5,
+        "code": "print(\"全新串列 result:\", result)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;全新串列 result:&quot;</span>, result)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 6,
+        "code": "print(\"兩者記憶體位址相同嗎?\", id(origin) == id(result))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;兩者記憶體位址相同嗎?&quot;</span>, <span class=\"token-builtin\">id</span>(origin) == <span class=\"token-builtin\">id</span>(result))",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "原始串列 origin: [9, 3, 7]\n全新串列 result: [3, 7, 9]\n兩者記憶體位址相同嗎? False",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 1~2 行",
+        "text": "<code>sorted(origin)</code> 在底層另外開闢一塊新的記憶體區塊，裝入排好序的元素。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 4~6 行",
+        "text": "兩者的 <code>id</code> 完全相異！若後續修改 <code>result</code>，<code>origin</code> 亦絕對不受任何污染。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "生新串列不傷本體"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Mastering list.sort(): Mutating the Caller",
+    "titleZh": "實戰演練：串列專屬方法 list.sort() 原處重整",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "ranks = [4, 1, 5, 2, 3]",
+        "html": "ranks = [<span class=\"token-number\">4</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "print(\"初始排名:\", ranks)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;初始排名:&quot;</span>, ranks)",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "# 執行原地排序，回傳值為 None",
+        "html": "<span class=\"token-comment\"># 執行原地排序，回傳值為 None</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 5,
+        "code": "ranks.sort()",
+        "html": "ranks.<span class=\"token-func\">sort</span>()",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 6,
+        "code": "print(\"排序完成:\", ranks)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序完成:&quot;</span>, ranks)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 8,
+        "code": "# 再次添加元素後隨時可重排",
+        "html": "<span class=\"token-comment\"># 再次添加元素後隨時可重排</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 9,
+        "code": "ranks.append(0)",
+        "html": "ranks.<span class=\"token-func\">append</span>(<span class=\"token-number\">0</span>)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 10,
+        "code": "ranks.sort()",
+        "html": "ranks.<span class=\"token-func\">sort</span>()",
+        "alt": "第 10 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 11,
+        "code": "print(\"加入0後重排:\", ranks)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;加入0後重排:&quot;</span>, ranks)",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "初始排名: [4, 1, 5, 2, 3]\n排序完成: [1, 2, 3, 4, 5]\n加入0後重排: [0, 1, 2, 3, 4, 5]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~6 行",
+        "text": "直接呼叫 <code>ranks.sort()</code>，串列內部指針即刻按照數值重新編排。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9~12 行",
+        "text": "對於高頻動態維護的串列，就地排序能省去頻繁建立與垃圾回收物件的效能開銷。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "本體排序隨時可做"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Mastering sorted(): Preserving Source Data",
+    "titleZh": "實戰演練：內建函式 sorted() 安全產出與賦值接招",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_data = [88, 35, 92, 14]",
+        "html": "raw_data = [<span class=\"token-number\">88</span>, <span class=\"token-number\">35</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">14</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 3,
+        "code": "# 用新變數安全接收排好的新串列",
+        "html": "<span class=\"token-comment\"># 用新變數安全接收排好的新串列</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 4,
+        "code": "clean_data = sorted(raw_data)",
+        "html": "clean_data = <span class=\"token-builtin\">sorted</span>(raw_data)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 6,
+        "code": "print(\"歷史原始記錄 raw_data  :\", raw_data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;歷史原始記錄 raw_data  :&quot;</span>, raw_data)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 7,
+        "code": "print(\"展示用乾淨序列 clean_data:\", clean_data)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;展示用乾淨序列 clean_data:&quot;</span>, clean_data)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "歷史原始記錄 raw_data  : [88, 35, 92, 14]\n展示用乾淨序列 clean_data: [14, 35, 88, 92]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 3~4 行",
+        "text": "當題目要求「統計原始順序」同時又需要「依大小處理」時，<code>sorted()</code> 是唯一的無副作用神器。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6~7 行",
+        "text": "記得務必使用變數如 <code>clean_data = sorted(...)</code> 承接，否則產出的新串列將隨風消逝。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "生新串列務必變數接"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Sorting Non-List Iterables: Strings & Tuples",
+    "titleZh": "跨界通用：以 sorted() 排序字串、元組與集合",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "s = \"python\"",
+        "html": "s = <span class=\"token-string\">&quot;python&quot;</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "t = (40, 10, 30)",
+        "html": "t = (<span class=\"token-number\">40</span>, <span class=\"token-number\">10</span>, <span class=\"token-number\">30</span>)",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "sorted_s = sorted(s)",
+        "html": "sorted_s = <span class=\"token-builtin\">sorted</span>(s)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 5,
+        "code": "sorted_t = sorted(t)",
+        "html": "sorted_t = <span class=\"token-builtin\">sorted</span>(t)",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 7,
+        "code": "print(\"字串排序結果:\", sorted_s, type(sorted_s))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;字串排序結果:&quot;</span>, sorted_s, <span class=\"token-builtin\">type</span>(sorted_s))",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 8,
+        "code": "print(\"元組排序結果:\", sorted_t, type(sorted_t))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;元組排序結果:&quot;</span>, sorted_t, <span class=\"token-builtin\">type</span>(sorted_t))",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "字串排序結果: ['h', 'n', 'o', 'p', 't', 'y'] <class 'list'>\n元組排序結果: [10, 30, 40] <class 'list'>",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 1~5 行",
+        "text": "字串與元組是不可變物件（Immutable），因此它們根本沒有 <code>.sort()</code> 方法！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~8 行",
+        "text": "<code>sorted()</code> 無論吃進字串、元組還是集合，吐出來的結果一律保證是「<code>list</code>（串列）」！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "任意容器排序必成串列"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "phase": "syntax",
+    "phaseZh": "語法實戰",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Classic Algorithm Pattern: Anagram Check",
+    "titleZh": "經典字串演算法：字母易位字（Anagram）一秒判別",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "word1 = \"listen\"",
+        "html": "word1 = <span class=\"token-string\">&quot;listen&quot;</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "word2 = \"silent\"",
+        "html": "word2 = <span class=\"token-string\">&quot;silent&quot;</span>",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "# 若字母組成相同，排序後的字元串列必定相等",
+        "html": "<span class=\"token-comment\"># 若字母組成相同，排序後的字元串列必定相等</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 5,
+        "code": "is_anagram = (sorted(word1) == sorted(word2))",
+        "html": "is_anagram = (<span class=\"token-builtin\">sorted</span>(word1) == <span class=\"token-builtin\">sorted</span>(word2))",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 7,
+        "code": "print(\"word1 字母排序:\", sorted(word1))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;word1 字母排序:&quot;</span>, <span class=\"token-builtin\">sorted</span>(word1))",
+        "alt": "第 7 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 8,
+        "code": "print(\"word2 字母排序:\", sorted(word2))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;word2 字母排序:&quot;</span>, <span class=\"token-builtin\">sorted</span>(word2))",
+        "alt": "第 8 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 9,
+        "code": "print(\"是否互為易位字:\", is_anagram)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;是否互為易位字:&quot;</span>, is_anagram)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "word1 字母排序: ['e', 'i', 'l', 'n', 's', 't']\nword2 字母排序: ['e', 'i', 'l', 'n', 's', 't']\n是否互為易位字: True",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 4~5 行",
+        "text": "APCS 字串觀念與實作常考題：判斷兩單字是否由相同字母重新排列而成。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7~9 行",
+        "text": "透過 <code>sorted(word1) == sorted(word2)</code>，僅需一行代碼即可在 $O(N \\log N)$ 時間精準判定！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "排序後比對秒查易位字"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Deadly Trap 1: a = a.sort() Overwriting to None",
+    "titleZh": "考場致命地雷一：a = a.sort() 變數慘遭 None 覆蓋滅頂",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = [85, 92, 70]",
+        "html": "scores = [<span class=\"token-number\">85</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">70</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 3,
+        "code": "# 💥 致命地雷：sort() 回傳 None，賦值覆蓋將直接抹煞串列！",
+        "html": "<span class=\"token-comment\"># 💥 致命地雷：sort() 回傳 None，賦值覆蓋將直接抹煞串列！</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 4,
+        "code": "scores = scores.sort()",
+        "html": "scores = scores.<span class=\"token-func\">sort</span>()",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 6,
+        "code": "print(\"變數 scores 當前值:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;變數 scores 當前值:&quot;</span>, scores)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 7,
+        "code": "# scores.append(99) # 💥 AttributeError: 'NoneType' has no attribute 'append'",
+        "html": "<span class=\"token-comment\"># scores.append(99) # 💥 AttributeError: &#x27;NoneType&#x27; has no attribute &#x27;append&#x27;</span>",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      }
+    ],
+    "output": "變數 scores 當前值: None",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4 行",
+        "text": "全台灣 APCS 考生最常犯的榜首級地雷！<code>scores.sort()</code> 是原地修改，函式自身回傳 <code>None</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6 行",
+        "text": "若寫成 <code>scores = scores.sort()</code>，原有的串列立即被 <code>None</code> 覆蓋，後續所有操作瞬間崩潰！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "誤寫指派本體變None"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Deadly Trap 2: Calling .sort() on Non-List Objects",
+    "titleZh": "考場致命地雷二：對字串或元組呼叫 .sort() 引爆崩潰",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "text = \"banana\"",
+        "html": "text = <span class=\"token-string\">&quot;banana&quot;</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "nums = (3, 1, 2)",
+        "html": "nums = (<span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>)",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "驗證非法操作所引爆之直譯器錯誤",
+        "mean": "異常捕捉防禦"
+      },
+      {
+        "num": 5,
+        "code": "    text.sort()  # 💥 字串沒有 .sort() 方法！",
+        "html": "    text.<span class=\"token-func\">sort</span>()  # 💥 字串沒有 .<span class=\"token-func\">sort</span>() 方法！",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 6,
+        "code": "except AttributeError as e:",
+        "html": "<span class=\"token-keyword\">except</span> AttributeError <span class=\"token-keyword\">as</span> e:",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "驗證非法操作所引爆之直譯器錯誤",
+        "mean": "異常捕捉防禦"
+      },
+      {
+        "num": 7,
+        "code": "    print(\"捕捉錯誤 1:\", type(e).__name__)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;捕捉錯誤 <span class=\"token-number\">1</span>:&quot;</span>, <span class=\"token-builtin\">type</span>(e).__name__)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 8,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 9,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "驗證非法操作所引爆之直譯器錯誤",
+        "mean": "異常捕捉防禦"
+      },
+      {
+        "num": 10,
+        "code": "    nums.sort()  # 💥 元組不可變，沒有 .sort() 方法！",
+        "html": "    nums.<span class=\"token-func\">sort</span>()  # 💥 元組不可變，沒有 .<span class=\"token-func\">sort</span>() 方法！",
+        "alt": "第 10 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 11,
+        "code": "except AttributeError as e:",
+        "html": "<span class=\"token-keyword\">except</span> AttributeError <span class=\"token-keyword\">as</span> e:",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "驗證非法操作所引爆之直譯器錯誤",
+        "mean": "異常捕捉防禦"
+      },
+      {
+        "num": 12,
+        "code": "    print(\"捕捉錯誤 2:\", type(e).__name__)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;捕捉錯誤 <span class=\"token-number\">2</span>:&quot;</span>, <span class=\"token-builtin\">type</span>(e).__name__)",
+        "alt": "第 12 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "捕捉錯誤 1: AttributeError\n捕捉錯誤 2: AttributeError",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~7 行",
+        "text": "字串是不可變的，呼叫 <code>text.sort()</code> 會直接丟出 <code>AttributeError: 'str' object has no attribute 'sort'</code>。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9~12 行",
+        "text": "元組同理不可被原地修改。記住鐵律：<strong>只有 list 才擁有 .sort() 方法！</strong>"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "僅串列擁有sort方法"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Deadly Trap 3: Expecting sorted(a) to Mutate In-Place",
+    "titleZh": "考場致命地雷三：誤以為 sorted(a) 會自動原地修改本體",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "items = [9, 1, 5]",
+        "html": "items = [<span class=\"token-number\">9</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">5</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 3,
+        "code": "# 💥 誤以為呼叫 sorted(items) 本體就排好了",
+        "html": "<span class=\"token-comment\"># 💥 誤以為呼叫 sorted(items) 本體就排好了</span>",
+        "alt": "第 3 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 4,
+        "code": "sorted(items)",
+        "html": "<span class=\"token-builtin\">sorted</span>(items)",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 6,
+        "code": "print(\"本體 items 依然混亂:\", items)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;本體 items 依然混亂:&quot;</span>, items)",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 8,
+        "code": "# ✅ 正確做法：必須以新變數接收，或重新指派回 items",
+        "html": "<span class=\"token-comment\"># ✅ 正確做法：必須以新變數接收，或重新指派回 items</span>",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 9,
+        "code": "items = sorted(items)",
+        "html": "items = <span class=\"token-builtin\">sorted</span>(items)",
+        "alt": "第 9 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 10,
+        "code": "print(\"正確指派後 items    :\", items)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;正確指派後 items    :&quot;</span>, items)",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "本體 items 依然混亂: [9, 1, 5]\n正確指派後 items    : [1, 5, 9]",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~6 行",
+        "text": "單獨寫一行 <code>sorted(items)</code>，計算出排序結果後因沒有變數承接，立即被 Python 回收丟棄，<code>items</code> 毫無改變！"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 9~10 行",
+        "text": "若要用 <code>sorted()</code> 更新原變數，必須寫 <code>items = sorted(items)</code> 才能成功接棒。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "函式不改本體需指派"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "phase": "pitfall",
+    "phaseZh": "考場地雷",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Deadly Trap 4: Mixed Incompatible Types Sorting",
+    "titleZh": "考場致命地雷四：混合不同型態引爆 TypeError 預測卡",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mixed_list = [10, \"20\", 5, \"apple\"]",
+        "html": "mixed_list = [<span class=\"token-number\">10</span>, <span class=\"token-string\">&quot;<span class=\"token-number\">20</span>&quot;</span>, <span class=\"token-number\">5</span>, <span class=\"token-string\">&quot;apple&quot;</span>]",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 3,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span>:",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "驗證非法操作所引爆之直譯器錯誤",
+        "mean": "異常捕捉防禦"
+      },
+      {
+        "num": 4,
+        "code": "    mixed_list.sort()",
+        "html": "    mixed_list.<span class=\"token-func\">sort</span>()",
+        "alt": "第 4 行代碼",
+        "diff": true,
+        "error": true,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 5,
+        "code": "    print(\"排序成功:\", mixed_list)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序成功:&quot;</span>, mixed_list)",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 6,
+        "code": "except TypeError as err:",
+        "html": "<span class=\"token-keyword\">except</span> TypeError <span class=\"token-keyword\">as</span> err:",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "驗證非法操作所引爆之直譯器錯誤",
+        "mean": "異常捕捉防禦"
+      },
+      {
+        "num": 7,
+        "code": "    print(\"拋出異常:\", type(err).__name__, \"-> '<' not supported between str and int\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;拋出異常:&quot;</span>, <span class=\"token-builtin\">type</span>(err).__name__, <span class=\"token-string\">&quot;-&gt; &#x27;&lt;&#x27; not supported between str and int&quot;</span>)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "拋出異常: TypeError -> '<' not supported between str and int",
+    "notes": [
+      {
+        "type": "wa",
+        "lineText": "第 4~7 行",
+        "text": "Python 3 嚴格禁止不同型態之間的大小比較（例如 <code>10 &lt; '20'</code> 不合法）。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 7 行",
+        "text": "APCS 輸入處理時若漏做 <code>int()</code> 轉型，導致串列混雜字串與整數，排序瞬間直接 CE/RE 爆零！"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "不同型態混排噴型態錯誤"
+      }
+    ],
+    "predictQuiz": {
+      "question": "預測思考：在 Python 3 中對包含整數與字串的串列 [10, '20', 5] 執行 .sort()，直譯器會如何反應？",
+      "options": [
+        "自動將字串視為 ASCII 數值進行全域升序排列",
+        "拋出 TypeError，因為 int 與 str 之間不支援小於運算子比對"
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "Python 3 是強型別語言，數值與字串之間無法進行 '<' 比較，嘗試混合排序會直接拋出 TypeError: '<' not supported between instances of 'str' and 'int'！"
+    }
+  },
+  {
+    "page": 13,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Stable Sort Guarantee: Preserving Relative Order",
+    "titleZh": "進階核心特性：Python 排序演算法的穩定性（Stable Sort）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 學生名單 (名字, 成績)",
+        "html": "<span class=\"token-comment\"># 學生名單 (名字, 成績)</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 2,
+        "code": "students = [(\"Alice\", 85), (\"Bob\", 90), (\"Cindy\", 85)]",
+        "html": "students = [(<span class=\"token-string\">&quot;Alice&quot;</span>, <span class=\"token-number\">85</span>), (<span class=\"token-string\">&quot;Bob&quot;</span>, <span class=\"token-number\">90</span>), (<span class=\"token-string\">&quot;Cindy&quot;</span>, <span class=\"token-number\">85</span>)]",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "# 依成績排序（使用 sorted 搭配 key 取成績）",
+        "html": "<span class=\"token-comment\"># 依成績排序（使用 sorted 搭配 key 取成績）</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 5,
+        "code": "sorted_students = sorted(students, key=lambda s: s[1])",
+        "html": "sorted_students = <span class=\"token-builtin\">sorted</span>(students, key=<span class=\"token-keyword\">lambda</span> s: s[<span class=\"token-number\">1</span>])",
+        "alt": "第 5 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 7,
+        "code": "print(\"排序後名單:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;排序後名單:&quot;</span>)",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 8,
+        "code": "for name, score in sorted_students:",
+        "html": "<span class=\"token-keyword\">for</span> name, score <span class=\"token-keyword\">in</span> sorted_students:",
+        "alt": "第 8 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 9,
+        "code": "    print(f\"  {name}: {score}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(f<span class=\"token-string\">&quot;  {name}: {score}&quot;</span>)",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "排序後名單:\n  Alice: 85\n  Cindy: 85\n  Bob: 90",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 2 行",
+        "text": "Alice 與 Cindy 兩人的成績皆為 85 分，在原始串列中 Alice 排在 Cindy 前面。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 5~10 行",
+        "text": "排序後 Alice 依然排在 Cindy 前面！Python 底層的 Timsort 保證是「穩定排序」，相等元素維持輸入原序。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "同分維持原序穩定保證"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Memory Optimization: O(1) vs O(N) Space Defense",
+    "titleZh": "競賽策略對比：O(1) 額外空間 vs O(N) 空間防爆記憶體（MLE）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬 APCS 巨量測資 (10萬筆整數)",
+        "html": "<span class=\"token-comment\"># 模擬 APCS 巨量測資 (10萬筆整數)</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 2,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> sys",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "# 情境一：只求答案排序，直接原地修改最省空間",
+        "html": "<span class=\"token-comment\"># 情境一：只求答案排序，直接原地修改最省空間</span>",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 5,
+        "code": "big_data = list(range(100000, 0, -1))",
+        "html": "big_data = <span class=\"token-builtin\">list</span>(<span class=\"token-builtin\">range</span>(<span class=\"token-number\">100000</span>, <span class=\"token-number\">0</span>, -<span class=\"token-number\">1</span>))",
+        "alt": "第 5 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 6,
+        "code": "big_data.sort()  # O(1) 額外輔助空間",
+        "html": "big_data.<span class=\"token-func\">sort</span>()  # <span class=\"token-func\">O</span>(<span class=\"token-number\">1</span>) 額外輔助空間",
+        "alt": "第 6 行代碼",
+        "diff": true,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 7,
+        "code": "print(\"原地排序完成，首個元素:\", big_data[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;原地排序完成，首個元素:&quot;</span>, big_data[<span class=\"token-number\">0</span>])",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 8,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 9,
+        "code": "# 情境二：需保留原始順序，才使用 sorted()",
+        "html": "<span class=\"token-comment\"># 情境二：需保留原始順序，才使用 sorted()</span>",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 10,
+        "code": "backup = [3, 1, 2]",
+        "html": "backup = [<span class=\"token-number\">3</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>]",
+        "alt": "第 10 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 11,
+        "code": "view = sorted(backup)  # O(N) 額外空間生成新串列",
+        "html": "view = <span class=\"token-builtin\">sorted</span>(backup)  # <span class=\"token-func\">O</span>(N) 額外空間生成新串列",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 12,
+        "code": "print(\"雙份保留:\", backup, view)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;雙份保留:&quot;</span>, backup, view)",
+        "alt": "第 12 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "原地排序完成，首個元素: 1\n雙份保留: [3, 1, 2] [1, 2, 3]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 5~7 行",
+        "text": "當輸入測資高達 $10^5$ 以上時，若無保留原始資料的需求，強烈建議使用 <code>.sort()</code> 節省記憶體。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 10~13 行",
+        "text": "<code>sorted()</code> 需要額外 $O(N)$ 記憶體存放新串列；若在大量迴圈內頻繁呼叫易引爆記憶體上限（MLE）。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "大測資首選原地排"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "phase": "mastery",
+    "phaseZh": "綜合驗收",
+    "chapter": "第 12 章 排序、搜尋與時間複雜度",
+    "section": "單元 12.1 就地排序（sort）與新物件排序（sorted）",
+    "title": "Chapter 12.1 Mastery: sort vs sorted Blueprint",
+    "titleZh": "單元 12.1 綜合驗收：就地排序與新物件排序大融會",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# APCS 競賽滿分通關金律實證",
+        "html": "<span class=\"token-comment\"># APCS 競賽滿分通關金律實證</span>",
+        "alt": "第 1 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 2,
+        "code": "def solve_scores(raw):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">solve_scores</span>(raw):",
+        "alt": "第 2 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 3,
+        "code": "    # 1. 取得排序後的全新序列供展示",
+        "html": "<span class=\"token-comment\">    # 1. 取得排序後的全新序列供展示</span>",
+        "alt": "第 3 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 4,
+        "code": "    ascending = sorted(raw)",
+        "html": "    ascending = <span class=\"token-builtin\">sorted</span>(raw)",
+        "alt": "第 4 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "保留原物件，產出全新獨立排序串列",
+        "mean": "呼叫 sorted 函式"
+      },
+      {
+        "num": 5,
+        "code": "    ",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 6,
+        "code": "    # 2. 原處修改大數據串列，節省資源",
+        "html": "<span class=\"token-comment\">    # 2. 原處修改大數據串列，節省資源</span>",
+        "alt": "第 6 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "指引學習心智模型與考點防禦",
+        "mean": "註解說明"
+      },
+      {
+        "num": 7,
+        "code": "    raw.sort()",
+        "html": "    raw.<span class=\"token-func\">sort</span>()",
+        "alt": "第 7 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "直接重排原串列指針，回傳 None 節省空間",
+        "mean": "串列原地排序"
+      },
+      {
+        "num": 8,
+        "code": "    ",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 9,
+        "code": "    return ascending, raw",
+        "html": "    <span class=\"token-keyword\">return</span> ascending, raw",
+        "alt": "第 9 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "diff": false,
+        "error": false,
+        "why": "排版分隔",
+        "mean": "空行"
+      },
+      {
+        "num": 11,
+        "code": "data = [45, 90, 12, 78]",
+        "html": "data = [<span class=\"token-number\">45</span>, <span class=\"token-number\">90</span>, <span class=\"token-number\">12</span>, <span class=\"token-number\">78</span>]",
+        "alt": "第 11 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 12,
+        "code": "res_new, res_mod = solve_scores(data)",
+        "html": "res_new, res_mod = <span class=\"token-func\">solve_scores</span>(data)",
+        "alt": "第 12 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "支援演算法運行所需之核心操作",
+        "mean": "變數運算與配置"
+      },
+      {
+        "num": 13,
+        "code": "print(\"新生成排序串列:\", res_new)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;新生成排序串列:&quot;</span>, res_new)",
+        "alt": "第 13 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      },
+      {
+        "num": 14,
+        "code": "print(\"就地修改後串列:\", res_mod)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;就地修改後串列:&quot;</span>, res_mod)",
+        "alt": "第 14 行代碼",
+        "diff": false,
+        "error": false,
+        "why": "在終端機印出驗證排序成果與位址",
+        "mean": "輸出狀態檢驗"
+      }
+    ],
+    "output": "新生成排序串列: [12, 45, 78, 90]\n就地修改後串列: [12, 45, 78, 90]",
+    "notes": [
+      {
+        "type": "concept",
+        "lineText": "第 3~4 行",
+        "text": "<code>sorted(raw)</code> 產出乾淨副本，不傷輸入資料，適用於需多維度觀測的題目。"
+      },
+      {
+        "type": "radar",
+        "lineText": "第 6~7 行",
+        "text": "<code>raw.sort()</code> 就地修改，極速且零額外空間負擔，實作題解題標配。"
+      },
+      {
+        "type": "mnemonic",
+        "lineText": "考場口訣",
+        "content": "原地省空間函式保本體"
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 12.1 通關：排序機制掌控者！",
+      "summary": "太棒了！你已徹底領悟 list.sort() 原地修改 O(1) 空間本質、sorted() 跨容器回傳全新串列、a = a.sort() 變 None 致命地雷，以及 Timsort 穩定排序特性！",
+      "nextUnit": "單元 12.2 反向排序（reverse=True）與字典序原理"
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec12-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_12-1_in_place_sort_vs_sorted.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

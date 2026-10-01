@@ -442,6 +442,12 @@ function renderSlide(index) {
   pinnedLineNum = null;
   clearDataFlowSync();
 
+  const isLast = (index === activeSlidesData.length - 1);
+  const cardNotes = document.querySelector('.card-notes');
+  if (cardNotes) {
+    cardNotes.classList.toggle('is-last-slide', isLast);
+  }
+
   // Header 雙行
   const titleZh = document.getElementById('titleChinese');
   const titleEn = document.getElementById('titleEnglish');
@@ -554,10 +560,11 @@ function renderSlide(index) {
   }
 
   // 記憶體狀態盒 (Memory State Widget - agytodo 2.1, 2.2, 2.6)
+  // 注意：在最後一頁 (isLast) 顯示通關徽章時，隱藏記憶體盒以留給 Colab 實戰卡片完整空間 (a0068)
   const memoryStage = document.getElementById('memoryStage');
   const memoryBoxesContainer = document.getElementById('memoryBoxesContainer');
   if (memoryStage && memoryBoxesContainer) {
-    if (Array.isArray(slide.memoryState) && slide.memoryState.length > 0) {
+    if (!isLast && Array.isArray(slide.memoryState) && slide.memoryState.length > 0) {
       memoryStage.style.display = 'block';
       memoryBoxesContainer.innerHTML = slide.memoryState.map(box => {
         const isDiff = box.diff ? 'diff-box' : '';
@@ -598,16 +605,26 @@ function renderSlide(index) {
   }
 
   // 迴圈變數追蹤矩陣卡 (Trace Table Widget - agytodo 2.4)
-  renderTraceTable(slide);
-
   // 雙向索引尺標卡 (Index Ruler Widget - agytodo 2.3)
-  renderIndexRuler(slide);
-
   // 遞迴呼叫堆疊盒組件 (Call Stack Frame Widget - agytodo 2.5)
-  renderCallStack(slide);
+  if (!isLast) {
+    renderTraceTable(slide);
+    renderIndexRuler(slide);
+    renderCallStack(slide);
+  } else {
+    const traceTableStage = document.getElementById('traceTableStage');
+    if (traceTableStage) {
+      traceTableStage.style.display = 'none';
+      const wrap = document.getElementById('traceTableWrap');
+      if (wrap) wrap.innerHTML = '';
+    }
+    const indexRulerStage = document.getElementById('indexRulerStage');
+    if (indexRulerStage) indexRulerStage.style.display = 'none';
+    const callStackStage = document.getElementById('callStackStage');
+    if (callStackStage) callStackStage.style.display = 'none';
+  }
 
   // 單元通關徽章與 Colab 實戰卡片 (agytodo 5.3)
-  const isLast = (index === activeSlidesData.length - 1);
   const completionCard = document.getElementById('completionCard');
   if (completionCard) {
     if (isLast) {

@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "Duplicate Dilemma: Which One Did We Hit?",
+    "titleZh": "重複困惑：精確二分到底命中了誰？",
+    "desc": "一整排身高都是 165 公分的雙胞胎同學，精確二分搜尋可能命中第 2 個，也可能第 3 個，完全無法保證找出「最左邊第一個」！",
+    "codeLines": [
+      {
+        "code": "# 精確二分在重複元素下的隨機落點",
+        "html": "<span class=\"c1\"># 精確二分在重複元素下的隨機落點</span>",
+        "why": "說明精確二分無法鎖定最左側",
+        "mean": "命中即停步，隨長度切分隨機落在中間某處",
+        "alt": "精確二分局限"
+      },
+      {
+        "code": "data = [10, 30, 50, 50, 50, 50, 70, 90]",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">70</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">]</span>",
+        "why": "50 跨越索引 2 到 5",
+        "mean": "包含連續重複 50 的數列",
+        "alt": "重複數列"
+      },
+      {
+        "code": "mid = (0 + len(data) - 1) // 2",
+        "html": "<span class=\"n\">mid</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"mi\">0</span> <span class=\"o\">+</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><span class=\"p\">)</span> <span class=\"o\">//</span> <span class=\"mi\">2</span>",
+        "why": "首輪 mid = (0 + 7) // 2 == 3",
+        "mean": "data[3] 是 50，精確二分直接回傳 3",
+        "alt": "中點計算"
+      },
+      {
+        "code": "print(f\"精確二分命中索引 {mid}，但第一個 50 其實在索引 2！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;精確二分命中索引 </span><span class=\"si\">{</span><span class=\"n\">mid</span><span class=\"si\">}</span><span class=\"s2\">，但第一個 50 其實在索引 2！&quot;</span><span class=\"p\">)</span>",
+        "why": "點出核心痛點",
+        "mean": "輸出局限說明",
+        "alt": "痛點說明"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "讀入含連續 50 的已排序數列",
+        "vars": {
+          "count_50": 4
+        }
+      },
+      {
+        "step": 2,
+        "action": "mid = 3，命中 50",
+        "vars": {
+          "mid": 3
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出痛點觀察",
+        "vars": {},
+        "output": "精確二分命中索引 3，但第一個 50 其實在索引 2！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "重複數值精確搜尋隨機停"
+      },
+      {
+        "type": "point",
+        "content": "精確二分只要 arr[mid] == target 就提早 return，無法得知左右是否還有相同值。"
+      },
+      {
+        "type": "tip",
+        "content": "為了解決定位與範圍查詢，我們需要下邊界（Lower Bound）！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Lower Bound Concept: First Element >= Target",
+    "titleZh": "下邊界概念：第一個大於等於目標的位置",
+    "desc": "及格守門員比喻：找全校第一個及格（>= 60）的同學！若有人剛好 60 分則找最左邊第一位；若無人 60 分則找 62 分那位！",
+    "codeLines": [
+      {
+        "code": "# Lower Bound 數學定義：第一個滿足 x >= target 的索引",
+        "html": "<span class=\"c1\"># Lower Bound 數學定義：第一個滿足 x &gt;= target 的索引</span>",
+        "why": "奠定下邊界定義",
+        "mean": "及格門檻或最左側重複數",
+        "alt": "數學定義"
+      },
+      {
+        "code": "scores = [45, 52, 58, 60, 60, 65, 78, 92]",
+        "html": "<span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">45</span><span class=\"p\">,</span> <span class=\"mi\">52</span><span class=\"p\">,</span> <span class=\"mi\">58</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">,</span> <span class=\"mi\">65</span><span class=\"p\">,</span> <span class=\"mi\">78</span><span class=\"p\">,</span> <span class=\"mi\">92</span><span class=\"p\">]</span>",
+        "why": "60 分有兩位（索引 3 與 4）",
+        "mean": "下邊界應鎖定索引 3",
+        "alt": "學生成績清單"
+      },
+      {
+        "code": "print(\"第一個 >= 60 的同學位於索引: 3 (分數 60)\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;第一個 &gt;= 60 的同學位於索引: 3 (分數 60)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範目標存在時鎖定最左側",
+        "mean": "印出 3",
+        "alt": "存在時輸出"
+      },
+      {
+        "code": "print(\"第一個 >= 59 的同學也位於索引: 3 (分數 60)\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;第一個 &gt;= 59 的同學也位於索引: 3 (分數 60)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範目標不存在時鎖定下一個大於者",
+        "mean": "印出 3",
+        "alt": "不存在時輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對成績單與 60 分門檻",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出下邊界概念定位",
+        "vars": {},
+        "output": "第一個 >= 60 的同學位於索引: 3 (分數 60)\n第一個 >= 59 的同學也位於索引: 3 (分數 60)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "下界大於等於鎖最左側"
+      },
+      {
+        "type": "point",
+        "content": "Lower Bound 保證回傳「最左側第一個 >= target」的下標。"
+      },
+      {
+        "type": "tip",
+        "content": "若全數列皆小於 target，回傳 len(arr)。"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Lower Bound Core: Squeezing to the Left",
+    "titleZh": "下界核心：命中也不准停，向左逼近！",
+    "desc": "只要當前數值合格（arr[mid] >= target），先記下 mid 為候選解，並讓 right = mid - 1 繼續往左探測更前面的合格者！",
+    "codeLines": [
+      {
+        "code": "def lower_bound(arr, target):\n    l, r = 0, len(arr) - 1\n    ans = len(arr)\n    while l <= r:\n        m = (l + r) // 2\n        if arr[m] >= target:\n            ans = m       # 找到合格候選，先記下來！\n            r = m - 1     # 關鍵！絕不停步，繼續往左逼近！\n        else:\n            l = m + 1     # 太小了，往右找\n    return ans",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">while</span> <span class=\"n\">l</span> <span class=\"o\">&lt;=</span> <span class=\"n\">r</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">m</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">l</span> <span class=\"o\">+</span> <span class=\"n\">r</span><span class=\"p\">)</span> <span class=\"o\">//</span> <span class=\"mi\">2</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">m</span><span class=\"p\">]</span> <span class=\"o\">&gt;=</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"n\">m</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"n\">m</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span> <span class=\"o\">=</span> <span class=\"n\">m</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">ans</span>",
+        "why": "標準手刻 Lower Bound 模板",
+        "mean": "大於等於向左擠壓，小於向右走",
+        "alt": "下邊界實現"
+      },
+      {
+        "code": "data = [10, 30, 50, 50, 50, 50, 70]\nprint(\"第一個 >= 50 的索引:\", lower_bound(data, 50))",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">70</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;第一個 &gt;= 50 的索引:&quot;</span><span class=\"p\">,</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">))</span>",
+        "why": "驗證鎖定最左側 50",
+        "mean": "印出 2",
+        "alt": "驗證輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "初次 mid=3 為 50 >= 50，ans=3, r=2 向左擠壓",
+        "vars": {
+          "ans": 3,
+          "r": 2
+        }
+      },
+      {
+        "step": 2,
+        "action": "二次 mid=1 為 30 < 50，l=2 向右走",
+        "vars": {
+          "l": 2
+        }
+      },
+      {
+        "step": 3,
+        "action": "三次 mid=2 為 50 >= 50，ans=2, r=1 向左擠壓",
+        "vars": {
+          "ans": 2,
+          "r": 1
+        }
+      },
+      {
+        "step": 4,
+        "action": "l=2 > r=1 退出，回傳 ans=2",
+        "vars": {},
+        "output": "第一個 >= 50 的索引: 2\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "大於等於向左擠不準停"
+      },
+      {
+        "type": "point",
+        "content": "ans 變數記錄歷史最佳合格候選，確保絕不遺漏。"
+      },
+      {
+        "type": "tip",
+        "content": "收斂退出時，ans 保證精確落在最左側第一個！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Upper Bound Concept: First Element > Target",
+    "titleZh": "上邊界概念：第一個嚴格大於目標的位置",
+    "desc": "拍賣會加價比喻：尋找第一個出價比 50 萬「更高（嚴格 > 50 萬）」的人！出價剛好 50 萬不算更高，通通往右跨過！",
+    "codeLines": [
+      {
+        "code": "# Upper Bound 數學定義：第一個滿足 x > target 的索引",
+        "html": "<span class=\"c1\"># Upper Bound 數學定義：第一個滿足 x &gt; target 的索引</span>",
+        "why": "奠定上邊界定義",
+        "mean": "嚴格大於門檻，等於不算",
+        "alt": "上邊界定義"
+      },
+      {
+        "code": "data = [10, 20, 20, 20, 30, 40]",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">40</span><span class=\"p\">]</span>",
+        "why": "20 出現在索引 1, 2, 3",
+        "mean": "第一個嚴格大於 20 的是 30（索引 4）",
+        "alt": "拍賣出價清單"
+      },
+      {
+        "code": "print(\"第一個 > 20 的元素是 30，位於索引: 4\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;第一個 &gt; 20 的元素是 30，位於索引: 4&quot;</span><span class=\"p\">)</span>",
+        "why": "說明 Upper Bound 數值與位置",
+        "mean": "索引 4",
+        "alt": "上邊界說明"
+      },
+      {
+        "code": "print(\"最後一個等於 20 的元素位置為: 4 - 1 = 3\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;最後一個等於 20 的元素位置為: 4 - 1 = 3&quot;</span><span class=\"p\">)</span>",
+        "why": "展示 Upper Bound 減 1 即為最後一個等於目標者",
+        "mean": "索引 3",
+        "alt": "最右側推導"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "檢視數列與 target=20",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出 Upper Bound 概念與最右側推導",
+        "vars": {},
+        "output": "第一個 > 20 的元素是 30，位於索引: 4\n最後一個等於 20 的元素位置為: 4 - 1 = 3\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "上界嚴格大於等於往右跨"
+      },
+      {
+        "type": "point",
+        "content": "Upper Bound 找到的是第一個「大於」的元素，而非最後一個「等於」。"
+      },
+      {
+        "type": "tip",
+        "content": "最後一個等於目標的位置就是 upper_bound - 1！"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Upper Bound Core: Strict Greater Than",
+    "titleZh": "上界核心：嚴格大於才向左，等於往右跨",
+    "desc": "代碼僅與 Lower Bound 差一個等號：if arr[mid] > target 才向左收縮；若 arr[mid] == target 則視為不夠大，執行 left = mid + 1！",
+    "codeLines": [
+      {
+        "code": "def upper_bound(arr, target):\n    l, r = 0, len(arr) - 1\n    ans = len(arr)\n    while l <= r:\n        m = (l + r) // 2\n        if arr[m] > target:   # 關鍵！嚴格大於 >\n            ans = m\n            r = m - 1\n        else:\n            l = m + 1         # 小於或等於通通往右跨！\n    return ans",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">while</span> <span class=\"n\">l</span> <span class=\"o\">&lt;=</span> <span class=\"n\">r</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">m</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">l</span> <span class=\"o\">+</span> <span class=\"n\">r</span><span class=\"p\">)</span> <span class=\"o\">//</span> <span class=\"mi\">2</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">m</span><span class=\"p\">]</span> <span class=\"o\">&gt;</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"n\">m</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"n\">m</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span> <span class=\"o\">=</span> <span class=\"n\">m</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">ans</span>",
+        "why": "標準手刻 Upper Bound 模板",
+        "mean": "arr[m] > target 向左，否則向右",
+        "alt": "上邊界實現"
+      },
+      {
+        "code": "data = [10, 20, 20, 20, 30, 40]\nprint(\"第一個 > 20 的索引:\", upper_bound(data, 20))",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">40</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;第一個 &gt; 20 的索引:&quot;</span><span class=\"p\">,</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">))</span>",
+        "why": "驗證輸出為 4",
+        "mean": "印出 4",
+        "alt": "輸出驗證"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "mid 遇見 20，不滿足 > 20，執行 l = mid + 1 往右跨越",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "直到看見 30 > 20，ans 記錄 4 並收斂",
+        "vars": {
+          "ans": 4
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "第一個 > 20 的索引: 4\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "嚴格大於向左收等於向右"
+      },
+      {
+        "type": "point",
+        "content": "Lower Bound 用 >=，Upper Bound 用 >，僅一字之差！"
+      },
+      {
+        "type": "tip",
+        "content": "兩者共同構成區間查詢的雙重神劍。"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Duel Comparison: Lower vs Upper Bound",
+    "titleZh": "雙界對照：Lower vs Upper Bound 核心契約",
+    "desc": "精準對比：搜尋目標 20 時，Lower Bound 找最左邊的 20（>= 20），Upper Bound 找 20 右邊第一個大數（> 20）！",
+    "codeLines": [
+      {
+        "code": "# 雙邊界核心契約精準對照",
+        "html": "<span class=\"c1\"># 雙邊界核心契約精準對照</span>",
+        "why": "釐清兩者判斷式與數學意義",
+        "mean": "LowerBound: >= target ; UpperBound: > target",
+        "alt": "契約對照"
+      },
+      {
+        "code": "a = [10, 20, 20, 20, 30]\nlb = lower_bound(a, 20)  # 索引 1 (數值 20)\nub = upper_bound(a, 20)  # 索引 4 (數值 30)",
+        "html": "<span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"n\">lb</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">)</span>  <span class=\"c1\"># 索引 1 (數值 20)</span><br><span class=\"n\">ub</span> <span class=\"o\">=</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">)</span>  <span class=\"c1\"># 索引 4 (數值 30)</span>",
+        "why": "以實際數列驗證兩邊界位置",
+        "mean": "lb=1, ub=4",
+        "alt": "實際呼叫"
+      },
+      {
+        "code": "print(f\"Lower Bound (第一個 >= 20): 索引 {lb}\")\nprint(f\"Upper Bound (第一個 > 20):  索引 {ub}\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;Lower Bound (第一個 &gt;= 20): 索引 </span><span class=\"si\">{</span><span class=\"n\">lb</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;Upper Bound (第一個 &gt; 20):  索引 </span><span class=\"si\">{</span><span class=\"n\">ub</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "印出兩者位置",
+        "mean": "輸出索引 1 與 4",
+        "alt": "輸出對比"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "執行 lower_bound 與 upper_bound",
+        "vars": {
+          "lb": 1,
+          "ub": 4
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出對比結果",
+        "vars": {},
+        "output": "Lower Bound (第一個 >= 20): 索引 1\nUpper Bound (第一個 > 20):  索引 4\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "下界大於等於上界嚴格大"
+      },
+      {
+        "type": "point",
+        "content": "若目標只有一個，Lower Bound 剛好等於該元素索引，Upper Bound 為索引 + 1。"
+      },
+      {
+        "type": "tip",
+        "content": "若目標不存在，兩者會回傳一模一樣的下標！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Off-by-One Defense: Four Pillars of Closed Interval",
+    "titleZh": "差一錯誤防禦：雙閉區間四大金剛",
+    "desc": "差一錯誤（Off-by-one）是二分的頭號殺手！堅守雙閉區間四大金剛：r=len-1、while <=、l=mid+1、r=mid-1，終身杜絕 Bug！",
+    "codeLines": [
+      {
+        "code": "# 雙閉區間四大金剛守則\narr = [10, 20, 30, 40]\nleft = 0",
+        "html": "<span class=\"c1\"># 雙閉區間四大金剛守則</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">40</span><span class=\"p\">]</span><br><span class=\"n\">left</span> <span class=\"o\">=</span> <span class=\"mi\">0</span>",
+        "why": "總結閉區間防禦規範",
+        "mean": "統一規範，絕不混淆",
+        "alt": "規範總結"
+      },
+      {
+        "code": "right = len(arr) - 1   # 金剛一：右界初始化減 1",
+        "html": "<span class=\"n\">right</span> <span class=\"o\">=</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span>   <span class=\"c1\"># 金剛一：右界初始化減 1</span>",
+        "why": "指向最後合法索引",
+        "mean": "閉區間右端點",
+        "alt": "金剛一"
+      },
+      {
+        "code": "while left <= right:   # 金剛二：迴圈條件帶等號\n    break              # 示範迴圈邊界",
+        "html": "<span class=\"k\">while</span> <span class=\"n\">left</span> <span class=\"o\">&lt;=</span> <span class=\"n\">right</span><span class=\"p\">:</span>   <span class=\"c1\"># 金剛二：迴圈條件帶等號</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">break</span>              <span class=\"c1\"># 示範迴圈邊界</span>",
+        "why": "保護最後單一元素",
+        "mean": "left == right 依然合法",
+        "alt": "金剛二"
+      },
+      {
+        "code": "print(\"四大金剛護體，永無差一 Bug！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;四大金剛護體，永無差一 Bug！&quot;</span><span class=\"p\">)</span>",
+        "why": "強調工程規範威力",
+        "mean": "印出信心宣告",
+        "alt": "宣告輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "回顧四大金剛防護機制",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出防禦宣告",
+        "vars": {},
+        "output": "四大金剛護體，永無差一 Bug！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "四大金剛護體永無差一錯"
+      },
+      {
+        "type": "point",
+        "content": "金剛三是 left = mid + 1，金剛四是 right = mid - 1。"
+      },
+      {
+        "type": "warn",
+        "content": "不要把左閉右開 [l, r) 的寫法混雜進來，那樣必死無疑！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "First Occurrence: Lower Bound + Validation",
+    "titleZh": "最左側定位：Lower Bound 加存在性驗證",
+    "desc": "取得 Lower Bound 索引後，先檢查未越界（idx < len），再檢查數值剛好相等（arr[idx] == target），完美鎖定首次出現位置！",
+    "codeLines": [
+      {
+        "code": "def find_first(arr, target):\n    idx = lower_bound(arr, target)\n    if idx < len(arr) and arr[idx] == target:\n        return idx\n    return -1",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">find_first</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">idx</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">idx</span> <span class=\"o\">&lt;</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"ow\">and</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">idx</span><span class=\"p\">]</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">idx</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>",
+        "why": "雙重驗證：未越界且數值相等",
+        "mean": "是 target 回傳索引，否則回傳 -1",
+        "alt": "最左側尋找函數"
+      },
+      {
+        "code": "data = [10, 20, 20, 20, 30]\nprint(find_first(data, 20), find_first(data, 25))",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">find_first</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">),</span> <span class=\"n\">find_first</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">25</span><span class=\"p\">))</span>",
+        "why": "驗證 20 回傳 1，不存在的 25 安全回傳 -1",
+        "mean": "印出 1 與 -1",
+        "alt": "驗證輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "查詢 20：lower_bound 為 1，data[1]==20 成立，回傳 1",
+        "vars": {
+          "res1": 1
+        }
+      },
+      {
+        "step": 2,
+        "action": "查詢 25：lower_bound 為 4 (30)，data[4]==25 不成立，回傳 -1",
+        "vars": {
+          "res2": -1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "1 -1\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "下界驗證相等鎖定最左"
+      },
+      {
+        "type": "point",
+        "content": "Lower Bound 回傳的是 >=，必須二次驗證 == 才能保證存在。"
+      },
+      {
+        "type": "tip",
+        "content": "徹底解決了上一節精確二分隨機落點的難題！"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Last Occurrence: Upper Bound - 1",
+    "titleZh": "最右側定位：Upper Bound 減一神技",
+    "desc": "既然 Upper Bound 回傳的是第一個「嚴格大於」目標的元素，那麼它的前一位（upper_bound - 1）必定就是目標最後出現的位置！",
+    "codeLines": [
+      {
+        "code": "def find_last(arr, target):\n    ub = upper_bound(arr, target)\n    last_idx = ub - 1\n    if 0 <= last_idx < len(arr) and arr[last_idx] == target:\n        return last_idx\n    return -1",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">find_last</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">ub</span> <span class=\"o\">=</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">last_idx</span> <span class=\"o\">=</span> <span class=\"n\">ub</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"mi\">0</span> <span class=\"o\">&lt;=</span> <span class=\"n\">last_idx</span> <span class=\"o\">&lt;</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"ow\">and</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">last_idx</span><span class=\"p\">]</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">last_idx</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span>",
+        "why": "利用 Upper Bound 前一位取得最右側下標",
+        "mean": "命中回傳最右索引，否則 -1",
+        "alt": "最右側尋找函數"
+      },
+      {
+        "code": "data = [10, 20, 20, 20, 30]\nprint(\"20 最後一次出現索引:\", find_last(data, 20))",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;20 最後一次出現索引:&quot;</span><span class=\"p\">,</span> <span class=\"n\">find_last</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">))</span>",
+        "why": "驗證輸出為 3",
+        "mean": "印出 3",
+        "alt": "驗證輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "upper_bound(data, 20) 回傳 4 (數值 30)",
+        "vars": {
+          "ub": 4
+        }
+      },
+      {
+        "step": 2,
+        "action": "last_idx = 4 - 1 = 3，data[3] == 20 成立，回傳 3",
+        "vars": {
+          "last_idx": 3
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "20 最後一次出現索引: 3\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "上界減一即得最後位置"
+      },
+      {
+        "type": "point",
+        "content": "上界是第一個大於者，前一位理所當然是最後一個等於者。"
+      },
+      {
+        "type": "tip",
+        "content": "這招讓找區間左右兩端點變得無比優雅！"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Range Frequency: Upper - Lower Bound",
+    "titleZh": "區間個數統計：上界減下界秒殺次數",
+    "desc": "火車站月台計數比喻：車廂起點到下一車廂起點！公式 Count = UpperBound - LowerBound，完全不需迴圈，O(log N) 極速算出！",
+    "codeLines": [
+      {
+        "code": "def count_freq(arr, target):\n    return upper_bound(arr, target) - lower_bound(arr, target)",
+        "html": "<span class=\"k\">def</span> <span class=\"nf\">count_freq</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">)</span>",
+        "why": "極速計數神級公式",
+        "mean": "上界減下界，不需迴圈累加",
+        "alt": "計數公式"
+      },
+      {
+        "code": "data = [10, 20, 20, 20, 20, 30]\nprint(\"20 出現次數:\", count_freq(data, 20))",
+        "html": "<span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;20 出現次數:&quot;</span><span class=\"p\">,</span> <span class=\"n\">count_freq</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">))</span>",
+        "why": "upper=5, lower=1，5 - 1 = 4 次",
+        "mean": "印出 4",
+        "alt": "輸出次數"
+      },
+      {
+        "code": "print(\"不存在數值 99 次數:\", count_freq(data, 99))",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;不存在數值 99 次數:&quot;</span><span class=\"p\">,</span> <span class=\"n\">count_freq</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">))</span>",
+        "why": "不存在時 upper == lower，相減自動為 0",
+        "mean": "印出 0",
+        "alt": "不存在輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "計算 20：ub=5, lb=1，次數 = 5 - 1 = 4",
+        "vars": {
+          "count": 4
+        },
+        "output": "20 出現次數: 4\n"
+      },
+      {
+        "step": 2,
+        "action": "計算 99：ub=6, lb=6，次數 = 6 - 6 = 0",
+        "vars": {
+          "count_99": 0
+        },
+        "output": "不存在數值 99 次數: 0\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "上界減下界次數瞬間出"
+      },
+      {
+        "type": "point",
+        "content": "不存在時兩界相同，相減自動得 0，無需任何額外 if 分支！"
+      },
+      {
+        "type": "tip",
+        "content": "這是 APCS 頻率查詢題目滿分的最強捷徑。"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Range Query [A, B]: Upper(B) - Lower(A)",
+    "titleZh": "數值範圍查詢：落在 [A, B] 區間的總個數",
+    "desc": "APCS 經典題：統計數列中數值介於 A 到 B 之間（A <= x <= B）的總個數。公式為 upper_bound(B) - lower_bound(A)！",
+    "codeLines": [
+      {
+        "code": "scores = [45, 55, 62, 70, 75, 80, 88, 95]",
+        "html": "<span class=\"n\">scores</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">45</span><span class=\"p\">,</span> <span class=\"mi\">55</span><span class=\"p\">,</span> <span class=\"mi\">62</span><span class=\"p\">,</span> <span class=\"mi\">70</span><span class=\"p\">,</span> <span class=\"mi\">75</span><span class=\"p\">,</span> <span class=\"mi\">80</span><span class=\"p\">,</span> <span class=\"mi\">88</span><span class=\"p\">,</span> <span class=\"mi\">95</span><span class=\"p\">]</span>",
+        "why": "已排序全班成績",
+        "mean": "8 筆成績",
+        "alt": "班級成績"
+      },
+      {
+        "code": "# 查詢成績介於 [60, 80] 之間（含端點）的人數",
+        "html": "<span class=\"c1\"># 查詢成績介於 [60, 80] 之間（含端點）的人數</span>",
+        "why": "雙邊界範圍查詢範例",
+        "mean": "符合的有 62, 70, 75, 80 共 4 人",
+        "alt": "範圍條件"
+      },
+      {
+        "code": "L = lower_bound(scores, 60)  # 第一個 >= 60 (索引 2，數值 62)\nR = upper_bound(scores, 80)  # 第一個 > 80 (索引 6，數值 88)\nprint(\"符合 [60, 80] 人數:\", R - L)",
+        "html": "<span class=\"n\">L</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">)</span>  <span class=\"c1\"># 第一個 &gt;= 60 (索引 2，數值 62)</span><br><span class=\"n\">R</span> <span class=\"o\">=</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">scores</span><span class=\"p\">,</span> <span class=\"mi\">80</span><span class=\"p\">)</span>  <span class=\"c1\"># 第一個 &gt; 80 (索引 6，數值 88)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;符合 [60, 80] 人數:&quot;</span><span class=\"p\">,</span> <span class=\"n\">R</span> <span class=\"o\">-</span> <span class=\"n\">L</span><span class=\"p\">)</span>",
+        "why": "R - L 即為左閉右開區間 [L, R) 的元素個數",
+        "mean": "6 - 2 = 4 人",
+        "alt": "計算人數"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "lower_bound(60) 得 L = 2",
+        "vars": {
+          "L": 2
+        }
+      },
+      {
+        "step": 2,
+        "action": "upper_bound(80) 得 R = 6",
+        "vars": {
+          "R": 6
+        }
+      },
+      {
+        "step": 3,
+        "action": "總人數 = 6 - 2 = 4",
+        "vars": {
+          "total": 4
+        },
+        "output": "符合 [60, 80] 人數: 4\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "區間查人數上右減下左"
+      },
+      {
+        "type": "point",
+        "content": "upper_bound(B) 鎖定右邊界之後，lower_bound(A) 鎖定左邊界起點。"
+      },
+      {
+        "type": "tip",
+        "content": "面對百萬級大數據，這套公式依然在不到一微秒內瞬間出解！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Boundary Position Prediction",
+    "titleZh": "關鍵理解測驗：重複元素邊界預測",
+    "desc": "測驗你對邊界的精確直覺！若數列為 a = [10, 20, 20, 20, 30]，請問 lower_bound(a, 20) 與 upper_bound(a, 20) 分別回傳多少？",
+    "codeLines": [
+      {
+        "code": "a = [10, 20, 20, 20, 30]",
+        "html": "<span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span>",
+        "why": "待測數列，20 佔據索引 1, 2, 3",
+        "mean": "測驗資料",
+        "alt": "測驗資料"
+      },
+      {
+        "code": "ans_lb = lower_bound(a, 20)\nans_ub = upper_bound(a, 20)",
+        "html": "<span class=\"n\">ans_lb</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">)</span><br><span class=\"n\">ans_ub</span> <span class=\"o\">=</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">)</span>",
+        "why": "計算下界與上界",
+        "mean": "lb 是第一個 >= 20，ub 是第一個 > 20",
+        "alt": "邊界計算"
+      },
+      {
+        "code": "print(f\"LB={ans_lb}, UB={ans_ub}, 次數={ans_ub - ans_lb}\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;LB=</span><span class=\"si\">{</span><span class=\"n\">ans_lb</span><span class=\"si\">}</span><span class=\"s2\">, UB=</span><span class=\"si\">{</span><span class=\"n\">ans_ub</span><span class=\"si\">}</span><span class=\"s2\">, 次數=</span><span class=\"si\">{</span><span class=\"n\">ans_ub</span><span class=\"w\"> </span><span class=\"o\">-</span><span class=\"w\"> </span><span class=\"n\">ans_lb</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "驗證輸出 LB=1, UB=4, 次數=3",
+        "mean": "印出結果",
+        "alt": "輸出成果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "第一個 >= 20 在索引 1 (LB=1)",
+        "vars": {
+          "lb": 1
+        }
+      },
+      {
+        "step": 2,
+        "action": "第一個 > 20 在索引 4 (UB=4，數值 30)",
+        "vars": {
+          "ub": 4
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "LB=1, UB=4, 次數=3\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "對於數列 a = [10, 20, 20, 20, 30]，upper_bound(a, 20) 的回傳值是？",
+      "options": [
+        "4 —— 指向數值 30，即第一個嚴格大於 20 的位置",
+        "3 —— 指向最後一個等於 20 的元素位置"
+      ],
+      "correct": 0,
+      "answer": "A",
+      "explanation": "Upper Bound 的合約是尋找「第一個 > target」的元素！因此它會指向數值 30 所在的索引 4。最後一個 20 的位置則是 upper_bound - 1 = 3。"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "上界指大數減一才最末"
+      },
+      {
+        "type": "point",
+        "content": "這是九成初學者最常混淆的概念界線。"
+      },
+      {
+        "type": "tip",
+        "content": "牢記：Upper Bound 是開區間右端點，不含目標本身！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Common Pitfalls: Lower Bound False Positive",
+    "titleZh": "典型陷阱警示：下界假陽性與全盤越界",
+    "desc": "兩大常見 Bug：直接把 lower_bound 的結果當成「目標存在」（未檢查相等）；目標大於全體時未防範越界 len(arr)！",
+    "codeLines": [
+      {
+        "code": "# 陷阱 1：Lower Bound 找到不代表目標存在",
+        "html": "<span class=\"c1\"># 陷阱 1：Lower Bound 找到不代表目標存在</span>",
+        "why": "在 [10, 30] 找 20 會回傳索引 1 (30)",
+        "mean": "必須二次檢查 arr[idx] == target",
+        "alt": "假陽性陷阱"
+      },
+      {
+        "code": "# 陷阱 2：全盤小於目標時 idx == len(arr) 越界訪問",
+        "html": "<span class=\"c1\"># 陷阱 2：全盤小於目標時 idx == len(arr) 越界訪問</span>",
+        "why": "若未先檢查 idx < len(arr) 就存取 arr[idx] 會噴 IndexError",
+        "mean": "務必先判斷 idx < len(arr)",
+        "alt": "越界陷阱"
+      },
+      {
+        "code": "a = [10, 20]\nidx = lower_bound(a, 99)  # 回傳 len(a) == 2\nprint(\"未越界安全檢查:\", idx < len(a))",
+        "html": "<span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">]</span><br><span class=\"n\">idx</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"mi\">99</span><span class=\"p\">)</span>  <span class=\"c1\"># 回傳 len(a) == 2</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;未越界安全檢查:&quot;</span><span class=\"p\">,</span> <span class=\"n\">idx</span> <span class=\"o\">&lt;</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">))</span>",
+        "why": "實機示範未越界安全防禦",
+        "mean": "印出 False",
+        "alt": "安全檢查輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "在 [10, 20] 搜尋 99，下界回傳 2 (即 len(a))",
+        "vars": {
+          "idx": 2
+        }
+      },
+      {
+        "step": 2,
+        "action": "檢查 idx < len(a) 為 False，成功攔截越界",
+        "vars": {},
+        "output": "未越界安全檢查: False\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "下界驗相等越界先檢查"
+      },
+      {
+        "type": "point",
+        "content": "短路求值語法：if idx < len(arr) and arr[idx] == target: 最安全。"
+      },
+      {
+        "type": "warn",
+        "content": "若寫顛倒 arr[idx] == target and idx < len 會直接當機！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Score Thresholds: Pass / Fail Statistics",
+    "titleZh": "實務戰場：及格門檻與級距人數速算",
+    "desc": "APCS 經典學業評測：輸入數萬名學生成績，在 O(log N) 內極速算出不及格人數與滿分人數！",
+    "codeLines": [
+      {
+        "code": "grades = [35, 48, 59, 60, 60, 72, 85, 90, 100, 100]",
+        "html": "<span class=\"n\">grades</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">35</span><span class=\"p\">,</span> <span class=\"mi\">48</span><span class=\"p\">,</span> <span class=\"mi\">59</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">,</span> <span class=\"mi\">72</span><span class=\"p\">,</span> <span class=\"mi\">85</span><span class=\"p\">,</span> <span class=\"mi\">90</span><span class=\"p\">,</span> <span class=\"mi\">100</span><span class=\"p\">,</span> <span class=\"mi\">100</span><span class=\"p\">]</span>",
+        "why": "全體考生排序成績",
+        "mean": "包含不及格、剛好及格與滿分群",
+        "alt": "考生成績"
+      },
+      {
+        "code": "pass_idx = lower_bound(grades, 60)  # 第一個及格 (>= 60) 的索引",
+        "html": "<span class=\"n\">pass_idx</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">grades</span><span class=\"p\">,</span> <span class=\"mi\">60</span><span class=\"p\">)</span>  <span class=\"c1\"># 第一個及格 (&gt;= 60) 的索引</span>",
+        "why": "及格線索引剛好等於不及格人數！",
+        "mean": "pass_idx = 3，前面 0, 1, 2 共 3 人不及格",
+        "alt": "不及格計算"
+      },
+      {
+        "code": "fail_count = pass_idx\npass_count = len(grades) - pass_idx\nprint(f\"不及格: {fail_count} 人, 及格: {pass_count} 人\")",
+        "html": "<span class=\"n\">fail_count</span> <span class=\"o\">=</span> <span class=\"n\">pass_idx</span><br><span class=\"n\">pass_count</span> <span class=\"o\">=</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">grades</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"n\">pass_idx</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;不及格: </span><span class=\"si\">{</span><span class=\"n\">fail_count</span><span class=\"si\">}</span><span class=\"s2\"> 人, 及格: </span><span class=\"si\">{</span><span class=\"n\">pass_count</span><span class=\"si\">}</span><span class=\"s2\"> 人&quot;</span><span class=\"p\">)</span>",
+        "why": "完全不跑迴圈，瞬間劃分雙陣營",
+        "mean": "不及格 3 人，及格 7 人",
+        "alt": "雙陣營輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "lower_bound(grades, 60) 回傳 3",
+        "vars": {
+          "pass_idx": 3
+        }
+      },
+      {
+        "step": 2,
+        "action": "不及格人數 = 3，及格人數 = 10 - 3 = 7",
+        "vars": {
+          "fail": 3,
+          "pass": 7
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "不及格: 3 人, 及格: 7 人\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "門檻下界分不及格人數"
+      },
+      {
+        "type": "point",
+        "content": "第一個及格者的索引，恰好就是「小於及格線的人數」！"
+      },
+      {
+        "type": "tip",
+        "content": "這是二分邊界在統計學上最優雅的幾何對應。"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 12.8 Summary & Mastery Card",
+    "titleZh": "單元 12.8 綜合驗收：邊界二分搜尋",
+    "desc": "恭喜完成單元 12.8！你已徹底攻克下邊界 Lower Bound、上邊界 Upper Bound、差一防禦與 O(log N) 區間統計！",
+    "codeLines": [
+      {
+        "code": "# 邊界二分搜尋四大核心心法完封整合",
+        "html": "<span class=\"c1\"># 邊界二分搜尋四大核心心法完封整合</span>",
+        "why": "總結本節精華",
+        "mean": "LowerBound、UpperBound、區間相減、差一防禦",
+        "alt": "全能精要"
+      },
+      {
+        "code": "arr = [10, 20, 20, 20, 30]\nlb = lower_bound(arr, 20)  # 第一個 >= 20 (索引 1)\nub = upper_bound(arr, 20)  # 第一個 > 20 (索引 4)",
+        "html": "<span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]</span><br><span class=\"n\">lb</span> <span class=\"o\">=</span> <span class=\"n\">lower_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">)</span>  <span class=\"c1\"># 第一個 &gt;= 20 (索引 1)</span><br><span class=\"n\">ub</span> <span class=\"o\">=</span> <span class=\"n\">upper_bound</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">)</span>  <span class=\"c1\"># 第一個 &gt; 20 (索引 4)</span>",
+        "why": "展示雙邊界核心呼叫",
+        "mean": "鎖定左閉右開區間 [1, 4)",
+        "alt": "雙邊界驗收"
+      },
+      {
+        "code": "print(f\"最左索引: {lb}, 最右索引: {ub - 1}, 總個數: {ub - lb}\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;最左索引: </span><span class=\"si\">{</span><span class=\"n\">lb</span><span class=\"si\">}</span><span class=\"s2\">, 最右索引: </span><span class=\"si\">{</span><span class=\"n\">ub</span><span class=\"w\"> </span><span class=\"o\">-</span><span class=\"w\"> </span><span class=\"mi\">1</span><span class=\"si\">}</span><span class=\"s2\">, 總個數: </span><span class=\"si\">{</span><span class=\"n\">ub</span><span class=\"w\"> </span><span class=\"o\">-</span><span class=\"w\"> </span><span class=\"n\">lb</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "印出驗收成果",
+        "mean": "印出 最左索引: 1, 最右索引: 3, 總個數: 3",
+        "alt": "輸出驗收結果"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "lb=1, ub=4",
+        "vars": {
+          "lb": 1,
+          "ub": 4
+        }
+      },
+      {
+        "step": 2,
+        "action": "最左=1, 最右=3, 個數=4-1=3",
+        "vars": {
+          "first": 1,
+          "last": 3,
+          "count": 3
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出驗收結論",
+        "vars": {},
+        "output": "最左索引: 1, 最右索引: 3, 總個數: 3\n"
+      }
+    ],
+    "completionCard": {
+      "badge": "🎯 邊界定位宗師",
+      "summary": [
+        "解決重複元素隨機落點困惑，Lower Bound 鎖定最左側第一個 >= target",
+        "精通 Upper Bound 尋找第一個 > target，前一位即為最後一個等於者",
+        "堅守雙閉區間四大金剛：r=len-1、while <=、l=mid+1、r=mid-1，杜絕差一錯誤",
+        "掌握 Count = UpperBound - LowerBound 神級公式，O(log N) 極速秒殺區間計數"
+      ],
+      "nextUnit": "12.9 內建二分搜尋模組：bisect 與數值區間查詢應用"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "邊界鎖定區間計數秒殺"
+      },
+      {
+        "type": "point",
+        "content": "手刻邊界二分是 APCS 實作題最能拉開分數差距的硬核分水嶺。"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將無縫接軌 Python 標準庫 bisect 模組！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec12-3",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_12-3_custom_sort_key_and_named_functions.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

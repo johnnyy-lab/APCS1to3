@@ -1,0 +1,3051 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "15.4 APCS 實戰：b266 矩陣轉換",
+    "subtitle": "二維陣列變換、時空逆推模型與幾何操作核心",
+    "desc": "APCS 官方實作經典題 b266！給定矩陣經歷翻轉與旋轉後的最終狀態與操作清單，要求倒推還原出最初的原始矩陣。考察二維串列維度變化與時空逆推心智模型！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 1], [3, 1], [1, 2]]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3x2 矩陣",
+        "mean": "最終結果矩陣"
+      },
+      {
+        "num": 2,
+        "code": "ops = [1, 0, 0]  # 正向操作序列",
+        "html": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 正向操作序列</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "1翻轉0旋轉",
+        "mean": "正向操作指令"
+      },
+      {
+        "num": 3,
+        "code": "for op in reversed(ops):  # 核心：倒序逆推",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># 核心：倒序逆推</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "後進先出",
+        "mean": "倒序執行指令"
+      },
+      {
+        "num": 4,
+        "code": "    if op == 1:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "1翻轉0旋轉",
+        "mean": "判斷指令代碼"
+      },
+      {
+        "num": 5,
+        "code": "        mat = mat[::-1]  # 翻轉自逆性",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 翻轉自逆性</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下對調",
+        "mean": "垂直翻轉自逆"
+      },
+      {
+        "num": 6,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "反向回溯",
+        "mean": "旋轉逆操作"
+      },
+      {
+        "num": 7,
+        "code": "        mat = [list(r) for r in zip(*mat)][::-1]  # 逆時針90度",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 逆時針90度</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "轉置後翻轉",
+        "mean": "逆時針90度"
+      },
+      {
+        "num": 8,
+        "code": "print(len(mat), len(mat[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "尺寸為 3 2",
+        "mean": "輸出列行維度"
+      },
+      {
+        "num": 9,
+        "code": "for row in mat:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逐列印出",
+        "mean": "走訪各列"
+      },
+      {
+        "num": 10,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "空格間隔",
+        "mean": "解包輸出元素"
+      }
+    ],
+    "output": "3 2\n1 1\n1 3\n2 1",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "單元核心口訣",
+      "content": "倒序逆推翻轉逆旋"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "真題背景剖析",
+        "content": "本題為 APCS 官方第 2 題，是『時空逆推（Time Travel Backtracking）』與矩陣幾何操作的旗艦代表題。"
+      },
+      {
+        "type": "hint",
+        "title": "後進先出 (LIFO) 思維",
+        "content": "正向變換如堆疊般壓入操作，還原時必須像彈出堆疊一樣，從最後一個操作開始依序倒退還原！"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "官方真題題意剖析：時空逆推解題架構",
+    "subtitle": "正向未知 vs 逆向已知——為什麼正向暴力不可行？",
+    "desc": "輸入給定最後的結果矩陣與操作代碼序列。若從正向猜測原始矩陣，可能性無窮無盡；但若從終點向起點倒推，每一步的逆操作都唯一確定，時間複雜度只需 O(M × R × C)！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "ops = ['翻轉(1)', '順旋(0)', '順旋(0)']",
+        "html": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-string\">&#x27;翻轉(1)&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;順旋(0)&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&#x27;順旋(0)&#x27;</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "先1再0再0",
+        "mean": "正向操作歷史"
+      },
+      {
+        "num": 2,
+        "code": "undo_ops = []",
+        "html": "<span class=\"token-ident\">undo_ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "準備還原",
+        "mean": "逆向操作序列"
+      },
+      {
+        "num": 3,
+        "code": "for op in reversed(ops):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "LIFO 順序",
+        "mean": "倒序取出指令"
+      },
+      {
+        "num": 4,
+        "code": "    action = '垂直翻轉' if '1' in op else '逆時針90度'",
+        "html": "    <span class=\"token-ident\">action</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&#x27;垂直翻轉&#x27;</span> <span class=\"token-keyword\">if</span> <span class=\"token-string\">&#x27;1&#x27;</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">else</span> <span class=\"token-string\">&#x27;逆時針90度&#x27;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "0逆轉1翻轉",
+        "mean": "對應逆操作動作"
+      },
+      {
+        "num": 5,
+        "code": "    undo_ops.append(action)",
+        "html": "    <span class=\"token-ident\">undo_ops</span><span class=\"token-op\">.</span><span class=\"token-builtin\">append</span><span class=\"token-op\">(</span><span class=\"token-ident\">action</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "加入步驟",
+        "mean": "收集逆操作"
+      },
+      {
+        "num": 6,
+        "code": "print('正向歷程:', ops)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;正向歷程:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "歷史記錄",
+        "mean": "印出正向歷程"
+      },
+      {
+        "num": 7,
+        "code": "print('還原步驟:', undo_ops)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;還原步驟:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">undo_ops</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "清晰明瞭",
+        "mean": "印出還原步驟"
+      }
+    ],
+    "output": "正向歷程: ['翻轉(1)', '順旋(0)', '順旋(0)']\n還原步驟: ['逆時針90度', '逆時針90度', '垂直翻轉']",
+    "diagram": {
+      "type": "compare",
+      "title": "正向模擬 vs 逆向還原",
+      "good": "逆向還原：終點已知，路徑唯一且確定，O(M)步精確抵達起點！",
+      "bad": "正向枚舉：起點未知，盲目枚舉維度與數值，直接超時或TLE！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "數學對偶原理",
+        "content": "(A ∘ B)⁻¹ = B⁻¹ ∘ A⁻¹。多個操作複合的逆變換，等於各別逆變換以相反次序複合！"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "矩陣幾何操作核心：翻轉自逆與逆旋變換",
+    "subtitle": "兩大核心變換之幾何本質與代數逆元",
+    "desc": "操作 1 為垂直翻轉（上下顛倒）：具備自逆性（Involutory），做兩次等於沒做。操作 0 為順時針 90 度：其逆操作為逆時針 90 度（等價於順時針 270 度）！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 2], [3, 4], [5, 6]]  # 3x2",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 3x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試資料",
+        "mean": "原始 3x2 矩陣"
+      },
+      {
+        "num": 2,
+        "code": "# 1. 垂直翻轉 (上下對調)",
+        "html": "<span class=\"token-comment\"># 1. 垂直翻轉 (上下對調)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "自逆操作",
+        "mean": "翻轉註解"
+      },
+      {
+        "num": 3,
+        "code": "flipped = mat[::-1]",
+        "html": "<span class=\"token-ident\">flipped</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "mat[::-1]",
+        "mean": "切片上下顛倒"
+      },
+      {
+        "num": 4,
+        "code": "# 2. 逆時針 90 度 (原最右行變第 0 列)",
+        "html": "<span class=\"token-comment\"># 2. 逆時針 90 度 (原最右行變第 0 列)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正向逆元",
+        "mean": "逆旋註解"
+      },
+      {
+        "num": 5,
+        "code": "ccw = [list(r) for r in zip(*mat)][::-1]",
+        "html": "<span class=\"token-ident\">ccw</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "行變列且倒序",
+        "mean": "轉置後垂直翻轉"
+      },
+      {
+        "num": 6,
+        "code": "print('原矩陣尺寸:', len(mat), len(mat[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;原矩陣尺寸:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "得 3 2",
+        "mean": "印出原始維度"
+      },
+      {
+        "num": 7,
+        "code": "print('翻轉後尺寸:', len(flipped), len(flipped[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;翻轉後尺寸:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">flipped</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">flipped</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "維度不變 3 2",
+        "mean": "印出翻轉維度"
+      },
+      {
+        "num": 8,
+        "code": "print('逆旋後尺寸:', len(ccw), len(ccw[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;逆旋後尺寸:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">ccw</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">ccw</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "行列互換 2 3",
+        "mean": "印出逆旋維度"
+      }
+    ],
+    "output": "原矩陣尺寸: 3 2\n翻轉後尺寸: 3 2\n逆旋後尺寸: 2 3",
+    "diagram": {
+      "type": "flowchart",
+      "title": "逆操作映射表",
+      "content": "正向 Op 1 (翻轉) ➔ 逆操作 垂直翻轉 (mat[::-1])\n正向 Op 0 (順旋 90°) ➔ 逆操作 逆時針 90° (zip+翻轉)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "尺寸動態互換",
+        "content": "翻轉不會改變矩陣長寬；但 90 度旋轉會導致長寬對調（R × C 變成 C × R），動態追蹤維度至關重要！"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "totalPages": 24,
+    "stage": "① 觀念初探",
+    "title": "階梯遞進與學習路徑地圖",
+    "subtitle": "從四階地圖穩健攻克 APCS 矩陣轉換題",
+    "desc": "本單元遵循四階段黃金學習法：從題意剖析與逆推心智模型，到 Pythonic 轉置切片鐵律，避開索引越界與正向悲劇地雷，最後達到多版本 AC 與通關！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "stages = [",
+        "html": "<span class=\"token-ident\">stages</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "學習地圖",
+        "mean": "學習階段清單"
+      },
+      {
+        "num": 2,
+        "code": "    '① 觀念初探：時空逆推與幾何變換',",
+        "html": "    <span class=\"token-string\">&#x27;① 觀念初探：時空逆推與幾何變換&#x27;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "觀念打底",
+        "mean": "第一階段"
+      },
+      {
+        "num": 3,
+        "code": "    '② 語法鐵律：reversed 與 zip 轉置技巧',",
+        "html": "    <span class=\"token-string\">&#x27;② 語法鐵律：reversed 與 zip 轉置技巧&#x27;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "語法實力",
+        "mean": "第二階段"
+      },
+      {
+        "num": 4,
+        "code": "    '③ 考場地雷：順逆混淆與維度寫死崩潰',",
+        "html": "    <span class=\"token-string\">&#x27;③ 考場地雷：順逆混淆與維度寫死崩潰&#x27;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "防禦陷阱",
+        "mean": "第三階段"
+      },
+      {
+        "num": 5,
+        "code": "    '④ 綜合驗收：官方範例推演與四版本 AC'",
+        "html": "    <span class=\"token-string\">&#x27;④ 綜合驗收：官方範例推演與四版本 AC&#x27;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "實戰驗收",
+        "mean": "第四階段"
+      },
+      {
+        "num": 6,
+        "code": "]",
+        "html": "<span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "語法結構",
+        "mean": "串列宣告結束"
+      },
+      {
+        "num": 7,
+        "code": "for s in stages:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">stages</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序顯示",
+        "mean": "走訪各階段"
+      },
+      {
+        "num": 8,
+        "code": "    print(f'已解鎖: {s[:6]}')",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;已解鎖: <span class=\"token-op\">{</span><span class=\"token-ident\">s</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "目標明確",
+        "mean": "格式化印出"
+      }
+    ],
+    "output": "已解鎖: ① 觀念初探\n已解鎖: ② 語法鐵律\n已解鎖: ③ 考場地雷\n已解鎖: ④ 綜合驗收",
+    "diagram": {
+      "type": "mindmap",
+      "title": "學習路徑四部曲",
+      "content": "b266 矩陣轉換 ➔ 逆推原理 ➔ zip轉置 ➔ 避開IndexError ➔ 滿分通關"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "心態建立",
+        "content": "看似複雜的矩陣幾何題目，只要拆解為『單元逆操作』與『指令倒序堆疊』，難度立刻降為基礎題！"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "鐵律一：指令倒序遍歷 reversed(ops)",
+    "subtitle": "切片 [::-1] 與 reversed 迭代器的空間與效能鐵律",
+    "desc": "倒序巡訪是逆推演算法的生命線。在 Python 中，`reversed(ops)` 傳回反向迭代器（時間 O(1)、空間 O(1)）；而 `ops[::-1]` 會建立新串列。迴圈中使用 `reversed` 更優雅省空間！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "ops = [1, 0, 0]",
+        "html": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例一指令",
+        "mean": "正向指令序列"
+      },
+      {
+        "num": 2,
+        "code": "order = []",
+        "html": "<span class=\"token-ident\">order</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "驗證順序",
+        "mean": "收集走訪順序"
+      },
+      {
+        "num": 3,
+        "code": "for op in reversed(ops):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "reversed(ops)",
+        "mean": "反向迭代器走訪"
+      },
+      {
+        "num": 4,
+        "code": "    order.append(op)",
+        "html": "    <span class=\"token-ident\">order</span><span class=\"token-op\">.</span><span class=\"token-builtin\">append</span><span class=\"token-op\">(</span><span class=\"token-ident\">op</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "後進先出",
+        "mean": "記錄當前指令"
+      },
+      {
+        "num": 5,
+        "code": "print('原操作序列:', ops)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;原操作序列:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "原樣保留",
+        "mean": "印出原始序列"
+      },
+      {
+        "num": 6,
+        "code": "print('逆推走訪順序:', order)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;逆推走訪順序:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">order</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "得 [0, 0, 1]",
+        "mean": "印出逆推順序"
+      },
+      {
+        "num": 7,
+        "code": "print('確認是否反轉:', order == ops[::-1])",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;確認是否反轉:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">order</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "結果為 True",
+        "mean": "驗證切片等價性"
+      }
+    ],
+    "output": "原操作序列: [1, 0, 0]\n逆推走訪順序: [0, 0, 1]\n確認是否反轉: True",
+    "diagram": {
+      "type": "flowchart",
+      "title": "LIFO 遍歷原理",
+      "content": "ops: [Op1, Op2, Op3] ➔ reversed(ops) ➔ 先彈出 Op3 ➔ 再彈出 Op2 ➔ 最後彈出 Op1"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "不破壞原串列",
+        "content": "切忌使用 `ops.reverse()`，因為它會原地修改輸入串列；若後續有除錯或重測需求，可能引發不可預期的副作用。"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "鐵律二：垂直翻轉之自逆性與切片 mat[::-1]",
+    "subtitle": "上下列對調的最速解法與列指標置換原理",
+    "desc": "二維串列的最外層元素是『列（Row）』。對二維串列實施切片 `mat[::-1]`，能在 O(R) 時間內完成上下列指標顛倒，每列內部元素順序完全不變，極速達成垂直翻轉！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "grid = [[1, 2], [3, 4], [5, 6]]",
+        "html": "<span class=\"token-ident\">grid</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3 列 2 行",
+        "mean": "二維串列"
+      },
+      {
+        "num": 2,
+        "code": "flip1 = grid[::-1]  # 第一次翻轉",
+        "html": "<span class=\"token-ident\">flip1</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 第一次翻轉</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下列對調",
+        "mean": "外層切片翻轉"
+      },
+      {
+        "num": 3,
+        "code": "flip2 = flip1[::-1] # 第二次翻轉",
+        "html": "<span class=\"token-ident\">flip2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">flip1</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-comment\"># 第二次翻轉</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "負負得正",
+        "mean": "再次切片翻轉"
+      },
+      {
+        "num": 4,
+        "code": "print('原始第 0 列:', grid[0])",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;原始第 0 列:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">grid</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "原狀",
+        "mean": "原首列 [1, 2]"
+      },
+      {
+        "num": 5,
+        "code": "print('翻轉第 0 列:', flip1[0])",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;翻轉第 0 列:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">flip1</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "底部變頂部",
+        "mean": "翻轉首列 [5, 6]"
+      },
+      {
+        "num": 6,
+        "code": "print('自逆性成立:', grid == flip2)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;自逆性成立:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">grid</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">flip2</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 自逆性",
+        "mean": "驗證兩次還原"
+      }
+    ],
+    "output": "原始第 0 列: [1, 2]\n翻轉第 0 列: [5, 6]\n自逆性成立: True",
+    "diagram": {
+      "type": "compare",
+      "title": "翻轉前後列位置對照",
+      "good": "列 0 ↔ 列 R-1, 列 1 ↔ 列 R-2，左右水平順序不變",
+      "bad": "水平翻轉是 row[::-1]，切勿與垂直翻轉混淆！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "時間複雜度 O(R)",
+        "content": "`mat[::-1]` 僅複製列指標串列（長度為 R），並不複製每個整數元素，非常節省時間。"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "鐵律三：逆時針 90 度雙迴圈手刻推導",
+    "subtitle": "col 從右向左、row 從上到下的考場最穩健索引對照",
+    "desc": "若考場緊張忘記語法糖，手刻雙迴圈是零死角解法：旋轉前維度 R×C，旋轉後變 C×R。原矩陣最右行 (col c-1) 變成新矩陣第 0 列；次右行 (col c-2) 變成第 1 列！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 2, 3], [4, 5, 6]]  # 2x3",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 2x3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "非方陣矩陣",
+        "mean": "2x3 測試矩陣"
+      },
+      {
+        "num": 2,
+        "code": "r, c = len(mat), len(mat[0])",
+        "html": "<span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "R=2, C=3",
+        "mean": "動態取得長寬"
+      },
+      {
+        "num": 3,
+        "code": "new_mat = []",
+        "html": "<span class=\"token-ident\">new_mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "放置新列",
+        "mean": "新矩陣容器"
+      },
+      {
+        "num": 4,
+        "code": "for j in range(c - 1, -1, -1):  # col 從右到左",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">c</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># col 從右到左</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "最右行先出發",
+        "mean": "外層掃描行索引"
+      },
+      {
+        "num": 5,
+        "code": "    row = [mat[i][j] for i in range(r)]  # row 從上到下",
+        "html": "    <span class=\"token-ident\">row</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">j</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># row 從上到下</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "形成橫向新列",
+        "mean": "內層收集該行各列元素"
+      },
+      {
+        "num": 6,
+        "code": "    new_mat.append(row)",
+        "html": "    <span class=\"token-ident\">new_mat</span><span class=\"token-op\">.</span><span class=\"token-builtin\">append</span><span class=\"token-op\">(</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "組成二維串列",
+        "mean": "加入新列"
+      },
+      {
+        "num": 7,
+        "code": "print(f'原尺寸 {r}x{c} -> 旋轉後 {len(new_mat)}x{len(new_mat[0])}')",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;原尺寸 <span class=\"token-op\">{</span><span class=\"token-ident\">r</span><span class=\"token-op\">}</span>x<span class=\"token-op\">{</span><span class=\"token-ident\">c</span><span class=\"token-op\">}</span> -&gt; 旋轉後 <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">new_mat</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>x<span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">new_mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "2x3 變 3x2",
+        "mean": "印出維度變化"
+      },
+      {
+        "num": 8,
+        "code": "for row in new_mat: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">new_mat</span><span class=\"token-op\">:</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "驗證幾何結果",
+        "mean": "解包印出各列"
+      }
+    ],
+    "output": "原尺寸 2x3 -> 旋轉後 3x2\n3 6\n2 5\n1 4",
+    "diagram": {
+      "type": "flowchart",
+      "title": "逆時針 90 度座標變換",
+      "content": "原矩陣 [i][j] ➔ 逆時針旋轉後 ➔ 新矩陣 [c - 1 - j][i]"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "記憶訣竅",
+        "content": "逆時針旋轉就是把矩陣往左推倒：原本站得最右邊的那一排，倒下來變成躺在最上面的那一排！"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "totalPages": 24,
+    "stage": "② 語法鐵律",
+    "title": "鐵律四：Pythonic 轉置黑魔法 zip(*mat)[::-1]",
+    "subtitle": "轉置加翻轉，兩招組合出四種幾何旋轉",
+    "desc": "`zip(*mat)` 能以解包方式快速將行列互換（Transpose 轉置）。轉置後再搭配上下翻轉 `[::-1]`，正好等價於逆時針旋轉 90 度！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 2, 3], [4, 5, 6]]  # 2x3",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 2x3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "非方陣矩陣",
+        "mean": "原矩陣 2x3"
+      },
+      {
+        "num": 2,
+        "code": "# 步驟一：轉置行列 (Transpose)",
+        "html": "<span class=\"token-comment\"># 步驟一：轉置行列 (Transpose)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "行列互換",
+        "mean": "轉置註解"
+      },
+      {
+        "num": 3,
+        "code": "trans = [list(r) for r in zip(*mat)]",
+        "html": "<span class=\"token-ident\">trans</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "zip(*mat)",
+        "mean": "zip解包轉置"
+      },
+      {
+        "num": 4,
+        "code": "# 步驟二：垂直翻轉即得逆時針 90 度",
+        "html": "<span class=\"token-comment\"># 步驟二：垂直翻轉即得逆時針 90 度</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "變換為逆旋",
+        "mean": "翻轉註解"
+      },
+      {
+        "num": 5,
+        "code": "ccw = trans[::-1]",
+        "html": "<span class=\"token-ident\">ccw</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">trans</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下顛倒",
+        "mean": "轉置後垂直翻轉"
+      },
+      {
+        "num": 6,
+        "code": "print('轉置矩陣 (3x2):', trans)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;轉置矩陣 (3x2):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">trans</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "觀察轉置",
+        "mean": "印出轉置結果"
+      },
+      {
+        "num": 7,
+        "code": "print('逆旋結果 (3x2):', ccw)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;逆旋結果 (3x2):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ccw</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "即為逆時針",
+        "mean": "印出逆旋結果"
+      },
+      {
+        "num": 8,
+        "code": "print('一行流版本:', [list(r) for r in zip(*mat)][::-1])",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;一行流版本:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行搞定",
+        "mean": "印出一行流"
+      }
+    ],
+    "output": "轉置矩陣 (3x2): [[1, 4], [2, 5], [3, 6]]\n逆旋結果 (3x2): [[3, 6], [2, 5], [1, 4]]\n一行流版本: [[3, 6], [2, 5], [1, 4]]",
+    "diagram": {
+      "type": "compare",
+      "title": "旋轉兩大一行流神技",
+      "good": "逆時針 90°：[list(r) for r in zip(*mat)][::-1] (先轉置再翻轉)",
+      "bad": "順時針 90°：[list(r) for r in zip(*mat[::-1])] (先翻轉再轉置)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考場極速推薦",
+        "content": "`[list(r) for r in zip(*mat)][::-1]` 是 Python 競賽中撰寫最快、最不佔行數的逆時針旋轉寫法！"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷一：正向執行操作（忘記倒序讀取）",
+    "subtitle": "直接 for op in ops 導致時空錯亂，WA 0 分悲劇",
+    "desc": "許多考生看到輸入的操作序列 `ops`，直覺寫出 `for op in ops:`。由於矩陣幾何操作通常不滿足交換律，正向走訪與逆向回溯結果完全不同！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試資料",
+        "mean": "原始矩陣"
+      },
+      {
+        "num": 2,
+        "code": "ops = [1, 0]  # 先翻轉再順旋",
+        "html": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 先翻轉再順旋</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "複合操作",
+        "mean": "操作清單"
+      },
+      {
+        "num": 3,
+        "code": "# 錯誤：正向執行",
+        "html": "<span class=\"token-comment\"># 錯誤：正向執行</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "順序顛倒",
+        "mean": "錯誤註解"
+      },
+      {
+        "num": 4,
+        "code": "w_m = mat[::-1]",
+        "html": "<span class=\"token-ident\">w_m</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "先做1",
+        "mean": "錯走操作1"
+      },
+      {
+        "num": 5,
+        "code": "w_m = [list(r) for r in zip(*w_m)][::-1]",
+        "html": "<span class=\"token-ident\">w_m</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">w_m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "再做0",
+        "mean": "錯走操作0"
+      },
+      {
+        "num": 6,
+        "code": "# 正確：逆向先還原 0 再還原 1",
+        "html": "<span class=\"token-comment\"># 正確：逆向先還原 0 再還原 1</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "後進先出",
+        "mean": "正確註解"
+      },
+      {
+        "num": 7,
+        "code": "c_m = [list(r) for r in zip(*mat)][::-1]",
+        "html": "<span class=\"token-ident\">c_m</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "先還原0",
+        "mean": "正確還原0"
+      },
+      {
+        "num": 8,
+        "code": "c_m = c_m[::-1]",
+        "html": "<span class=\"token-ident\">c_m</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">c_m</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "再還原1",
+        "mean": "正確還原1"
+      },
+      {
+        "num": 9,
+        "code": "print('正向執行結果:', w_m)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;正向執行結果:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">w_m</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "錯誤結果",
+        "mean": "印出錯誤矩陣"
+      },
+      {
+        "num": 10,
+        "code": "print('逆推還原結果:', c_m)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;逆推還原結果:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c_m</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正確結果",
+        "mean": "印出正確矩陣"
+      },
+      {
+        "num": 11,
+        "code": "print('兩者是否相同?', w_m == c_m)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;兩者是否相同?&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">w_m</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">c_m</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "結果為 False",
+        "mean": "比對兩者"
+      }
+    ],
+    "output": "正向執行結果: [[4, 2], [3, 1]]\n逆推還原結果: [[1, 3], [2, 4]]\n兩者是否相同? False",
+    "diagram": {
+      "type": "warning",
+      "title": "致命陷阱：順序錯位",
+      "content": "若正向為 A ➔ B，則還原必為 B⁻¹ ➔ A⁻¹！若寫成 A⁻¹ ➔ B⁻¹ 必當場失分！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "防呆準則",
+        "content": "迴圈第一步務必寫成 `for op in reversed(ops):`，立刻鎖定正確的時間箭頭！"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷二：誤將順時針當作逆操作執行",
+    "subtitle": "看到 op==0 就順時針旋轉，越轉越遠！",
+    "desc": "題目指出正向操作 0 是『順時針旋轉 90 度』。很多同學誤以為『遇到 0 就執行操作 0』，忘記我們是在執行『逆操作』！要抵消順時針 90 度，必須逆時針 90 度！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "2x2 矩陣",
+        "mean": "原始矩陣"
+      },
+      {
+        "num": 2,
+        "code": "# 正向操作是順時針 90°",
+        "html": "<span class=\"token-comment\"># 正向操作是順時針 90°</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "順時針變換",
+        "mean": "正向操作說明"
+      },
+      {
+        "num": 3,
+        "code": "cw = [list(r) for r in zip(*mat[::-1])]",
+        "html": "<span class=\"token-ident\">cw</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正向執行",
+        "mean": "執行順旋90度"
+      },
+      {
+        "num": 4,
+        "code": "# 錯誤逆操作：又順時針轉一次 (變 180°)",
+        "html": "<span class=\"token-comment\"># 錯誤逆操作：又順時針轉一次 (變 180°)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "方向搞反",
+        "mean": "錯誤解說"
+      },
+      {
+        "num": 5,
+        "code": "wrong = [list(r) for r in zip(*cw[::-1])]",
+        "html": "<span class=\"token-ident\">wrong</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">cw</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "越錯越遠",
+        "mean": "又轉一次順時針"
+      },
+      {
+        "num": 6,
+        "code": "# 正確逆操作：逆時針轉回原狀 (變 0°)",
+        "html": "<span class=\"token-comment\"># 正確逆操作：逆時針轉回原狀 (變 0°)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逆操作抵消",
+        "mean": "正確解說"
+      },
+      {
+        "num": 7,
+        "code": "correct = [list(r) for r in zip(*cw)][::-1]",
+        "html": "<span class=\"token-ident\">correct</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">cw</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "還原動作",
+        "mean": "執行逆時針轉回"
+      },
+      {
+        "num": 8,
+        "code": "print('經順旋後的矩陣:', cw)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;經順旋後的矩陣:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cw</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "觀察中間態",
+        "mean": "印出順旋"
+      },
+      {
+        "num": 9,
+        "code": "print('錯用順旋 (變180度):', wrong)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;錯用順旋 (變180度):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">wrong</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "非原矩陣",
+        "mean": "印出二次順旋"
+      },
+      {
+        "num": 10,
+        "code": "print('正確逆旋 (回原點):', correct == mat)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;正確逆旋 (回原點):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">correct</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 完美歸位",
+        "mean": "驗證成功歸位"
+      }
+    ],
+    "output": "經順旋後的矩陣: [[3, 1], [4, 2]]\n錯用順旋 (變180度): [[4, 3], [2, 1]]\n正確逆旋 (回原點): True",
+    "diagram": {
+      "type": "compare",
+      "title": "旋轉方向對照",
+      "good": "逆操作 0：逆時針 90 度（轉置後翻轉）",
+      "bad": "正向動作 0：順時針 90 度（翻轉後轉置）"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣提示",
+        "content": "口訣第七八字『翻轉逆旋』：翻轉照樣翻轉，旋轉改為逆旋！"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷三：非方陣旋轉時行列寫死 IndexError",
+    "subtitle": "用最初的 R 和 C 走訪旋轉後的矩陣，導致越界爆發",
+    "desc": "輸入時讀取了 R 與 C，如果後續程式寫死 `range(R)` 與 `range(C)`，當非方陣（如 2×3）旋轉為 3×2 後，存取 `mat[2]` 或 `mat[i][2]` 將立即引發 IndexError 崩潰！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 2, 3], [4, 5, 6]]  # 2x3, R=2, C=3",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 2x3, R=2, C=3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "非方陣",
+        "mean": "2x3 矩陣"
+      },
+      {
+        "num": 2,
+        "code": "R, C = 2, 3",
+        "html": "<span class=\"token-ident\">R</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "不可全程寫死",
+        "mean": "原始靜態 R, C"
+      },
+      {
+        "num": 3,
+        "code": "# 逆時針旋轉後變 3x2",
+        "html": "<span class=\"token-comment\"># 逆時針旋轉後變 3x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "長寬互換",
+        "mean": "旋轉動作"
+      },
+      {
+        "num": 4,
+        "code": "mat = [list(r) for r in zip(*mat)][::-1]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "行列互換",
+        "mean": "旋轉為 3x2"
+      },
+      {
+        "num": 5,
+        "code": "print(f'旋轉後實際維度: {len(mat)}x{len(mat[0])}')",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;旋轉後實際維度: <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>x<span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3 列 2 行",
+        "mean": "印出當前真實維度"
+      },
+      {
+        "num": 6,
+        "code": "# 安全巡訪：永遠動態取 len(mat) 與 len(mat[0])",
+        "html": "<span class=\"token-comment\"># 安全巡訪：永遠動態取 len(mat) 與 len(mat[0])</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "避免越界",
+        "mean": "安全動態取值說明"
+      },
+      {
+        "num": 7,
+        "code": "cur_r, cur_c = len(mat), len(mat[0])",
+        "html": "<span class=\"token-ident\">cur_r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cur_c</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "cur_r, cur_c",
+        "mean": "使用 len 動態更新"
+      },
+      {
+        "num": 8,
+        "code": "print(f'安全取得維度: {cur_r}x{cur_c}')",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;安全取得維度: <span class=\"token-op\">{</span><span class=\"token-ident\">cur_r</span><span class=\"token-op\">}</span>x<span class=\"token-op\">{</span><span class=\"token-ident\">cur_c</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "動態更新成功",
+        "mean": "印出安全維度"
+      },
+      {
+        "num": 9,
+        "code": "print('驗證是否安全:', cur_r == 3 and cur_c == 2)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;驗證是否安全:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cur_r</span> <span class=\"token-op\">==</span> <span class=\"token-number\">3</span> <span class=\"token-keyword\">and</span> <span class=\"token-ident\">cur_c</span> <span class=\"token-op\">==</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 完全安全",
+        "mean": "驗證維度交換"
+      }
+    ],
+    "output": "旋轉後實際維度: 3x2\n安全取得維度: 3x2\n驗證是否安全: True",
+    "diagram": {
+      "type": "warning",
+      "title": "維度突變守則",
+      "content": "旋轉後矩陣：新列數 = 舊行數，新行數 = 舊列數！永遠使用 len(mat) 與 len(mat[0])！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "競賽防禦鐵律",
+        "content": "任何矩陣處理函式內部，第一行請永遠寫 `r, c = len(mat), len(mat[0])`，完全不依賴全域長寬！"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "totalPages": 24,
+    "stage": "③ 考場地雷",
+    "title": "考場地雷四：二維串列淺拷貝參照污染陷阱",
+    "subtitle": "原地修改 row 導致多列連動遭殃",
+    "desc": "在旋轉或複製矩陣時，若使用 `new_mat = [row] * r` 或 `new_mat = mat`，內部列會共用同一塊記憶體位址。修改一處就會污染所有列！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 淺拷貝錯誤範例",
+        "html": "<span class=\"token-comment\"># 淺拷貝錯誤範例</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "常見初學陷阱",
+        "mean": "淺拷貝說明"
+      },
+      {
+        "num": 2,
+        "code": "bad = [[0] * 3] * 2",
+        "html": "<span class=\"token-ident\">bad</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">*</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span> <span class=\"token-op\">*</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "記憶體同一份",
+        "mean": "錯誤乘法共用列"
+      },
+      {
+        "num": 3,
+        "code": "bad[0][0] = 99",
+        "html": "<span class=\"token-ident\">bad</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">99</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "波及其他列",
+        "mean": "修改第0列第0格"
+      },
+      {
+        "num": 4,
+        "code": "# 獨立建構正確範例",
+        "html": "<span class=\"token-comment\"># 獨立建構正確範例</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "推導式防禦",
+        "mean": "正確建構說明"
+      },
+      {
+        "num": 5,
+        "code": "good = [[0] * 3 for _ in range(2)]",
+        "html": "<span class=\"token-ident\">good</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">*</span> <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "每列獨立實例",
+        "mean": "串列推導式生成獨立列"
+      },
+      {
+        "num": 6,
+        "code": "good[0][0] = 99",
+        "html": "<span class=\"token-ident\">good</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">=</span> <span class=\"token-number\">99</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "僅改一格",
+        "mean": "修改第0列第0格"
+      },
+      {
+        "num": 7,
+        "code": "print('淺拷貝污染兩列:', bad)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;淺拷貝污染兩列:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">bad</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "兩列皆變 99",
+        "mean": "印出淺拷貝污染"
+      },
+      {
+        "num": 8,
+        "code": "print('獨立生成安全運作:', good)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;獨立生成安全運作:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">good</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "僅第 0 列變 99",
+        "mean": "印出獨立安全結果"
+      }
+    ],
+    "output": "淺拷貝污染兩列: [[99, 0, 0], [99, 0, 0]]\n獨立生成安全運作: [[99, 0, 0], [0, 0, 0]]",
+    "diagram": {
+      "type": "compare",
+      "title": "記憶體結構差異",
+      "good": "[[0]*C for _ in range(R)]：各列獨立記憶體位址",
+      "bad": "[[0]*C] * R：R 列全部指向同一個 row 物件！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "不可變原則",
+        "content": "每次變換都傳回一個全新的二維串列，能從根源上杜絕任何參照污染與共用 Bug。"
+      }
+    ]
+  },
+  {
+    "page": 13,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "演算法推演：官方範例一 (3x2 經歷 1, 0, 0) 完整走訪表",
+    "subtitle": "官方範例一手動逐步追蹤與維度演變確認",
+    "desc": "輸入最終結果 3×2 矩陣：[[1, 1], [3, 1], [1, 2]]，正向操作為 [1, 0, 0]。逆向需執行 [0⁻¹, 0⁻¹, 1⁻¹]，讓我們親自手動推導每步矩陣狀態！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[1, 1], [3, 1], [1, 2]]  # 起點 3x2",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 起點 3x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3x2 矩陣",
+        "mean": "結果矩陣起點"
+      },
+      {
+        "num": 2,
+        "code": "# 1. 逆操作 0 (逆時針90度) -> 2x3",
+        "html": "<span class=\"token-comment\"># 1. 逆操作 0 (逆時針90度) -&gt; 2x3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "還原最後操作",
+        "mean": "第一步註解"
+      },
+      {
+        "num": 3,
+        "code": "mat = [list(r) for r in zip(*mat)][::-1]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "維度變 2x3",
+        "mean": "第一次逆旋"
+      },
+      {
+        "num": 4,
+        "code": "# 2. 逆操作 0 (逆時針90度) -> 3x2",
+        "html": "<span class=\"token-comment\"># 2. 逆操作 0 (逆時針90度) -&gt; 3x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "還原次後操作",
+        "mean": "第二步註解"
+      },
+      {
+        "num": 5,
+        "code": "mat = [list(r) for r in zip(*mat)][::-1]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "維度變 3x2",
+        "mean": "第二次逆旋"
+      },
+      {
+        "num": 6,
+        "code": "# 3. 逆操作 1 (垂直翻轉) -> 3x2",
+        "html": "<span class=\"token-comment\"># 3. 逆操作 1 (垂直翻轉) -&gt; 3x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "還原最先操作",
+        "mean": "第三步註解"
+      },
+      {
+        "num": 7,
+        "code": "mat = mat[::-1]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下對調",
+        "mean": "垂直翻轉"
+      },
+      {
+        "num": 8,
+        "code": "print('最終還原維度:', len(mat), len(mat[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;最終還原維度:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "尺寸為 3 2",
+        "mean": "印出還原維度"
+      },
+      {
+        "num": 9,
+        "code": "for row in mat: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">:</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "輸出解答",
+        "mean": "逐列印出"
+      }
+    ],
+    "output": "最終還原維度: 3 2\n1 1\n1 3\n2 1",
+    "diagram": {
+      "type": "flowchart",
+      "title": "範例一步驟推演歷程",
+      "content": "[[1,1],[3,1],[1,2]] ➔ CCW90 ➔ [[1,1,2],[1,3,1]] ➔ CCW90 ➔ [[2,1],[1,3],[1,1]] ➔ Flip ➔ [[1,1],[1,3],[2,1]]"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "驗證通過",
+        "content": "輸出結果首行 3 2，後續內容逐行吻合官方範例輸出！"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "演算法推演：官方範例二 (3x2 經歷 0, 1) 還原 2x3 追蹤",
+    "subtitle": "包含長寬維度顛倒轉換的真實考驗",
+    "desc": "輸入最終結果 3×2 矩陣：[[3, 3], [2, 1], [1, 2]]，正向操作為 [0, 1]。逆向先還原 1（翻轉）再還原 0（逆旋），還原後的原始矩陣尺寸為 2×3！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mat = [[3, 3], [2, 1], [1, 2]]  # 3x2",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 3x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3x2 矩陣",
+        "mean": "範例二結果"
+      },
+      {
+        "num": 2,
+        "code": "# 1. 逆操作 1: 翻轉",
+        "html": "<span class=\"token-comment\"># 1. 逆操作 1: 翻轉</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "先還原操作1",
+        "mean": "第一步註解"
+      },
+      {
+        "num": 3,
+        "code": "mat = mat[::-1]  # [[1, 2], [2, 1], [3, 3]]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># [[1, 2], [2, 1], [3, 3]]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下顛倒",
+        "mean": "垂直翻轉"
+      },
+      {
+        "num": 4,
+        "code": "# 2. 逆操作 0: 逆時針 90 度",
+        "html": "<span class=\"token-comment\"># 2. 逆操作 0: 逆時針 90 度</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "再還原操作0",
+        "mean": "第二步註解"
+      },
+      {
+        "num": 5,
+        "code": "mat = [list(r) for r in zip(*mat)][::-1]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "轉為 2x3",
+        "mean": "逆時針旋轉"
+      },
+      {
+        "num": 6,
+        "code": "print('還原尺寸:', len(mat), len(mat[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;還原尺寸:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "尺寸 2 3",
+        "mean": "印出還原長寬"
+      },
+      {
+        "num": 7,
+        "code": "for row in mat: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">:</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逐列印出",
+        "mean": "印出矩陣內容"
+      }
+    ],
+    "output": "還原尺寸: 2 3\n2 1 3\n1 2 3",
+    "diagram": {
+      "type": "flowchart",
+      "title": "範例二步驟推演歷程",
+      "content": "[[3,3],[2,1],[1,2]](3x2) ➔ Flip ➔ [[1,2],[2,1],[3,3]](3x2) ➔ CCW90 ➔ [[2,1,3],[1,2,3]](2x3)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "維度翻轉確認",
+        "content": "原本輸入結果是 3 列 2 行，還原後是 2 列 3 行。完美驗證了非方陣幾何動態長寬機制！"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "演算法實作：模組化函式標準解法",
+    "subtitle": "封裝 flip 與 rotate_ccw，易讀性最高、最穩健結構",
+    "desc": "在大型專案或需要高度維護性的考場環境下，將翻轉與逆旋分別封裝為獨立函式，主程式以清晰的迴圈調度，能將出錯率降到最低！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def flip(m): return m[::-1]",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">flip</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span> <span class=\"token-keyword\">return</span> <span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "切片最快",
+        "mean": "翻轉函式"
+      },
+      {
+        "num": 2,
+        "code": "def ccw(m):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">ccw</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "手刻雙迴圈",
+        "mean": "逆旋函式"
+      },
+      {
+        "num": 3,
+        "code": "    r, c = len(m), len(m[0])",
+        "html": "    <span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "動態長寬",
+        "mean": "取得當前維度"
+      },
+      {
+        "num": 4,
+        "code": "    return [[m[i][j] for i in range(r)] for j in range(c-1, -1, -1)]",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">j</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">c</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "由右向左讀",
+        "mean": "推導式生成逆旋"
+      },
+      {
+        "num": 5,
+        "code": "def solve(mat, ops):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "模組化",
+        "mean": "解題核心函式"
+      },
+      {
+        "num": 6,
+        "code": "    for op in reversed(ops):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "LIFO",
+        "mean": "倒序指令迴圈"
+      },
+      {
+        "num": 7,
+        "code": "        mat = flip(mat) if op == 1 else ccw(mat)",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">flip</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">else</span> <span class=\"token-ident\">ccw</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "簡潔明快",
+        "mean": "三元運算符調度"
+      },
+      {
+        "num": 8,
+        "code": "    return mat",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">mat</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "還原結果",
+        "mean": "傳回最終矩陣"
+      },
+      {
+        "num": 9,
+        "code": "res = solve([[1, 1], [3, 1], [1, 2]], [1, 0, 0])",
+        "html": "<span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證",
+        "mean": "呼叫求解範例一"
+      },
+      {
+        "num": 10,
+        "code": "print(f'{len(res)} {len(res[0])}')",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;<span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3 2",
+        "mean": "印出尺寸"
+      },
+      {
+        "num": 11,
+        "code": "for r in res: print(*r)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">res</span><span class=\"token-op\">:</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完全符合",
+        "mean": "印出內容"
+      }
+    ],
+    "output": "3 2\n1 1\n1 3\n2 1",
+    "diagram": {
+      "type": "flowchart",
+      "title": "模組調度架構",
+      "content": "solve(mat, ops) ➔ reversed(ops) ➔ [op==1 ? flip : ccw] ➔ return mat"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "初學者推薦",
+        "content": "每個動作分開命名測試，除錯時若翻轉有問題只需改 flip，旋轉有問題只需改 ccw。"
+      }
+    ]
+  },
+  {
+    "page": 16,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "演算法實作：極簡 10 行高效通關版",
+    "subtitle": "進階高手首選：zip 轉置一行流精煉精華",
+    "desc": "利用 Python 內建 `zip(*mat)` 與三元運算式，在 10 行內完成整道題目，兼顧極速打字與極致簡潔，考場 3 分鐘即可 AC！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def solve_concise(mat, ops):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve_concise</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "10 行精華",
+        "mean": "精簡函式定義"
+      },
+      {
+        "num": 2,
+        "code": "    for op in reversed(ops):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "reversed(ops)",
+        "mean": "倒序遍歷操作"
+      },
+      {
+        "num": 3,
+        "code": "        if op == 1:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 1",
+        "mean": "判斷翻轉操作"
+      },
+      {
+        "num": 4,
+        "code": "            mat = mat[::-1]",
+        "html": "            <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下對調",
+        "mean": "切片翻轉"
+      },
+      {
+        "num": 5,
+        "code": "        else:",
+        "html": "        <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 0",
+        "mean": "旋轉逆操作"
+      },
+      {
+        "num": 6,
+        "code": "            mat = [list(r) for r in zip(*mat)][::-1]",
+        "html": "            <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "逆時針 90 度",
+        "mean": "zip轉置後翻轉"
+      },
+      {
+        "num": 7,
+        "code": "    return mat",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">mat</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "純淨回傳",
+        "mean": "傳回結果矩陣"
+      },
+      {
+        "num": 8,
+        "code": "res = solve_concise([[3, 3], [2, 1], [1, 2]], [0, 1])",
+        "html": "<span class=\"token-ident\">res</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">solve_concise</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證範例二",
+        "mean": "呼叫範例二測試"
+      },
+      {
+        "num": 9,
+        "code": "print(len(res), len(res[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">res</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "尺寸 2 3",
+        "mean": "印出維度"
+      },
+      {
+        "num": 10,
+        "code": "for row in res: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">res</span><span class=\"token-op\">:</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "空格間隔",
+        "mean": "解包印出"
+      }
+    ],
+    "output": "2 3\n2 1 3\n1 2 3",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "代碼特徵",
+      "content": "無額外函式十行搞定"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "高手必備",
+        "content": "這段代碼充分利用了 Python 迭代器與生成式特性，簡潔優雅且執行速度極快。"
+      }
+    ]
+  },
+  {
+    "page": 17,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "雙解法對拍與全測資壓力測試",
+    "subtitle": "模組化雙迴圈版 vs 極簡 zip 版 100% 邏輯等價驗證",
+    "desc": "在競賽演算法中，撰寫兩套不同實作進行對拍（Stress Test）是確保 100% 滿分的最強手段。在此驗證手刻版與 zip 版在各種操作組合下的完全等價性！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def s1(m, ops):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">s1</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "穩健版",
+        "mean": "手刻雙迴圈版"
+      },
+      {
+        "num": 2,
+        "code": "    for op in reversed(ops):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "LIFO",
+        "mean": "倒序走訪"
+      },
+      {
+        "num": 3,
+        "code": "        if op == 1: m = m[::-1]",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span> <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "mat[::-1]",
+        "mean": "手刻翻轉"
+      },
+      {
+        "num": 4,
+        "code": "        else: m = [[m[i][j] for i in range(len(m))] for j in range(len(m[0])-1,-1,-1)]",
+        "html": "        <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span> <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">j</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "手刻座標",
+        "mean": "手刻逆旋雙迴圈"
+      },
+      {
+        "num": 5,
+        "code": "    return m",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">m</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完成 s1",
+        "mean": "傳回 s1 結果"
+      },
+      {
+        "num": 6,
+        "code": "def s2(m, ops):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">s2</span><span class=\"token-op\">(</span><span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "高效版",
+        "mean": "極簡一行流版"
+      },
+      {
+        "num": 7,
+        "code": "    for op in reversed(ops):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "zip 轉置",
+        "mean": "三元運算符調度"
+      },
+      {
+        "num": 8,
+        "code": "        m = m[::-1] if op == 1 else [list(r) for r in zip(*m)][::-1]",
+        "html": "        <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">m</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">else</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">m</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完成 s2",
+        "mean": "傳回 s2 結果"
+      },
+      {
+        "num": 9,
+        "code": "    return m",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">m</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "2x3",
+        "mean": "隨機測試矩陣"
+      },
+      {
+        "num": 10,
+        "code": "t_mat = [[1, 2, 3], [4, 5, 6]]",
+        "html": "<span class=\"token-ident\">t_mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "5步變換",
+        "mean": "複雜操作清單"
+      },
+      {
+        "num": 11,
+        "code": "t_ops = [0, 1, 0, 0, 1]",
+        "html": "<span class=\"token-ident\">t_ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 100%等價",
+        "mean": "對拍比對印出"
+      },
+      {
+        "num": 12,
+        "code": "print('雙解法輸出完全一致:', s1(t_mat, t_ops) == s2(t_mat, t_ops))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;雙解法輸出完全一致:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">s1</span><span class=\"token-op\">(</span><span class=\"token-ident\">t_mat</span><span class=\"token-op\">,</span> <span class=\"token-ident\">t_ops</span><span class=\"token-op\">)</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">s2</span><span class=\"token-op\">(</span><span class=\"token-ident\">t_mat</span><span class=\"token-op\">,</span> <span class=\"token-ident\">t_ops</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "雙解法輸出完全一致: True",
+    "diagram": {
+      "type": "compare",
+      "title": "對拍驗證",
+      "good": "雙版本計算結果一模一樣，考場無懼任何測資差異！",
+      "bad": "若對拍出現差異，可立即比對單步除錯！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "對拍優點",
+        "content": "手刻版本直觀不易漏邏輯，zip 版本簡潔高效，兩者對拍互相保證正確性。"
+      }
+    ]
+  },
+  {
+    "page": 18,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "極限邊界條件測試：1x1 單格與連續 4 次旋轉",
+    "subtitle": "邊界案例防禦：最小規模矩陣與週期性歸位驗證",
+    "desc": "驗證極端邊界：1×1 單元素矩陣在經歷多次翻轉與旋轉後是否依然穩健不崩潰？連續 4 次旋轉（360度）是否能精準還原為自身？",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def solve(mat, ops):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "通用函式",
+        "mean": "核心解題函式"
+      },
+      {
+        "num": 2,
+        "code": "    for op in reversed(ops):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "LIFO",
+        "mean": "倒序指令走訪"
+      },
+      {
+        "num": 3,
+        "code": "        mat = mat[::-1] if op == 1 else [list(r) for r in zip(*mat)][::-1]",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">else</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "翻轉或逆旋",
+        "mean": "三元運算符變換"
+      },
+      {
+        "num": 4,
+        "code": "    return mat",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">mat</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完成",
+        "mean": "傳回結果"
+      },
+      {
+        "num": 5,
+        "code": "# 1. 1x1 單元素測試",
+        "html": "<span class=\"token-comment\"># 1. 1x1 單元素測試</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "極限維度",
+        "mean": "單元素測試說明"
+      },
+      {
+        "num": 6,
+        "code": "one = solve([[88]], [0, 1, 0, 1])",
+        "html": "<span class=\"token-ident\">one</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">88</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "4步變換",
+        "mean": "1x1 執行 4 次操作"
+      },
+      {
+        "num": 7,
+        "code": "print('1x1 測試:', one == [[88]])",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;1x1 測試:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">one</span> <span class=\"token-op\">==</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">88</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 依然是 [[88]]",
+        "mean": "印出 1x1 驗證結果"
+      },
+      {
+        "num": 8,
+        "code": "# 2. 連續 4 次旋轉原狀測試",
+        "html": "<span class=\"token-comment\"># 2. 連續 4 次旋轉原狀測試</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "360度週期",
+        "mean": "4次旋轉說明"
+      },
+      {
+        "num": 9,
+        "code": "quad = solve([[1, 2], [3, 4]], [0, 0, 0, 0])",
+        "html": "<span class=\"token-ident\">quad</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "原矩陣",
+        "mean": "執行 4 次操作0"
+      },
+      {
+        "num": 10,
+        "code": "print('4次旋轉歸位:', quad == [[1, 2], [3, 4]])",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;4次旋轉歸位:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">quad</span> <span class=\"token-op\">==</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 完美還原",
+        "mean": "印出週期歸位結果"
+      }
+    ],
+    "output": "1x1 測試: True\n4次旋轉歸位: True",
+    "diagram": {
+      "type": "flowchart",
+      "title": "週期性特徵",
+      "content": "Op 1 做 2 次 = 原狀 (周期 2)\nOp 0 做 4 次 = 原狀 (周期 4)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "邊界測資必備",
+        "content": "APCS 官方測試資料必定包含 1×1 矩陣與全是相同指令的極端案例，通過此測試即具備 AC 實力！"
+      }
+    ]
+  },
+  {
+    "page": 19,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "雙平台滿分通關解答庫：架構解析",
+    "subtitle": "針對 APCS 考場環境與 ZeroJudge 評判系統的差異化適配",
+    "desc": "APCS 實體考場單次執行輸入一筆測資，著重變數清晰與除錯直觀；ZeroJudge 線上評判支援多筆測資循環輸入，需處理 EOF 串流。本解答庫提供雙平台完全適配版！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 核心逆推還原函式（雙平台通用核心）",
+        "html": "<span class=\"token-comment\"># 核心逆推還原函式（雙平台通用核心）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "共用核心",
+        "mean": "核心註解"
+      },
+      {
+        "num": 2,
+        "code": "def restore_matrix(r, c, m, mat, ops):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">restore_matrix</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">m</span><span class=\"token-op\">,</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">,</span> <span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "模組化",
+        "mean": "通用核心函式"
+      },
+      {
+        "num": 3,
+        "code": "    cur = [row[:] for row in mat]",
+        "html": "    <span class=\"token-ident\">cur</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">row</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防污染",
+        "mean": "深拷貝目前矩陣"
+      },
+      {
+        "num": 4,
+        "code": "    for op in reversed(ops):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "LIFO",
+        "mean": "倒序指令迴圈"
+      },
+      {
+        "num": 5,
+        "code": "        if op == 1:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 1",
+        "mean": "判斷翻轉操作"
+      },
+      {
+        "num": 6,
+        "code": "            cur = cur[::-1]",
+        "html": "            <span class=\"token-ident\">cur</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cur</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "切片翻轉",
+        "mean": "垂直翻轉"
+      },
+      {
+        "num": 7,
+        "code": "        else:",
+        "html": "        <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 0",
+        "mean": "判斷逆旋操作"
+      },
+      {
+        "num": 8,
+        "code": "            cur = [list(row) for row in zip(*cur)][::-1]",
+        "html": "            <span class=\"token-ident\">cur</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">cur</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行流逆旋",
+        "mean": "逆時針90度"
+      },
+      {
+        "num": 9,
+        "code": "    return cur",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">cur</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "返回",
+        "mean": "傳回還原矩陣"
+      },
+      {
+        "num": 10,
+        "code": "print('核心還原函式定義完成，準備進入各版本詳解！')",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;核心還原函式定義完成，準備進入各版本詳解！&#x27;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "架構就緒",
+        "mean": "印出就緒訊息"
+      }
+    ],
+    "output": "核心還原函式定義完成，準備進入各版本詳解！",
+    "diagram": {
+      "type": "flowchart",
+      "title": "解答庫三版本體系",
+      "content": "版本一：APCS 淺顯易懂版 (新手友好)\n版本二：APCS 極簡精煉版 (高手必備)\n版本三：ZeroJudge 萬用 AC 版 (多筆EOF)"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "架構規劃",
+        "content": "接下來三頁將分別展示 APCS 新手版、APCS 極簡版與 ZeroJudge 萬用版，滿足不同學習層次需求！"
+      }
+    ]
+  },
+  {
+    "page": 20,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "版本一：APCS 官方實作考場專用版（淺顯易懂版）",
+    "subtitle": "步驟明確、新手友善、平鋪直敘穩健滿分",
+    "desc": "APCS 官方實作考場專用版 —— 淺顯易懂一般版。平鋪直敘、步驟明確、不使用生僻語法，考場除錯最不易出錯的穩健滿分方案！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "r, c, m = map(int, input().split())",
+        "html": "<span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "APCS 標準輸入",
+        "mean": "讀取維度與操作數"
+      },
+      {
+        "num": 2,
+        "code": "mat = [list(map(int, input().split())) for _ in range(r)]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "R 行 C 列",
+        "mean": "讀取結果矩陣"
+      },
+      {
+        "num": 3,
+        "code": "ops = list(map(int, input().split()))",
+        "html": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正向操作清單",
+        "mean": "讀取操作指令"
+      },
+      {
+        "num": 4,
+        "code": "for op in reversed(ops):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "LIFO",
+        "mean": "倒序執行指令"
+      },
+      {
+        "num": 5,
+        "code": "    if op == 1:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 1",
+        "mean": "判斷翻轉"
+      },
+      {
+        "num": 6,
+        "code": "        mat = mat[::-1]",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "上下對調",
+        "mean": "垂直翻轉"
+      },
+      {
+        "num": 7,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 0",
+        "mean": "判斷旋轉"
+      },
+      {
+        "num": 8,
+        "code": "        cr, cc = len(mat), len(mat[0])",
+        "html": "        <span class=\"token-ident\">cr</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cc</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "安全長寬",
+        "mean": "動態取得長寬"
+      },
+      {
+        "num": 9,
+        "code": "        mat = [[mat[i][j] for i in range(cr)] for j in range(cc-1, -1, -1)]",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-ident\">j</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">cr</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">j</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">cc</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "零死角手刻",
+        "mean": "手刻逆時針旋轉"
+      },
+      {
+        "num": 10,
+        "code": "print(len(mat), len(mat[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "首行尺寸",
+        "mean": "印出還原長寬"
+      },
+      {
+        "num": 11,
+        "code": "for row in mat:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逐列輸出",
+        "mean": "走訪各列"
+      },
+      {
+        "num": 12,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "空格分隔",
+        "mean": "解包印出各列元素"
+      }
+    ],
+    "output": "",
+    "diagram": {
+      "type": "flowchart",
+      "title": "版本一特點",
+      "content": "純標準庫 + 手刻雙迴圈逆旋 + 明確註釋 ➔ 考場 100 分穩操勝券"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考場提交說明",
+        "content": "本程式碼專為 APCS 官方環境設計，直接在實體考場或提交系統中運行即可 AC。"
+      }
+    ]
+  },
+  {
+    "page": 21,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "版本二：APCS 官方實作考場專用版（極簡高效精煉版）",
+    "subtitle": "進階高手推薦：極致精煉 10 行逆推短碼",
+    "desc": "APCS 官方實作考場專用版 —— 極簡高效精煉版。利用 `zip(*mat)` 轉置與切片，10 行程式碼精確還原，打字速度極快，考場奪秒首選！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "r, c, m = map(int, input().split())",
+        "html": "<span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "快速輸入",
+        "mean": "讀取 R, C, M"
+      },
+      {
+        "num": 2,
+        "code": "mat = [list(map(int, input().split())) for _ in range(r)]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "乾淨簡練",
+        "mean": "串列推導式讀取矩陣"
+      },
+      {
+        "num": 3,
+        "code": "ops = list(map(int, input().split()))",
+        "html": "<span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "操作指令",
+        "mean": "讀取操作串列"
+      },
+      {
+        "num": 4,
+        "code": "for op in reversed(ops):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "reversed(ops)",
+        "mean": "倒序執行指令"
+      },
+      {
+        "num": 5,
+        "code": "    if op == 1:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 1",
+        "mean": "判斷指令 1"
+      },
+      {
+        "num": 6,
+        "code": "        mat = mat[::-1]",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "垂直翻轉",
+        "mean": "切片翻轉"
+      },
+      {
+        "num": 7,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "op == 0",
+        "mean": "判斷指令 0"
+      },
+      {
+        "num": 8,
+        "code": "        mat = [list(row) for row in zip(*mat)][::-1]",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "逆時針 90 度",
+        "mean": "zip轉置後翻轉逆旋"
+      },
+      {
+        "num": 9,
+        "code": "print(len(mat), len(mat[0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "len(mat) len(mat[0])",
+        "mean": "印出還原維度"
+      },
+      {
+        "num": 10,
+        "code": "for row in mat:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逐列",
+        "mean": "走訪各列"
+      },
+      {
+        "num": 11,
+        "code": "    print(*row)",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "print(*row)",
+        "mean": "解包輸出"
+      }
+    ],
+    "output": "",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "極簡特徵",
+      "content": "簡潔優雅高效十行"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "進階高手專用",
+        "content": "語法精簡、毫無冗餘，是 APCS 實作題第二題最推薦的成熟寫法。"
+      }
+    ]
+  },
+  {
+    "page": 22,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "版本三：ZeroJudge 線上評判萬用 AC 版",
+    "subtitle": "支援多筆測資 EOF 循環輸入與自動化測試",
+    "desc": "ZeroJudge 線上評判萬用 AC 版。針對線上 OJ 多筆測試案例採用 `sys.stdin.read().split()` 批次標記解析，並包含本地全自動單元測試套件！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "sys",
+        "mean": "導入系統模組"
+      },
+      {
+        "num": 2,
+        "code": "def solve_zj():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve_zj</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "模組化",
+        "mean": "ZeroJudge 主函式"
+      },
+      {
+        "num": 3,
+        "code": "    tokens = sys.stdin.read().split()",
+        "html": "    <span class=\"token-ident\">tokens</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">sys</span><span class=\"token-op\">.</span><span class=\"token-ident\">stdin</span><span class=\"token-op\">.</span><span class=\"token-ident\">read</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "最速讀取",
+        "mean": "一次性讀取所有標記"
+      },
+      {
+        "num": 4,
+        "code": "    if not tokens: return",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">tokens</span><span class=\"token-op\">:</span> <span class=\"token-keyword\">return</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "安全退出",
+        "mean": "防空串流"
+      },
+      {
+        "num": 5,
+        "code": "    idx = 0",
+        "html": "    <span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "index",
+        "mean": "指標歸零"
+      },
+      {
+        "num": 6,
+        "code": "    while idx < len(tokens):",
+        "html": "    <span class=\"token-keyword\">while</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "支援多測資",
+        "mean": "多筆測資 EOF 迴圈"
+      },
+      {
+        "num": 7,
+        "code": "        r, c, m = int(tokens[idx]), int(tokens[idx+1]), int(tokens[idx+2])",
+        "html": "        <span class=\"token-ident\">r</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">,</span> <span class=\"token-ident\">m</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "尺寸解析",
+        "mean": "解析 R, C, M"
+      },
+      {
+        "num": 8,
+        "code": "        idx += 3",
+        "html": "        <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "更新",
+        "mean": "推進指標 3 位"
+      },
+      {
+        "num": 9,
+        "code": "        mat = [[int(x) for x in tokens[idx+i*c:idx+(i+1)*c]] for i in range(r)]",
+        "html": "        <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-ident\">i</span><span class=\"token-op\">*</span><span class=\"token-ident\">c</span><span class=\"token-op\">:</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-op\">(</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">*</span><span class=\"token-ident\">c</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "快速生成",
+        "mean": "切片建構 R*C 矩陣"
+      },
+      {
+        "num": 10,
+        "code": "        idx += r * c",
+        "html": "        <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">r</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">c</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "跳過矩陣",
+        "mean": "推進指標 R*C 位"
+      },
+      {
+        "num": 11,
+        "code": "        ops = [int(x) for x in tokens[idx:idx+m]]",
+        "html": "        <span class=\"token-ident\">ops</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">:</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-ident\">m</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "取得指令",
+        "mean": "切片讀取操作序列"
+      },
+      {
+        "num": 12,
+        "code": "        idx += m",
+        "html": "        <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">m</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完成該筆",
+        "mean": "推進指標 M 位"
+      },
+      {
+        "num": 13,
+        "code": "        for op in reversed(ops):",
+        "html": "        <span class=\"token-keyword\">for</span> <span class=\"token-ident\">op</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">reversed</span><span class=\"token-op\">(</span><span class=\"token-ident\">ops</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "LIFO",
+        "mean": "倒序指令迴圈"
+      },
+      {
+        "num": 14,
+        "code": "            mat = mat[::-1] if op == 1 else [list(row) for row in zip(*mat)][::-1]",
+        "html": "            <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">op</span> <span class=\"token-op\">==</span> <span class=\"token-number\">1</span> <span class=\"token-keyword\">else</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "翻轉或逆旋",
+        "mean": "三元運算符逆推"
+      },
+      {
+        "num": 15,
+        "code": "        print(len(mat), len(mat[0]))",
+        "html": "        <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mat</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "尺寸符合",
+        "mean": "印出維度"
+      },
+      {
+        "num": 16,
+        "code": "        for row in mat: print(*row)",
+        "html": "        <span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">:</span> <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">row</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "輸出答案",
+        "mean": "印出內容"
+      }
+    ],
+    "output": "",
+    "diagram": {
+      "type": "flowchart",
+      "title": "ZeroJudge 輸入處理流程",
+      "content": "sys.stdin.read().split() ➔ while idx < len(tokens) ➔ 解析單筆 R,C,M,mat,ops ➔ solve ➔ print"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "線上評判防爆",
+        "content": "使用 `sys.stdin.read().split()` 完全無視各種怪異的換行或多餘空白，是 ZeroJudge 最萬用的防禦技巧。"
+      }
+    ]
+  },
+  {
+    "page": 23,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "考點復盤與全題型總結（口訣精準收斂）",
+    "subtitle": "八字金鑰：倒序逆推翻轉逆旋",
+    "desc": "回顧整題脈絡，我們建立了堅固的時空逆推模型。只要掌握口訣八字，面對所有矩陣幾何操作題都能迎刃而解！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "mnemonic = '倒序逆推翻轉逆旋'",
+        "html": "<span class=\"token-ident\">mnemonic</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&#x27;倒序逆推翻轉逆旋&#x27;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "嚴格 8 字",
+        "mean": "單元口訣定義"
+      },
+      {
+        "num": 2,
+        "code": "print(f'口訣字數檢驗: {len(mnemonic)} 字 (嚴格 <= 12 字)')",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;口訣字數檢驗: <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">mnemonic</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> 字 (嚴格 &lt;= 12 字)&#x27;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "合規檢查",
+        "mean": "字數長度驗證"
+      },
+      {
+        "num": 3,
+        "code": "rules = [",
+        "html": "<span class=\"token-ident\">rules</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "全面複習",
+        "mean": "四大核心規則"
+      },
+      {
+        "num": 4,
+        "code": "    '1. 倒序逆推：指令順序必由後往前 (reversed)',",
+        "html": "    <span class=\"token-string\">&#x27;1. 倒序逆推：指令順序必由後往前 (reversed)&#x27;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "LIFO",
+        "mean": "第一條：倒序"
+      },
+      {
+        "num": 5,
+        "code": "    '2. 翻轉自逆：垂直翻轉二次歸位 (mat[::-1])',",
+        "html": "    <span class=\"token-string\">&#x27;2. 翻轉自逆：垂直翻轉二次歸位 (mat[::-1])&#x27;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "自逆性",
+        "mean": "第二條：翻轉"
+      },
+      {
+        "num": 6,
+        "code": "    '3. 旋轉逆旋：順旋逆操作必為逆旋 (zip+切片)',",
+        "html": "    <span class=\"token-string\">&#x27;3. 旋轉逆旋：順旋逆操作必為逆旋 (zip+切片)&#x27;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "CCW90",
+        "mean": "第三條：逆旋"
+      },
+      {
+        "num": 7,
+        "code": "    '4. 維度動態：非方陣旋轉長寬必交換 (len(mat))'",
+        "html": "    <span class=\"token-string\">&#x27;4. 維度動態：非方陣旋轉長寬必交換 (len(mat))&#x27;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "RxC 變 CxR",
+        "mean": "第四條：維度"
+      },
+      {
+        "num": 8,
+        "code": "]",
+        "html": "<span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "結構整齊",
+        "mean": "規則清單結尾"
+      },
+      {
+        "num": 9,
+        "code": "for r in rules:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">rules</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序顯示",
+        "mean": "走訪規則"
+      },
+      {
+        "num": 10,
+        "code": "    print(f'心法: {r[:7]}')",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&#x27;心法: <span class=\"token-op\">{</span><span class=\"token-ident\">r</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-number\">7</span><span class=\"token-op\">]</span><span class=\"token-op\">}</span>&#x27;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "牢記心法",
+        "mean": "印出核心心法"
+      }
+    ],
+    "output": "口訣字數檢驗: 8 字 (嚴格 <= 12 字)\n心法: 1. 倒序逆推\n心法: 2. 翻轉自逆\n心法: 3. 旋轉逆旋\n心法: 4. 維度動態",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "單元核心口訣",
+      "content": "倒序逆推翻轉逆旋"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考前一分鐘複習",
+        "content": "在考場上默念『倒序逆推翻轉逆旋』，先寫 reversed，再寫 flip 和 ccw，絕不混淆！"
+      }
+    ]
+  },
+  {
+    "page": 24,
+    "totalPages": 24,
+    "stage": "④ 綜合驗收",
+    "title": "課後延伸思考：連續旋轉週期性（4次歸位）優化",
+    "subtitle": "代數群論視角：旋轉 mod 4 與翻轉偶次消去",
+    "desc": "若連續出現多次旋轉（例如連續 7 次旋轉），是否真的需要旋轉 7 次？順時針旋轉 4 次等於沒轉（週期為 4），垂直翻轉 2 次也等於沒翻（週期為 2）。但在本題中，翻轉與旋轉交替出現時，不可直接模運算！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 週期性檢驗：連續相同操作的簡化",
+        "html": "<span class=\"token-comment\"># 週期性檢驗：連續相同操作的簡化</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "進階思考",
+        "mean": "週期性註解"
+      },
+      {
+        "num": 2,
+        "code": "mat = [[1, 2], [3, 4]]",
+        "html": "<span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "2x2 矩陣",
+        "mean": "原始矩陣"
+      },
+      {
+        "num": 3,
+        "code": "# 連續 7 次逆時針旋轉等價於 7 % 4 = 3 次",
+        "html": "<span class=\"token-comment\"># 連續 7 次逆時針旋轉等價於 7 % 4 = 3 次</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "代數特性",
+        "mean": "同類操作化簡說明"
+      },
+      {
+        "num": 4,
+        "code": "for _ in range(7 % 4):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">7</span> <span class=\"token-op\">%</span> <span class=\"token-number\">4</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "週期為 4",
+        "mean": "7次模4等價3次"
+      },
+      {
+        "num": 5,
+        "code": "    mat = [list(r) for r in zip(*mat)][::-1]",
+        "html": "    <span class=\"token-ident\">mat</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-ident\">mat</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "CCW90",
+        "mean": "執行逆時針旋轉"
+      },
+      {
+        "num": 6,
+        "code": "print('7次旋轉 (簡化為3次):', mat)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;7次旋轉 (簡化為3次):&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">mat</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "觀察結果",
+        "mean": "印出簡化結果"
+      },
+      {
+        "num": 7,
+        "code": "# 驗證 3 次逆時針等價於 1 次順時針",
+        "html": "<span class=\"token-comment\"># 驗證 3 次逆時針等價於 1 次順時針</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "3次逆等於1次順",
+        "mean": "數學對偶說明"
+      },
+      {
+        "num": 8,
+        "code": "cw = [list(r) for r in zip(*[[1, 2], [3, 4]][::-1])]",
+        "html": "<span class=\"token-ident\">cw</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-ident\">r</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">zip</span><span class=\"token-op\">(</span><span class=\"token-op\">*</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">[</span><span class=\"token-op\">:</span><span class=\"token-op\">:</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "順時針 90 度",
+        "mean": "執行順時針1次"
+      },
+      {
+        "num": 9,
+        "code": "print('直接順時針1次:', cw)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;直接順時針1次:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cw</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "觀察結果",
+        "mean": "印出順時針結果"
+      },
+      {
+        "num": 10,
+        "code": "print('兩者完全相等:', mat == cw)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;兩者完全相等:&#x27;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">mat</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">cw</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "True 完全相等",
+        "mean": "驗證兩者相等"
+      }
+    ],
+    "output": "7次旋轉 (簡化為3次): [[3, 1], [4, 2]]\n直接順時針1次: [[3, 1], [4, 2]]\n兩者完全相等: True",
+    "diagram": {
+      "type": "flowchart",
+      "title": "二面體群 D4 啟發",
+      "content": "連續旋轉 k 次 ➔ 實際只需 k % 4 次！連續翻轉 k 次 ➔ 實際只需 k % 2 次！"
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "注意交替操作",
+        "content": "若操作中穿插著翻轉（如 0 1 0 1），由於翻轉與旋轉不具備交換律，就不能直接總計次數，必須依序模擬！"
+      },
+      {
+        "type": "hint",
+        "title": "下一站預告",
+        "content": "恭喜完全征服 b266 矩陣轉換！下一站我們將前往 15-5 挑戰動態擴散模擬：f313 人口遷移！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    initSlideEngine({
+      sectionId: "{{SECTION_ID}}",
+      slidesData: slidesData,
+      colabUrl: "{{COLAB_URL}}"
+    });
+  </script>
+</body>
+</html>

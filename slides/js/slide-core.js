@@ -204,8 +204,8 @@ const courseCurriculum = [
     sections: [
       { id: "sec15-1", title: "15.1 c295. 最大和（APCS 2016-10 舊版第 2 題）", available: true, url: "PythAPCS123_15-1_maximum_sum_apcs_c295.html" },
       { id: "sec15-2", title: "15.2 c291. 小群體（APCS 2017-03 舊版第 2 題）", available: true, url: "PythAPCS123_15-2_small_groups_apcs_c291.html" },
-      { id: "sec15-3", title: "15.3 e287. 機器人的路徑（APCS 2019-06 舊版第 2 題）", available: false },
-      { id: "sec15-4", title: "15.4 b266. 矩陣轉換（APCS 2016-03 舊版第 2 題）", available: false },
+      { id: "sec15-3", title: "15.3 e287. 機器人的路徑（APCS 2019-06 舊版第 2 題）", available: true, url: "PythAPCS123_15-3_robot_path_apcs_e287.html" },
+      { id: "sec15-4", title: "15.4 b266. 矩陣轉換（APCS 2016-03 舊版第 2 題）", available: true, url: "PythAPCS123_15-4_matrix_transform_apcs_b266.html" },
       { id: "sec15-5", title: "15.5 f313. 人口遷移（APCS 2020-10 舊版第 2 題）", available: false },
       { id: "sec15-6", title: "15.6 f606. 流量（APCS 2021-01 舊版第 2 題）", available: false },
       { id: "sec15-7", title: "15.7 f580. 骰子（APCS 2020-07 舊版第 2 題）", available: false },

@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 10.1 元組特性、建立與不可變保護機制 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 10.1 元組特性、建立與不可變保護機制
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.1 為什麼需要不可變容器？（串列被誤改的慘劇 vs 元組的防禦屏障）",
+    "titleZh": "串列可變性的慘劇 vs 元組不可變的防禦屏障",
+    "titleEn": "Mutable Disaster vs Immutable Shield: Why Tuples Matter",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 串列（List）是可變的（Mutable）：容易在不知情下被竄改",
+        "html": "<span class=\"token-comment\"># 串列（List）是可變的（Mutable）：容易在不知情下被竄改</span>",
+        "alt": "註解：串列可變性說明",
+        "why": "建立對照組",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "cfg_list = [8080, \"127.0.0.1\"]",
+        "html": "<span class=\"token-ident\">cfg_list</span> = [<span class=\"token-number\">8080</span>, <span class=\"token-string\">\"127.0.0.1\"</span>]",
+        "alt": "宣告可變串列配置 cfg_list",
+        "diff": true,
+        "why": "建立串列設定檔",
+        "mean": "宣告串列"
+      },
+      {
+        "num": 3,
+        "code": "cfg_list[0] = 9999  # 被意外修改！",
+        "html": "<span class=\"token-ident\">cfg_list</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">9999</span>  <span class=\"token-comment\"># 被意外修改！</span>",
+        "alt": "修改串列索引 0 為 9999",
+        "diff": true,
+        "why": "展示可變性帶來的風險",
+        "mean": "竄改串列內容"
+      },
+      {
+        "num": 4,
+        "code": "print(\"串列被竄改:\", cfg_list)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"串列被竄改:\"</span>, <span class=\"token-ident\">cfg_list</span>)",
+        "alt": "印出遭竄改後的串列內容",
+        "why": "檢視竄改結果",
+        "mean": "輸出串列"
+      },
+      {
+        "num": 5,
+        "code": "# 元組（Tuple）是不可變的（Immutable）：如石刻般安全",
+        "html": "<span class=\"token-comment\"># 元組（Tuple）是不可變的（Immutable）：如石刻般安全</span>",
+        "alt": "註解：元組不可變性說明",
+        "why": "導入元組概念",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "cfg_tuple = (8080, \"127.0.0.1\")",
+        "html": "<span class=\"token-ident\">cfg_tuple</span> = (<span class=\"token-number\">8080</span>, <span class=\"token-string\">\"127.0.0.1\"</span>)",
+        "alt": "以小括號宣告不可變元組 cfg_tuple",
+        "diff": true,
+        "why": "建立安全元組配置",
+        "mean": "宣告元組"
+      },
+      {
+        "num": 7,
+        "code": "print(\"元組守護安全:\", cfg_tuple)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"元組守護安全:\"</span>, <span class=\"token-ident\">cfg_tuple</span>)",
+        "alt": "印出受到安全保護的元組",
+        "diff": true,
+        "why": "檢視元組內容",
+        "mean": "輸出元組"
+      }
+    ],
+    "output": "串列被竄改: [9999, '127.0.0.1']\n元組守護安全: (8080, '127.0.0.1')",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼需要元組（Tuple）</strong>：串列（List）具備可變性，但在大型專案或競技程式中，伺服器連接埠、常數表、棋盤維度等數據絕不允許被途中修改。元組提供天生的「不可變防護金鐘罩」。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考點透視</strong>：APCS 觀念題最常考序列容器的「可變性（Mutability）差異」。串列可以原地修改元素（<code>a[i] = v</code>），而元組嚴禁任何原地修改，違者引發 <code>TypeError</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "元組不可變，資料如石刻"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.2 元組宣告語法：小括號 `(...)` 與單元素逗號陷阱 `(x,)`",
+    "titleZh": "元組宣告語法——小括號與多元異質資料",
+    "titleEn": "Tuple Syntax & Heterogeneous Elements: Parentheses & Comma",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 採用一對小括號 () 宣告元組，元素間以逗號分隔",
+        "html": "<span class=\"token-comment\"># 採用一對小括號 () 宣告元組，元素間以逗號分隔</span>",
+        "alt": "註解：元組宣告語法說明",
+        "why": "介紹基本語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "user = (\"Alice\", 17, 98.5, True)",
+        "html": "<span class=\"token-ident\">user</span> = (<span class=\"token-string\">\"Alice\"</span>, <span class=\"token-number\">17</span>, <span class=\"token-number\">98.5</span>, <span class=\"token-builtin\">True</span>)",
+        "alt": "宣告包含姓名、年齡、成績與布林值的異質元組",
+        "diff": true,
+        "why": "示範多元型態混裝",
+        "mean": "宣告異質元組"
+      },
+      {
+        "num": 3,
+        "code": "empty_t = ()",
+        "html": "<span class=\"token-ident\">empty_t</span> = ()",
+        "alt": "宣告空元組 empty_t",
+        "diff": true,
+        "why": "示範長度為零的空元組",
+        "mean": "宣告空元組"
+      },
+      {
+        "num": 4,
+        "code": "print(\"使用者資料:\", user)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"使用者資料:\"</span>, <span class=\"token-ident\">user</span>)",
+        "alt": "印出完整 user 元組外觀",
+        "why": "檢視元組內容",
+        "mean": "輸出元組"
+      },
+      {
+        "num": 5,
+        "code": "print(\"長度:\", len(user), \"| 型態:\", type(user))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">user</span>), <span class=\"token-string\">\"| 型態:\"</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">user</span>))",
+        "alt": "呼叫 len 測量長度與 type 檢驗型態",
+        "why": "確認長度與類別",
+        "mean": "輸出長度與型態"
+      },
+      {
+        "num": 6,
+        "code": "print(\"空元組:\", empty_t, \"| 長度:\", len(empty_t))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"空元組:\"</span>, <span class=\"token-ident\">empty_t</span>, <span class=\"token-string\">\"| 長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">empty_t</span>))",
+        "alt": "印出空元組外觀與長度 0",
+        "why": "驗證空元組規格",
+        "mean": "輸出空元組"
+      }
+    ],
+    "output": "使用者資料: ('Alice', 17, 98.5, True)\n長度: 4 | 型態: &lt;class 'tuple'&gt;\n空元組: () | 長度: 0",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>元組的異質性（Heterogeneous）</strong>：與串列相同，元組可以容納任意資料型態，包含字串、數值、布林，甚至是另一個串列或元組。外觀由一對小括號 <code>()</code> 包裹。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>空元組宣告</strong>：使用不包含任何內容的 <code>()</code> 即可建立長度為 0 的空元組。使用 <code>type()</code> 檢查將會得到 <code>&lt;class 'tuple'&gt;</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "小括號元組，逗號分元素"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.2 元組宣告語法：小括號 `(...)` 與單元素逗號陷阱 `(x,)`",
+    "titleZh": "單元素逗號陷阱——決定元組身分的關鍵在逗號！",
+    "titleEn": "Single Element Comma Trap: Comma Defines the Tuple",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 沒加逗號：Python 視為純數學優先級括號！",
+        "html": "<span class=\"token-comment\"># 沒加逗號：Python 視為純數學優先級括號！</span>",
+        "alt": "註解：說明未加逗號的小括號判定",
+        "why": "標示常見迷思",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "not_tuple = (88)",
+        "html": "<span class=\"token-ident\">not_tuple</span> = (<span class=\"token-number\">88</span>)",
+        "alt": "賦值 not_tuple 為小括號包覆的 88",
+        "diff": true,
+        "why": "示範無逗號陷阱",
+        "mean": "純整數宣告"
+      },
+      {
+        "num": 3,
+        "code": "print(\"沒逗號型態:\", type(not_tuple))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"沒逗號型態:\"</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">not_tuple</span>))",
+        "alt": "印出 not_tuple 的型態 int",
+        "why": "揭曉型態為 int",
+        "mean": "輸出 class int"
+      },
+      {
+        "num": 4,
+        "code": "# 補上逗號：Python 才能識別為「單元素元組」！",
+        "html": "<span class=\"token-comment\"># 補上逗號：Python 才能識別為「單元素元組」！</span>",
+        "alt": "註解：補上逗號的正確宣告",
+        "why": "導入正確宣告語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "real_tuple = (88,)",
+        "html": "<span class=\"token-ident\">real_tuple</span> = (<span class=\"token-number\">88</span>,)",
+        "alt": "宣告補上逗號的單元素元組 real_tuple",
+        "diff": true,
+        "why": "建立單元素元組",
+        "mean": "宣告長度為1之元組"
+      },
+      {
+        "num": 6,
+        "code": "print(\"補逗號型態:\", type(real_tuple), \"| 長度:\", len(real_tuple))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"補逗號型態:\"</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">real_tuple</span>), <span class=\"token-string\">\"| 長度:\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">real_tuple</span>))",
+        "alt": "印出 real_tuple 型態 tuple 與長度 1",
+        "diff": true,
+        "why": "驗證元組型態與長度",
+        "mean": "輸出 class tuple 與長度 1"
+      }
+    ],
+    "output": "沒逗號型態: &lt;class 'int'&gt;\n補逗號型態: &lt;class 'tuple'&gt; | 長度: 1",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 觀念題最常考陷阱</strong>：在 Python 語法中，小括號兼具「運算優先級（如 <code>(1+2)*3</code>）」的功能。因此 <code>(88)</code> 純粹就是整數 <code>88</code>；只有加上逗號的 <code>(88,)</code> 才是長度為 1 的元組！"
+      },
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 語法死穴</strong>：文字單元亦然！<code>(\"apple\")</code> 是 <code>str</code>（長度 5）；<code>(\"apple\",)</code> 才是包含一個字串的 <code>tuple</code>（長度 1）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "單元素元組，末尾必加逗"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.2 元組宣告語法：小括號 `(...)` 與單元素逗號陷阱 `(x,)`",
+    "titleZh": "省略括號的打包語法——逗號才是元組的真正靈魂",
+    "titleEn": "Tuple Packing Without Parentheses: Comma is King",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 在 Python 中，逗號才是構建元組的關鍵符號",
+        "html": "<span class=\"token-comment\"># 在 Python 中，逗號才是構建元組的關鍵符號</span>",
+        "alt": "註解：逗號構建元組說明",
+        "why": "闡述核心概念",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "point = 10, 20  # 省略小括號，自動打包為元組",
+        "html": "<span class=\"token-ident\">point</span> = <span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>  <span class=\"token-comment\"># 省略小括號，自動打包為元組</span>",
+        "alt": "賦值 point 為逗號分隔的 10 與 20",
+        "diff": true,
+        "why": "示範無括號打包",
+        "mean": "自動打包元組"
+      },
+      {
+        "num": 3,
+        "code": "solo = 99,       # 單個數值加逗號，同樣打包成元組",
+        "html": "<span class=\"token-ident\">solo</span> = <span class=\"token-number\">99</span>,       <span class=\"token-comment\"># 單個數值加逗號，同樣打包成元組</span>",
+        "alt": "賦值 solo 為數值 99 後接逗號",
+        "diff": true,
+        "why": "示範無括號單元素元組",
+        "mean": "單元素打包"
+      },
+      {
+        "num": 4,
+        "code": "print(\"point:\", point, type(point))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"point:\"</span>, <span class=\"token-ident\">point</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">point</span>))",
+        "alt": "印出 point 數值與型態",
+        "why": "確認 point 為元組",
+        "mean": "輸出 (10, 20) class tuple"
+      },
+      {
+        "num": 5,
+        "code": "print(\"solo:\", solo, type(solo))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"solo:\"</span>, <span class=\"token-ident\">solo</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-ident\">solo</span>))",
+        "alt": "印出 solo 數值與型態",
+        "why": "確認 solo 為元組",
+        "mean": "輸出 (99,) class tuple"
+      }
+    ],
+    "output": "point: (10, 20) &lt;class 'tuple'&gt;\nsolo: (99,) &lt;class 'tuple'&gt;",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>元組自動打包（Tuple Packing）</strong>：只要有多個運算式以逗號隔開，即使不寫外圍小括號，Python 也會自動將其封裝成元組。例如函式 <code>return x, y</code> 本質就是回傳一個元組！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>程式碼規範建議</strong>：雖然括號可以省略，但在變數賦值與傳遞參數時，手動加上 <code>(x, y)</code> 能大幅提升程式碼的可讀性，避免視覺混淆。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "逗號分數值，自動打包組"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.3 正負索引存取與切片操作（承襲串列直覺，唯獨嚴禁賦值修改 `TypeError`）",
+    "titleZh": "承襲序列直覺——0-based 正負索引定位",
+    "titleEn": "Positive & Negative Indexing: 0-Based Sequence Access",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "week = (\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\")",
+        "html": "<span class=\"token-ident\">week</span> = (<span class=\"token-string\">\"Mon\"</span>, <span class=\"token-string\">\"Tue\"</span>, <span class=\"token-string\">\"Wed\"</span>, <span class=\"token-string\">\"Thu\"</span>, <span class=\"token-string\">\"Fri\"</span>, <span class=\"token-string\">\"Sat\"</span>, <span class=\"token-string\">\"Sun\"</span>)",
+        "alt": "宣告包含一週七天字串的元組 week",
+        "why": "建立測試序列",
+        "mean": "宣告七元素元組"
+      },
+      {
+        "num": 2,
+        "code": "print(\"第 0 個元素 (首日):\", week[0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 0 個元素 (首日):\"</span>, <span class=\"token-ident\">week</span>[<span class=\"token-number\">0</span>])",
+        "alt": "以正向索引 0 讀取 Mon",
+        "diff": true,
+        "why": "正向索引起點",
+        "mean": "輸出 Mon"
+      },
+      {
+        "num": 3,
+        "code": "print(\"第 2 個元素 (週三):\", week[2])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 2 個元素 (週三):\"</span>, <span class=\"token-ident\">week</span>[<span class=\"token-number\">2</span>])",
+        "alt": "以正向索引 2 讀取 Wed",
+        "diff": true,
+        "why": "讀取指定索引",
+        "mean": "輸出 Wed"
+      },
+      {
+        "num": 4,
+        "code": "print(\"倒數第 1 個 (末日):\", week[-1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"倒數第 1 個 (末日):\"</span>, <span class=\"token-ident\">week</span>[-<span class=\"token-number\">1</span>])",
+        "alt": "以負向索引 -1 讀取 Sun",
+        "diff": true,
+        "why": "負向索引結尾",
+        "mean": "輸出 Sun"
+      },
+      {
+        "num": 5,
+        "code": "print(\"倒數第 2 個 (週六):\", week[-2])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"倒數第 2 個 (週六):\"</span>, <span class=\"token-ident\">week</span>[-<span class=\"token-number\">2</span>])",
+        "alt": "以負向索引 -2 讀取 Sat",
+        "diff": true,
+        "why": "倒數第二個元素",
+        "mean": "輸出 Sat"
+      }
+    ],
+    "output": "第 0 個元素 (首日): Mon\n第 2 個元素 (週三): Wed\n倒數第 1 個 (末日): Sun\n倒數第 2 個 (週六): Sat",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>承襲序列索引規則</strong>：元組是標準的 Ordered Sequence，其索引規則與字串、串列 100% 相同。正向索引從 <code>0</code> 開始計算，負向索引從 <code>-1</code> 倒數。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>存取語法依然是中括號</strong>：注意！定義元組時用小括號 <code>()</code>，但要根據位置取出元素時，語法依然是中括號 <code>week[i]</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "正從零起步，負從負一始"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.3 正負索引存取與切片操作（承襲串列直覺，唯獨嚴禁賦值修改 `TypeError`）",
+    "titleZh": "左閉右開切片與步進反轉——安全衍生新元組",
+    "titleEn": "Tuple Slicing & Step Reversal: Sub-tuples Without Modification",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = (90, 85, 95, 70, 80, 100)",
+        "html": "<span class=\"token-ident\">scores</span> = (<span class=\"token-number\">90</span>, <span class=\"token-number\">85</span>, <span class=\"token-number\">95</span>, <span class=\"token-number\">70</span>, <span class=\"token-number\">80</span>, <span class=\"token-number\">100</span>)",
+        "alt": "宣告包含六個分數的元組 scores",
+        "why": "建立測試數值",
+        "mean": "宣告六元素元組"
+      },
+      {
+        "num": 2,
+        "code": "print(\"前三高分 ([:3]):\", scores[:3])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"前三高分 ([:3]):\"</span>, <span class=\"token-ident\">scores</span>[:<span class=\"token-number\">3</span>])",
+        "alt": "切片取出前三個元素",
+        "diff": true,
+        "why": "示範前段切片",
+        "mean": "輸出 (90, 85, 95)"
+      },
+      {
+        "num": 3,
+        "code": "print(\"中間子集 ([2:5]):\", scores[2:5])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"中間子集 ([2:5]):\"</span>, <span class=\"token-ident\">scores</span>[<span class=\"token-number\">2</span>:<span class=\"token-number\">5</span>])",
+        "alt": "切片取出索引 2 到 4 的元素",
+        "diff": true,
+        "why": "示範中段左閉右開切片",
+        "mean": "輸出 (95, 70, 80)"
+      },
+      {
+        "num": 4,
+        "code": "print(\"隔一取一 ([::2]):\", scores[::2])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"隔一取一 ([::2]):\"</span>, <span class=\"token-ident\">scores</span>[::<span class=\"token-number\">2</span>])",
+        "alt": "設定步進為 2 切片",
+        "diff": true,
+        "why": "示範步進選取",
+        "mean": "輸出 (90, 95, 80)"
+      },
+      {
+        "num": 5,
+        "code": "print(\"完整反轉 ([::-1]):\", scores[::-1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"完整反轉 ([::-1]):\"</span>, <span class=\"token-ident\">scores</span>[::<span class=\"token-op\">-</span><span class=\"token-number\">1</span>])",
+        "alt": "設定步進為 -1 倒序反轉元組",
+        "diff": true,
+        "why": "示範倒序反轉",
+        "mean": "輸出反轉後之元組"
+      }
+    ],
+    "output": "前三高分 ([:3]): (90, 85, 95)\n中間子集 ([2:5]): (95, 70, 80)\n隔一取一 ([::2]): (90, 95, 80)\n完整反轉 ([::-1]): (100, 80, 70, 95, 85, 90)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>左閉右開切片原則</strong>：語法 <code>t[start:end:step]</code> 同樣滿足包含 start 但不包含 end 的左閉右開區間。切片運算會建立並回傳一個全新的子元組。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>步進為負的快速反轉</strong>：<code>scores[::-1]</code> 是 APCS 考場最受歡迎的倒序技法，能夠在 $O(N)$ 時間內秒產出反轉順序的新元組，且絲毫不影響原物件。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "左閉右開切，原組不改變"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.4 型態互轉：`tuple(list)` 與 `list(tuple)` 的彈性切換",
+    "titleZh": "list(t) 與 tuple(l)——彈性解凍與安全封印工作流",
+    "titleEn": "Type Conversion: Unfreezing via list() & Freezing via tuple()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "locked = (10, 20, 30)  # 原始不可變元組",
+        "html": "<span class=\"token-ident\">locked</span> = (<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>)  <span class=\"token-comment\"># 原始不可變元組</span>",
+        "alt": "宣告鎖定的不可變元組 locked",
+        "why": "建立初始不可變狀態",
+        "mean": "宣告元組"
+      },
+      {
+        "num": 2,
+        "code": "# 第一步：轉為串列「解凍」，取得原地修改超能力",
+        "html": "<span class=\"token-comment\"># 第一步：轉為串列「解凍」，取得原地修改超能力</span>",
+        "alt": "註解：型態轉換第一步說明",
+        "why": "闡述解凍工作流",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "temp = list(locked)",
+        "html": "<span class=\"token-ident\">temp</span> = <span class=\"token-builtin\">list</span>(<span class=\"token-ident\">locked</span>)",
+        "alt": "呼叫 list 函式將元組轉為串列 temp",
+        "diff": true,
+        "why": "解凍為可變串列",
+        "mean": "型態轉型為串列"
+      },
+      {
+        "num": 4,
+        "code": "temp.append(40); temp[0] = 99  # 進行新增與替換",
+        "html": "<span class=\"token-ident\">temp</span>.<span class=\"token-ident\">append</span>(<span class=\"token-number\">40</span>); <span class=\"token-ident\">temp</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">99</span>  <span class=\"token-comment\"># 進行新增與替換</span>",
+        "alt": "對串列 temp 呼叫 append 與就地修改首元素",
+        "diff": true,
+        "why": "執行串列變更操作",
+        "mean": "修改串列內容"
+      },
+      {
+        "num": 5,
+        "code": "# 第二步：轉回元組「重新封印」，確保後續絕不被改",
+        "html": "<span class=\"token-comment\"># 第二步：轉回元組「重新封印」，確保後續絕不被改</span>",
+        "alt": "註解：型態轉換第二步說明",
+        "why": "闡述重新封印步驟",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "updated = tuple(temp)",
+        "html": "<span class=\"token-ident\">updated</span> = <span class=\"token-builtin\">tuple</span>(<span class=\"token-ident\">temp</span>)",
+        "alt": "呼叫 tuple 函式將串列轉回元組 updated",
+        "diff": true,
+        "why": "重新封印為不可變元組",
+        "mean": "型態轉型為元組"
+      },
+      {
+        "num": 7,
+        "code": "print(\"解凍修改前:\", locked)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"解凍修改前:\"</span>, <span class=\"token-ident\">locked</span>)",
+        "alt": "印出原本未變的 locked",
+        "why": "展示原物安全",
+        "mean": "輸出原元組"
+      },
+      {
+        "num": 8,
+        "code": "print(\"封印更新後:\", updated)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"封印更新後:\"</span>, <span class=\"token-ident\">updated</span>)",
+        "alt": "印出重新封印更新後的 updated",
+        "diff": true,
+        "why": "展示更新後元組",
+        "mean": "輸出新元組"
+      }
+    ],
+    "output": "解凍修改前: (10, 20, 30)\n封印更新後: (99, 20, 30, 40)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>解凍與封印工作流（Unfreeze & Freeze）</strong>：當題目需要對元組進行排序（<code>sort</code>）或追加時，標準心法為「<code>list()</code> 解凍 ➔ 串列操作 ➔ <code>tuple()</code> 封印」。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>原物件保持不變</strong>：轉型過程皆會複製出新物件，原本的 <code>locked</code> 元組在整個流程中絲毫不受影響，完美保障記憶體安全。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "轉串列修改，轉元組封印"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.5 元組解包賦值（Tuple Unpacking）與多變數同時接收",
+    "titleZh": "元組解包賦值——多變數對稱一次接收",
+    "titleEn": "Tuple Unpacking: Clean Multi-variable Assignment",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 定義包含三個欄位的選手元組",
+        "html": "<span class=\"token-comment\"># 定義包含三個欄位的選手元組</span>",
+        "alt": "註解：建立選手資料說明",
+        "why": "建立測試情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "user_info = (\"Bob\", 17, \"Taipei\")",
+        "html": "<span class=\"token-ident\">user_info</span> = (<span class=\"token-string\">\"Bob\"</span>, <span class=\"token-number\">17</span>, <span class=\"token-string\">\"Taipei\"</span>)",
+        "alt": "宣告包含姓名年齡城市的元組 user_info",
+        "why": "宣告元組資料",
+        "mean": "三元素元組"
+      },
+      {
+        "num": 3,
+        "code": "# 對稱解包：等號左側放三個變數，一對一接收數值",
+        "html": "<span class=\"token-comment\"># 對稱解包：等號左側放三個變數，一對一接收數值</span>",
+        "alt": "註解：解包語法說明",
+        "why": "揭示解包核心",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "name, age, city = user_info",
+        "html": "<span class=\"token-ident\">name</span>, <span class=\"token-ident\">age</span>, <span class=\"token-ident\">city</span> = <span class=\"token-ident\">user_info</span>",
+        "alt": "將 user_info 解包給 name age city",
+        "diff": true,
+        "why": "執行元組解包賦值",
+        "mean": "多變數接收"
+      },
+      {
+        "num": 5,
+        "code": "print(\"姓名:\", name)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"姓名:\"</span>, <span class=\"token-ident\">name</span>)",
+        "alt": "印出變數 name 的值",
+        "why": "驗證姓名欄位",
+        "mean": "輸出 Bob"
+      },
+      {
+        "num": 6,
+        "code": "print(\"年齡:\", age)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"年齡:\"</span>, <span class=\"token-ident\">age</span>)",
+        "alt": "印出變數 age 的值",
+        "why": "驗證年齡欄位",
+        "mean": "輸出 17"
+      },
+      {
+        "num": 7,
+        "code": "print(\"城市:\", city)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"城市:\"</span>, <span class=\"token-ident\">city</span>)",
+        "alt": "印出變數 city 的值",
+        "why": "驗證城市欄位",
+        "mean": "輸出 Taipei"
+      }
+    ],
+    "output": "姓名: Bob\n年齡: 17\n城市: Taipei",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>什麼是解包賦值（Unpacking）</strong>：Python 能將序列容器中的元素自動拆散，並依序賦值給等號左邊的多個變數。不需要逐行寫 <code>name = user_info[0]</code>，語法乾淨洗鍊。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 數量相等鐵律</strong>：解包時等號左邊的變數數量，必須和等號右邊元組的元素個數「嚴格完全相等」，絕不能多一個或少一個！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "左變數右組，數量必相等"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.5 元組解包賦值（Tuple Unpacking）與多變數同時接收",
+    "titleZh": "迴圈走訪多元組清單——即時解包乾淨俐落",
+    "titleEn": "Iterating & Unpacking in Loops: Clean Tuple Records",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 串列中存放多個結構相同的元組紀錄",
+        "html": "<span class=\"token-comment\"># 串列中存放多個結構相同的元組紀錄</span>",
+        "alt": "註解：元組清單說明",
+        "why": "建立集合記錄情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "students = [(\"Alice\", 95), (\"Bob\", 88), (\"Cindy\", 92)]",
+        "html": "<span class=\"token-ident\">students</span> = [(<span class=\"token-string\">\"Alice\"</span>, <span class=\"token-number\">95</span>), (<span class=\"token-string\">\"Bob\"</span>, <span class=\"token-number\">88</span>), (<span class=\"token-string\">\"Cindy\"</span>, <span class=\"token-number\">92</span>)]",
+        "alt": "宣告包含三個學生姓名與成績元組的串列 students",
+        "why": "建立二元記錄串列",
+        "mean": "元組串列"
+      },
+      {
+        "num": 3,
+        "code": "# 在 for 迴圈標頭直接解包成 name 與 score",
+        "html": "<span class=\"token-comment\"># 在 for 迴圈標頭直接解包成 name 與 score</span>",
+        "alt": "註解：迴圈解包說明",
+        "why": "強調迴圈解包優勢",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "for name, score in students:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, <span class=\"token-ident\">score</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">students</span>:",
+        "alt": "走訪 students 並即時解包為 name 與 score",
+        "diff": true,
+        "why": "直接於迴圈進行結構拆解",
+        "mean": "走訪並解包"
+      },
+      {
+        "num": 5,
+        "code": "    print(f\"學生: {name} | 成績: {score}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"學生: {<span class=\"token-ident\">name</span>} | 成績: {<span class=\"token-ident\">score</span>}\"</span>)",
+        "alt": "格式化印出學生姓名與成績",
+        "diff": true,
+        "why": "輸出解包後變數",
+        "mean": "印出成績明細"
+      }
+    ],
+    "output": "學生: Alice | 成績: 95\n學生: Bob | 成績: 88\n學生: Cindy | 成績: 92",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>迴圈解包的威力</strong>：在 APCS 競賽中，我們常以 <code>[(name, score), ...]</code> 組織多欄位測資。在 <code>for name, score in students:</code> 中直接拆解，完全擺脫 <code>item[0]</code>、<code>item[1]</code> 等晦澀索引。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>自帶可讀性優勢</strong>：語意明確的變數名稱能大幅降低考場疲憊造成的邏輯錯誤，是競技程式高手的標準寫法。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "走訪元組列，即時拆變數"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.6 二維座標封裝：以 `(r, c)` 元組表示平面網格點",
+    "titleZh": "二維座標封裝——以 (r, c) 元組維護平面網格點",
+    "titleEn": "2D Coordinates as (r, c) Tuples: Grid Point Encapsulation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 座標元組天然綁定，杜絕平行串列錯位風險",
+        "html": "<span class=\"token-comment\"># 座標元組天然綁定，杜絕平行串列錯位風險</span>",
+        "alt": "註解：座標元組綁定優點說明",
+        "why": "建立網格封裝心法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "mines = [(0, 1), (2, 3), (3, 0)]",
+        "html": "<span class=\"token-ident\">mines</span> = [(<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>), (<span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>), (<span class=\"token-number\">3</span>, <span class=\"token-number\">0</span>)]",
+        "alt": "宣告包含三個地雷座標 (r, c) 的串列 mines",
+        "why": "定義地雷位置元組",
+        "mean": "座標元組串列"
+      },
+      {
+        "num": 3,
+        "code": "R, C = 4, 5",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">4</span>, <span class=\"token-number\">5</span>",
+        "alt": "解包宣告網格尺寸 4 列 5 行",
+        "why": "設定地圖維度",
+        "mean": "矩陣維度"
+      },
+      {
+        "num": 4,
+        "code": "grid = [[\".\"] * C for _ in range(R)]",
+        "html": "<span class=\"token-ident\">grid</span> = [[<span class=\"token-string\">\".\"</span>] * <span class=\"token-ident\">C</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span>(<span class=\"token-ident\">R</span>)]",
+        "alt": "以列表生成式建立 4x5 點號網格地圖",
+        "why": "生成空白網格",
+        "mean": "二維地圖陣列"
+      },
+      {
+        "num": 5,
+        "code": "for r, c in mines: grid[r][c] = \"*\"  # 解包標記地雷",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">mines</span>: <span class=\"token-ident\">grid</span>[<span class=\"token-ident\">r</span>][<span class=\"token-ident\">c</span>] = <span class=\"token-string\">\"*\"</span>  <span class=\"token-comment\"># 解包標記地雷</span>",
+        "alt": "走訪 mines 解包出 r 與 c 並於 grid 地圖標記星號",
+        "diff": true,
+        "why": "迴圈解包在地圖打標",
+        "mean": "標記地雷位置"
+      },
+      {
+        "num": 6,
+        "code": "for row in grid: print(*row)",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">row</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">grid</span>: <span class=\"token-builtin\">print</span>(*<span class=\"token-ident\">row</span>)",
+        "alt": "走訪地圖各行並以星號解包印出",
+        "why": "輸出整幅地圖",
+        "mean": "印出地圖"
+      }
+    ],
+    "output": ". * . . .\n. . . . .\n. . . * .\n* . . . .",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼不用兩個平行串列？</strong>：初學者常開 <code>rs = [0, 2, 3]</code> 與 <code>cs = [1, 3, 0]</code>，一旦排序或增減元素時漏改一邊，座標立刻錯位！使用 <code>(r, c)</code> 元組封裝，行列形影不離永不錯位。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>為後續集合（Set）打底</strong>：因為元組具備不可變性，它具備「可雜湊（Hashable）」特性，未來能直接塞入 <code>set()</code> 作為 BFS/DFS 的走訪標記！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "座標包元組，行列不脫鉤"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.6 二維座標封裝：以 `(r, c)` 元組表示平面網格點",
+    "titleZh": "座標解包運算——兩點曼哈頓距離實戰",
+    "titleEn": "Manhattan Distance with Coordinate Tuples: Point Unpacking",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "p1 = (1, 2)  # 起點座標元組 (r1, c1)",
+        "html": "<span class=\"token-ident\">p1</span> = (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>)  <span class=\"token-comment\"># 起點座標元組 (r1, c1)</span>",
+        "alt": "宣告起點元組 p1 為 1, 2",
+        "why": "建立起點座標",
+        "mean": "起點元組"
+      },
+      {
+        "num": 2,
+        "code": "p2 = (4, 6)  # 終點座標元組 (r2, c2)",
+        "html": "<span class=\"token-ident\">p2</span> = (<span class=\"token-number\">4</span>, <span class=\"token-number\">6</span>)  <span class=\"token-comment\"># 終點座標元組 (r2, c2)</span>",
+        "alt": "宣告終點元組 p2 為 4, 6",
+        "why": "建立終點座標",
+        "mean": "終點元組"
+      },
+      {
+        "num": 3,
+        "code": "r1, c1 = p1; r2, c2 = p2  # 對稱解包出數值",
+        "html": "<span class=\"token-ident\">r1</span>, <span class=\"token-ident\">c1</span> = <span class=\"token-ident\">p1</span>; <span class=\"token-ident\">r2</span>, <span class=\"token-ident\">c2</span> = <span class=\"token-ident\">p2</span>  <span class=\"token-comment\"># 對稱解包出數值</span>",
+        "alt": "將 p1 解包給 r1 c1，將 p2 解包給 r2 c2",
+        "diff": true,
+        "why": "解包兩點行列數值",
+        "mean": "解包座標"
+      },
+      {
+        "num": 4,
+        "code": "dist = abs(r1 - r2) + abs(c1 - c2)",
+        "html": "<span class=\"token-ident\">dist</span> = <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">r1</span> - <span class=\"token-ident\">r2</span>) + <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">c1</span> - <span class=\"token-ident\">c2</span>)",
+        "alt": "計算兩點行列差絕對值之和",
+        "diff": true,
+        "why": "套用曼哈頓距離公式",
+        "mean": "計算距離"
+      },
+      {
+        "num": 5,
+        "code": "print(\"起點:\", p1, \"終點:\", p2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"起點:\"</span>, <span class=\"token-ident\">p1</span>, <span class=\"token-string\">\"終點:\"</span>, <span class=\"token-ident\">p2</span>)",
+        "alt": "印出起點終點元組",
+        "why": "顯示座標點",
+        "mean": "輸出端點"
+      },
+      {
+        "num": 6,
+        "code": "print(\"曼哈頓距離:\", dist)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"曼哈頓距離:\"</span>, <span class=\"token-ident\">dist</span>)",
+        "alt": "印出計算所得之曼哈頓距離 7",
+        "why": "輸出距離計算結果",
+        "mean": "輸出距離"
+      }
+    ],
+    "output": "起點: (1, 2) 終點: (4, 6)\n曼哈頓距離: 7",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>網格曼哈頓距離（Manhattan Distance）</strong>：在只能上下左右移動的二維網格中，兩點間最短步數即為 $|r_1 - r_2| + |c_1 - c_2|$。元組解包能讓公式書寫直覺明瞭。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 實作常客</strong>：從物流派送、避難所選址到魔王追逐，曼哈頓距離是檢定最常考的幾何指標，搭配元組是最佳解題組合。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "曼哈頓距離，行列差絕對"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.3 正負索引存取與切片操作（承襲串列直覺，唯獨嚴禁賦值修改 `TypeError`）",
+    "titleZh": "考場致命地雷一：試圖修改元組元素引爆 TypeError",
+    "titleEn": "Exam Trap 1: Attempting In-Place Modification (TypeError)",
+    "predictQuiz": {
+      "question": "執行以下程式碼：`t = (10, 20, 30); t[0] = 99`，Python 直譯器會產生什麼結果？",
+      "options": [
+        "A. 順利執行，t 變為 (99, 20, 30)",
+        "B. 拋出 TypeError: 'tuple' object does not support item assignment 執行期錯誤"
+      ],
+      "answer": 1,
+      "correct": 1,
+      "explanation": "元組屬於不可變序列（Immutable），一旦建立便嚴禁任何原地賦值或修改元素的操作，執行 t[0] = 99 會立即引爆 TypeError 導致程式崩潰！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "t = (10, 20, 30)",
+        "html": "<span class=\"token-ident\">t</span> = (<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>)",
+        "alt": "宣告三元素元組 t",
+        "why": "建立測試元組",
+        "mean": "宣告元組"
+      },
+      {
+        "num": 2,
+        "code": "# 致命地雷：試圖如同串列一般原地替換索引 0 的值",
+        "html": "<span class=\"token-comment\"># 致命地雷：試圖如同串列一般原地替換索引 0 的值</span>",
+        "alt": "註解：地雷操作說明",
+        "why": "標註違規指令",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "t[0] = 99  # TypeError: does not support item assignment",
+        "html": "<span class=\"token-ident\">t</span>[<span class=\"token-number\">0</span>] = <span class=\"token-number\">99</span>  <span class=\"token-comment\"># 引爆 TypeError!</span>",
+        "alt": "賦值 t 索引 0 為 99 引爆 TypeError",
+        "diff": true,
+        "why": "違反元組不可變鐵律",
+        "mean": "引發 TypeError 崩潰"
+      }
+    ],
+    "output": "Traceback (most recent call last):\n  File \"main.py\", line 3, in &lt;module&gt;\n    t[0] = 99\nTypeError: 'tuple' object does not support item assignment",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 爆零紅線（TypeError）</strong>：初學者最常把串列習慣帶入元組，寫出 <code>t[i] = x</code> 或 <code>t.append(x)</code>。元組既沒有 <code>append</code> 也嚴禁項賦值！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>安全解法</strong>：若真的需要修改，請先透過 <code>l = list(t)</code> 轉為串列修改完畢後，再轉回 <code>tuple(l)</code>；或者直接以加號拼接重造成新元組 <code>t = (99,) + t[1:]</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "元組不可改，就地賦值錯"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.5 元組解包賦值（Tuple Unpacking）與多變數同時接收",
+    "titleZh": "考場致命地雷二：解包數量不對稱引發 ValueError",
+    "titleEn": "Exam Trap 2: Unpacking Mismatch (ValueError)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 地雷一：等號左側變數個數「少於」元組元素",
+        "html": "<span class=\"token-comment\"># 地雷一：等號左側變數個數「少於」元組元素</span>",
+        "alt": "註解：變數不足說明",
+        "why": "標註地雷情境一",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# a, b = (10, 20, 30)  # ValueError: too many values to unpack",
+        "html": "<span class=\"token-comment\"># a, b = (10, 20, 30)  # ValueError: too many values to unpack</span>",
+        "alt": "註解代碼：兩變數接收三個元素",
+        "why": "提示少變數錯誤",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 地雷二：等號左側變數個數「多於」元組元素",
+        "html": "<span class=\"token-comment\"># 地雷二：等號左側變數個數「多於」元組元素</span>",
+        "alt": "註解：變數過多說明",
+        "why": "標註地雷情境二",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "x, y, z = (10, 20)  # 3 個變數接收 2 個元素，引爆錯誤！",
+        "html": "<span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span>, <span class=\"token-ident\">z</span> = (<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>)  <span class=\"token-comment\"># 3 個變數接收 2 個值，引爆錯誤！</span>",
+        "alt": "賦值 x y z 為二元素元組引爆 ValueError",
+        "diff": true,
+        "why": "示範數量不足錯誤",
+        "mean": "引發 ValueError 崩潰"
+      }
+    ],
+    "output": "Traceback (most recent call last):\n  File \"main.py\", line 4, in &lt;module&gt;\n    x, y, z = (10, 20)\nValueError: not enough values to unpack (expected 3, got 2)",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 爆零紅線（ValueError）</strong>：解包時左右兩側數量必須「完全對稱」。變數太少報 <code>too many values to unpack</code>；變數太多報 <code>not enough values to unpack</code>。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 測資處理注意</strong>：當讀取多欄位輸入時（如 <code>input().split()</code>），若測資偶爾遺漏欄位或多出空白，直接解包將立刻崩潰，務必注意元素數量！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "解包一對一，多寡皆報錯"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1.2 元組宣告語法：小括號 `(...)` 與單元素逗號陷阱 `(x,)`",
+    "titleZh": "考場致命地雷三：單元素遺漏逗號的隱形型態災難",
+    "titleEn": "Exam Trap 3: Missing Comma in Single Element Tuple",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "bad = (\"apple\")   # 漏了逗號：型態是純字串 str！",
+        "html": "<span class=\"token-ident\">bad</span> = (<span class=\"token-string\">\"apple\"</span>)   <span class=\"token-comment\"># 漏了逗號：型態是純字串 str！</span>",
+        "alt": "宣告未帶逗號的 bad 變數",
+        "diff": true,
+        "why": "示範漏逗號隱形陷阱",
+        "mean": "純字串賦值"
+      },
+      {
+        "num": 2,
+        "code": "good = (\"apple\",) # 補上逗號：型態才是真正的元組 tuple！",
+        "html": "<span class=\"token-ident\">good</span> = (<span class=\"token-string\">\"apple\"</span>,) <span class=\"token-comment\"># 補上逗號：型態才是真正的元組 tuple！</span>",
+        "alt": "宣告補上逗號的 good 元組",
+        "diff": true,
+        "why": "示範補逗號正規元組",
+        "mean": "單元素元組"
+      },
+      {
+        "num": 3,
+        "code": "print(\"bad 長度 (測得字元數):\", len(bad))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"bad 長度 (測得字元數):\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">bad</span>))",
+        "alt": "印出 bad 長度為 5",
+        "why": "揭曉字串長度",
+        "mean": "輸出 5"
+      },
+      {
+        "num": 4,
+        "code": "print(\"good 長度 (測得元素數):\", len(good))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"good 長度 (測得元素數):\"</span>, <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">good</span>))",
+        "alt": "印出 good 長度為 1",
+        "why": "揭曉元組長度",
+        "mean": "輸出 1"
+      },
+      {
+        "num": 5,
+        "code": "print(\"bad * 2 (字串相黏):\", bad * 2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"bad * 2 (字串相黏):\"</span>, <span class=\"token-ident\">bad</span> * <span class=\"token-number\">2</span>)",
+        "alt": "印出字串相乘產生的拼接字串",
+        "diff": true,
+        "why": "展示乘法運算意外",
+        "mean": "輸出 appleapple"
+      },
+      {
+        "num": 6,
+        "code": "print(\"good * 2 (元組擴展):\", good * 2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"good * 2 (元組擴展):\"</span>, <span class=\"token-ident\">good</span> * <span class=\"token-number\">2</span>)",
+        "alt": "印出元組相乘產生的二元素元組",
+        "diff": true,
+        "why": "展示元組乘法行為",
+        "mean": "輸出 ('apple', 'apple')"
+      }
+    ],
+    "output": "bad 長度 (測得字元數): 5\ngood 長度 (測得元素數): 1\nbad * 2 (字串相黏): appleapple\ngood * 2 (元組擴展): ('apple', 'apple')",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 最狡猾的 WA 隱形死穴</strong>：程式不會噴出 Traceback，但邏輯完全走樣！<code>len((\"apple\"))</code> 是 5 而非 1；對它做乘法變成文字相接 <code>appleapple</code>，造成輸出比對全滅！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 秒查法</strong>：只要看到單元素宣告，立刻用眼角餘光檢查結尾有沒有逗號 <code>(x,)</code>，保證避開此扣分大坑。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "字串小括號，沒逗不算組"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.1 綜合驗收",
+    "titleZh": "單元 10.1 綜合驗收：元組不可變金鐘罩與多維座標封裝",
+    "titleEn": "Unit 10.1 Review: Immutability Shield & Coordinate Packaging",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 封裝三顆地標的二維座標元組清單",
+        "html": "<span class=\"token-comment\"># 封裝三顆地標的二維座標元組清單</span>",
+        "alt": "註解：座標清單封裝說明",
+        "why": "綜合驗收場景",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "points = [(1, 2), (3, 6), (5, 10)]",
+        "html": "<span class=\"token-ident\">points</span> = [(<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>), (<span class=\"token-number\">3</span>, <span class=\"token-number\">6</span>), (<span class=\"token-number\">5</span>, <span class=\"token-number\">10</span>)]",
+        "alt": "宣告包含三個座標元組的清單 points",
+        "diff": true,
+        "why": "建立驗收用座標串列",
+        "mean": "座標元組串列"
+      },
+      {
+        "num": 3,
+        "code": "print(f\"共有 {len(points)} 個座標點:\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"共有 {<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">points</span>)} 個座標點:\"</span>)",
+        "alt": "印出總點數 3",
+        "why": "輸出座標總數",
+        "mean": "輸出點數"
+      },
+      {
+        "num": 4,
+        "code": "for i, (r, c) in enumerate(points, start=1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span>, (<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>) <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">points</span>, <span class=\"token-ident\">start</span>=<span class=\"token-number\">1</span>):",
+        "alt": "走訪 points 同時取得計數編號 i 並解包 (r, c)",
+        "diff": true,
+        "why": "走訪並嵌套解包座標元組",
+        "mean": "列舉走訪與解包"
+      },
+      {
+        "num": 5,
+        "code": "    dist = abs(r) + abs(c)  # 原點 (0, 0) 曼哈頓距離",
+        "html": "    <span class=\"token-ident\">dist</span> = <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">r</span>) + <span class=\"token-builtin\">abs</span>(<span class=\"token-ident\">c</span>)  <span class=\"token-comment\"># 原點 (0, 0) 曼哈頓距離</span>",
+        "alt": "計算各點到原點的曼哈頓距離",
+        "why": "計算各點距離",
+        "mean": "計算距離"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"點 {i}: ({r}, {c}) -> 原點曼哈頓距離: {dist}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"點 {<span class=\"token-ident\">i</span>}: ({<span class=\"token-ident\">r</span>}, {<span class=\"token-ident\">c</span>}) -&gt; 原點曼哈頓距離: {<span class=\"token-ident\">dist</span>}\"</span>)",
+        "alt": "印出點號座標與計算所得距離",
+        "diff": true,
+        "why": "格式化輸出驗收結果",
+        "mean": "印出明細"
+      }
+    ],
+    "output": "共有 3 個座標點:\n點 1: (1, 2) -&gt; 原點曼哈頓距離: 3\n點 2: (3, 6) -&gt; 原點曼哈頓距離: 9\n點 3: (5, 10) -&gt; 原點曼哈頓距離: 15",
+    "completionCard": {
+      "badge": "🏆 單元 10.1 通關：元組不可變守護者！",
+      "summary": "太棒了！你已徹底領悟元組小括號宣告、單元素逗號 (x,) 鐵律、Immutable 不可變防禦屏障、型態互轉解凍術與 (r, c) 網格座標封裝！",
+      "nextUnit": "10.2 元組進階操作與可雜湊特性（Hashable）"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 動手練！</strong>：單元 10-1 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 32 儲存格的實戰程式演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>五大核心融會貫通</strong>：1. 小括號與逗號定義元組；2. (x,) 單元素必加逗號；3. 嚴禁就地修改防禦 TypeError；4. 對稱解包賦值；5. (r, c) 網格座標封裝！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "元組不可變，解包座標通"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec10-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_10-1_tuple_creation_and_immutability.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

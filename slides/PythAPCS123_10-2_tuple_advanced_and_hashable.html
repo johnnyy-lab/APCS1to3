@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 10.2 元組進階操作與可雜湊特性（Hashable） | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 10.2 元組進階操作與可雜湊特性（Hashable）
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.1 可變（Mutable）與不可變（Immutable）物件的記憶體行為本質",
+    "titleZh": "可變 vs 不可變物件的記憶體行為本質",
+    "titleEn": "Memory Identity: In-Place Modification vs Creating New Objects",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 串列（Mutable）：原地修改，記憶體位址 id() 維持不變",
+        "html": "<span class=\"token-comment\"># 串列（Mutable）：原地修改，記憶體位址 id() 維持不變</span>",
+        "alt": "註解：串列原地修改記憶體位址不變說明",
+        "why": "建立可變性記憶體模型",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "lst = [10, 20]; id_lst1 = id(lst)",
+        "html": "<span class=\"token-ident\">lst</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>]; <span class=\"token-ident\">id_lst1</span> = <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">lst</span>)",
+        "alt": "宣告串列 lst 並記錄其記憶體識別碼 id",
+        "why": "記錄修改前 id",
+        "mean": "宣告串列並記錄位址"
+      },
+      {
+        "num": 3,
+        "code": "lst.append(30); id_lst2 = id(lst)  # 原地修改",
+        "html": "<span class=\"token-ident\">lst</span>.<span class=\"token-ident\">append</span>(<span class=\"token-number\">30</span>); <span class=\"token-ident\">id_lst2</span> = <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">lst</span>)  <span class=\"token-comment\"># 原地修改</span>",
+        "alt": "呼叫 append 追加元素並記錄修改後 id",
+        "diff": true,
+        "why": "就地追加元素",
+        "mean": "修改串列"
+      },
+      {
+        "num": 4,
+        "code": "print(\"串列修改前後 id 是否相同:\", id_lst1 == id_lst2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"串列修改前後 id 是否相同:\"</span>, <span class=\"token-ident\">id_lst1</span> == <span class=\"token-ident\">id_lst2</span>)",
+        "alt": "比較串列修改前後 id 是否相同",
+        "why": "證明記憶體位址不變",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 5,
+        "code": "# 元組（Immutable）：不可修改，任何拼接皆產生全新物件",
+        "html": "<span class=\"token-comment\"># 元組（Immutable）：不可修改，任何拼接皆產生全新物件</span>",
+        "alt": "註解：元組不可變與拼接產生新物件說明",
+        "why": "建立不可變記憶體模型",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "t = (10, 20); id_t1 = id(t)",
+        "html": "<span class=\"token-ident\">t</span> = (<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>); <span class=\"token-ident\">id_t1</span> = <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">t</span>)",
+        "alt": "宣告元組 t 並記錄其記憶體識別碼",
+        "why": "記錄原始元組位址",
+        "mean": "宣告元組"
+      },
+      {
+        "num": 7,
+        "code": "t = t + (30,); id_t2 = id(t)  # 生成新元組重新指派",
+        "html": "<span class=\"token-ident\">t</span> = <span class=\"token-ident\">t</span> + (<span class=\"token-number\">30</span>,); <span class=\"token-ident\">id_t2</span> = <span class=\"token-builtin\">id</span>(<span class=\"token-ident\">t</span>)  <span class=\"token-comment\"># 生成新元組重新指派</span>",
+        "alt": "以加號拼接單元素元組並記錄新 id",
+        "diff": true,
+        "why": "建立新元組",
+        "mean": "生成新物件"
+      },
+      {
+        "num": 8,
+        "code": "print(\"元組拼接前後 id 是否相同:\", id_t1 == id_t2)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"元組拼接前後 id 是否相同:\"</span>, <span class=\"token-ident\">id_t1</span> == <span class=\"token-ident\">id_t2</span>)",
+        "alt": "比較元組拼接前後 id 是否相同",
+        "why": "證明產生了新位址",
+        "mean": "輸出 False"
+      }
+    ],
+    "output": "串列修改前後 id 是否相同: True\n元組拼接前後 id 是否相同: False",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>記憶體身分本質（Identity）</strong>：內建函式 <code>id()</code> 回傳物件在記憶體中的整數門牌。串列是 Mutable，修改內容時門牌不變；元組是 Immutable，任何改變都會在記憶體開闢新天地。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>不可變的好處</strong>：因為元組內容在生命週期內恆定不變，直譯器能做極致的記憶體優化，且傳遞時完全不用擔心被外部函式暗中改動。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "串列改同址，元組變新門"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.2 什麼是「可雜湊（Hashable）」？為什麼只有不可變物件能被雜湊？",
+    "titleZh": "什麼是可雜湊（Hashable）——獨一無二的數位指紋",
+    "titleEn": "What is Hashable? Digital Fingerprint via hash()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 內建 hash() 函式可計算物件的整數「雜湊碼（Hash Value）」",
+        "html": "<span class=\"token-comment\"># 內建 hash() 函式可計算物件的整數「雜湊碼（Hash Value）」</span>",
+        "alt": "註解：內建 hash 函式說明",
+        "why": "介紹雜湊函數概念",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"整數 42 的雜湊值:\", hash(42))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"整數 42 的雜湊值:\"</span>, <span class=\"token-builtin\">hash</span>(<span class=\"token-number\">42</span>))",
+        "alt": "呼叫 hash 取得整數 42 雜湊值",
+        "why": "示範整數雜湊碼",
+        "mean": "輸出 42"
+      },
+      {
+        "num": 3,
+        "code": "coord = (10, 20)",
+        "html": "<span class=\"token-ident\">coord</span> = (<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>)",
+        "alt": "宣告座標元組 coord",
+        "why": "建立測試元組",
+        "mean": "宣告元組"
+      },
+      {
+        "num": 4,
+        "code": "print(\"元組 coord 是可雜湊的:\", isinstance(hash(coord), int))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"元組 coord 是可雜湊的:\"</span>, <span class=\"token-builtin\">isinstance</span>(<span class=\"token-builtin\">hash</span>(<span class=\"token-ident\">coord</span>), <span class=\"token-builtin\">int</span>))",
+        "alt": "檢驗 coord 計算 hash 是否順利回傳整數",
+        "diff": true,
+        "why": "確認元組可雜湊",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "整數 42 的雜湊值: 42\n元組 coord 是可雜湊的: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>什麼是可雜湊（Hashable）</strong>：若一個物件在生命週期內擁有恆定不變的雜湊值（<code>hash()</code> 回傳整數），且能與其他物件比較相等性，它就是「可雜湊」的。"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 必考核心</strong>：不可變型態（<code>int</code>, <code>float</code>, <code>str</code>, <code>tuple</code>）全都是 Hashable！這意味著它們全部都可以作為字典的鍵（Key）或放入集合（Set）！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "物件不可變，才能被雜湊"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.2 什麼是「可雜湊（Hashable）」？為什麼只有不可變物件能被雜湊？",
+    "titleZh": "為什麼可變串列不可雜湊？——失落的鑰匙與儲物櫃",
+    "titleEn": "Why Lists are Unhashable: The Lost Key Mental Model",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 雜湊表（Hash Table）以 hash(key) 決定存放與搜尋的桶位",
+        "html": "<span class=\"token-comment\"># 雜湊表（Hash Table）以 hash(key) 決定存放與搜尋的桶位</span>",
+        "alt": "註解：雜湊表工作原理說明",
+        "why": "闡述雜湊表心智模型",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# 若允許串列作為 key：",
+        "html": "<span class=\"token-comment\"># 若允許串列作為 key：</span>",
+        "alt": "註解：假設串列可作為鍵",
+        "why": "引導假想思考",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 存入時 lst=[1, 2]，算得 hash 存入第 5 號置物箱",
+        "html": "<span class=\"token-comment\"># 存入時 lst=[1, 2]，算得 hash 存入第 5 號置物箱</span>",
+        "alt": "註解：存入時計算雜湊碼",
+        "why": "描述存入過程",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "# 隨後執行 lst.append(3)，串列內容變更！",
+        "html": "<span class=\"token-comment\"># 隨後執行 lst.append(3)，串列內容變更！</span>",
+        "alt": "註解：串列原地變更內容",
+        "why": "標出可變性衝突點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "# 再次尋找時重新計算 hash 卻跑去第 9 號箱，資料永久迷航！",
+        "html": "<span class=\"token-comment\"># 再次尋找時重新計算 hash 卻跑去第 9 號箱，資料永久迷航！</span>",
+        "alt": "註解：雜湊值跳躍導致遺失",
+        "why": "揭露雜湊崩潰本質",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "print(\"Python 鐵律: 任何可變物件皆禁止被雜湊！\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Python 鐵律: 任何可變物件皆禁止被雜湊！\"</span>)",
+        "alt": "印出不可變雜湊鐵律",
+        "diff": true,
+        "why": "總結不可變鐵律",
+        "mean": "輸出鐵律"
+      }
+    ],
+    "output": "Python 鐵律: 任何可變物件皆禁止被雜湊！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>失落的鑰匙迷思</strong>：想像儲物櫃以指紋當鑰匙。如果指紋明天會自己變形，你存進櫃子的物品就再也開不出來了！因此 Python 設計上從源頭禁止 <code>list</code> 進行 <code>hash()</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>元組的崇高地位</strong>：當你想把「多個欄位或二維座標」當作字典的 Key 時，元組是唯一能夠勝任的序列容器！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "指紋不變更，置物不迷航"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.3 巢狀元組（Nested Tuples）與結構化多欄位資料打包（如 `(id, name, score)`）",
+    "titleZh": "巢狀元組與結構化資料打包——階層式資料封裝",
+    "titleEn": "Nested Tuples: Hierarchical Multi-Field Data Packaging",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 元組內部可容納另一個元組，構成巢狀階層（Nested Tuple）",
+        "html": "<span class=\"token-comment\"># 元組內部可容納另一個元組，構成巢狀階層（Nested Tuple）</span>",
+        "alt": "註解：巢狀元組說明",
+        "why": "介紹結構化封裝",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "record = (101, \"David\", (88, 92, 95))",
+        "html": "<span class=\"token-ident\">record</span> = (<span class=\"token-number\">101</span>, <span class=\"token-string\">\"David\"</span>, (<span class=\"token-number\">88</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">95</span>))",
+        "alt": "宣告包含學號姓名與三科成績元組的 record",
+        "diff": true,
+        "why": "建立階層元組",
+        "mean": "宣告巢狀元組"
+      },
+      {
+        "num": 3,
+        "code": "sid, name, scores = record  # 第一層解包",
+        "html": "<span class=\"token-ident\">sid</span>, <span class=\"token-ident\">name</span>, <span class=\"token-ident\">scores</span> = <span class=\"token-ident\">record</span>  <span class=\"token-comment\"># 第一層解包</span>",
+        "alt": "第一層對稱解包出 sid name scores",
+        "diff": true,
+        "why": "拆解外層結構",
+        "mean": "外層解包"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"學號: {sid}, 姓名: {name}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"學號: {<span class=\"token-ident\">sid</span>}, 姓名: {<span class=\"token-ident\">name</span>}\"</span>)",
+        "alt": "印出學號與姓名",
+        "why": "檢視基本資訊",
+        "mean": "輸出基本資料"
+      },
+      {
+        "num": 5,
+        "code": "print(\"各科成績元組:\", scores)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"各科成績元組:\"</span>, <span class=\"token-ident\">scores</span>)",
+        "alt": "印出內層成績元組",
+        "why": "檢視內層元組",
+        "mean": "輸出成績元組"
+      }
+    ],
+    "output": "學號: 101, 姓名: David\n各科成績元組: (88, 92, 95)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>結構化資料封裝</strong>：在沒有物件導向 class 的輕量題型中，以 <code>(id, name, (x, y))</code> 等巢狀元組儲存多維實體，結構嚴謹且消耗記憶體極低。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>可雜湊性傳遞</strong>：若巢狀元組裡面的「所有元素」全都是不可變的，整顆巢狀元組依然保有可雜湊性！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "組內包元組，層次更清晰"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.3 巢狀元組（Nested Tuples）與結構化多欄位資料打包（如 `(id, name, score)`）",
+    "titleZh": "巢狀元組多層索引與逐層取值",
+    "titleEn": "Multi-Level Indexing in Nested Tuples",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "node = (1, (20, 40), \"Checkpoint_A\")",
+        "html": "<span class=\"token-ident\">node</span> = (<span class=\"token-number\">1</span>, (<span class=\"token-number\">20</span>, <span class=\"token-number\">40</span>), <span class=\"token-string\">\"Checkpoint_A\"</span>)",
+        "alt": "宣告包含節點編號座標元組與標籤的 node",
+        "why": "建立多層資料",
+        "mean": "巢狀元組宣告"
+      },
+      {
+        "num": 2,
+        "code": "print(\"第 1 層索引取出內層座標:\", node[1])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 1 層索引取出內層座標:\"</span>, <span class=\"token-ident\">node</span>[<span class=\"token-number\">1</span>])",
+        "alt": "以 node[1] 取出內層 (20, 40)",
+        "diff": true,
+        "why": "讀取外層子物件",
+        "mean": "輸出 (20, 40)"
+      },
+      {
+        "num": 3,
+        "code": "print(\"第 2 層連續索引取出 X 座標:\", node[1][0])",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"第 2 層連續索引取出 X 座標:\"</span>, <span class=\"token-ident\">node</span>[<span class=\"token-number\">1</span>][<span class=\"token-number\">0</span>])",
+        "alt": "連續索引 node[1][0] 取出 20",
+        "diff": true,
+        "why": "雙層中括號定位深層資料",
+        "mean": "輸出 20"
+      },
+      {
+        "num": 4,
+        "code": "nid, (x, y), label = node  # 巢狀解包一步到位",
+        "html": "<span class=\"token-ident\">nid</span>, (<span class=\"token-ident\">x</span>, <span class=\"token-ident\">y</span>), <span class=\"token-ident\">label</span> = <span class=\"token-ident\">node</span>  <span class=\"token-comment\"># 巢狀解包一步到位</span>",
+        "alt": "以 nid, (x, y), label 一次性解包多層變數",
+        "diff": true,
+        "why": "示範巢狀解包語法糖",
+        "mean": "深度結構解包"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"標籤: {label}, 座標: ({x}, {y})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"標籤: {<span class=\"token-ident\">label</span>}, 座標: ({<span class=\"token-ident\">x</span>}, {<span class=\"token-ident\">y</span>})\"</span>)",
+        "alt": "印出解包後各變數",
+        "why": "檢驗解包成果",
+        "mean": "輸出明細"
+      }
+    ],
+    "output": "第 1 層索引取出內層座標: (20, 40)\n第 2 層連續索引取出 X 座標: 20\n標籤: Checkpoint_A, 座標: (20, 40)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>連續索引與巢狀解包</strong>：存取深層元素可使用多重中括號 <code>node[1][0]</code>；更強大的是支援<strong>巢狀對稱解包</strong>：<code>a, (b, c), d = nested_t</code> 一行搞定所有階層變數！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>括號對應要工整</strong>：左側解包結構必須精準鏡像右側元組的括號巢狀模式，否則會報 <code>ValueError</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "多層連續索，巢狀解包俐"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.4 元組在二維座標位移運算中的應用（`(r + dr, c + dc)`）",
+    "titleZh": "四方向向量元組清單——乾淨簡練的網格巡航",
+    "titleEn": "4-Direction Vector Tuples for Grid Navigation",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 定義上下左右四方向的 (dr, dc) 位移元組清單",
+        "html": "<span class=\"token-comment\"># 定義上下左右四方向的 (dr, dc) 位移元組清單</span>",
+        "alt": "註解：方向向量元組清單說明",
+        "why": "介紹標準方向常數",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "DIRS_4 = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 上下左右",
+        "html": "<span class=\"token-ident\">DIRS_4</span> = [(<span class=\"token-op\">-</span><span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">1</span>, <span class=\"token-number\">0</span>), (<span class=\"token-number\">0</span>, <span class=\"token-op\">-</span><span class=\"token-number\">1</span>), (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>)]  <span class=\"token-comment\"># 上下左右</span>",
+        "alt": "宣告四方向位移元組串列 DIRS_4",
+        "diff": true,
+        "why": "建立位移向量表",
+        "mean": "四方向向量"
+      },
+      {
+        "num": 3,
+        "code": "curr_r, curr_c = 2, 3  # 當前中心點",
+        "html": "<span class=\"token-ident\">curr_r</span>, <span class=\"token-ident\">curr_c</span> = <span class=\"token-number\">2</span>, <span class=\"token-number\">3</span>  <span class=\"token-comment\"># 當前中心點</span>",
+        "alt": "解包宣告當前座標 2, 3",
+        "why": "建立中心點",
+        "mean": "中心座標"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"中心點: ({curr_r}, {curr_c})\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"中心點: ({<span class=\"token-ident\">curr_r</span>}, {<span class=\"token-ident\">curr_c</span>})\"</span>)",
+        "alt": "印出中心點座標",
+        "why": "展示起點",
+        "mean": "輸出中心點"
+      },
+      {
+        "num": 5,
+        "code": "for dr, dc in DIRS_4:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS_4</span>:",
+        "alt": "走訪方向清單並解包出 dr 與 dc",
+        "diff": true,
+        "why": "解包位移向量",
+        "mean": "走訪方向"
+      },
+      {
+        "num": 6,
+        "code": "    nr, nc = curr_r + dr, curr_c + dc",
+        "html": "    <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">curr_r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">curr_c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "計算相鄰新座標 nr nc",
+        "why": "座標向量相加",
+        "mean": "位移計算"
+      },
+      {
+        "num": 7,
+        "code": "    print(f\"相鄰點: ({nr}, {nc})\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"相鄰點: ({<span class=\"token-ident\">nr</span>}, {<span class=\"token-ident\">nc</span>})\"</span>)",
+        "alt": "印出相鄰點座標",
+        "why": "輸出探索座標",
+        "mean": "印出四鄰居"
+      }
+    ],
+    "output": "中心點: (2, 3)\n相鄰點: (1, 3)\n相鄰點: (3, 3)\n相鄰點: (2, 2)\n相鄰點: (2, 4)",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>向量位移模型（Vector Offset）</strong>：以 <code>(dr, dc)</code> 元組表示位移量，相鄰座標即為 <code>(r + dr, c + dc)</code>。比起寫 4 個重複的 <code>if</code>，迴圈走訪方向元組代碼量少 70%！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 搜尋利器</strong>：在迷宮探索、貪食蛇、踩地雷等經典模擬題中，<code>DIRS_4</code> 與 <code>DIRS_8</code> 是每位選手必背的骨幹結構。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "方向包元組，位移加迴圈"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.4 元組在二維座標位移運算中的應用（`(r + dr, c + dc)`）",
+    "titleZh": "八方向探索與邊界合法性過濾",
+    "titleEn": "8-Direction Navigation with In-Bounds Filtering",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "R, C = 4, 4  # 4x4 棋盤",
+        "html": "<span class=\"token-ident\">R</span>, <span class=\"token-ident\">C</span> = <span class=\"token-number\">4</span>, <span class=\"token-number\">4</span>  <span class=\"token-comment\"># 4x4 棋盤</span>",
+        "alt": "宣告棋盤維度 4 列 4 行",
+        "why": "設定地圖邊界",
+        "mean": "棋盤邊界"
+      },
+      {
+        "num": 2,
+        "code": "DIRS_8 = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]",
+        "html": "<span class=\"token-ident\">DIRS_8</span> = [(<span class=\"token-op\">-</span><span class=\"token-number\">1</span>,<span class=\"token-number\">0</span>),(<span class=\"token-number\">1</span>,<span class=\"token-number\">0</span>),(<span class=\"token-number\">0</span>,<span class=\"token-op\">-</span><span class=\"token-number\">1</span>),(<span class=\"token-number\">0</span>,<span class=\"token-number\">1</span>),(<span class=\"token-op\">-</span><span class=\"token-number\">1</span>,<span class=\"token-op\">-</span><span class=\"token-number\">1</span>),(<span class=\"token-op\">-</span><span class=\"token-number\">1</span>,<span class=\"token-number\">1</span>),(<span class=\"token-number\">1</span>,<span class=\"token-op\">-</span><span class=\"token-number\">1</span>),(<span class=\"token-number\">1</span>,<span class=\"token-number\">1</span>)]",
+        "alt": "宣告八方向位移元組清單 DIRS_8",
+        "diff": true,
+        "why": "建立八鄰居向量表",
+        "mean": "八方向向量"
+      },
+      {
+        "num": 3,
+        "code": "r, c = 0, 0  # 位於左上角邊界點",
+        "html": "<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span> = <span class=\"token-number\">0</span>, <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 位於左上角邊界點</span>",
+        "alt": "宣告起點座標為左上角 0, 0",
+        "why": "測試邊界頂角",
+        "mean": "邊角起點"
+      },
+      {
+        "num": 4,
+        "code": "valid_neighbors = []",
+        "html": "<span class=\"token-ident\">valid_neighbors</span> = []",
+        "alt": "初始化合法鄰居串列",
+        "why": "收集合法點",
+        "mean": "結果串列"
+      },
+      {
+        "num": 5,
+        "code": "for dr, dc in DIRS_8:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">dc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">DIRS_8</span>:",
+        "alt": "走訪八方向元組",
+        "why": "輪詢八鄰居",
+        "mean": "走訪向量"
+      },
+      {
+        "num": 6,
+        "code": "    nr, nc = r + dr, c + dc",
+        "html": "    <span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span> = <span class=\"token-ident\">r</span> + <span class=\"token-ident\">dr</span>, <span class=\"token-ident\">c</span> + <span class=\"token-ident\">dc</span>",
+        "alt": "計算目標點座標",
+        "why": "計算相鄰點",
+        "mean": "目標座標"
+      },
+      {
+        "num": 7,
+        "code": "    if 0 <= nr < R and 0 <= nc < C:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">nr</span> &lt; <span class=\"token-ident\">R</span> <span class=\"token-keyword\">and</span> <span class=\"token-number\">0</span> &lt;= <span class=\"token-ident\">nc</span> &lt; <span class=\"token-ident\">C</span>:",
+        "alt": "檢驗新座標是否落在 0 到 R-1 與 0 到 C-1 內",
+        "diff": true,
+        "why": "過濾出界座標",
+        "mean": "邊界檢驗"
+      },
+      {
+        "num": 8,
+        "code": "        valid_neighbors.append((nr, nc))",
+        "html": "        <span class=\"token-ident\">valid_neighbors</span>.<span class=\"token-ident\">append</span>((<span class=\"token-ident\">nr</span>, <span class=\"token-ident\">nc</span>))",
+        "alt": "將合法座標元組加入串列",
+        "why": "打包存入合法元組",
+        "mean": "收納合法座標"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"(0, 0) 的合法八鄰居 (共 {len(valid_neighbors)} 個):\", valid_neighbors)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"(0, 0) 的合法八鄰居 (共 {<span class=\"token-builtin\">len</span>(<span class=\"token-ident\">valid_neighbors</span>)} 個):\"</span>, <span class=\"token-ident\">valid_neighbors</span>)",
+        "alt": "印出合法八鄰居數量與元組清單",
+        "why": "檢視過濾結果",
+        "mean": "輸出合法點"
+      }
+    ],
+    "output": "(0, 0) 的合法八鄰居 (共 3 個): [(1, 0), (0, 1), (1, 1)]",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>邊界防禦公式（In-Bounds Guard）</strong>：<code>0 &lt;= nr &lt; R and 0 &lt;= nc &lt; C</code> 是二維矩陣最核心的護城河，能完美過濾掉負索引與超出陣列長度的危險位移。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>踩地雷題眼</strong>：踩地雷（Minesweeper）計算九宮格地雷數正是利用這段 <code>DIRS_8</code> 巡航過濾！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "八方向量走，邊界防越界"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.5 多傳回值模擬（為第 11 章自訂函式多值 return 提早鋪墊）",
+    "titleZh": "多傳回值模擬——逗號回傳的底層真相就是元組",
+    "titleEn": "Simulating Multiple Return Values via Tuples",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 統計函式：回傳最小值、最大值與總和",
+        "html": "<span class=\"token-comment\"># 統計函式：回傳最小值、最大值與總和</span>",
+        "alt": "註解：統計函式多回傳值說明",
+        "why": "建立多回傳值情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "def calc_stats(arr):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">calc_stats</span>(<span class=\"token-ident\">arr</span>):",
+        "alt": "定義 calc_stats 函式接收 arr",
+        "why": "宣告多值回傳函式",
+        "mean": "定義函式"
+      },
+      {
+        "num": 3,
+        "code": "    return min(arr), max(arr), sum(arr)  # 實質回傳一個元組！",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">min</span>(<span class=\"token-ident\">arr</span>), <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">arr</span>), <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">arr</span>)  <span class=\"token-comment\"># 實質回傳一個元組！</span>",
+        "alt": "回傳由逗號分隔的極小值極大值與總和",
+        "diff": true,
+        "why": "揭曉多回傳值實為元組打包",
+        "mean": "回傳三值元組"
+      },
+      {
+        "num": 4,
+        "code": "scores = [85, 92, 78, 96, 88]",
+        "html": "<span class=\"token-ident\">scores</span> = [<span class=\"token-number\">85</span>, <span class=\"token-number\">92</span>, <span class=\"token-number\">78</span>, <span class=\"token-number\">96</span>, <span class=\"token-number\">88</span>]",
+        "alt": "宣告分數串列 scores",
+        "why": "建立測試資料",
+        "mean": "測試串列"
+      },
+      {
+        "num": 5,
+        "code": "low, high, total = calc_stats(scores)  # 解包接收",
+        "html": "<span class=\"token-ident\">low</span>, <span class=\"token-ident\">high</span>, <span class=\"token-ident\">total</span> = <span class=\"token-ident\">calc_stats</span>(<span class=\"token-ident\">scores</span>)  <span class=\"token-comment\"># 解包接收</span>",
+        "alt": "以 low high total 解包接收函式回傳值",
+        "diff": true,
+        "why": "解包接收多傳回值",
+        "mean": "多變數接收"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"最低: {low}, 最高: {high}, 總和: {total}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最低: {<span class=\"token-ident\">low</span>}, 最高: {<span class=\"token-ident\">high</span>}, 總和: {<span class=\"token-ident\">total</span>}\"</span>)",
+        "alt": "格式化印出各統計指標",
+        "why": "輸出統計結果",
+        "mean": "印出統計"
+      }
+    ],
+    "output": "最低: 78, 最高: 96, 總和: 439",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>多傳回值的真相</strong>：在 Python 中，函式表面上能寫 <code>return a, b, c</code> 同時回傳多個值，底層真相是直譯器將它們自動打包成「單一元組 <code>(a, b, c)</code>」回傳！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>呼叫端自由接收</strong>：呼叫端既可以用單一變數接收整包元組 <code>res = calc_stats()</code>，也可以立刻對稱解包 <code>low, high, tot = calc_stats()</code>，極其優雅。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "多值回傳處，底層包元組"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.5 多傳回值模擬（為第 11 章自訂函式多值 return 提早鋪墊）",
+    "titleZh": "解包過濾與底線忽略佔位符（_）",
+    "titleEn": "Ignoring Unneeded Return Values with Underscore (_)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "info = (2026, \"APCS_Python\", \"Advanced\", \"Level3\")",
+        "html": "<span class=\"token-ident\">info</span> = (<span class=\"token-number\">2026</span>, <span class=\"token-string\">\"APCS_Python\"</span>, <span class=\"token-string\">\"Advanced\"</span>, <span class=\"token-string\">\"Level3\"</span>)",
+        "alt": "宣告四欄位課程資訊元組",
+        "why": "建立多欄位資訊",
+        "mean": "四元素元組"
+      },
+      {
+        "num": 2,
+        "code": "# 若只想提取第 2 欄科目與第 4 欄等級，其餘用底線 _ 忽略",
+        "html": "<span class=\"token-comment\"># 若只想提取第 2 欄科目與第 4 欄等級，其餘用底線 _ 忽略</span>",
+        "alt": "註解：底線忽略佔位符說明",
+        "why": "介紹忽略特定欄位技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "_, subject, _, level = info",
+        "html": "<span class=\"token-ident\">_</span>, <span class=\"token-ident\">subject</span>, <span class=\"token-ident\">_</span>, <span class=\"token-ident\">level</span> = <span class=\"token-ident\">info</span>",
+        "alt": "使用底線忽略第一與第三個欄位，解包取出 subject 與 level",
+        "diff": true,
+        "why": "示範慣用底線佔位符",
+        "mean": "選擇性解包"
+      },
+      {
+        "num": 4,
+        "code": "print(\"目標科目:\", subject, \"| 級別:\", level)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"目標科目:\"</span>, <span class=\"token-ident\">subject</span>, <span class=\"token-string\">\"| 級別:\"</span>, <span class=\"token-ident\">level</span>)",
+        "alt": "印出提取的科目與級別",
+        "why": "輸出所需欄位",
+        "mean": "輸出重要欄位"
+      }
+    ],
+    "output": "目標科目: APCS_Python | 級別: Level3",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>底線佔位符（Dummy Variable）</strong>：在 Python 解包時，慣例使用單底線 <code>_</code> 代表「我不在乎這個欄位的值」。既維持了兩端數量相等的鐵律，又不會產生多餘的變數干擾思維。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>迴圈也適用</strong>：例如 <code>for _ in range(N):</code> 中底線同樣代表純計數、無需使用迴圈變數。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "不需之欄位，底線佔位過"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.6 元組比大小與字典序排序原則（多準則評比原型）",
+    "titleZh": "元組比大小與字典序排序原則——由前至後逐項比較",
+    "titleEn": "Tuple Comparison & Lexicographical Ordering",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 元組比大小嚴格遵循「字典序（Lexicographical Order）」",
+        "html": "<span class=\"token-comment\"># 元組比大小嚴格遵循「字典序（Lexicographical Order）」</span>",
+        "alt": "註解：字典序比大小規則說明",
+        "why": "介紹字典序比較法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "# 規則：從索引 0 開始比較，一旦分出勝負即判定，不再看後續！",
+        "html": "<span class=\"token-comment\"># 規則：從索引 0 開始比較，一旦分出勝負即判定，不再看後續！</span>",
+        "alt": "註解：比較細則說明",
+        "why": "闡述比較決策流程",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "print(\"(10, 20) < (10, 30):\", (10, 20) < (10, 30))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"(10, 20) &lt; (10, 30):\"</span>, (<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>) &lt; (<span class=\"token-number\">10</span>, <span class=\"token-number\">30</span>))",
+        "alt": "比對 (10, 20) 與 (10, 30) 大小",
+        "diff": true,
+        "why": "示範第 0 元素相同比第 1 元素",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 4,
+        "code": "print(\"(5, 999) < (6, 0):\", (5, 999) < (6, 0))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"(5, 999) &lt; (6, 0):\"</span>, (<span class=\"token-number\">5</span>, <span class=\"token-number\">999</span>) &lt; (<span class=\"token-number\">6</span>, <span class=\"token-number\">0</span>))",
+        "alt": "比對 (5, 999) 與 (6, 0) 大小",
+        "diff": true,
+        "why": "示範第 0 元素已分勝負不再看後續",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 5,
+        "code": "print(\"(1, 2) < (1, 2, 0):\", (1, 2) < (1, 2, 0))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"(1, 2) &lt; (1, 2, 0):\"</span>, (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>) &lt; (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">0</span>))",
+        "alt": "比對前綴相同但長度不同之元組大小",
+        "diff": true,
+        "why": "示範前綴相同較短者為小",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "(10, 20) &lt; (10, 30): True\n(5, 999) &lt; (6, 0): True\n(1, 2) &lt; (1, 2, 0): True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字典序比大小法則</strong>：比較兩個元組時，先比第 0 個元素；若平手才比第 1 個元素，以此類推。只要前面已經分出勝負（如 <code>5 &lt; 6</code>），後面即使是 <code>999</code> 也完全不影響結果！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>長度比對原則</strong>：若全部對應元素都相等，長度較短的元組小於長度較長的元組（如 <code>(1, 2) &lt; (1, 2, 0)</code>）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "由前逐項比，勝負首分明"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.6 元組比大小與字典序排序原則（多準則評比原型）",
+    "titleZh": "多準則評比實戰——以 (-score, penalty, id) 實現排名",
+    "titleEn": "Multi-Criteria Ranking with Tuple Keys",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 參賽者清單：(姓名, 分數, 罰時, 學號)",
+        "html": "<span class=\"token-comment\"># 參賽者清單：(姓名, 分數, 罰時, 學號)</span>",
+        "alt": "註解：競賽評比情境說明",
+        "why": "建立多準則排序資料",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "players = [(\"Alice\", 90, 5, 103), (\"Bob\", 90, 2, 101), (\"Cindy\", 85, 1, 102)]",
+        "html": "<span class=\"token-ident\">players</span> = [(<span class=\"token-string\">\"Alice\"</span>, <span class=\"token-number\">90</span>, <span class=\"token-number\">5</span>, <span class=\"token-number\">103</span>), (<span class=\"token-string\">\"Bob\"</span>, <span class=\"token-number\">90</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">101</span>), (<span class=\"token-string\">\"Cindy\"</span>, <span class=\"token-number\">85</span>, <span class=\"token-number\">1</span>, <span class=\"token-number\">102</span>)]",
+        "alt": "宣告三位選手資訊元組串列 players",
+        "why": "建立同分但罰時不同的對照組",
+        "mean": "選手名單"
+      },
+      {
+        "num": 3,
+        "code": "# 排序規則：分數高者優先（負號反轉）、罰時少者次之、學號小者最先",
+        "html": "<span class=\"token-comment\"># 排序規則：分數高者優先（負號反轉）、罰時少者次之、學號小者最先</span>",
+        "alt": "註解：三準則權重說明",
+        "why": "定義 APCS 經典排名準則",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "ranked = sorted(players, key=lambda p: (-p[1], p[2], p[3]))",
+        "html": "<span class=\"token-ident\">ranked</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">players</span>, <span class=\"token-ident\">key</span>=<span class=\"token-keyword\">lambda</span> <span class=\"token-ident\">p</span>: (<span class=\"token-op\">-</span><span class=\"token-ident\">p</span>[<span class=\"token-number\">1</span>], <span class=\"token-ident\">p</span>[<span class=\"token-number\">2</span>], <span class=\"token-ident\">p</span>[<span class=\"token-number\">3</span>]))",
+        "alt": "呼叫 sorted 傳入 lambda 多欄位元組 key 進行三準則排序",
+        "diff": true,
+        "why": "元組多準則排序核心技巧",
+        "mean": "多條件排序"
+      },
+      {
+        "num": 5,
+        "code": "for rank, (name, s, pen, pid) in enumerate(ranked, start=1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">rank</span>, (<span class=\"token-ident\">name</span>, <span class=\"token-ident\">s</span>, <span class=\"token-ident\">pen</span>, <span class=\"token-ident\">pid</span>) <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">ranked</span>, <span class=\"token-ident\">start</span>=<span class=\"token-number\">1</span>):",
+        "alt": "列舉走訪排名結果並解包",
+        "why": "走訪輸出排名",
+        "mean": "排名解包"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"第 {rank} 名: {name} (得分 {s}, 罰時 {pen})\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"第 {<span class=\"token-ident\">rank</span>} 名: {<span class=\"token-ident\">name</span>} (得分 {<span class=\"token-ident\">s</span>}, 罰時 {<span class=\"token-ident\">pen</span>})\"</span>)",
+        "alt": "印出排名明細",
+        "why": "檢視正確排序結果",
+        "mean": "輸出名次"
+      }
+    ],
+    "output": "第 1 名: Bob (得分 90, 罰時 2)\n第 2 名: Alice (得分 90, 罰時 5)\n第 3 名: Cindy (得分 85, 罰時 1)",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 實作必勝秘笈</strong>：利用元組打包多條件鍵值 <code>(-score, penalty, id)</code>，給數值加上負號 <code>-score</code> 即可巧妙把「由大到小（降序）」轉化為預設的升序比較，一氣呵成！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>Bob 擊敗 Alice 的原因</strong>：兩者同為 90 分（<code>-90 == -90</code>），接著比第二項罰時，Bob 的 2 小於 Alice 的 5，因而搶下冠軍！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "負號轉降序，多鍵元組定"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.2 什麼是「可雜湊（Hashable）」？為什麼只有不可變物件能被雜湊？",
+    "titleZh": "考場致命地雷一：試圖對可變物件計算 hash 引爆 TypeError",
+    "titleEn": "Exam Trap 1: Hashing Mutable Objects (TypeError)",
+    "predictQuiz": {
+      "question": "執行程式碼 `hash([1, 2])`，Python 直譯器會產生什麼結果？",
+      "options": [
+        "A. 計算出一個隨機但固定的整數雜湊碼",
+        "B. 拋出 TypeError: unhashable type: 'list' 執行期錯誤"
+      ],
+      "answer": 1,
+      "correct": 1,
+      "explanation": "串列（list）屬於可變物件（Mutable），內容隨時可能被修改，無法保證雜湊碼的恆定性，因此 Python 嚴格禁止對串列計算雜湊碼，執行 hash([1, 2]) 會立刻噴出 TypeError！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 致命地雷：試圖對可變物件（串列、字典、集合）計算雜湊碼",
+        "html": "<span class=\"token-comment\"># 致命地雷：試圖對可變物件（串列、字典、集合）計算雜湊碼</span>",
+        "alt": "註解：地雷操作說明",
+        "why": "標示違規操作",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "bad_key = [1, 2]",
+        "html": "<span class=\"token-ident\">bad_key</span> = [<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>]",
+        "alt": "宣告串列 bad_key",
+        "why": "建立可變串列",
+        "mean": "宣告串列"
+      },
+      {
+        "num": 3,
+        "code": "code = hash(bad_key)  # TypeError: unhashable type: 'list'",
+        "html": "<span class=\"token-ident\">code</span> = <span class=\"token-builtin\">hash</span>(<span class=\"token-ident\">bad_key</span>)  <span class=\"token-comment\"># TypeError: unhashable type: 'list'</span>",
+        "alt": "對串列 bad_key 呼叫 hash 引爆 TypeError",
+        "diff": true,
+        "why": "違反不可變雜湊鐵律",
+        "mean": "引發 TypeError 崩潰"
+      }
+    ],
+    "output": "Traceback (most recent call last):\n  File \"main.py\", line 3, in &lt;module&gt;\n    code = hash(bad_key)\nTypeError: unhashable type: 'list'",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 爆零紅線（TypeError: unhashable type）</strong>：不僅是直接呼叫 <code>hash()</code>，當你試圖寫 <code>d[[1, 2]] = 100</code>（把串列當字典 Key）或 <code>s.add([1, 2])</code>（把串列塞進集合）時，都會引爆這個錯誤！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>解法極簡</strong>：將方括號串列改為小括號元組 <code>d[(1, 2)] = 100</code>，立刻安然過關！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "串列不可雜，字典鍵必組"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.1 可變（Mutable）與不可變（Immutable）物件的記憶體行為本質",
+    "titleZh": "考場致命地雷二：元組內含串列的「偽不可變」陷阱",
+    "titleEn": "Exam Trap 2: Pseudo-Immutability (Tuples with Lists Inside)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "t = (10, [20, 30])  # 元組內包含可變串列",
+        "html": "<span class=\"token-ident\">t</span> = (<span class=\"token-number\">10</span>, [<span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>])  <span class=\"token-comment\"># 元組內包含可變串列</span>",
+        "alt": "宣告內含串列的元組 t",
+        "why": "建立偽不可變測試元組",
+        "mean": "複合結構元組"
+      },
+      {
+        "num": 2,
+        "code": "# t[0] = 99  # 這會報錯 TypeError，因為元組外殼不可變",
+        "html": "<span class=\"token-comment\"># t[0] = 99  # 這會報錯 TypeError，因為元組外殼不可變</span>",
+        "alt": "註解：外層修改報錯",
+        "why": "提示外層不可改",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "# 致命陷阱：透過串列方法修改「內層串列」竟然成功了！",
+        "html": "<span class=\"token-comment\"># 致命陷阱：透過串列方法修改「內層串列」竟然成功了！</span>",
+        "alt": "註解：內層串列修改成功說明",
+        "why": "揭露內層引用可變陷阱",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "t[1].append(99)",
+        "html": "<span class=\"token-ident\">t</span>[<span class=\"token-number\">1</span>].<span class=\"token-ident\">append</span>(<span class=\"token-number\">99</span>)",
+        "alt": "對元組內部的串列呼叫 append 加入 99",
+        "diff": true,
+        "why": "修改內層可變串列",
+        "mean": "修改內層"
+      },
+      {
+        "num": 5,
+        "code": "print(\"內層被修改後:\", t)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"內層被修改後:\"</span>, <span class=\"token-ident\">t</span>)",
+        "alt": "印出內層被修改後的元組",
+        "why": "檢視變更結果",
+        "mean": "輸出 (10, [20, 30, 99])"
+      }
+    ],
+    "output": "內層被修改後: (10, [20, 30, 99])",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 觀念題超級地雷</strong>：元組保證的是「門牌引用不變」，而不是「門牌所指的對象不可變」。若元組內含串列，串列本身依然可以被 <code>append</code> 修改！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 連鎖反應</strong>：只要元組內部「包含哪怕任何一個可變物件」，這個元組本身就會喪失 Hashable 特性，再也無法計算 <code>hash()</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "內含可變列，元組失雜湊"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2.6 元組比大小與字典序排序原則（多準則評比原型）",
+    "titleZh": "考場致命地雷三：元組跨型態比大小引爆 TypeError",
+    "titleEn": "Exam Trap 3: Cross-Type Comparison in Tuples (TypeError)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 狀況一：第 0 元素就能分出勝負（數值比大小，成功）",
+        "html": "<span class=\"token-comment\"># 狀況一：第 0 元素就能分出勝負（數值比大小，成功）</span>",
+        "alt": "註解：首元素可比說明",
+        "why": "建立正常比對",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "print(\"(1, 'a') < (2, 100):\", (1, \"a\") < (2, 100))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"(1, 'a') &lt; (2, 100):\"</span>, (<span class=\"token-number\">1</span>, <span class=\"token-string\">\"a\"</span>) &lt; (<span class=\"token-number\">2</span>, <span class=\"token-number\">100</span>))",
+        "alt": "首項不同比對成功輸出 True",
+        "why": "展示 1 < 2 提前決策",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 3,
+        "code": "# 致命地雷：第 0 元素平手，第 1 元素字串與整數比大小引爆崩潰！",
+        "html": "<span class=\"token-comment\"># 致命地雷：第 0 元素平手，第 1 元素字串與整數比大小引爆崩潰！</span>",
+        "alt": "註解：跨型態比較地雷說明",
+        "why": "標註地雷點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "res = (1, \"apple\") < (1, 20)  # TypeError: '<' not supported",
+        "html": "<span class=\"token-ident\">res</span> = (<span class=\"token-number\">1</span>, <span class=\"token-string\">\"apple\"</span>) &lt; (<span class=\"token-number\">1</span>, <span class=\"token-number\">20</span>)  <span class=\"token-comment\"># 引爆 TypeError!</span>",
+        "alt": "嘗試比較 (1, 'apple') 與 (1, 20) 引爆 TypeError",
+        "diff": true,
+        "why": "跨型態比大小違規",
+        "mean": "引發 TypeError 崩潰"
+      }
+    ],
+    "output": "(1, 'a') &lt; (2, 100): True\nTraceback (most recent call last):\n  File \"main.py\", line 4, in &lt;module&gt;\n    res = (1, \"apple\") < (1, 20)\nTypeError: '<' not supported between instances of 'str' and 'int'",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 跨型態比大小死穴</strong>：Python 3 嚴禁跨型態比大小（如 <code>'str' &lt; 'int'</code>）。如果元組前幾項打平，輪到比對跨型態欄位時，直譯器會直接丟出 <code>TypeError</code> 終止程式！"
+      },
+      {
+        "type": "radar",
+        "text": "<strong>🎯 排序防禦建議</strong>：進行自訂排序時，確保元組對應位置的欄位型態「嚴格一致」，絕不能有些放數字、有些放字串！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "同欄同型態，異類不可比"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.2 綜合驗收",
+    "titleZh": "單元 10.2 綜合驗收：可雜湊性本質與多準則元組排序",
+    "titleEn": "Unit 10.2 Review: Hashability & Multi-Criteria Ranking",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 封裝四個目標座標與權重",
+        "html": "<span class=\"token-comment\"># 封裝四個目標座標與權重</span>",
+        "alt": "註解：綜合驗收情境說明",
+        "why": "建立多準則驗收資料",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "targets = [(\"A\", (1, 2), 50), (\"B\", (0, 1), 50), (\"C\", (2, 2), 80)]",
+        "html": "<span class=\"token-ident\">targets</span> = [(<span class=\"token-string\">\"A\"</span>, (<span class=\"token-number\">1</span>, <span class=\"token-number\">2</span>), <span class=\"token-number\">50</span>), (<span class=\"token-string\">\"B\"</span>, (<span class=\"token-number\">0</span>, <span class=\"token-number\">1</span>), <span class=\"token-number\">50</span>), (<span class=\"token-string\">\"C\"</span>, (<span class=\"token-number\">2</span>, <span class=\"token-number\">2</span>), <span class=\"token-number\">80</span>)]",
+        "alt": "宣告包含名稱、座標元組與獎勵分數的清單 targets",
+        "why": "建立巢狀資料串列",
+        "mean": "目標物清單"
+      },
+      {
+        "num": 3,
+        "code": "# 排序準則：分數由高到低（-score）、曼哈頓距離由近到遠（dist）",
+        "html": "<span class=\"token-comment\"># 排序準則：分數由高到低（-score）、曼哈頓距離由近到遠（dist）</span>",
+        "alt": "註解：多準則排序公式說明",
+        "why": "定義二階排序標準",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "ranked = sorted(targets, key=lambda t: (-t[2], t[1][0] + t[1][1]))",
+        "html": "<span class=\"token-ident\">ranked</span> = <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">targets</span>, <span class=\"token-ident\">key</span>=<span class=\"token-keyword\">lambda</span> <span class=\"token-ident\">t</span>: (<span class=\"token-op\">-</span><span class=\"token-ident\">t</span>[<span class=\"token-number\">2</span>], <span class=\"token-ident\">t</span>[<span class=\"token-number\">1</span>][<span class=\"token-number\">0</span>] + <span class=\"token-ident\">t</span>[<span class=\"token-number\">1</span>][<span class=\"token-number\">1</span>]))",
+        "alt": "傳入多條件元組 key 進行排序",
+        "diff": true,
+        "why": "驗收元組多準則排序",
+        "mean": "多條件排序"
+      },
+      {
+        "num": 5,
+        "code": "for name, (r, c), score in ranked:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, (<span class=\"token-ident\">r</span>, <span class=\"token-ident\">c</span>), <span class=\"token-ident\">score</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">ranked</span>:",
+        "alt": "走訪並嵌套解包 name, (r, c), score",
+        "diff": true,
+        "why": "巢狀解包驗收成果",
+        "mean": "解包走訪"
+      },
+      {
+        "num": 6,
+        "code": "    print(f\"目標 {name}: 獎勵 {score}, 座標 ({r}, {c})\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"目標 {<span class=\"token-ident\">name</span>}: 獎勵 {<span class=\"token-ident\">score</span>}, 座標 ({<span class=\"token-ident\">r</span>}, {<span class=\"token-ident\">c</span>})\"</span>)",
+        "alt": "印出目標名稱分數與座標",
+        "why": "輸出排序驗收明細",
+        "mean": "印出目標"
+      }
+    ],
+    "output": "目標 C: 獎勵 80, 座標 (2, 2)\n目標 B: 獎勵 50, 座標 (0, 1)\n目標 A: 獎勵 50, 座標 (1, 2)",
+    "completionCard": {
+      "badge": "🏆 單元 10.2 通關：雜湊特質與多準則評比大師！",
+      "summary": "恭喜完全掌握可雜湊性（Hashable）原理、巢狀元組階層解包、八方向向量網格巡航與 APCS 經典多準則字典序排序！",
+      "nextUnit": "10.3 字典概念、建立與鍵值對存取（Key-Value）"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 動手練！</strong>：單元 10-2 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 32 儲存格的實戰程式演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>五大核心融會貫通</strong>：1. 不可變保證 Hashable；2. 雜湊表只認固若金湯的 Key；3. 巢狀解包一步到位；4. (dr, dc) 向量巡航；5. (-val, key) 多準則極速排名！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "可雜湊不可變，多鍵排序列"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec10-2",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_10-2_tuple_advanced_and_hashable.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 10.4 字典常用方法與走訪技巧 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元 10.4 字典常用方法與走訪技巧
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.1 安全取值神器：`d.get(key, default)` 徹底杜絕 KeyError 崩潰",
+    "titleZh": "安全取值神器——d.get(key, default) 徹底杜絕 KeyError",
+    "titleEn": "Safe Value Lookup: d.get(key, default) Prevents KeyError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = {\"Alice\": 95, \"Bob\": 82, \"Charlie\": 68}",
+        "html": "<span class=\"token-ident\">scores</span> = {<span class=\"token-string\">\"Alice\"</span>: <span class=\"token-number\">95</span>, <span class=\"token-string\">\"Bob\"</span>: <span class=\"token-number\">82</span>, <span class=\"token-string\">\"Charlie\"</span>: <span class=\"token-number\">68</span>}",
+        "alt": "宣告成績字典 scores",
+        "why": "建立測試成績單",
+        "mean": "學生成績字典"
+      },
+      {
+        "num": 2,
+        "code": "# 查詢存在的 Key：正常回傳對應值",
+        "html": "<span class=\"token-comment\"># 查詢存在的 Key：正常回傳對應值</span>",
+        "alt": "註解：查詢存在鍵說明",
+        "why": "示範正常查詢",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "print(\"Alice 成績:\", scores.get(\"Alice\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"Alice 成績:\"</span>, <span class=\"token-ident\">scores</span>.<span class=\"token-ident\">get</span>(<span class=\"token-string\">\"Alice\"</span>))",
+        "alt": "呼叫 get 取出 Alice 成績",
+        "diff": true,
+        "why": "以 get 取值",
+        "mean": "輸出 95"
+      },
+      {
+        "num": 4,
+        "code": "# 查詢不存在的 Key：預設回傳 None（絕不崩潰噴錯！）",
+        "html": "<span class=\"token-comment\"># 查詢不存在的 Key：預設回傳 None（絕不崩潰噴錯！）</span>",
+        "alt": "註解：查詢不存在鍵說明",
+        "why": "揭露防爆機制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "print(\"David 成績 (未給預設值):\", scores.get(\"David\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"David 成績 (未給預設值):\"</span>, <span class=\"token-ident\">scores</span>.<span class=\"token-ident\">get</span>(<span class=\"token-string\">\"David\"</span>))",
+        "alt": "查詢不存在的 David 回傳 None",
+        "diff": true,
+        "why": "示範預設回傳 None",
+        "mean": "輸出 None"
+      },
+      {
+        "num": 6,
+        "code": "# 查詢不存在的 Key 並指定「自訂預設值」0：",
+        "html": "<span class=\"token-comment\"># 查詢不存在的 Key 並指定「自訂預設值」0：</span>",
+        "alt": "註解：自訂預設值說明",
+        "why": "示範自訂預設值",
+        "mean": "說明文字"
+      },
+      {
+        "num": 7,
+        "code": "print(\"David 成績 (自訂預設 0):\", scores.get(\"David\", 0))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"David 成績 (自訂預設 0):\"</span>, <span class=\"token-ident\">scores</span>.<span class=\"token-ident\">get</span>(<span class=\"token-string\">\"David\"</span>, <span class=\"token-number\">0</span>))",
+        "alt": "查詢 David 並給定預設值 0",
+        "diff": true,
+        "why": "防呆帶入預設值",
+        "mean": "輸出 0"
+      }
+    ],
+    "output": "Alice 成績: 95\nDavid 成績 (未給預設值): None\nDavid 成績 (自訂預設 0): 0",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>安全取值神器 .get()</strong>：語法 <code>d.get(key, default=None)</code>。當鍵存在時回傳對應值；當鍵不存在時優雅回傳 <code>default</code>，徹底終結 <code>KeyError</code> 惡夢！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>推薦搭配數值預設值</strong>：在處理統計計算時，強烈建議傳入預設值 <code>0</code>（如 <code>d.get(k, 0)</code>），方便後續直接進行加減運算。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "get安全查，查無不噴錯"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.1 安全取值神器：`d.get(key, default)` 徹底杜絕 KeyError 崩潰",
+    "titleZh": "單行計數器神技——counts[w] = counts.get(w, 0) + 1",
+    "titleEn": "One-Line Frequency Counter Pattern with d.get()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "tokens = [\"apple\", \"banana\", \"apple\", \"orange\", \"banana\", \"apple\"]",
+        "html": "<span class=\"token-ident\">tokens</span> = [<span class=\"token-string\">\"apple\"</span>, <span class=\"token-string\">\"banana\"</span>, <span class=\"token-string\">\"apple\"</span>, <span class=\"token-string\">\"orange\"</span>, <span class=\"token-string\">\"banana\"</span>, <span class=\"token-string\">\"apple\"</span>]",
+        "alt": "宣告字串串列 tokens",
+        "why": "建立測試統計字串",
+        "mean": "單字串列"
+      },
+      {
+        "num": 2,
+        "code": "counts = {}",
+        "html": "<span class=\"token-ident\">counts</span> = {}",
+        "alt": "宣告空計數器 counts",
+        "why": "建立統計字典",
+        "mean": "空字典"
+      },
+      {
+        "num": 3,
+        "code": "for w in tokens:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">tokens</span>:",
+        "alt": "走訪單字清單",
+        "why": "輪詢各單字",
+        "mean": "走訪單字"
+      },
+      {
+        "num": 4,
+        "code": "    # 一行取代四行 if-else：若不在則為 0+1，若在則為舊值+1！",
+        "html": "    <span class=\"token-comment\"># 一行取代四行 if-else：若不在則為 0+1，若在則為舊值+1！</span>",
+        "alt": "註解：單行計數器核心機制說明",
+        "why": "闡述核心簡化心法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 5,
+        "code": "    counts[w] = counts.get(w, 0) + 1",
+        "html": "    <span class=\"token-ident\">counts</span>[<span class=\"token-ident\">w</span>] = <span class=\"token-ident\">counts</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">w</span>, <span class=\"token-number\">0</span>) + <span class=\"token-number\">1</span>",
+        "alt": "以 get 單行完成計數累加",
+        "diff": true,
+        "why": "極簡單行計數器",
+        "mean": "單行累加"
+      },
+      {
+        "num": 6,
+        "code": "print(\"水果出現頻率:\", counts)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"水果出現頻率:\"</span>, <span class=\"token-ident\">counts</span>)",
+        "alt": "印出計數成果",
+        "why": "輸出最終統計",
+        "mean": "輸出次數"
+      }
+    ],
+    "output": "水果出現頻率: {'apple': 3, 'banana': 2, 'orange': 1}",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考場最受歡迎的一行神技</strong>：<code>counts[x] = counts.get(x, 0) + 1</code>。初次出現時 <code>get(x, 0)</code> 拿到 <code>0</code> 隨即 <code>+1</code> 變成 1；舊元素則取得既有次數 <code>+1</code>，極致簡潔且完全不用寫 <code>if-else</code>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>執行效率</strong>：與寫四行 <code>if-else</code> 效率完全一致，但能顯著減少邏輯分支與縮排。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "get零加一，計數一行立"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.2 成員檢查：`key in d` 與 `key not in d` 的 $O(1)$ 極速存在性判定",
+    "titleZh": "成員檢查——key in d 的 O(1) 極速存在性判定",
+    "titleEn": "Membership Testing: O(1) Speed via Hash Lookup",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 字典擁有十萬筆黑名單 IP",
+        "html": "<span class=\"token-comment\"># 字典擁有十萬筆黑名單 IP</span>",
+        "alt": "註解：黑名單情境說明",
+        "why": "建立高效率搜尋情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "blacklist = {\"192.168.1.10\": \"濫發請求\", \"10.0.0.5\": \"惡意爬蟲\"}",
+        "html": "<span class=\"token-ident\">blacklist</span> = {<span class=\"token-string\">\"192.168.1.10\"</span>: <span class=\"token-string\">\"濫發請求\"</span>, <span class=\"token-string\">\"10.0.0.5\"</span>: <span class=\"token-string\">\"惡意爬蟲\"</span>}",
+        "alt": "宣告黑名單字典 blacklist",
+        "why": "建立測試字典",
+        "mean": "黑名單字典"
+      },
+      {
+        "num": 3,
+        "code": "ip1 = \"192.168.1.10\"",
+        "html": "<span class=\"token-ident\">ip1</span> = <span class=\"token-string\">\"192.168.1.10\"</span>",
+        "alt": "定義 ip1",
+        "why": "測試目標一",
+        "mean": "目標IP"
+      },
+      {
+        "num": 4,
+        "code": "ip2 = \"172.16.0.1\"",
+        "html": "<span class=\"token-ident\">ip2</span> = <span class=\"token-string\">\"172.16.0.1\"</span>",
+        "alt": "定義 ip2",
+        "why": "測試目標二",
+        "mean": "目標IP"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"{ip1} 在黑名單中:\", ip1 in blacklist)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">ip1</span>} 在黑名單中:\"</span>, <span class=\"token-ident\">ip1</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">blacklist</span>)",
+        "alt": "以 in 檢查 ip1 是否在黑名單",
+        "diff": true,
+        "why": "O(1)極速存在檢查",
+        "mean": "輸出 True"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"{ip2} 不在黑名單中:\", ip2 not in blacklist)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">ip2</span>} 不在黑名單中:\"</span>, <span class=\"token-ident\">ip2</span> <span class=\"token-keyword\">not</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">blacklist</span>)",
+        "alt": "以 not in 檢查 ip2 是否不在黑名單",
+        "diff": true,
+        "why": "O(1)極速不存在檢查",
+        "mean": "輸出 True"
+      }
+    ],
+    "output": "192.168.1.10 在黑名單中: True\n172.16.0.1 不在黑名單中: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼不用串列做 in？</strong>：串列的 <code>x in list</code> 是從頭到尾走訪，時間複雜度為 $O(N)$；而字典的 <code>k in dict</code> 是直接計算雜湊值定址，時間複雜度為驚人的 $O(1)$！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>APCS 避開 TLE 關鍵</strong>：當測資高達 $10^5$，在迴圈內做串列 <code>in</code> 會引爆 $O(N^2)$ 嚴重超時；換成字典或集合即刻降至 $O(N)$ 滿分通過！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "字典用in，秒速查鍵名"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.2 成員檢查：`key in d` 與 `key not in d` 的 $O(1)$ 極速存在性判定",
+    "titleZh": "經典解題原型——利用雜湊字典實現兩數之和",
+    "titleEn": "Classic Two Sum: O(N) Hash Map Lookup Pattern",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "nums = [2, 7, 11, 15]; target = 9",
+        "html": "<span class=\"token-ident\">nums</span> = [<span class=\"token-number\">2</span>, <span class=\"token-number\">7</span>, <span class=\"token-number\">11</span>, <span class=\"token-number\">15</span>]; <span class=\"token-ident\">target</span> = <span class=\"token-number\">9</span>",
+        "alt": "宣告數列 nums 與目標和 target",
+        "why": "建立兩數之和經典題型",
+        "mean": "題型初始化"
+      },
+      {
+        "num": 2,
+        "code": "seen = {}  # 記錄 {數值: 索引}",
+        "html": "<span class=\"token-ident\">seen</span> = {}  <span class=\"token-comment\"># 記錄 {數值: 索引}</span>",
+        "alt": "宣告空白雜湊字典 seen",
+        "why": "建立查找雜湊表",
+        "mean": "空字典"
+      },
+      {
+        "num": 3,
+        "code": "for i, num in enumerate(nums):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span>, <span class=\"token-ident\">num</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">enumerate</span>(<span class=\"token-ident\">nums</span>):",
+        "alt": "走訪數列並取得索引與數值",
+        "why": "單層線性走訪",
+        "mean": "列舉走訪"
+      },
+      {
+        "num": 4,
+        "code": "    diff = target - num  # 尋找與自身湊成 target 的補數",
+        "html": "    <span class=\"token-ident\">diff</span> = <span class=\"token-ident\">target</span> - <span class=\"token-ident\">num</span>  <span class=\"token-comment\"># 尋找與自身湊成 target 的補數</span>",
+        "alt": "計算目標差值 diff",
+        "why": "計算補數",
+        "mean": "計算差值"
+      },
+      {
+        "num": 5,
+        "code": "    if diff in seen:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">diff</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">seen</span>:",
+        "alt": "以 in 檢查補數是否曾在字典中出現",
+        "diff": true,
+        "why": "O(1)秒查補數",
+        "mean": "補數檢查"
+      },
+      {
+        "num": 6,
+        "code": "        print(f\"找到組合: 索引 {seen[diff]} 與 {i} (數值 {diff} + {num} = {target})\")",
+        "html": "        <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"找到組合: 索引 {<span class=\"token-ident\">seen</span>[<span class=\"token-ident\">diff</span>]} 與 {<span class=\"token-ident\">i</span>} (數值 {<span class=\"token-ident\">diff</span>} + {<span class=\"token-ident\">num</span>} = {<span class=\"token-ident\">target</span>})\"</span>)",
+        "alt": "印出找到的兩數索引與數值",
+        "diff": true,
+        "why": "輸出成功解",
+        "mean": "印出答案"
+      },
+      {
+        "num": 7,
+        "code": "        break",
+        "html": "        <span class=\"token-keyword\">break</span>",
+        "alt": "中斷迴圈",
+        "why": "完成搜尋",
+        "mean": "中斷"
+      },
+      {
+        "num": 8,
+        "code": "    seen[num] = i  # 登錄當前數值與索引",
+        "html": "    <span class=\"token-ident\">seen</span>[<span class=\"token-ident\">num</span>] = <span class=\"token-ident\">i</span>  <span class=\"token-comment\"># 登錄當前數值與索引</span>",
+        "alt": "將當前數值與索引存入字典 seen",
+        "diff": true,
+        "why": "記錄走訪歷程",
+        "mean": "登錄數值"
+      }
+    ],
+    "output": "找到組合: 索引 0 與 1 (數值 2 + 7 = 9)",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 演算法里程碑：兩數之和（Two Sum）</strong>：雙重迴圈需要 $O(N^2)$；改用雜湊字典記錄 <code>seen[num] = i</code>，尋找補數 <code>diff in seen</code> 只要 $O(1)$，整道題目只花 $O(N)$ 一趟走訪秒殺！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>空間換取時間</strong>：利用字典消耗微量記憶體，換取巨幅的時間加速，是競技程式的核心思維。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "補數查雜湊，雙重變線性"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.3 鍵走訪：`for k in d:` 或 `d.keys()` 循序走訪",
+    "titleZh": "鍵走訪——for k in d 預設走訪所有 Key",
+    "titleEn": "Iterating Over Keys via for k in d",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "contacts = {\"Alice\": \"0912-345\", \"Bob\": \"0922-678\", \"Cindy\": \"0933-111\"}",
+        "html": "<span class=\"token-ident\">contacts</span> = {<span class=\"token-string\">\"Alice\"</span>: <span class=\"token-string\">\"0912-345\"</span>, <span class=\"token-string\">\"Bob\"</span>: <span class=\"token-string\">\"0922-678\"</span>, <span class=\"token-string\">\"Cindy\"</span>: <span class=\"token-string\">\"0933-111\"</span>}",
+        "alt": "宣告通訊錄字典 contacts",
+        "why": "建立測試字典",
+        "mean": "通訊錄字典"
+      },
+      {
+        "num": 2,
+        "code": "# 方式一：直接在 for 迴圈走訪字典，預設就是逐一取出「所有 Key」",
+        "html": "<span class=\"token-comment\"># 方式一：直接在 for 迴圈走訪字典，預設就是逐一取出「所有 Key」</span>",
+        "alt": "註解：預設走訪鍵說明",
+        "why": "介紹預設走訪機制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "for name in contacts:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">contacts</span>:",
+        "alt": "直接走訪 contacts 字典",
+        "diff": true,
+        "why": "走訪字典之鍵",
+        "mean": "走訪鍵"
+      },
+      {
+        "num": 4,
+        "code": "    print(f\"姓名: {name} -> 電話: {contacts[name]}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"姓名: {<span class=\"token-ident\">name</span>} -&gt; 電話: {<span class=\"token-ident\">contacts</span>[<span class=\"token-ident\">name</span>]}\"</span>)",
+        "alt": "印出姓名與查詢之電話",
+        "diff": true,
+        "why": "以鍵查詢輸出值",
+        "mean": "印出通訊錄"
+      },
+      {
+        "num": 5,
+        "code": "# 方式二：呼叫 .keys() 取得鍵視圖（功能等價）",
+        "html": "<span class=\"token-comment\"># 方式二：呼叫 .keys() 取得鍵視圖（功能等價）</span>",
+        "alt": "註解：keys 方法說明",
+        "why": "示範 keys 方法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 6,
+        "code": "all_names = list(contacts.keys())",
+        "html": "<span class=\"token-ident\">all_names</span> = <span class=\"token-builtin\">list</span>(<span class=\"token-ident\">contacts</span>.<span class=\"token-ident\">keys</span>())",
+        "alt": "呼叫 keys 並轉為串列 all_names",
+        "why": "提取所有鍵為串列",
+        "mean": "轉換鍵串列"
+      },
+      {
+        "num": 7,
+        "code": "print(\"所有聯絡人清單:\", all_names)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"所有聯絡人清單:\"</span>, <span class=\"token-ident\">all_names</span>)",
+        "alt": "印出所有姓名清單",
+        "why": "輸出姓名串列",
+        "mean": "輸出聯絡人"
+      }
+    ],
+    "output": "姓名: Alice -&gt; 電話: 0912-345\n姓名: Bob -&gt; 電話: 0922-678\n姓名: Cindy -&gt; 電話: 0933-111\n所有聯絡人清單: ['Alice', 'Bob', 'Cindy']",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>for k in d 的本質</strong>：走訪字典時，直譯器只會將 <strong>Key</strong> 指派給迴圈變數。若需要對應的 Value，需在迴圈內部以 <code>d[k]</code> 進行提取。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>d.keys() 的回傳型態</strong>：回傳的是動態 <code>dict_keys</code> 視圖（View）。若需要隨機存取或排序，可寫 <code>list(d.keys())</code> 轉為串列。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "迴圈訪字典，預設只取鍵"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.3 鍵走訪：`for k in d:` 或 `d.keys()` 循序走訪",
+    "titleZh": "字典依 Key 排序走訪——sorted(d) 規範輸出",
+    "titleEn": "Sorted Key Traversal via sorted(d)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 字典插入順序與字母順序不一致",
+        "html": "<span class=\"token-comment\"># 字典插入順序與字母順序不一致</span>",
+        "alt": "註解：亂序插入情境說明",
+        "why": "建立亂序字典",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "stock = {\"Pen\": 30, \"Apple\": 15, \"Eraser\": 10}",
+        "html": "<span class=\"token-ident\">stock</span> = {<span class=\"token-string\">\"Pen\"</span>: <span class=\"token-number\">30</span>, <span class=\"token-string\">\"Apple\"</span>: <span class=\"token-number\">15</span>, <span class=\"token-string\">\"Eraser\"</span>: <span class=\"token-number\">10</span>}",
+        "alt": "宣告庫存字典 stock",
+        "why": "建立測試庫存",
+        "mean": "庫存字典"
+      },
+      {
+        "num": 3,
+        "code": "# 使用 sorted(d)：自動依照 Key 的字典序進行排序走訪",
+        "html": "<span class=\"token-comment\"># 使用 sorted(d)：自動依照 Key 的字典序進行排序走訪</span>",
+        "alt": "註解：sorted 排序字典鍵說明",
+        "why": "介紹排序走訪語法",
+        "mean": "說明文字"
+      },
+      {
+        "num": 4,
+        "code": "for item in sorted(stock):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">item</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">stock</span>):",
+        "alt": "走訪 sorted(stock) 排序後的鍵",
+        "diff": true,
+        "why": "排序走訪鍵值",
+        "mean": "排序走訪"
+      },
+      {
+        "num": 5,
+        "code": "    print(f\"{item}: 數量 {stock[item]}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"{<span class=\"token-ident\">item</span>}: 數量 {<span class=\"token-ident\">stock</span>[<span class=\"token-ident\">item</span>]}\"</span>)",
+        "alt": "印出排序後的項目與數量",
+        "diff": true,
+        "why": "輸出字母序明細",
+        "mean": "印出明細"
+      }
+    ],
+    "output": "Apple: 數量 15\nEraser: 數量 10\nPen: 數量 30",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 測資比對標準格式</strong>：題目常要求「依字典序由小到大輸出各項目統計」。只要在 <code>for</code> 後面包上 <code>sorted(d)</code>，直譯器自動按 Key 排序，輸出 100% 精準對齊！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>不破壞原字典</strong>：<code>sorted(d)</code> 僅回傳排好序的鍵清單，原字典內部的元素與順序不受任何影響。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "排序加鍵名，輸出整齊走"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.4 值走訪：`d.values()` 與極值/總和運算（`max(d.values())`, `sum(d.values())`）",
+    "titleZh": "值走訪——d.values() 提取所有數值集合",
+    "titleEn": "Accessing Values via d.values()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "sales = {\"Mon\": 120, \"Tue\": 150, \"Wed\": 90, \"Thu\": 200, \"Fri\": 180}",
+        "html": "<span class=\"token-ident\">sales</span> = {<span class=\"token-string\">\"Mon\"</span>: <span class=\"token-number\">120</span>, <span class=\"token-string\">\"Tue\"</span>: <span class=\"token-number\">150</span>, <span class=\"token-string\">\"Wed\"</span>: <span class=\"token-number\">90</span>, <span class=\"token-string\">\"Thu\"</span>: <span class=\"token-number\">200</span>, <span class=\"token-string\">\"Fri\"</span>: <span class=\"token-number\">180</span>}",
+        "alt": "宣告每日營業額字典 sales",
+        "why": "建立測試數值資料",
+        "mean": "營業額字典"
+      },
+      {
+        "num": 2,
+        "code": "vals = sales.values()  # 提取純數值的視圖",
+        "html": "<span class=\"token-ident\">vals</span> = <span class=\"token-ident\">sales</span>.<span class=\"token-ident\">values</span>()  <span class=\"token-comment\"># 提取純數值的視圖</span>",
+        "alt": "呼叫 values 取得所有值",
+        "diff": true,
+        "why": "示範 values 方法",
+        "mean": "提取數值"
+      },
+      {
+        "num": 3,
+        "code": "print(\"營業額視圖:\", vals)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"營業額視圖:\"</span>, <span class=\"token-ident\">vals</span>)",
+        "alt": "印出 values 視圖外觀",
+        "why": "檢視視圖結構",
+        "mean": "輸出視圖"
+      },
+      {
+        "num": 4,
+        "code": "for v in sales.values():",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">sales</span>.<span class=\"token-ident\">values</span>():",
+        "alt": "走訪 values 取得每一個數值",
+        "diff": true,
+        "why": "示範走訪純數值",
+        "mean": "走訪數值"
+      },
+      {
+        "num": 5,
+        "code": "    if v >= 150: print(\"達標業績:\", v)",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">v</span> &gt;= <span class=\"token-number\">150</span>: <span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"達標業績:\"</span>, <span class=\"token-ident\">v</span>)",
+        "alt": "若業績大於等於 150 則印出達標數值",
+        "diff": true,
+        "why": "過濾數值",
+        "mean": "印出高業績"
+      }
+    ],
+    "output": "營業額視圖: dict_values([120, 150, 90, 200, 180])\n達標業績: 150\n達標業績: 200\n達標業績: 180",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>d.values() 視圖</strong>：當你完全不在乎名牌 Key 是什麼，只關心背後的數據本體時，直接呼叫 <code>d.values()</code> 是最高效且語意最純粹的寫法。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>動態連動</strong>：<code>dict_values</code> 是動態視圖，若字典內容發生改變，視圖會即時連動更新。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "單純取值，走訪值清單"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.4 值走訪：`d.values()` 與極值/總和運算（`max(d.values())`, `sum(d.values())`）",
+    "titleZh": "數值極值與總和——搭配 sum、max、min 統計秒殺",
+    "titleEn": "Aggregations on Values: sum(), max(), min()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = {\"國文\": 85, \"英文\": 92, \"數學\": 78, \"自然\": 96, \"社會\": 88}",
+        "html": "<span class=\"token-ident\">scores</span> = {<span class=\"token-string\">\"國文\"</span>: <span class=\"token-number\">85</span>, <span class=\"token-string\">\"英文\"</span>: <span class=\"token-number\">92</span>, <span class=\"token-string\">\"數學\"</span>: <span class=\"token-number\">78</span>, <span class=\"token-string\">\"自然\"</span>: <span class=\"token-number\">96</span>, <span class=\"token-string\">\"社會\"</span>: <span class=\"token-number\">88</span>}",
+        "alt": "宣告各科段考成績字典 scores",
+        "why": "建立測試統計科目",
+        "mean": "學生成績字典"
+      },
+      {
+        "num": 2,
+        "code": "total_score = sum(scores.values())  # 計算五科總分",
+        "html": "<span class=\"token-ident\">total_score</span> = <span class=\"token-builtin\">sum</span>(<span class=\"token-ident\">scores</span>.<span class=\"token-ident\">values</span>())  <span class=\"token-comment\"># 計算五科總分</span>",
+        "alt": "呼叫 sum 對 scores.values() 進行加總",
+        "diff": true,
+        "why": "加總所有數值",
+        "mean": "計算總分"
+      },
+      {
+        "num": 3,
+        "code": "highest = max(scores.values())      # 最高分",
+        "html": "<span class=\"token-ident\">highest</span> = <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">scores</span>.<span class=\"token-ident\">values</span>())      <span class=\"token-comment\"># 最高分</span>",
+        "alt": "呼叫 max 求最高分",
+        "diff": true,
+        "why": "尋找最大值",
+        "mean": "最高分"
+      },
+      {
+        "num": 4,
+        "code": "lowest = min(scores.values())       # 最低分",
+        "html": "<span class=\"token-ident\">lowest</span> = <span class=\"token-builtin\">min</span>(<span class=\"token-ident\">scores</span>.<span class=\"token-ident\">values</span>())       <span class=\"token-comment\"># 最低分</span>",
+        "alt": "呼叫 min 求最低分",
+        "diff": true,
+        "why": "尋找最小值",
+        "mean": "最低分"
+      },
+      {
+        "num": 5,
+        "code": "avg = total_score / len(scores)",
+        "html": "<span class=\"token-ident\">avg</span> = <span class=\"token-ident\">total_score</span> / <span class=\"token-builtin\">len</span>(<span class=\"token-ident\">scores</span>)",
+        "alt": "計算平均分數",
+        "why": "計算平均分",
+        "mean": "平均分"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"總分: {total_score}, 平均: {avg:.1f}, 最高: {highest}, 最低: {lowest}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"總分: {<span class=\"token-ident\">total_score</span>}, 平均: {<span class=\"token-ident\">avg</span>:.1f}, 最高: {<span class=\"token-ident\">highest</span>}, 最低: {<span class=\"token-ident\">lowest</span>}\"</span>)",
+        "alt": "格式化輸出各項統計指標",
+        "why": "印出統計結論",
+        "mean": "印出統計"
+      }
+    ],
+    "output": "總分: 439, 平均: 87.8, 最高: 96, 最低: 78",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 統計題標準起手式</strong>：將 <code>d.values()</code> 直接餵給 <code>sum()</code>、<code>max()</code>、<code>min()</code> 等內建聚合函式，不需要寫任何迴圈累加，一行搞定全部分析！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>平均分公式</strong>：平均數直接使用 <code>sum(d.values()) / len(d)</code>，簡潔高雅。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "聚合數值，加總取最大"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.5 鍵值對走訪：`for k, v in d.items():` 雙變數解包走訪",
+    "titleZh": "鍵值對走訪——for k, v in d.items() 雙變數解包",
+    "titleEn": "Key-Value Traversal via for k, v in d.items()",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "salaries = {\"Alice\": 50000, \"Bob\": 42000, \"Charlie\": 48000}",
+        "html": "<span class=\"token-ident\">salaries</span> = {<span class=\"token-string\">\"Alice\"</span>: <span class=\"token-number\">50000</span>, <span class=\"token-string\">\"Bob\"</span>: <span class=\"token-number\">42000</span>, <span class=\"token-string\">\"Charlie\"</span>: <span class=\"token-number\">48000</span>}",
+        "alt": "宣告薪資字典 salaries",
+        "why": "建立測試人員薪資",
+        "mean": "薪資字典"
+      },
+      {
+        "num": 2,
+        "code": "# 呼叫 d.items()：回傳 (key, value) 元組的動態視圖",
+        "html": "<span class=\"token-comment\"># 呼叫 d.items()：回傳 (key, value) 元組的動態視圖</span>",
+        "alt": "註解：items 方法說明",
+        "why": "介紹 items 視圖概念",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "for name, salary in salaries.items():",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, <span class=\"token-ident\">salary</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">salaries</span>.<span class=\"token-ident\">items</span>():",
+        "alt": "走訪 salaries.items() 並解包給 name 與 salary",
+        "diff": true,
+        "why": "鍵值雙變數解包",
+        "mean": "解包走訪"
+      },
+      {
+        "num": 4,
+        "code": "    print(f\"員工: {name} -> 月薪: ${salary:,}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"員工: {<span class=\"token-ident\">name</span>} -&gt; 月薪: ${<span class=\"token-ident\">salary</span>:,}\"</span>)",
+        "alt": "格式化印出員工姓名與千分位月薪",
+        "diff": true,
+        "why": "輸出名牌與對應值",
+        "mean": "輸出薪資表"
+      }
+    ],
+    "output": "員工: Alice -&gt; 月薪: $50,000\n員工: Bob -&gt; 月薪: $42,000\n員工: Charlie -&gt; 月薪: $48,000",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>d.items() 的極致優雅</strong>：當同時需要 Key 和 Value 時，<code>for k, v in d.items():</code> 是 Python 最受推崇的寫法，完全避免在迴圈內反覆呼叫 <code>d[k]</code>。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>雙變數對稱解包</strong>：<code>items()</code> 每圈回傳一個二元元組 <code>(k, v)</code>，藉由第 10.1 節所學的元組解包，變數接收行雲流水。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "鍵值配對，解包秒完成"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.5 鍵值對走訪：`for k, v in d.items():` 雙變數解包走訪",
+    "titleZh": "極值反查——以 max(d, key=d.get) 秒找最高分得主",
+    "titleEn": "Finding Key with Maximum Value via max(d, key=d.get)",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "scores = {\"Alice\": 90, \"Bob\": 95, \"Charlie\": 88}",
+        "html": "<span class=\"token-ident\">scores</span> = {<span class=\"token-string\">\"Alice\"</span>: <span class=\"token-number\">90</span>, <span class=\"token-string\">\"Bob\"</span>: <span class=\"token-number\">95</span>, <span class=\"token-string\">\"Charlie\"</span>: <span class=\"token-number\">88</span>}",
+        "alt": "宣告成績字典 scores",
+        "why": "建立測試成績",
+        "mean": "學生成績字典"
+      },
+      {
+        "num": 2,
+        "code": "# 傳入 key=scores.get：以分數大小為基準，回傳最高分的「姓名 Key」！",
+        "html": "<span class=\"token-comment\"># 傳入 key=scores.get：以分數大小為基準，回傳最高分的「姓名 Key」！</span>",
+        "alt": "註解：max 傳入 key 參數說明",
+        "why": "示範極值反查技巧",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "top_student = max(scores, key=scores.get)",
+        "html": "<span class=\"token-ident\">top_student</span> = <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">scores</span>, <span class=\"token-ident\">key</span>=<span class=\"token-ident\">scores</span>.<span class=\"token-ident\">get</span>)",
+        "alt": "呼叫 max 傳入 scores.get 求最高分姓名",
+        "diff": true,
+        "why": "反查最高分姓名",
+        "mean": "求冠軍姓名"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"最高分得主: {top_student}，得分: {scores[top_student]}\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"最高分得主: {<span class=\"token-ident\">top_student</span>}，得分: {<span class=\"token-ident\">scores</span>[<span class=\"token-ident\">top_student</span>]}\"</span>)",
+        "alt": "印出最高分得主與其成績",
+        "diff": true,
+        "why": "輸出極值成果",
+        "mean": "輸出冠軍"
+      }
+    ],
+    "output": "最高分得主: Bob，得分: 95",
+    "notes": [
+      {
+        "type": "radar",
+        "text": "<strong>🎯 APCS 考場神技：反查冠軍 Key</strong>：初學者常先求出 <code>max(d.values())</code> 是 95，再寫迴圈遍歷字典反查是誰拿 95 分。直接寫 <code>max(d, key=d.get)</code>，直譯器自動以 Value 為權重比較，秒回傳冠軍的 Key！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>min 同樣適用</strong>：尋找最低分得主只需寫 <code>min(d, key=d.get)</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "求最高分，max套get"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.6 字典生成式（Dictionary Comprehension）：`{k: v for ... if ...}`",
+    "titleZh": "字典生成式——精煉高雅的批次映射與過濾",
+    "titleEn": "Dictionary Comprehensions: Filtering & Transforming",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "raw_scores = {\"Peter\": 85, \"Mary\": 58, \"John\": 72, \"Lisa\": 45}",
+        "html": "<span class=\"token-ident\">raw_scores</span> = {<span class=\"token-string\">\"Peter\"</span>: <span class=\"token-number\">85</span>, <span class=\"token-string\">\"Mary\"</span>: <span class=\"token-number\">58</span>, <span class=\"token-string\">\"John\"</span>: <span class=\"token-number\">72</span>, <span class=\"token-string\">\"Lisa\"</span>: <span class=\"token-number\">45</span>}",
+        "alt": "宣告原始成績字典 raw_scores",
+        "why": "建立測試原始資料",
+        "mean": "學生成績字典"
+      },
+      {
+        "num": 2,
+        "code": "# 字典生成式語法：{鍵運算式: 值運算式 for 變數 in 迭代 if 條件}",
+        "html": "<span class=\"token-comment\"># 字典生成式語法：{鍵運算式: 值運算式 for 變數 in 迭代 if 條件}</span>",
+        "alt": "註解：字典生成式語法格式說明",
+        "why": "規範生成式結構",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "passed = {name: s for name, s in raw_scores.items() if s >= 60}",
+        "html": "<span class=\"token-ident\">passed</span> = {<span class=\"token-ident\">name</span>: <span class=\"token-ident\">s</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span>, <span class=\"token-ident\">s</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">raw_scores</span>.<span class=\"token-ident\">items</span>() <span class=\"token-keyword\">if</span> <span class=\"token-ident\">s</span> &gt;= <span class=\"token-number\">60</span>}",
+        "alt": "以字典生成式過濾出及格成績",
+        "diff": true,
+        "why": "過濾產生新字典",
+        "mean": "生成及格字典"
+      },
+      {
+        "num": 4,
+        "code": "print(\"及格學生名冊:\", passed)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"及格學生名冊:\"</span>, <span class=\"token-ident\">passed</span>)",
+        "alt": "印出及格名冊",
+        "diff": true,
+        "why": "驗證生成式成果",
+        "mean": "輸出及格字典"
+      }
+    ],
+    "output": "及格學生名冊: {'Peter': 85, 'John': 72}",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>字典生成式（Dict Comprehension）</strong>：與第八章列表生成式系出同門，只需用大括號與冒號 <code>{k: v for ... if ...}</code>，就能一行完成新字典的映射、轉換與條件過濾。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>鍵值反轉（Invert Dict）神技</strong>：寫 <code>{v: k for k, v in d.items()}</code> 即可瞬間把字典的 Key 和 Value 顛倒對調！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "生成式大括，鍵值過濾明"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.3 鍵走訪：`for k in d:` 或 `d.keys()` 循序走訪",
+    "titleZh": "考場致命地雷一：走訪途中修改字典大小引爆 RuntimeError",
+    "titleEn": "Exam Trap 1: Mutating Dictionary During Iteration (RuntimeError)",
+    "predictQuiz": {
+      "question": "執行以下程式碼：`d = {'a': 1, 'b': 2}; for k in d: del d[k]`，Python 直譯器會產生什麼結果？",
+      "options": [
+        "A. 字典被順利清空變為 {}",
+        "B. 拋出 RuntimeError: dictionary changed size during iteration 執行期錯誤"
+      ],
+      "answer": 1,
+      "correct": 1,
+      "explanation": "在走訪字典時，Python 直譯器嚴格禁止在迴圈內部增刪該字典的鍵值對（改變大小），這會破壞雜湊表的迭代器狀態，立即引爆 RuntimeError 導致程式崩潰！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "d = {\"a\": 1, \"b\": 2, \"c\": 3}",
+        "html": "<span class=\"token-ident\">d</span> = {<span class=\"token-string\">\"a\"</span>: <span class=\"token-number\">1</span>, <span class=\"token-string\">\"b\"</span>: <span class=\"token-number\">2</span>, <span class=\"token-string\">\"c\"</span>: <span class=\"token-number\">3</span>}",
+        "alt": "宣告測試字典 d",
+        "why": "建立測試字典",
+        "mean": "測試字典"
+      },
+      {
+        "num": 2,
+        "code": "# 致命地雷：邊走訪邊刪除字典內部的 Key！",
+        "html": "<span class=\"token-comment\"># 致命地雷：邊走訪邊刪除字典內部的 Key！</span>",
+        "alt": "註解：地雷操作說明",
+        "why": "標示違規邊界",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "for k in d:  # RuntimeError: dictionary changed size during iteration",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">k</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">d</span>:  <span class=\"token-comment\"># 引爆 RuntimeError!</span>",
+        "alt": "走訪 d 同時在內部刪除鍵",
+        "diff": true,
+        "why": "邊迭代邊改動大小違規",
+        "mean": "迭代引發異常"
+      },
+      {
+        "num": 4,
+        "code": "    if d[k] % 2 == 1: del d[k]",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">d</span>[<span class=\"token-ident\">k</span>] % <span class=\"token-number\">2</span> == <span class=\"token-number\">1</span>: <span class=\"token-keyword\">del</span> <span class=\"token-ident\">d</span>[<span class=\"token-ident\">k</span>]",
+        "alt": "刪除奇數鍵值對",
+        "diff": true,
+        "why": "違規刪除條目",
+        "mean": "刪除鍵"
+      }
+    ],
+    "output": "Traceback (most recent call last):\n  File \"main.py\", line 3, in &lt;module&gt;\n    for k in d:\nRuntimeError: dictionary changed size during iteration",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 競賽初學者最常踩中死穴（RuntimeError）</strong>：千萬不要在 <code>for k in d:</code> 裡面寫 <code>del d[k]</code> 或 <code>d[new] = v</code>！這會破壞雜湊尋址鏈。"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>標準解法</strong>：複製一份靜態鍵清單來走訪：<code>for k in list(d.keys()):</code>，或是使用字典生成式建立新字典過濾！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "走訪莫刪鍵，轉清單再改"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.1 安全取值神器：`d.get(key, default)` 徹底杜絕 KeyError 崩潰",
+    "titleZh": "考場致命地雷二：d.get() 漏填預設值引爆 None 運算錯誤",
+    "titleEn": "Exam Trap 2: Missing Default in d.get() Causes TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "stock = {\"pen\": 10}",
+        "html": "<span class=\"token-ident\">stock</span> = {<span class=\"token-string\">\"pen\"</span>: <span class=\"token-number\">10</span>}",
+        "alt": "宣告庫存字典 stock",
+        "why": "建立測試庫存",
+        "mean": "庫存字典"
+      },
+      {
+        "num": 2,
+        "code": "# 考生記得用 get 避開 KeyError，卻漏填了預設數值 0！",
+        "html": "<span class=\"token-comment\"># 考生記得用 get 避開 KeyError，卻漏填了預設數值 0！</span>",
+        "alt": "註解：漏填預設值說明",
+        "why": "標明地雷點",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "r = stock.get(\"ruler\")  # 查無 ruler，回傳 None！",
+        "html": "<span class=\"token-ident\">r</span> = <span class=\"token-ident\">stock</span>.<span class=\"token-ident\">get</span>(<span class=\"token-string\">\"ruler\"</span>)  <span class=\"token-comment\"># 查無 ruler，回傳 None！</span>",
+        "alt": "以 get 查詢 ruler 得到 None",
+        "diff": true,
+        "why": "回傳 None",
+        "mean": "賦值 None"
+      },
+      {
+        "num": 4,
+        "code": "total = r + 1  # TypeError: unsupported operand: 'NoneType' and 'int'",
+        "html": "<span class=\"token-ident\">total</span> = <span class=\"token-ident\">r</span> + <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 引爆 TypeError!</span>",
+        "alt": "嘗試將 None 與整數 1 相加引爆 TypeError",
+        "diff": true,
+        "why": "None 與整數相加違規",
+        "mean": "引發 TypeError 崩潰"
+      }
+    ],
+    "output": "Traceback (most recent call last):\n  File \"main.py\", line 4, in &lt;module&gt;\n    total = r + 1\nTypeError: unsupported operand type(s) for +: 'NoneType' and 'int'",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 隱形的 NoneType 陷阱</strong>：<code>d.get(k)</code> 若不給第二個參數，查不到時預設是 <code>None</code>。如果拿 <code>None</code> 去做 <code>+ 1</code> 或數值比較，會引發 <code>TypeError</code> 崩潰！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>金科玉律</strong>：只要取出來的值後續要進行數值運算，一律強制寫 <code>d.get(k, 0)</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "get算數值，預設必給零"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4.4 值走訪：`d.values()` 與極值/總和運算（`max(d.values())`, `sum(d.values())`）",
+    "titleZh": "考場致命地雷三：誤以為 d.values() 支援索引取值",
+    "titleEn": "Exam Trap 3: Subscripting dict_values Causes TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "data = {\"a\": 10, \"b\": 20}",
+        "html": "<span class=\"token-ident\">data</span> = {<span class=\"token-string\">\"a\"</span>: <span class=\"token-number\">10</span>, <span class=\"token-string\">\"b\"</span>: <span class=\"token-number\">20</span>}",
+        "alt": "宣告測試字典 data",
+        "why": "建立測試字典",
+        "mean": "測試字典"
+      },
+      {
+        "num": 2,
+        "code": "# 考生誤以為 d.values() 回傳的是一般串列，試圖以中括號 [0] 取值",
+        "html": "<span class=\"token-comment\"># 考生誤以為 d.values() 回傳的是一般串列，試圖以中括號 [0] 取值</span>",
+        "alt": "註解：視圖無法索引說明",
+        "why": "標明視圖限制",
+        "mean": "說明文字"
+      },
+      {
+        "num": 3,
+        "code": "val = data.values()[0]  # TypeError: object is not subscriptable",
+        "html": "<span class=\"token-ident\">val</span> = <span class=\"token-ident\">data</span>.<span class=\"token-ident\">values</span>()[<span class=\"token-number\">0</span>]  <span class=\"token-comment\"># 引爆 TypeError!</span>",
+        "alt": "嘗試對 data.values() 使用索引 [0] 引爆 TypeError",
+        "diff": true,
+        "why": "視圖不支援下標索引",
+        "mean": "引發 TypeError 崩潰"
+      }
+    ],
+    "output": "Traceback (most recent call last):\n  File \"main.py\", line 3, in &lt;module&gt;\n    val = data.values()[0]\nTypeError: 'dict_values' object is not subscriptable",
+    "notes": [
+      {
+        "type": "wa-alert",
+        "text": "<strong>💥 視圖不支援下標（Not Subscriptable）</strong>：<code>dict_keys</code> 與 <code>dict_values</code> 是視圖物件，支援 <code>for</code> 走訪與 <code>len()</code>，但<strong>絕對不支援 <code>[0]</code> 索引</strong>！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>一秒修正</strong>：若一定要用下標索引取出第一個元素，必須先轉型為串列：<code>list(data.values())[0]</code>。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "視圖無下標，轉串列再取"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 10 章 字典（Dictionary）、集合（Set）與元組（Tuple）的解題應用",
+    "section": "10.4 綜合驗收",
+    "titleZh": "單元 10.4 綜合驗收：字典方法與走訪大滿貫",
+    "titleEn": "Unit 10.4 Review: Dictionary Methods & Comprehensions Mastery",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 驗收：文章單字統計、及格過濾與排序輸出",
+        "html": "<span class=\"token-comment\"># 驗收：文章單字統計、及格過濾與排序輸出</span>",
+        "alt": "註解：綜合驗收說明",
+        "why": "建立綜合情境",
+        "mean": "說明文字"
+      },
+      {
+        "num": 2,
+        "code": "words = [\"cat\", \"dog\", \"cat\", \"bird\", \"dog\", \"cat\"]",
+        "html": "<span class=\"token-ident\">words</span> = [<span class=\"token-string\">\"cat\"</span>, <span class=\"token-string\">\"dog\"</span>, <span class=\"token-string\">\"cat\"</span>, <span class=\"token-string\">\"bird\"</span>, <span class=\"token-string\">\"dog\"</span>, <span class=\"token-string\">\"cat\"</span>]",
+        "alt": "宣告單字串列 words",
+        "why": "建立待統計單字串列",
+        "mean": "單字串列"
+      },
+      {
+        "num": 3,
+        "code": "freq = {}",
+        "html": "<span class=\"token-ident\">freq</span> = {}",
+        "alt": "宣告空計數器 freq",
+        "why": "計數字典",
+        "mean": "空字典"
+      },
+      {
+        "num": 4,
+        "code": "for w in words: freq[w] = freq.get(w, 0) + 1  # 單行計數器",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">words</span>: <span class=\"token-ident\">freq</span>[<span class=\"token-ident\">w</span>] = <span class=\"token-ident\">freq</span>.<span class=\"token-ident\">get</span>(<span class=\"token-ident\">w</span>, <span class=\"token-number\">0</span>) + <span class=\"token-number\">1</span>  <span class=\"token-comment\"># 單行計數器</span>",
+        "alt": "以 get 單行完成計數",
+        "diff": true,
+        "why": "單行統計頻率",
+        "mean": "單行累加"
+      },
+      {
+        "num": 5,
+        "code": "max_count = max(freq.values())  # 最高出現次數",
+        "html": "<span class=\"token-ident\">max_count</span> = <span class=\"token-builtin\">max</span>(<span class=\"token-ident\">freq</span>.<span class=\"token-ident\">values</span>())  <span class=\"token-comment\"># 最高出現次數</span>",
+        "alt": "呼叫 max 求最高頻率",
+        "diff": true,
+        "why": "求極大值",
+        "mean": "最高頻率"
+      },
+      {
+        "num": 6,
+        "code": "for w, c in sorted(freq.items()):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">w</span>, <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">sorted</span>(<span class=\"token-ident\">freq</span>.<span class=\"token-ident\">items</span>()):",
+        "alt": "走訪排序後的 items 並解包",
+        "diff": true,
+        "why": "排序解包走訪",
+        "mean": "排序走訪"
+      },
+      {
+        "num": 7,
+        "code": "    print(f\"單字: {w:4s} -> 出現: {c} 次\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f\"單字: {<span class=\"token-ident\">w</span>:4s} -&gt; 出現: {<span class=\"token-ident\">c</span>} 次\"</span>)",
+        "alt": "印出排序後單字與次數",
+        "diff": true,
+        "why": "格式化輸出明細",
+        "mean": "印出明細"
+      },
+      {
+        "num": 8,
+        "code": "print(\"最高出現次數:\", max_count)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">\"最高出現次數:\"</span>, <span class=\"token-ident\">max_count</span>)",
+        "alt": "印出最高頻率",
+        "why": "輸出極值統計",
+        "mean": "輸出最高次數"
+      }
+    ],
+    "output": "單字: bird -> 出現: 1 次\n單字: cat  -> 出現: 3 次\n單字: dog  -> 出現: 2 次\n最高出現次數: 3",
+    "completionCard": {
+      "badge": "🏆 單元 10.4 通關：字典走訪與生成式宗師！",
+      "summary": "太棒了！你已徹底領悟 d.get() 安全取值、單行頻率計數器、keys/values/items 走訪、sorted(d) 排序輸出與字典生成式！",
+      "nextUnit": "10.5 字典在 APCS 的經典解題模式"
+    },
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>🚀 前往 Colab 動手練！</strong>：單元 10-4 投影片已全數吸收完畢！請點擊右上角「Colab 筆記本」按鈕，立即展開 32 儲存格的實戰程式演練！"
+      },
+      {
+        "type": "tip",
+        "text": "<strong>五大核心融會貫通</strong>：1. d.get(k, 0) 單行計數神技；2. in 雜湊檢查常數時間；3. for k, v in d.items() 雙變數解包；4. sorted(d) 規範輸出；5. 走訪嚴禁增刪鍵！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "走訪解包序，字典技大成"
+      }
+    ]
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec10-4",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_10-4_dictionary_methods_and_traversal.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

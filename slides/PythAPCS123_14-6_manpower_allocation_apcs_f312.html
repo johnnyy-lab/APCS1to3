@@ -1,0 +1,3649 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "APCS f312 Problem Spec: Manpower Allocation",
+    "titleEn": "APCS f312 Problem Spec: Manpower Allocation",
+    "titleZh": "真題規格剖析：APCS 2020-10 實作第 1 題「人力分配」",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 題目目標：將 n 名員工分配給兩工廠 (X1 + X2 = n)，求總收益最大值",
+        "html": "<span class=\"token-comment\"># 題目目標：將 n 名員工分配給兩工廠 (X1 + X2 = n)，求總收益最大值</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "明確任務焦點",
+        "mean": "問題目標說明"
+      },
+      {
+        "num": 2,
+        "code": "# 工廠 1 收益：Y1 = A1 * X1^2 + B1 * X1 + C1",
+        "html": "<span class=\"token-comment\"># 工廠 1 收益：Y1 = A1 * X1^2 + B1 * X1 + C1</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "定義工廠一拋物線",
+        "mean": "工廠一二次式"
+      },
+      {
+        "num": 3,
+        "code": "# 工廠 2 收益：Y2 = A2 * X2^2 + B2 * X2 + C2",
+        "html": "<span class=\"token-comment\"># 工廠 2 收益：Y2 = A2 * X2^2 + B2 * X2 + C2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "定義工廠二拋物線",
+        "mean": "工廠二二次式"
+      },
+      {
+        "num": 4,
+        "code": "# 總收益：Total = Y1 + Y2 (X1, X2 >= 0)",
+        "html": "<span class=\"token-comment\"># 總收益：Total = Y1 + Y2 (X1, X2 &gt;= 0)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "收益相加",
+        "mean": "總收益公式"
+      },
+      {
+        "num": 5,
+        "code": "n = 2",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "以 n=2 為例",
+        "mean": "設定總人數"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"待分配總人數 n: {n}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;待分配總人數 n: <span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "非負整數約束",
+        "mean": "印出約束條件"
+      },
+      {
+        "num": 7,
+        "code": "print(\"約束條件: X1 >= 0, X2 >= 0, X1 + X2 = n\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;約束條件: X1 &gt;= 0, X2 &gt;= 0, X1 + X2 = n&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "最大化總利潤",
+        "mean": "印出目標"
+      },
+      {
+        "num": 8,
+        "code": "print(\"求解標的: 最大可能之 Total = Y1 + Y2\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;求解標的: 最大可能之 Total = Y1 + Y2&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "待分配總人數 n: 2\n約束條件: X1 >= 0, X2 >= 0, X1 + X2 = n\n求解標的: 最大可能之 Total = Y1 + Y2",
+    "diagram": {
+      "type": "flow",
+      "title": "人力分配架構模型",
+      "flow": [
+        {
+          "step": 1,
+          "text": "讀取工廠一係數 A1, B1, C1"
+        },
+        {
+          "step": 2,
+          "text": "讀取工廠二係數 A2, B2, C2"
+        },
+        {
+          "step": 3,
+          "text": "讀取總人數 n"
+        },
+        {
+          "step": 4,
+          "text": "枚舉 X1 in [0, n]，得 X2 = n - X1"
+        },
+        {
+          "step": 5,
+          "text": "維護最大總收益 max_profit 並輸出"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "真題背景",
+        "content": "APCS 2020 年 10 月實作第 1 題，考驗二次多項式求值與窮舉法（枚舉演算法）。"
+      },
+      {
+        "type": "hint",
+        "title": "整數限制",
+        "content": "人數必定是整數且非負，n <= 100 範圍極小，電腦一瞬間即可全部試算完畢！"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "Input Format & Coefficient Range Analysis",
+    "titleEn": "Input Format & Coefficient Range Analysis",
+    "titleZh": "輸入格式與係數含負數之特徵剖析",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬三行輸入規格",
+        "html": "<span class=\"token-comment\"># 模擬三行輸入規格</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "官方輸入範例",
+        "mean": "模擬第 1 行"
+      },
+      {
+        "num": 2,
+        "code": "line1 = \"2 -1 3\"",
+        "html": "<span class=\"token-ident\">line1</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;2 -1 3&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "官方輸入範例",
+        "mean": "模擬第 2 行"
+      },
+      {
+        "num": 3,
+        "code": "line2 = \"4 -5 2\"",
+        "html": "<span class=\"token-ident\">line2</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;4 -5 2&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "官方輸入範例",
+        "mean": "模擬第 3 行"
+      },
+      {
+        "num": 4,
+        "code": "line3 = \"2\"",
+        "html": "<span class=\"token-ident\">line3</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;2&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "A1, B1, C1 = map(int, line1.split())",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">line1</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "讀取三個整數",
+        "mean": "解析一廠係數"
+      },
+      {
+        "num": 6,
+        "code": "A2, B2, C2 = map(int, line2.split())",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">line2</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "讀取三個整數",
+        "mean": "解析二廠係數"
+      },
+      {
+        "num": 7,
+        "code": "n = int(line3)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">line3</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "讀取總人數",
+        "mean": "解析總人數"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"工廠一係數: A1={A1}, B1={B1}, C1={C1}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;工廠一係數: A1=<span class=\"token-op\">{</span><span class=\"token-ident\">A1</span><span class=\"token-op\">}</span>, B1=<span class=\"token-op\">{</span><span class=\"token-ident\">B1</span><span class=\"token-op\">}</span>, C1=<span class=\"token-op\">{</span><span class=\"token-ident\">C1</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認參數",
+        "mean": "印出一廠係數"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"工廠二係數: A2={A2}, B2={B2}, C2={C2}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;工廠二係數: A2=<span class=\"token-op\">{</span><span class=\"token-ident\">A2</span><span class=\"token-op\">}</span>, B2=<span class=\"token-op\">{</span><span class=\"token-ident\">B2</span><span class=\"token-op\">}</span>, C2=<span class=\"token-op\">{</span><span class=\"token-ident\">C2</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認參數",
+        "mean": "印出二廠係數"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"總員工數 n={n}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;總員工數 n=<span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認人數",
+        "mean": "印出總人數"
+      }
+    ],
+    "output": "工廠一係數: A1=2, B1=-1, C1=3\n工廠二係數: A2=4, B2=-5, C2=2\n總員工數 n=2",
+    "diagram": {
+      "type": "step",
+      "title": "三行輸入資料對應表",
+      "steps": [
+        {
+          "num": 1,
+          "action": "第 1 行",
+          "desc": "A1, B1, C1 (工廠一係數，可能為負數)"
+        },
+        {
+          "num": 2,
+          "action": "第 2 行",
+          "desc": "A2, B2, C2 (工廠二係數，可能為負數)"
+        },
+        {
+          "num": 3,
+          "action": "第 3 行",
+          "desc": "n (待分配員工總數，1 <= n <= 100)"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "負數係數警訊",
+        "content": "係數範圍為 -100 ~ 100，工廠完全可能處於虧損狀態（收益為負數）！"
+      },
+      {
+        "type": "standard",
+        "title": "輸入讀取結構",
+        "content": "前兩行各 3 個數字，第三行 1 個數字，結構極為固定清晰。"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "Sample 1 Step-by-Step Manual Simulation",
+    "titleEn": "Sample 1 Step-by-Step Manual Simulation",
+    "titleZh": "官方範例一全流程紙上手算試算推演",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 官方範例 1：A1=2, B1=-1, C1=3; A2=4, B2=-5, C2=2; n=2",
+        "html": "<span class=\"token-comment\"># 官方範例 1：A1=2, B1=-1, C1=3; A2=4, B2=-5, C2=2; n=2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 1 參數",
+        "mean": "範例條件設定"
+      },
+      {
+        "num": 2,
+        "code": "A1, B1, C1 = 2, -1, 3",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定係數",
+        "mean": "一廠係數"
+      },
+      {
+        "num": 3,
+        "code": "A2, B2, C2 = 4, -5, 2",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定係數",
+        "mean": "二廠係數"
+      },
+      {
+        "num": 4,
+        "code": "n = 2",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定人數",
+        "mean": "總人數"
+      },
+      {
+        "num": 5,
+        "code": "for x1 in range(n + 1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x1</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "跑 0, 1, 2",
+        "mean": "枚舉 x1"
+      },
+      {
+        "num": 6,
+        "code": "    x2 = n - x1",
+        "html": "    <span class=\"token-ident\">x2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "互補人數",
+        "mean": "計算 x2"
+      },
+      {
+        "num": 7,
+        "code": "    y1 = A1 * x1 * x1 + B1 * x1 + C1",
+        "html": "    <span class=\"token-ident\">y1</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "代入拋物線",
+        "mean": "算一廠收益"
+      },
+      {
+        "num": 8,
+        "code": "    y2 = A2 * x2 * x2 + B2 * x2 + C2",
+        "html": "    <span class=\"token-ident\">y2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "代入拋物線",
+        "mean": "算二廠收益"
+      },
+      {
+        "num": 9,
+        "code": "    print(f\"(X1={x1}, X2={x2}) -> Y1={y1}, Y2={y2}, 總收益={y1 + y2}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;(X1=<span class=\"token-op\">{</span><span class=\"token-ident\">x1</span><span class=\"token-op\">}</span>, X2=<span class=\"token-op\">{</span><span class=\"token-ident\">x2</span><span class=\"token-op\">}</span>) -&gt; Y1=<span class=\"token-op\">{</span><span class=\"token-ident\">y1</span><span class=\"token-op\">}</span>, Y2=<span class=\"token-op\">{</span><span class=\"token-ident\">y2</span><span class=\"token-op\">}</span>, 總收益=<span class=\"token-op\">{</span><span class=\"token-ident\">y1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">y2</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印出所有分配與總利潤",
+        "mean": "印出試算明細"
+      }
+    ],
+    "output": "(X1=0, X2=2) -> Y1=3, Y2=8, 總收益=11\n(X1=1, X2=1) -> Y1=4, Y2=1, 總收益=5\n(X1=2, X2=0) -> Y1=9, Y2=2, 總收益=11",
+    "diagram": {
+      "type": "compare",
+      "title": "範例 1 三種組合比對",
+      "left": {
+        "title": "方案 A 與 C（最佳）",
+        "content": "(0, 2) 總收益 = 3 + 8 = 11\n(2, 0) 總收益 = 9 + 2 = 11\n皆達到最大收益 11！"
+      },
+      "right": {
+        "title": "方案 B（劣解）",
+        "content": "(1, 1) 總收益 = 4 + 1 = 5\n平均分配反而收益最低！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "結論印證",
+        "content": "最大總收益為 11，官方範例輸出即為 11，完全印證題意！"
+      },
+      {
+        "type": "hint",
+        "title": "平均不一定最好",
+        "content": "二次函數有邊際效應，平分人力不一定最賺錢，必須全面枚舉。"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "Physical Metaphor: Bakery Crew Dispatch",
+    "titleEn": "Physical Metaphor: Bakery Crew Dispatch",
+    "titleZh": "生活直覺建模：連鎖烘焙坊的人力調度",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 烘焙坊情境：師傅人數與收益呈現拋物線關係",
+        "html": "<span class=\"token-comment\"># 烘焙坊情境：師傅人數與收益呈現拋物線關係</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "經濟學邊際收益",
+        "mean": "生活情境說明"
+      },
+      {
+        "num": 2,
+        "code": "def factory_profit(x, a, b, c):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">factory_profit</span><span class=\"token-op\">(</span><span class=\"token-ident\">x</span><span class=\"token-op\">,</span> <span class=\"token-ident\">a</span><span class=\"token-op\">,</span> <span class=\"token-ident\">b</span><span class=\"token-op\">,</span> <span class=\"token-ident\">c</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝多項式",
+        "mean": "收益函數定義"
+      },
+      {
+        "num": 3,
+        "code": "    return a * x * x + b * x + c",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">a</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">b</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">c</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "計算結果",
+        "mean": "回傳二次值"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "# 觀察人數從 0 到 3 的收益變化 (a=-1, b=4, c=0，頂點在 x=2)",
+        "html": "<span class=\"token-comment\"># 觀察人數從 0 到 3 的收益變化 (a=-1, b=4, c=0，頂點在 x=2)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "拋物線展示",
+        "mean": "測試情境"
+      },
+      {
+        "num": 6,
+        "code": "for staff in range(4):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">staff</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">4</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "0 到 3 人",
+        "mean": "走訪師傅人數"
+      },
+      {
+        "num": 7,
+        "code": "    p = factory_profit(staff, -1, 4, 0)",
+        "html": "    <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">factory_profit</span><span class=\"token-op\">(</span><span class=\"token-ident\">staff</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "調用函數",
+        "mean": "計算收益"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"指派 {staff} 位師傅 -> 烘焙利潤: {p}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;指派 <span class=\"token-op\">{</span><span class=\"token-ident\">staff</span><span class=\"token-op\">}</span> 位師傅 -&gt; 烘焙利潤: <span class=\"token-op\">{</span><span class=\"token-ident\">p</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示利潤先升後降",
+        "mean": "印出人數與利潤"
+      }
+    ],
+    "output": "指派 0 位師傅 -> 烘焙利潤: 0\n指派 1 位師傅 -> 烘焙利潤: 3\n指派 2 位師傅 -> 烘焙利潤: 4\n指派 3 位師傅 -> 烘焙利潤: 3",
+    "diagram": {
+      "type": "flow",
+      "title": "產能拋物線的三個發展階段",
+      "flow": [
+        {
+          "step": 1,
+          "text": "初期 (0~1人): 設備閒置，規模效益未顯現"
+        },
+        {
+          "step": 2,
+          "text": "黃金期 (2人): 分工合作，產能與利潤達到巔峰！"
+        },
+        {
+          "step": 3,
+          "text": "飽和期 (3人+): 廚房擁擠動線卡死，產能反降"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "為什麼是二次函數？",
+        "content": "二次函數具備曲線特徵，完美契合真實世界中產能先增後減的經濟規律。"
+      },
+      {
+        "type": "hint",
+        "title": "兩廠獨立",
+        "content": "兩座工廠的拋物線特徵完全獨立，因此需要找出兩者疊加後的最高點。"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "Duality & Complementary Constraint: X2 = n - X1",
+    "titleEn": "Duality & Complementary Constraint: X2 = n - X1",
+    "titleZh": "互補約束與對偶性：單變數鎖定整個狀態空間",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 約束條件 X1 + X2 = n -> X2 = n - X1 完全鎖定！",
+        "html": "<span class=\"token-comment\"># 約束條件 X1 + X2 = n -&gt; X2 = n - X1 完全鎖定！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "對偶性分析",
+        "mean": "約束說明"
+      },
+      {
+        "num": 2,
+        "code": "n = 4",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=4 範例",
+        "mean": "總人數"
+      },
+      {
+        "num": 3,
+        "code": "combos = []",
+        "html": "<span class=\"token-ident\">combos</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "儲存可能",
+        "mean": "組合串列"
+      },
+      {
+        "num": 4,
+        "code": "for x1 in range(n + 1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x1</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "x1 從 0 到 n",
+        "mean": "枚舉 x1"
+      },
+      {
+        "num": 5,
+        "code": "    x2 = n - x1",
+        "html": "    <span class=\"token-ident\">x2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "差值決定二廠人數",
+        "mean": "x2 自動鎖定"
+      },
+      {
+        "num": 6,
+        "code": "    combos.append((x1, x2))",
+        "html": "    <span class=\"token-ident\">combos</span><span class=\"token-op\">.</span><span class=\"token-builtin\">append</span><span class=\"token-op\">(</span><span class=\"token-op\">(</span><span class=\"token-ident\">x1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">x2</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "加入串列",
+        "mean": "收集元組"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"總人數 n={n} 時，所有合法 (X1, X2) 組合：\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;總人數 n=<span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span> 時，所有合法 (X1, X2) 組合：&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "標題",
+        "mean": "印出提示"
+      },
+      {
+        "num": 8,
+        "code": "for c in combos:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">c</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">combos</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "走訪",
+        "mean": "走訪組合"
+      },
+      {
+        "num": 9,
+        "code": "    print(f\"  分配一廠 {c[0]} 人，則二廠自動鎖定為 {c[1]} 人\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;  分配一廠 <span class=\"token-op\">{</span><span class=\"token-ident\">c</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">}</span> 人，則二廠自動鎖定為 <span class=\"token-op\">{</span><span class=\"token-ident\">c</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">}</span> 人&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示單變數完全控制",
+        "mean": "印出每種分配"
+      }
+    ],
+    "output": "總人數 n=4 時，所有合法 (X1, X2) 組合：\n  分配一廠 0 人，則二廠自動鎖定為 4 人\n  分配一廠 1 人，則二廠自動鎖定為 3 人\n  分配一廠 2 人，則二廠自動鎖定為 2 人\n  分配一廠 3 人，則二廠自動鎖定為 1 人\n  分配一廠 4 人，則二廠自動鎖定為 0 人",
+    "diagram": {
+      "type": "step",
+      "title": "單變數降維思維",
+      "steps": [
+        {
+          "num": 1,
+          "action": "雙變數表面",
+          "desc": "看似有 (X1, X2) 兩個未知數需尋找"
+        },
+        {
+          "num": 2,
+          "action": "代入互補約束",
+          "desc": "X2 = n - X1，X2 失去自由度"
+        },
+        {
+          "num": 3,
+          "action": "降維為單變數",
+          "desc": "只需用單層迴圈枚舉 X1 in [0, n]！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "降維打擊",
+        "content": "雙變數搜索需要雙層迴圈 O(n^2)，利用 X2 = n - X1 降為單層迴圈 O(n)！"
+      },
+      {
+        "type": "hint",
+        "title": "邊界涵蓋",
+        "content": "可以有某座工廠 0 人的極端情形，因此 X1 範圍是 0 到 n。"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "Why Brute Force is King in APCS Exam",
+    "titleEn": "Why Brute Force is King in APCS Exam",
+    "titleZh": "考場決策思維：為什麼直接枚舉遠勝代數求導？",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 比較高中代數配方法 vs 電腦枚舉法",
+        "html": "<span class=\"token-comment\"># 比較高中代數配方法 vs 電腦枚舉法</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "戰術思考",
+        "mean": "比較說明"
+      },
+      {
+        "num": 2,
+        "code": "# 測資範圍：n <= 100，總共僅 101 種可能！",
+        "html": "<span class=\"token-comment\"># 測資範圍：n &lt;= 100，總共僅 101 種可能！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "人數極小",
+        "mean": "規模分析"
+      },
+      {
+        "num": 3,
+        "code": "ops_count = 100 + 1",
+        "html": "<span class=\"token-ident\">ops_count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">100</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "101 次",
+        "mean": "運算次數"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"枚舉法總計算次數: {ops_count} 次\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;枚舉法總計算次數: <span class=\"token-op\">{</span><span class=\"token-ident\">ops_count</span><span class=\"token-op\">}</span> 次&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "顯示次數",
+        "mean": "印出次數"
+      },
+      {
+        "num": 5,
+        "code": "print(\"Python 執行 101 次二次多項式運算耗時: < 0.0001 秒！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;Python 執行 101 次二次多項式運算耗時: &lt; 0.0001 秒！&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "極速體會",
+        "mean": "印出耗時"
+      },
+      {
+        "num": 6,
+        "code": "print(\"代數公式頂點可能為非整數 (如 3.7 人)，手算容易出錯！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;代數公式頂點可能為非整數 (如 3.7 人)，手算容易出錯！&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "非整數頂點困境",
+        "mean": "印出數學陷阱"
+      },
+      {
+        "num": 7,
+        "code": "print(\"考場黃金法則: 能寫單層迴圈枚舉，絕不上草稿紙手算配方！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;考場黃金法則: 能寫單層迴圈枚舉，絕不上草稿紙手算配方！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "穩健得滿分原則",
+        "mean": "印出黃金法則"
+      }
+    ],
+    "output": "枚舉法總計算次數: 101 次\nPython 執行 101 次二次多項式運算耗時: < 0.0001 秒！\n代數公式頂點可能為非整數 (如 3.7 人)，手算容易出錯！\n考場黃金法則: 能寫單層迴圈枚舉，絕不上草稿紙手算配方！",
+    "diagram": {
+      "type": "compare",
+      "title": "代數解析法 vs 程式枚舉法",
+      "left": {
+        "title": "草稿紙代數配方法",
+        "content": "展開式極易筆誤正負號\n頂點若為分數需額外取整比較\n耗時長且考場緊張容易算錯"
+      },
+      "right": {
+        "title": "單層 for 迴圈枚舉法",
+        "content": "代碼僅 5~10 行\n直接計算所有整數點\n0.0001 秒保證 100% 正確！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "競賽策略",
+        "content": "APCS 實作題考的是程式設計與演算法，不是高中數學競賽，枚舉就是最穩解！"
+      },
+      {
+        "type": "hint",
+        "title": "複雜度無憂",
+        "content": "時間複雜度 O(n)，以 n=100 而言，CPU 跑 100 次如同喝水般輕鬆。"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.2 二次函數收益公式計算：a x^2 + b x + c",
+    "title": "Quadratic Polynomial Calculation Syntax",
+    "titleEn": "Quadratic Polynomial Calculation Syntax",
+    "titleZh": "數學模型實踐：二次多項式求值與運算優先權",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 計算 A * x^2 + B * x + C 的標準寫法",
+        "html": "<span class=\"token-comment\"># 計算 A * x^2 + B * x + C 的標準寫法</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "程式實作細節",
+        "mean": "求值寫法說明"
+      },
+      {
+        "num": 2,
+        "code": "A, B, C = 2, -1, 3",
+        "html": "<span class=\"token-ident\">A</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "係數賦值",
+        "mean": "設定係數"
+      },
+      {
+        "num": 3,
+        "code": "x = 2",
+        "html": "<span class=\"token-ident\">x</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試點 2",
+        "mean": "設定人數 x"
+      },
+      {
+        "num": 4,
+        "code": "# 寫法一：直接乘法 x * x（推薦！整數乘法穩健高效）",
+        "html": "<span class=\"token-comment\"># 寫法一：直接乘法 x * x（推薦！整數乘法穩健高效）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "高效方式",
+        "mean": "乘法說明"
+      },
+      {
+        "num": 5,
+        "code": "p1 = A * (x * x) + B * x + C",
+        "html": "<span class=\"token-ident\">p1</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "2*(4) - 2 + 3 = 9",
+        "mean": "乘法求值"
+      },
+      {
+        "num": 6,
+        "code": "# 寫法二：次方運算子 x ** 2",
+        "html": "<span class=\"token-comment\"># 寫法二：次方運算子 x ** 2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "標準次方",
+        "mean": "次方說明"
+      },
+      {
+        "num": 7,
+        "code": "p2 = A * (x ** 2) + B * x + C",
+        "html": "<span class=\"token-ident\">p2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x</span> <span class=\"token-op\">**</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "等價結果",
+        "mean": "次方求值"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"寫法一 (x * x) 計算結果: {p1}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;寫法一 (x * x) 計算結果: <span class=\"token-op\">{</span><span class=\"token-ident\">p1</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證乘法",
+        "mean": "印出結果一"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"寫法二 (x ** 2) 計算結果: {p2}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;寫法二 (x ** 2) 計算結果: <span class=\"token-op\">{</span><span class=\"token-ident\">p2</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證次方",
+        "mean": "印出結果二"
+      }
+    ],
+    "output": "寫法一 (x * x) 計算結果: 9\n寫法二 (x ** 2) 計算結果: 9",
+    "diagram": {
+      "type": "step",
+      "title": "二次式運算符號優先順序",
+      "steps": [
+        {
+          "num": 1,
+          "action": "括號先算",
+          "desc": "(x * x) 最先完成平方運算"
+        },
+        {
+          "num": 2,
+          "action": "乘除後算",
+          "desc": "A * (...) 與 B * x 完成各項係數乘法"
+        },
+        {
+          "num": 3,
+          "action": "加減最後",
+          "desc": "各項數值與常數項 C 完成加總"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "為什麼推薦 x * x？",
+        "content": "x * x 是純整數乘法指令，比 ** 次方運算更快且完全沒有浮點數精度隱患。"
+      },
+      {
+        "type": "hint",
+        "title": "括號保護",
+        "content": "為 x * x 加上小括號，可以讓程式碼閱讀性大幅提升，不易看走眼。"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.5 迴圈內動態更新最大總收益與完整 AC 程式",
+    "title": "Dynamic Maximum Value Maintenance",
+    "titleEn": "Dynamic Maximum Value Maintenance",
+    "titleZh": "極值維護機制：歷程最大總收益動態更新",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 歷程最大值維護：max_profit = max(max_profit, current)",
+        "html": "<span class=\"token-comment\"># 歷程最大值維護：max_profit = max(max_profit, current)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "維護機制",
+        "mean": "動態更新說明"
+      },
+      {
+        "num": 2,
+        "code": "profits = [11, 5, 11]",
+        "html": "<span class=\"token-ident\">profits</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">11</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">11</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 1 三個試算值",
+        "mean": "收益歷程串列"
+      },
+      {
+        "num": 3,
+        "code": "best = -float('inf')  # 初始值設為負無窮大",
+        "html": "<span class=\"token-ident\">best</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-builtin\">float</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;inf&#x27;</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 初始值設為負無窮大</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "防禦負收益核心設定",
+        "mean": "極小初始值"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"初始 best = {best}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;初始 best = <span class=\"token-op\">{</span><span class=\"token-ident\">best</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "顯示初始狀態",
+        "mean": "印出初始值"
+      },
+      {
+        "num": 5,
+        "code": "for p in profits:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">profits</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "迴圈更新",
+        "mean": "走訪每個收益"
+      },
+      {
+        "num": 6,
+        "code": "    if p > best:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">best</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "極值判定",
+        "mean": "大於目前最佳則更新"
+      },
+      {
+        "num": 7,
+        "code": "        best = p",
+        "html": "        <span class=\"token-ident\">best</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">p</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "覆蓋變數",
+        "mean": "更新最佳值"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"走訪收益 {p:>2} -> 目前歷程最大值更新為: {best}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;走訪收益 <span class=\"token-op\">{</span><span class=\"token-ident\">p</span><span class=\"token-op\">:</span>&gt;2<span class=\"token-op\">}</span> -&gt; 目前歷程最大值更新為: <span class=\"token-op\">{</span><span class=\"token-ident\">best</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示動態變化",
+        "mean": "印出歷程"
+      }
+    ],
+    "output": "初始 best = -inf\n走訪收益 11 -> 目前歷程最大值更新為: 11\n走訪收益  5 -> 目前歷程最大值更新為: 11\n走訪收益 11 -> 目前歷程最大值更新為: 11",
+    "diagram": {
+      "type": "flow",
+      "title": "極值動態更新比較流向",
+      "flow": [
+        {
+          "step": 1,
+          "text": "計算當前方案總收益 total_profit"
+        },
+        {
+          "step": 2,
+          "text": "if total_profit > max_profit:"
+        },
+        {
+          "step": 3,
+          "text": "max_profit = total_profit (刷新紀錄)"
+        },
+        {
+          "step": 4,
+          "text": "否則保持原紀錄，接續下一種分配"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "經典擂台法",
+        "content": "將 max_profit 當成擂台主，每算出一組新收益就上台挑戰，誰大誰留下！"
+      },
+      {
+        "type": "hint",
+        "title": "內建 max() 替代",
+        "content": "也可寫成 max_profit = max(max_profit, total_profit)，效果完全等價。"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.3 for 迴圈完整枚舉分配人數 (x1, x2) 滿足 x1 + x2 = n",
+    "title": "Syntax Rule 1: Range Boundary range(n + 1)",
+    "titleEn": "Syntax Rule 1: Range Boundary range(n + 1)",
+    "titleZh": "語法鐵律一：range 邊界防禦，絕不可少加 1！",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 比較 range(n) 與 range(n + 1)",
+        "html": "<span class=\"token-comment\"># 比較 range(n) 與 range(n + 1)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "考點核心",
+        "mean": "邊界比較說明"
+      },
+      {
+        "num": 2,
+        "code": "n = 3",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試 n=3",
+        "mean": "總人數"
+      },
+      {
+        "num": 3,
+        "code": "wrong_list = list(range(n))        # ❌ 只到 n-1 (0, 1, 2)",
+        "html": "<span class=\"token-ident\">wrong_list</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>        <span class=\"token-comment\"># ❌ 只到 n-1 (0, 1, 2)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "只產生 0,1,2 遺漏 3",
+        "mean": "錯誤範圍未加一"
+      },
+      {
+        "num": 4,
+        "code": "correct_list = list(range(n + 1))  # ✅ 包含 n (0, 1, 2, 3)",
+        "html": "<span class=\"token-ident\">correct_list</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># ✅ 包含 n (0, 1, 2, 3)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "產生 0,1,2,3 完整涵蓋",
+        "mean": "正確範圍加一"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"range(n)     結果: {wrong_list} (遺漏 x1 = {n}！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;range(n)     結果: <span class=\"token-op\">{</span><span class=\"token-ident\">wrong_list</span><span class=\"token-op\">}</span> (遺漏 x1 = <span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "標示遺漏危害",
+        "mean": "印出錯誤列表"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"range(n + 1) 結果: {correct_list} (完整枚舉 0 ~ {n})\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;range(n + 1) 結果: <span class=\"token-op\">{</span><span class=\"token-ident\">correct_list</span><span class=\"token-op\">}</span> (完整枚舉 0 ~ <span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認完整性",
+        "mean": "印出正確列表"
+      }
+    ],
+    "output": "range(n)     結果: [0, 1, 2] (遺漏 x1 = 3！)\nrange(n + 1) 結果: [0, 1, 2, 3] (完整枚舉 0 ~ 3)",
+    "diagram": {
+      "type": "compare",
+      "title": "range(n) vs range(n + 1) 致命差異",
+      "left": {
+        "title": "❌ range(n) 差一錯誤",
+        "content": "x1 只能跑到 n - 1\n永遠測不到「所有人都在一廠」\n極端案例直接 WA！"
+      },
+      "right": {
+        "title": "✅ range(n + 1) 滿分防禦",
+        "content": "x1 完整跑到 n\n涵蓋 x1 = 0 到 x1 = n\n所有分配可能無一漏網！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "Python 左閉右開特性",
+        "content": "range(stop) 的上限是不包含 stop 的！要包含 n，上限必須寫 n + 1！"
+      },
+      {
+        "type": "standard",
+        "title": "考場警惕",
+        "content": "每年都有考生因為少寫 + 1，在某些答案剛好在 x1 = n 的測資點慘遭扣分！"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.2 二次函數收益公式計算：a x^2 + b x + c",
+    "title": "Syntax Rule 2: Multi-Line Split Input Pattern",
+    "titleEn": "Syntax Rule 2: Multi-Line Split Input Pattern",
+    "titleZh": "語法鐵律二：多變數同行解構賦值寫法",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 一行解構 3 個整數變數：A, B, C = map(int, input().split())",
+        "html": "<span class=\"token-comment\"># 一行解構 3 個整數變數：A, B, C = map(int, input().split())</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "介紹 map 解構",
+        "mean": "語法說明"
+      },
+      {
+        "num": 2,
+        "code": "raw_line = \"2 -1 3\"",
+        "html": "<span class=\"token-ident\">raw_line</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;2 -1 3&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "三個數字字串",
+        "mean": "單行測試資料"
+      },
+      {
+        "num": 3,
+        "code": "A, B, C = map(int, raw_line.split())",
+        "html": "<span class=\"token-ident\">A</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">raw_line</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "同時轉為整數賦予三個變數",
+        "mean": "解構賦值"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"解構賦值成功: A={A} (型別 {type(A).__name__})\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;解構賦值成功: A=<span class=\"token-op\">{</span><span class=\"token-ident\">A</span><span class=\"token-op\">}</span> (型別 <span class=\"token-op\">{</span><span class=\"token-ident\">type</span><span class=\"token-op\">(</span><span class=\"token-ident\">A</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">__name__</span><span class=\"token-op\">}</span>)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認 A 是 int",
+        "mean": "印出 A 與型別"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"              B={B} (型別 {type(B).__name__})\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;              B=<span class=\"token-op\">{</span><span class=\"token-ident\">B</span><span class=\"token-op\">}</span> (型別 <span class=\"token-op\">{</span><span class=\"token-ident\">type</span><span class=\"token-op\">(</span><span class=\"token-ident\">B</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">__name__</span><span class=\"token-op\">}</span>)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認 B 是 int",
+        "mean": "印出 B 與型別"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"              C={C} (型別 {type(C).__name__})\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;              C=<span class=\"token-op\">{</span><span class=\"token-ident\">C</span><span class=\"token-op\">}</span> (型別 <span class=\"token-op\">{</span><span class=\"token-ident\">type</span><span class=\"token-op\">(</span><span class=\"token-ident\">C</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">__name__</span><span class=\"token-op\">}</span>)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認 C 是 int",
+        "mean": "印出 C 與型別"
+      }
+    ],
+    "output": "解構賦值成功: A=2 (型別 int)\n              B=-1 (型別 int)\n              C=3 (型別 int)",
+    "diagram": {
+      "type": "flow",
+      "title": "同行解構賦值管線",
+      "flow": [
+        {
+          "step": 1,
+          "text": "raw_line.split() -> ['2', '-1', '3']"
+        },
+        {
+          "step": 2,
+          "text": "map(int, ...) -> 逐項轉為整數"
+        },
+        {
+          "step": 3,
+          "text": "A, B, C = ... -> 一對一對應變數！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "解構賦值好處",
+        "content": "不用寫 A = int(tokens[0]), B = int(tokens[1])，一行乾淨俐落！"
+      },
+      {
+        "type": "hint",
+        "title": "數量必須相符",
+        "content": "等號左邊變數數量必須與右邊 token 數量完全一致，題目保證每行恰好 3 個整數。"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.4 最大值變數初始化（初始值設為極小負數防護）",
+    "title": "Syntax Rule 3: Negative Infinity Initialization",
+    "titleEn": "Syntax Rule 3: Negative Infinity Initialization",
+    "titleZh": "語法鐵律三：最大值初值宣告為負無窮大",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 初始值設定的兩種業界標準寫法：",
+        "html": "<span class=\"token-comment\"># 初始值設定的兩種業界標準寫法：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初始值宣告哲學",
+        "mean": "標準寫法說明"
+      },
+      {
+        "num": 2,
+        "code": "# 寫法一：-float('inf')（浮點數負無窮大，任何整數都比它大！）",
+        "html": "<span class=\"token-comment\"># 寫法一：-float(&#x27;inf&#x27;)（浮點數負無窮大，任何整數都比它大！）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "浮點語法",
+        "mean": "浮點負無窮說明"
+      },
+      {
+        "num": 3,
+        "code": "inf_val = -float('inf')",
+        "html": "<span class=\"token-ident\">inf_val</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-builtin\">float</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;inf&#x27;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "負無窮大",
+        "mean": "定義負無窮"
+      },
+      {
+        "num": 4,
+        "code": "# 寫法二：-10**9（極小負整數，題目最大虧損約 -10^6，10^9 固若金湯）",
+        "html": "<span class=\"token-comment\"># 寫法二：-10**9（極小負整數，題目最大虧損約 -10^6，10^9 固若金湯）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "純整數語法",
+        "mean": "極小整數說明"
+      },
+      {
+        "num": 5,
+        "code": "int_val = -10**9",
+        "html": "<span class=\"token-ident\">int_val</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-number\">10</span><span class=\"token-op\">**</span><span class=\"token-number\">9</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "-10億",
+        "mean": "定義極小整數"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "test_val = -50000  # 負數收益",
+        "html": "<span class=\"token-ident\">test_val</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-number\">50000</span>  <span class=\"token-comment\"># 負數收益</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試虧損情況",
+        "mean": "設定負數收益"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"test_val > inf_val: {test_val > inf_val}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;test_val &gt; inf_val: <span class=\"token-op\">{</span><span class=\"token-ident\">test_val</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">inf_val</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印證大於負無窮",
+        "mean": "比較負無窮"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"test_val > int_val: {test_val > int_val}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;test_val &gt; int_val: <span class=\"token-op\">{</span><span class=\"token-ident\">test_val</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">int_val</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印證大於極小整數",
+        "mean": "比較極小整數"
+      }
+    ],
+    "output": "test_val > inf_val: True\ntest_val > int_val: True",
+    "diagram": {
+      "type": "compare",
+      "title": "初始值設定方式對比",
+      "left": {
+        "title": "寫法一：-float('inf')",
+        "content": "概念最純正，代表負無窮大\n任何有限數值皆嚴格大於它\n回傳型別在 max() 比較後轉為 int"
+      },
+      "right": {
+        "title": "寫法二：-10**9 或 -999999999",
+        "content": "純整數型別，避免任何型別混淆\n足夠覆蓋本題所有數值下限\n簡單好記，考場秒寫！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "求最大值初值原則",
+        "content": "求最大值時，初值必須設為「可能範圍之外的極小值」，絕不能設 0！"
+      },
+      {
+        "type": "hint",
+        "title": "求最小值反之",
+        "content": "若題目是求最小值，初值則設為正無窮大 float('inf') 或 10**9。"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.5 迴圈內動態更新最大總收益與完整 AC 程式",
+    "title": "Syntax Rule 4: Generator Expression with max()",
+    "titleEn": "Syntax Rule 4: Generator Expression with max()",
+    "titleZh": "語法鐵律四：max() 配合生成器運算式的一行流神技",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 利用 max() 與生成器運算式，無需手動維護變數與 if 判斷！",
+        "html": "<span class=\"token-comment\"># 利用 max() 與生成器運算式，無需手動維護變數與 if 判斷！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "展示 Pythonic 寫法",
+        "mean": "神技說明"
+      },
+      {
+        "num": 2,
+        "code": "A1, B1, C1 = 2, -1, 3",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定係數",
+        "mean": "一廠係數"
+      },
+      {
+        "num": 3,
+        "code": "A2, B2, C2 = 4, -5, 2",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定係數",
+        "mean": "二廠係數"
+      },
+      {
+        "num": 4,
+        "code": "n = 2",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定人數",
+        "mean": "總人數"
+      },
+      {
+        "num": 5,
+        "code": "ans = max(",
+        "html": "<span class=\"token-ident\">ans</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "內建求最大值",
+        "mean": "調用 max"
+      },
+      {
+        "num": 6,
+        "code": "    (A1 * x * x + B1 * x + C1) + (A2 * (n - x) * (n - x) + B2 * (n - x) + C2)",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-ident\">A1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "兩廠總和",
+        "mean": "二次式相加"
+      },
+      {
+        "num": 7,
+        "code": "    for x in range(n + 1)",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "枚舉 x 從 0 到 n",
+        "mean": "生成器 range(n + 1)"
+      },
+      {
+        "num": 8,
+        "code": ")",
+        "html": "<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "完成呼叫",
+        "mean": "結尾括號"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"max() 生成器運算式求出最大值: {ans}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;max() 生成器運算式求出最大值: <span class=\"token-op\">{</span><span class=\"token-ident\">ans</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 11",
+        "mean": "印出答案"
+      }
+    ],
+    "output": "max() 生成器運算式求出最大值: 11",
+    "diagram": {
+      "type": "flow",
+      "title": "生成器運算式在記憶體中的運作",
+      "flow": [
+        {
+          "step": 1,
+          "text": "for x in range(n + 1) 惰性產生每個 x"
+        },
+        {
+          "step": 2,
+          "text": "即時計算出該分配下的總收益"
+        },
+        {
+          "step": 3,
+          "text": "max() 串流吞吐，即時保留歷程最大者"
+        },
+        {
+          "step": 4,
+          "text": "無須建立完整清單，空間複雜度 O(1)！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "惰性求值優勢",
+        "content": "使用 () 生成器而非 [] 串列推導，不需要耗費記憶體保存所有數字，極速且省空間！"
+      },
+      {
+        "type": "hint",
+        "title": "進階高手推薦",
+        "content": "這正是考場版本二的核心語法，整道真題只用 5 行即可完美解決！"
+      }
+    ]
+  },
+  {
+    "page": 13,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "Iron Law Mnemonic: Manpower Allocation Chant",
+    "titleEn": "Iron Law Mnemonic: Manpower Allocation Chant",
+    "titleZh": "語法鐵律口訣：人力分配通關七字訣",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 鐵律口訣：枚舉加一負無窮",
+        "html": "<span class=\"token-comment\"># 鐵律口訣：枚舉加一負無窮</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "核心心法",
+        "mean": "口訣提示"
+      },
+      {
+        "num": 2,
+        "code": "def solve_m(A1, B1, C1, A2, B2, C2, n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve_m</span><span class=\"token-op\">(</span><span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝邏輯",
+        "mean": "解題函式"
+      },
+      {
+        "num": 3,
+        "code": "    max_p = -float('inf')  # 口訣：負無窮（初值設為負無窮）",
+        "html": "    <span class=\"token-ident\">max_p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-builtin\">float</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;inf&#x27;</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 口訣：負無窮（初值設為負無窮）</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "落實口訣前段",
+        "mean": "初值負無窮"
+      },
+      {
+        "num": 4,
+        "code": "    for x1 in range(n + 1):  # 口訣：加一（range 務必加一）",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x1</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># 口訣：加一（range 務必加一）</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "落實口訣中段",
+        "mean": "迴圈加一"
+      },
+      {
+        "num": 5,
+        "code": "        x2 = n - x1",
+        "html": "        <span class=\"token-ident\">x2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "分配人數",
+        "mean": "互補人數"
+      },
+      {
+        "num": 6,
+        "code": "        p = (A1*x1*x1 + B1*x1 + C1) + (A2*x2*x2 + B2*x2 + C2)",
+        "html": "        <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A2</span><span class=\"token-op\">*</span><span class=\"token-ident\">x2</span><span class=\"token-op\">*</span><span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">*</span><span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "利潤計算",
+        "mean": "二次式收益求和"
+      },
+      {
+        "num": 7,
+        "code": "        if p > max_p: max_p = p",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">max_p</span><span class=\"token-op\">:</span> <span class=\"token-ident\">max_p</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">p</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "保留最大值",
+        "mean": "動態更新"
+      },
+      {
+        "num": 8,
+        "code": "    return max_p",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">max_p</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "返回結果",
+        "mean": "回傳最大利潤"
+      },
+      {
+        "num": 9,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 10,
+        "code": "print(\"口訣測試範例 1:\", solve_m(2, -1, 3, 4, -5, 2, 2))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;口訣測試範例 1:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve_m</span><span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證輸出 11",
+        "mean": "執行範例 1 測試"
+      }
+    ],
+    "output": "口訣測試範例 1: 11",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "人力分配鐵律口訣",
+      "content": "枚舉加一負無窮",
+      "lines": [
+        "枚舉：單層 for 迴圈完整窮舉所有分配組合",
+        "加一：range(n + 1) 涵蓋 x1 = n 邊界防差一",
+        "負無窮：初始值設 -inf 杜絕全虧損負數地雷"
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣速記",
+        "content": "「枚舉加一負無窮」7 個字囊括本題全部核心技巧與防雷要訣！"
+      },
+      {
+        "type": "hint",
+        "title": "考前默念",
+        "content": "進考場寫到人力分配或求極值題目時，心中默念這七字，滿分手到擒來！"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.4 最大值變數初始化（初始值設為極小負數防護）",
+    "title": "WA Pitfall 1: Zero Initialization Disaster",
+    "titleEn": "WA Pitfall 1: Zero Initialization Disaster",
+    "titleZh": "考場致命 WA 地雷一：初值誤設為 0 遭負收益慘烈爆零",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 2：全虧損情境，真實最大收益為 -41",
+        "html": "<span class=\"token-comment\"># 範例 2：全虧損情境，真實最大收益為 -41</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "示範範例 2 陷阱",
+        "mean": "負收益情境說明"
+      },
+      {
+        "num": 2,
+        "code": "all_negative_profits = [-57, -46, -41, -42]",
+        "html": "<span class=\"token-ident\">all_negative_profits</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">-</span><span class=\"token-number\">57</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">46</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">41</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">42</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "四種分配皆虧損",
+        "mean": "所有可能收益皆為負數"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 4,
+        "code": "# ❌ 考場大忌：max_profit = 0",
+        "html": "<span class=\"token-comment\"># ❌ 考場大忌：max_profit = 0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "說明初值 0 的危害",
+        "mean": "錯誤寫法示範"
+      },
+      {
+        "num": 5,
+        "code": "wrong_max = 0",
+        "html": "<span class=\"token-ident\">wrong_max</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "0 比所有負數都大！",
+        "mean": "誤設為 0"
+      },
+      {
+        "num": 6,
+        "code": "for p in all_negative_profits:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">all_negative_profits</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "跑迴圈",
+        "mean": "更新迴圈"
+      },
+      {
+        "num": 7,
+        "code": "    if p > wrong_max: wrong_max = p",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">wrong_max</span><span class=\"token-op\">:</span> <span class=\"token-ident\">wrong_max</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">p</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "沒有任何負數能超過 0",
+        "mean": "判定"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"❌ 誤設初值 0 得到的結果: {wrong_max} (本應是 -41，直接 WA 0分！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤設初值 0 得到的結果: <span class=\"token-op\">{</span><span class=\"token-ident\">wrong_max</span><span class=\"token-op\">}</span> (本應是 -41，直接 WA 0分！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "輸出錯誤的 0",
+        "mean": "印出錯誤結果"
+      },
+      {
+        "num": 9,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 10,
+        "code": "# ✅ 正確做法：設為負無窮",
+        "html": "<span class=\"token-comment\"># ✅ 正確做法：設為負無窮</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正解示範",
+        "mean": "正確寫法示範"
+      },
+      {
+        "num": 11,
+        "code": "correct_max = -float('inf')",
+        "html": "<span class=\"token-ident\">correct_max</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-builtin\">float</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;inf&#x27;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "負無窮比任何負數都小",
+        "mean": "設為負無窮"
+      },
+      {
+        "num": 12,
+        "code": "for p in all_negative_profits:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">all_negative_profits</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "跑迴圈",
+        "mean": "更新迴圈"
+      },
+      {
+        "num": 13,
+        "code": "    if p > correct_max: correct_max = p",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">correct_max</span><span class=\"token-op\">:</span> <span class=\"token-ident\">correct_max</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">p</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "動態更新",
+        "mean": "判定"
+      },
+      {
+        "num": 14,
+        "code": "print(f\"✅ 正確設 -inf 得到的結果: {correct_max} (精準命中 -41！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 正確設 -inf 得到的結果: <span class=\"token-op\">{</span><span class=\"token-ident\">correct_max</span><span class=\"token-op\">}</span> (精準命中 -41！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "成功輸出 -41",
+        "mean": "印出正確結果"
+      }
+    ],
+    "output": "❌ 誤設初值 0 得到的結果: 0 (本應是 -41，直接 WA 0分！)\n✅ 正確設 -inf 得到的結果: -41 (精準命中 -41！)",
+    "diagram": {
+      "type": "compare",
+      "title": "初值 0 vs 初值 -inf",
+      "left": {
+        "title": "❌ 初值設為 0",
+        "content": "若所有收益都是負數（如 -41, -50）\n0 比所有負數都大！\n迴圈一次都不會更新，最後輸出 0 慘遭 WA！"
+      },
+      "right": {
+        "title": "✅ 初值設為 -float('inf')",
+        "content": "-inf 比任何負數都小！\n第一筆計算結果無論多負都會立即更新\n穩健收獲滿分！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "真題第 1 陷阱",
+        "content": "官方測資中必有全虧損測試點！初值設 0 的同學通常會拿 60 分後卡關，百思不得其解！"
+      },
+      {
+        "type": "standard",
+        "title": "防禦鐵律",
+        "content": "求最大值時，心中永遠警惕負數！初值一律宣告 -float('inf') 或 -10**9。"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.3 for 迴圈完整枚舉分配人數 (x1, x2) 滿足 x1 + x2 = n",
+    "title": "WA Pitfall 2: Off-By-One Error range(n)",
+    "titleEn": "WA Pitfall 2: Off-By-One Error range(n)",
+    "titleZh": "考場致命 WA 地雷二：range(n) 差一錯誤遺漏全集中一廠",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 設一廠是超級賺錢工廠，最佳解就是所有人去一廠 (x1=n, x2=0)",
+        "html": "<span class=\"token-comment\"># 設一廠是超級賺錢工廠，最佳解就是所有人去一廠 (x1=n, x2=0)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "模擬最佳解在邊界",
+        "mean": "情境設定說明"
+      },
+      {
+        "num": 2,
+        "code": "n = 2",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=2",
+        "mean": "總人數"
+      },
+      {
+        "num": 3,
+        "code": "A1, B1, C1 = 10, 0, 0",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "一廠賺翻",
+        "mean": "一廠超高利潤係數"
+      },
+      {
+        "num": 4,
+        "code": "A2, B2, C2 = -10, 0, 0",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "二廠賠慘",
+        "mean": "二廠超高虧損係數"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# ❌ 誤寫 range(n)，少測了 x1 = 2",
+        "html": "<span class=\"token-comment\"># ❌ 誤寫 range(n)，少測了 x1 = 2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "差一錯誤",
+        "mean": "錯誤寫法說明"
+      },
+      {
+        "num": 7,
+        "code": "profits_wrong = [A1*x*x + A2*(n-x)*(n-x) for x in range(n)]",
+        "html": "<span class=\"token-ident\">profits_wrong</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">A1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">A2</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "只測 x=0, 1",
+        "mean": "range 未加一"
+      },
+      {
+        "num": 8,
+        "code": "# ✅ 正確 range(n + 1)",
+        "html": "<span class=\"token-comment\"># ✅ 正確 range(n + 1)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完整枚舉",
+        "mean": "正確寫法說明"
+      },
+      {
+        "num": 9,
+        "code": "profits_correct = [A1*x*x + A2*(n-x)*(n-x) for x in range(n + 1)]",
+        "html": "<span class=\"token-ident\">profits_correct</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">A1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">A2</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "測 x=0, 1, 2",
+        "mean": "range 加一"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "print(f\"❌ 誤寫 range(n) 測得最大值: {max(profits_wrong)} (遺漏了最佳解 40！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤寫 range(n) 測得最大值: <span class=\"token-op\">{</span><span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">profits_wrong</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> (遺漏了最佳解 40！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得到 -30 (漏掉 40)",
+        "mean": "印出錯誤最大值"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"✅ 正確 range(n+1) 測得最大值: {max(profits_correct)} (精確找到 40！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 正確 range(n+1) 測得最大值: <span class=\"token-op\">{</span><span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">profits_correct</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> (精確找到 40！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得到 40 (所有人去一廠)",
+        "mean": "印出正確最大值"
+      }
+    ],
+    "output": "❌ 誤寫 range(n) 測得最大值: 0 (遺漏了最佳解 40！)\n✅ 正確 range(n+1) 測得最大值: 40 (精確找到 40！)",
+    "diagram": {
+      "type": "compare",
+      "title": "邊界遺漏帶來的災難",
+      "left": {
+        "title": "x in range(n) 涵蓋",
+        "content": "x=0: (0, 2) -> 收益 -40\nx=1: (1, 1) -> 收益 0\n最高只能選 0 ❌"
+      },
+      "right": {
+        "title": "x in range(n + 1) 涵蓋",
+        "content": "x=0: (0, 2) -> 收益 -40\nx=1: (1, 1) -> 收益 0\nx=2: (2, 0) -> 收益 +40 ✅ 最佳解！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "極端邊界測試",
+        "content": "解題評判中必然包含「所有人都派往某一廠最優」的邊界測試點！"
+      },
+      {
+        "type": "standard",
+        "title": "口訣重溫",
+        "content": "「枚舉加一負無窮」——「加一」就是對付差一錯誤的免死金牌！"
+      }
+    ]
+  },
+  {
+    "page": 16,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.1 題意解析：將 n 名員工分配給兩工廠求最大利潤",
+    "title": "WA Pitfall 3: Analytical Vertex Non-Integer Failure",
+    "titleEn": "WA Pitfall 3: Analytical Vertex Non-Integer Failure",
+    "titleZh": "考場致命 WA 地雷三：妄用解析頂點公式卻忽略非整數限制",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 試圖用微積分求導 / 配方法找對稱軸頂點",
+        "html": "<span class=\"token-comment\"># 試圖用微積分求導 / 配方法找對稱軸頂點</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "探討代數方法陷阱",
+        "mean": "數學方法說明"
+      },
+      {
+        "num": 2,
+        "code": "# 假設整理後方程式頂點落在 x1 = 2.4 人",
+        "html": "<span class=\"token-comment\"># 假設整理後方程式頂點落在 x1 = 2.4 人</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "非整數頂點",
+        "mean": "假設頂點"
+      },
+      {
+        "num": 3,
+        "code": "# ❌ 誤以為直接四捨五入 round(2.4) = 2 就是最佳解！",
+        "html": "<span class=\"token-comment\"># ❌ 誤以為直接四捨五入 round(2.4) = 2 就是最佳解！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "常見取整盲點",
+        "mean": "四捨五入假說"
+      },
+      {
+        "num": 4,
+        "code": "# 實際上有可能在拋物線非對稱形狀下，x1 = 3 的總收益反而較高！",
+        "html": "<span class=\"token-comment\"># 實際上有可能在拋物線非對稱形狀下，x1 = 3 的總收益反而較高！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "邊界非對稱性質",
+        "mean": "非對稱反例"
+      },
+      {
+        "num": 5,
+        "code": "# 驗證結論：電腦迴圈枚舉只有 101 次，直接枚舉全算絕無小數死角！",
+        "html": "<span class=\"token-comment\"># 驗證結論：電腦迴圈枚舉只有 101 次，直接枚舉全算絕無小數死角！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "枚舉優勢",
+        "mean": "驗證結論"
+      },
+      {
+        "num": 6,
+        "code": "print(\"分析警告: 頂點對稱軸為連續實數，本題人數必須是整數！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;分析警告: 頂點對稱軸為連續實數，本題人數必須是整數！&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "點出實數與整數衝突",
+        "mean": "印出分析警告"
+      },
+      {
+        "num": 7,
+        "code": "print(\"避坑唯一法則: 堅決使用單層 for 迴圈完整枚舉所有整數點！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;避坑唯一法則: 堅決使用單層 for 迴圈完整枚舉所有整數點！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "強調迴圈枚舉的絕對優勢",
+        "mean": "印出避坑法則"
+      }
+    ],
+    "output": "分析警告: 頂點對稱軸為連續實數，本題人數必須是整數！\n避坑唯一法則: 堅決使用單層 for 迴圈完整枚舉所有整數點！",
+    "diagram": {
+      "type": "step",
+      "title": "連續實數頂點 vs 離散整數解",
+      "steps": [
+        {
+          "num": 1,
+          "action": "數學頂點",
+          "desc": "微分/配方法算出的 x* = 2.4 人（現實不可能切半個師傅）"
+        },
+        {
+          "num": 2,
+          "action": "離散整數",
+          "desc": "合法解只有整數 x = 2 或 x = 3"
+        },
+        {
+          "num": 3,
+          "action": "程式枚舉",
+          "desc": "迴圈直接把 0, 1, 2, 3, ... 全部算一遍，直接取最大，永不翻車！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "資訊思維 vs 數學思維",
+        "content": "在演算法世界中，面對小數據範圍（n <= 100），枚舉法是兼具速度與正確性的最高階智慧。"
+      },
+      {
+        "type": "hint",
+        "title": "避免自討苦吃",
+        "content": "不用在考場上浪費 10 分鐘推導微積分，敲 5 行程式碼 1 分鐘搞定！"
+      }
+    ]
+  },
+  {
+    "page": 17,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.2 二次函數收益公式計算：a x^2 + b x + c",
+    "title": "WA Pitfall 4: Variable Copy-Paste Confusion",
+    "titleEn": "WA Pitfall 4: Variable Copy-Paste Confusion",
+    "titleZh": "考場致命 WA 地雷四：複製貼上程式碼導致二廠變數代錯",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 考場複製貼上常犯手誤：",
+        "html": "<span class=\"token-comment\"># ❌ 考場複製貼上常犯手誤：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "揭示高頻打字失誤",
+        "mean": "複製貼上陷阱說明"
+      },
+      {
+        "num": 2,
+        "code": "# profit1 = A1 * x1 * x1 + B1 * x1 + C1",
+        "html": "<span class=\"token-comment\"># profit1 = A1 * x1 * x1 + B1 * x1 + C1</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "第一行複製",
+        "mean": "一廠算式"
+      },
+      {
+        "num": 3,
+        "code": "# profit2 = A2 * x1 * x1 + B2 * x1 + C2  <-- 致命手誤！把 x2 寫成 x1！",
+        "html": "<span class=\"token-comment\"># profit2 = A2 * x1 * x1 + B2 * x1 + C2  &lt;-- 致命手誤！把 x2 寫成 x1！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "第二行忘記改變數名",
+        "mean": "二廠算式變數錯誤"
+      },
+      {
+        "num": 4,
+        "code": "A1, B1, C1 = 2, -1, 3",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "係數",
+        "mean": "設定一廠係數"
+      },
+      {
+        "num": 5,
+        "code": "A2, B2, C2 = 4, -5, 2",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "係數",
+        "mean": "設定二廠係數"
+      },
+      {
+        "num": 6,
+        "code": "n, x1 = 2, 0",
+        "html": "<span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試點",
+        "mean": "設定人數"
+      },
+      {
+        "num": 7,
+        "code": "x2 = n - x1",
+        "html": "<span class=\"token-ident\">x2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "x2=2",
+        "mean": "二廠變數代入"
+      },
+      {
+        "num": 8,
+        "code": "wrong_p2 = A2 * x1 * x1 + B2 * x1 + C2     # 誤用 x1",
+        "html": "<span class=\"token-ident\">wrong_p2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span>     <span class=\"token-comment\"># 誤用 x1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "代成 x1=0 算出 2",
+        "mean": "錯誤算式誤用 x1"
+      },
+      {
+        "num": 9,
+        "code": "correct_p2 = A2 * x2 * x2 + B2 * x2 + C2   # 正確用 x2",
+        "html": "<span class=\"token-ident\">correct_p2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span>   <span class=\"token-comment\"># 正確用 x2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "代入 x2=2 算出 8",
+        "mean": "正確算式使用 x2"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"x1={x1}, x2={x2} 時：\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;x1=<span class=\"token-op\">{</span><span class=\"token-ident\">x1</span><span class=\"token-op\">}</span>, x2=<span class=\"token-op\">{</span><span class=\"token-ident\">x2</span><span class=\"token-op\">}</span> 時：&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "錯誤值 2",
+        "mean": "印出錯誤二廠收益"
+      },
+      {
+        "num": 11,
+        "code": "print(f\"❌ 誤用 x1 算二廠收益: {wrong_p2}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤用 x1 算二廠收益: <span class=\"token-op\">{</span><span class=\"token-ident\">wrong_p2</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "正確值 8",
+        "mean": "印出正確二廠收益"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"✅ 正確用 x2 算二廠收益: {correct_p2} (正確應為 8！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 正確用 x2 算二廠收益: <span class=\"token-op\">{</span><span class=\"token-ident\">correct_p2</span><span class=\"token-op\">}</span> (正確應為 8！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "x1=0, x2=2 時：\n❌ 誤用 x1 算二廠收益: 2\n✅ 正確用 x2 算二廠收益: 8 (正確應為 8！)",
+    "diagram": {
+      "type": "compare",
+      "title": "二廠計算變數對應檢查",
+      "left": {
+        "title": "一廠收益算式 Y1",
+        "content": "係數：A1, B1, C1\n人數：X1\n式子：A1*X1^2 + B1*X1 + C1"
+      },
+      "right": {
+        "title": "二廠收益算式 Y2",
+        "content": "係數：A2, B2, C2\n人數：X2（切勿誤寫成 X1！）\n式子：A2*X2^2 + B2*X2 + C2"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "低級失誤殺傷力大",
+        "content": "複製第一行貼成第二行時，務必仔細檢查所有下標：A2, B2, C2 配 x2！"
+      },
+      {
+        "type": "standard",
+        "title": "一行流天然防護",
+        "content": "若使用版本二的 (n - x) 替換 x2，寫法更加緊湊，能減少變數混淆機率。"
+      }
+    ]
+  },
+  {
+    "page": 18,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.4 最大值變數初始化（初始值設為極小負數防護）",
+    "title": "Pre-Submission Defense Checklist",
+    "titleEn": "Pre-Submission Defense Checklist",
+    "titleZh": "考場防禦：交卷前四道自我防護檢驗清單",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 考前終極檢驗清單快速測試",
+        "html": "<span class=\"token-comment\"># 考前終極檢驗清單快速測試</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防禦驗證",
+        "mean": "自檢說明"
+      },
+      {
+        "num": 2,
+        "code": "def audit_f312(A1, B1, C1, A2, B2, C2, n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">audit_f312</span><span class=\"token-op\">(</span><span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝評判邏輯",
+        "mean": "審查函式"
+      },
+      {
+        "num": 3,
+        "code": "    best = -float('inf')  # 1. 初值極小",
+        "html": "    <span class=\"token-ident\">best</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-builtin\">float</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;inf&#x27;</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># 1. 初值極小</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "防負數",
+        "mean": "檢查初值"
+      },
+      {
+        "num": 4,
+        "code": "    for x in range(n + 1):  # 2. range 加一",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># 2. range 加一</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "防差一",
+        "mean": "檢查 range(n + 1)"
+      },
+      {
+        "num": 5,
+        "code": "        p = (A1*x*x + B1*x + C1) + (A2*(n-x)*(n-x) + B2*(n-x) + C2)",
+        "html": "        <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A2</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "二次多項式總和",
+        "mean": "計算並更新"
+      },
+      {
+        "num": 6,
+        "code": "        if p > best: best = p",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">best</span><span class=\"token-op\">:</span> <span class=\"token-ident\">best</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">p</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "保存最大利潤",
+        "mean": "更新最佳值"
+      },
+      {
+        "num": 7,
+        "code": "    return best",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">best</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "回傳答案",
+        "mean": "回傳結果"
+      },
+      {
+        "num": 8,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "# 自檢 1：官方範例 1 -> 預期 11",
+        "html": "<span class=\"token-comment\"># 自檢 1：官方範例 1 -&gt; 預期 11</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正常數值",
+        "mean": "測資 1 說明"
+      },
+      {
+        "num": 10,
+        "code": "print(\"自檢 1 (官方範例 1):\", audit_f312(2, -1, 3, 4, -5, 2, 2))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 1 (官方範例 1):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_f312</span><span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 11",
+        "mean": "執行自檢 1"
+      },
+      {
+        "num": 11,
+        "code": "# 自檢 2：全虧損負數測資 -> 預期 -41",
+        "html": "<span class=\"token-comment\"># 自檢 2：全虧損負數測資 -&gt; 預期 -41</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "負數極限",
+        "mean": "測資 2 說明"
+      },
+      {
+        "num": 12,
+        "code": "print(\"自檢 2 (全虧損測資):\", audit_f312(-1, -1, -10, -2, -3, -20, 3))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 2 (全虧損測資):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_f312</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 -41",
+        "mean": "執行自檢 2"
+      }
+    ],
+    "output": "自檢 1 (官方範例 1): 11\n自檢 2 (全虧損測資): -41",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "考場交卷前四道防禦檢驗清單",
+      "content": "初值極小加一邊",
+      "lines": [
+        "一、max_profit 初值是否設為 -float('inf') 徹底防禦負收益？",
+        "二、for 迴圈是否寫成 range(n + 1) 涵蓋 x1 = n 邊界？",
+        "三、二廠收益算式是否正確使用 (n - x) 或 x2？",
+        "四、是否手算過一組全負數範例，確認輸出不是 0？"
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣速記",
+        "content": "「初值極小加一邊」7 字口訣，考前自我審查 10 秒鐘，換來穩穩 100 分！"
+      },
+      {
+        "type": "hint",
+        "title": "雙測資驗證",
+        "content": "交卷前務必同時測試範例 1 (正常值 11) 與範例 2 (負數值 -41)！"
+      }
+    ]
+  },
+  {
+    "page": 19,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.5 迴圈內動態更新最大總收益與完整 AC 程式",
+    "title": "Solution Architecture & Dual-Platform Overview",
+    "titleEn": "Solution Architecture & Dual-Platform Overview",
+    "titleZh": "雙平台解答庫導讀：APCS 考場版 vs ZeroJudge 版",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 解答庫三大版本特性對照表",
+        "html": "<span class=\"token-comment\"># 解答庫三大版本特性對照表</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "架構導覽",
+        "mean": "版本清單說明"
+      },
+      {
+        "num": 2,
+        "code": "versions = [",
+        "html": "<span class=\"token-ident\">versions</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "彙整三種解法",
+        "mean": "版本清單陣列"
+      },
+      {
+        "num": 3,
+        "code": "    (\"版本一：APCS 淺顯易懂一般版\", \"分步讀取係數、拆解 profit1/2、初值負無窮，新手首選\"),",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本一：APCS 淺顯易懂一般版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;分步讀取係數、拆解 profit1/2、初值負無窮，新手首選&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "新手友善",
+        "mean": "版本一特色"
+      },
+      {
+        "num": 4,
+        "code": "    (\"版本二：APCS 極簡高效精煉版\", \"max() 搭配生成器運算式，僅僅 5 行秒殺真題\"),",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本二：APCS 極簡高效精煉版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;max() 搭配生成器運算式，僅僅 5 行秒殺真題&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "競賽速寫",
+        "mean": "版本二特色"
+      },
+      {
+        "num": 5,
+        "code": "    (\"版本三：ZeroJudge 萬用 AC 版\", \"sys.stdin 一次讀取 token，支援多筆連續測資 EOF 串流\")",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本三：ZeroJudge 萬用 AC 版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;sys.stdin 一次讀取 token，支援多筆連續測資 EOF 串流&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "線上 OJ 支援",
+        "mean": "版本三特色"
+      },
+      {
+        "num": 6,
+        "code": "]",
+        "html": "<span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "for name, desc in versions:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span><span class=\"token-op\">,</span> <span class=\"token-ident\">desc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">versions</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "列印資訊",
+        "mean": "走訪各版本"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"[{name}] -> {desc}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;[<span class=\"token-op\">{</span><span class=\"token-ident\">name</span><span class=\"token-op\">}</span>] -&gt; <span class=\"token-op\">{</span><span class=\"token-ident\">desc</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示版本特性",
+        "mean": "輸出版本介紹"
+      }
+    ],
+    "output": "[版本一：APCS 淺顯易懂一般版] -> 分步讀取係數、拆解 profit1/2、初值負無窮，新手首選\n[版本二：APCS 極簡高效精煉版] -> max() 搭配生成器運算式，僅僅 5 行秒殺真題\n[版本三：ZeroJudge 萬用 AC 版] -> sys.stdin 一次讀取 token，支援多筆連續測資 EOF 串流",
+    "diagram": {
+      "type": "compare",
+      "title": "APCS 官方考場 vs ZeroJudge 評測環境差異",
+      "left": {
+        "title": "APCS 官方考場環境",
+        "content": "單次執行僅評測單一完整輸入檔（3 行數據）\n讀完即結束，print(max_profit) 即滿分\n推薦：版本一（新手）或 版本二（高手）"
+      },
+      "right": {
+        "title": "ZeroJudge 線上解題系統",
+        "content": "伺服器可能連續灌入多組 3 行資料\n需以 EOF 迴圈或一次性 token 解析\n推薦：版本三（支援連續多筆測資）"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考場首選",
+        "content": "正式考試直接寫版本一或二；平時刷 ZeroJudge f312 則提交版本三！"
+      },
+      {
+        "type": "hint",
+        "title": "核心共通",
+        "content": "三個版本本質皆為 O(n) 單層枚舉，邏輯完全一致，保證滿分 AC。"
+      }
+    ]
+  },
+  {
+    "page": 20,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.5 迴圈內動態更新最大總收益與完整 AC 程式",
+    "title": "Version 1: APCS Standard Easy Solution",
+    "titleEn": "Version 1: APCS Standard Easy Solution",
+    "titleZh": "版本一：APCS 官方考場版（淺顯易懂一般版）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 步驟 1：分步讀取兩廠係數與總人數",
+        "html": "<span class=\"token-comment\"># 步驟 1：分步讀取兩廠係數與總人數</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分步清晰",
+        "mean": "讀取係數與人數"
+      },
+      {
+        "num": 2,
+        "code": "A1, B1, C1 = map(int, input().split())",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "解析一廠",
+        "mean": "一廠係數"
+      },
+      {
+        "num": 3,
+        "code": "A2, B2, C2 = map(int, input().split())",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "解析二廠",
+        "mean": "二廠係數"
+      },
+      {
+        "num": 4,
+        "code": "n = int(input())",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "解析人數",
+        "mean": "總人數"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# 步驟 2：初始化最大收益為負無窮大（防禦全虧損負數地雷！）",
+        "html": "<span class=\"token-comment\"># 步驟 2：初始化最大收益為負無窮大（防禦全虧損負數地雷！）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防禦陷阱",
+        "mean": "初值設定"
+      },
+      {
+        "num": 7,
+        "code": "max_profit = -float('inf')",
+        "html": "<span class=\"token-ident\">max_profit</span> <span class=\"token-op\">=</span> <span class=\"token-op\">-</span><span class=\"token-builtin\">float</span><span class=\"token-op\">(</span><span class=\"token-string\">&#x27;inf&#x27;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "絕對低於所有負數",
+        "mean": "宣告負無窮"
+      },
+      {
+        "num": 8,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "# 步驟 3：枚舉一廠人數 x1 in [0, n]",
+        "html": "<span class=\"token-comment\"># 步驟 3：枚舉一廠人數 x1 in [0, n]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "完整走訪",
+        "mean": "枚舉人數"
+      },
+      {
+        "num": 10,
+        "code": "for x1 in range(n + 1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">x1</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "包含邊界",
+        "mean": "for 迴圈 range(n+1)"
+      },
+      {
+        "num": 11,
+        "code": "    x2 = n - x1",
+        "html": "    <span class=\"token-ident\">x2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "互補約束",
+        "mean": "二廠人數"
+      },
+      {
+        "num": 12,
+        "code": "    profit1 = A1 * (x1 * x1) + B1 * x1 + C1",
+        "html": "    <span class=\"token-ident\">profit1</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A1</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "二次求值",
+        "mean": "一廠收益"
+      },
+      {
+        "num": 13,
+        "code": "    profit2 = A2 * (x2 * x2) + B2 * x2 + C2",
+        "html": "    <span class=\"token-ident\">profit2</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">x2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "二次求值",
+        "mean": "二廠收益"
+      },
+      {
+        "num": 14,
+        "code": "    total = profit1 + profit2",
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">profit1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">profit2</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "相加",
+        "mean": "總收益"
+      },
+      {
+        "num": 15,
+        "code": "    if total > max_profit:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">total</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">max_profit</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "大於則刷新",
+        "mean": "比較更新"
+      },
+      {
+        "num": 16,
+        "code": "        max_profit = total",
+        "html": "        <span class=\"token-ident\">max_profit</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">total</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "保留最佳",
+        "mean": "覆蓋最大值"
+      },
+      {
+        "num": 17,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 18,
+        "code": "print(max_profit)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">max_profit</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "滿分輸出",
+        "mean": "輸出最大總收益"
+      }
+    ],
+    "output": "【範例一測試輸出】11\n【範例二全虧損輸出】-41",
+    "diagram": {
+      "type": "flow",
+      "title": "版本一解題管線",
+      "flow": [
+        {
+          "step": 1,
+          "text": "讀取 A1, B1, C1 / A2, B2, C2 / n"
+        },
+        {
+          "step": 2,
+          "text": "max_profit = -float('inf')"
+        },
+        {
+          "step": 3,
+          "text": "for x1 in range(n + 1): 算 profit1, profit2"
+        },
+        {
+          "step": 4,
+          "text": "if total > max_profit: max_profit = total"
+        },
+        {
+          "step": 5,
+          "text": "print(max_profit) 滿分 AC！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "新手最推",
+        "content": "變數名稱清晰、拆解詳細、邏輯平鋪直敘，考場高壓下最不易慌亂出錯！"
+      },
+      {
+        "type": "hint",
+        "title": "100% AC",
+        "content": "此版本通過官方所有測資點，獲得 100 分滿分。"
+      }
+    ]
+  },
+  {
+    "page": 21,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.5 迴圈內動態更新最大總收益與完整 AC 程式",
+    "title": "Version 2: APCS Minimal & Efficient Solution",
+    "titleEn": "Version 2: APCS Minimal & Efficient Solution",
+    "titleZh": "版本二：APCS 官方考場版（極簡高效精煉版）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ⚡ 僅僅 5 行程式碼秒殺真題！",
+        "html": "<span class=\"token-comment\"># ⚡ 僅僅 5 行程式碼秒殺真題！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "極致優雅",
+        "mean": "極簡 5 行說明"
+      },
+      {
+        "num": 2,
+        "code": "A1, B1, C1 = map(int, input().split())",
+        "html": "<span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行讀入",
+        "mean": "讀一廠係數"
+      },
+      {
+        "num": 3,
+        "code": "A2, B2, C2 = map(int, input().split())",
+        "html": "<span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行讀入",
+        "mean": "讀二廠係數"
+      },
+      {
+        "num": 4,
+        "code": "n = int(input())",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行讀入",
+        "mean": "讀總人數 n"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "print(max(",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">max</span><span class=\"token-op\">(</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "max 一次搞定",
+        "mean": "印出最大值呼叫"
+      },
+      {
+        "num": 7,
+        "code": "    (A1 * x * x + B1 * x + C1) + (A2 * (n - x) * (n - x) + B2 * (n - x) + C2)",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-ident\">A1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "動態求和",
+        "mean": "兩廠總和生成器"
+      },
+      {
+        "num": 8,
+        "code": "    for x in range(n + 1)",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "惰性生成",
+        "mean": "枚舉 range(n+1)"
+      },
+      {
+        "num": 9,
+        "code": "))",
+        "html": "<span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "【極簡 5 行輸出】11",
+    "diagram": {
+      "type": "compare",
+      "title": "版本一 vs 版本二 差異對照",
+      "left": {
+        "title": "版本一（一般版）",
+        "content": "行數：約 15 行\n逐步拆解 profit1, profit2\n適合：初學扎根、求穩求清晰"
+      },
+      "right": {
+        "title": "版本二（極簡版）",
+        "content": "行數：僅僅 5 行！\nmax() 搭配生成器一行求極值\n適合：競賽選手與追求極速者"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "極速敲碼",
+        "content": "全篇只有 5 行，在正式考場上 90 秒內即可敲完並 AC，大幅節省後續大題時間！"
+      },
+      {
+        "type": "hint",
+        "title": "無初值煩惱",
+        "content": "max() 作用於生成器時，自動在非空迭代中尋找最大值，完全無需手動設定 -inf 初值！"
+      }
+    ]
+  },
+  {
+    "page": 22,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.5 迴圈內動態更新最大總收益與完整 AC 程式",
+    "title": "Version 3: ZeroJudge Universal AC Solution",
+    "titleEn": "Version 3: ZeroJudge Universal AC Solution",
+    "titleZh": "版本三：ZeroJudge 線上評判萬用 AC 版",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "高效 I/O",
+        "mean": "載入 sys 模組"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 3,
+        "code": "def solve():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "模組化",
+        "mean": "主解題函式"
+      },
+      {
+        "num": 4,
+        "code": "    tokens = sys.stdin.read().split()",
+        "html": "    <span class=\"token-ident\">tokens</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">sys</span><span class=\"token-op\">.</span><span class=\"token-ident\">stdin</span><span class=\"token-op\">.</span><span class=\"token-ident\">read</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一次切分所有整數",
+        "mean": "一次讀取所有 token"
+      },
+      {
+        "num": 5,
+        "code": "    if not tokens: return",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">tokens</span><span class=\"token-op\">:</span> <span class=\"token-keyword\">return</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防空防崩潰",
+        "mean": "防空測資"
+      },
+      {
+        "num": 6,
+        "code": "    idx = 0",
+        "html": "    <span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初始化指標",
+        "mean": "指標歸零"
+      },
+      {
+        "num": 7,
+        "code": "    while idx < len(tokens):",
+        "html": "    <span class=\"token-keyword\">while</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "連續測資迭代",
+        "mean": "EOF 循環處理"
+      },
+      {
+        "num": 8,
+        "code": "        A1, B1, C1 = int(tokens[idx]), int(tokens[idx+1]), int(tokens[idx+2])",
+        "html": "        <span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "3 個整數",
+        "mean": "提取一廠係數"
+      },
+      {
+        "num": 9,
+        "code": "        A2, B2, C2 = int(tokens[idx+3]), int(tokens[idx+4]), int(tokens[idx+5])",
+        "html": "        <span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">3</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">5</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "3 個整數",
+        "mean": "提取二廠係數"
+      },
+      {
+        "num": 10,
+        "code": "        n = int(tokens[idx+6])",
+        "html": "        <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "1 個整數",
+        "mean": "提取人數 n"
+      },
+      {
+        "num": 11,
+        "code": "        idx += 7",
+        "html": "        <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">7</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "推進至下一筆測資",
+        "mean": "指標跳過 7 個"
+      },
+      {
+        "num": 12,
+        "code": "        ans = max(",
+        "html": "        <span class=\"token-ident\">ans</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "枚舉求最大值",
+        "mean": "計算最大收益"
+      },
+      {
+        "num": 13,
+        "code": "            (A1 * x * x + B1 * x + C1) + (A2 * (n - x) * (n - x) + B2 * (n - x) + C2)",
+        "html": "            <span class=\"token-op\">(</span><span class=\"token-ident\">A1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span> <span class=\"token-op\">*</span> <span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span> <span class=\"token-op\">*</span> <span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 14,
+        "code": "            for x in range(n + 1)",
+        "html": "            <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 15,
+        "code": "        )",
+        "html": "        <span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 16,
+        "code": "        print(ans)",
+        "html": "        <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">ans</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印出單筆結果",
+        "mean": "輸出答案"
+      },
+      {
+        "num": 17,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 18,
+        "code": "if __name__ == '__main__':",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">__name__</span> <span class=\"token-op\">==</span> <span class=\"token-string\">&#x27;__main__&#x27;</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "標準入口",
+        "mean": "程式入口"
+      },
+      {
+        "num": 19,
+        "code": "    solve()",
+        "html": "    <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "調用主函式",
+        "mean": "執行解題"
+      }
+    ],
+    "output": "【ZeroJudge 多測資評判】AC (100% 通過)",
+    "diagram": {
+      "type": "flow",
+      "title": "ZeroJudge 批次 Token 解析架構",
+      "flow": [
+        {
+          "step": 1,
+          "text": "sys.stdin.read().split() 一次切出所有數字 token"
+        },
+        {
+          "step": 2,
+          "text": "每組測資固定消耗 7 個 token (3 + 3 + 1)"
+        },
+        {
+          "step": 3,
+          "text": "計算 max 並 print(ans)"
+        },
+        {
+          "step": 4,
+          "text": "idx += 7，持續循環直到所有 token 處理完畢！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "ZeroJudge 綠燈保證",
+        "content": "直接複製此版本貼上 ZeroJudge f312，即可獲得滿分 AC（綠燈通過）！"
+      },
+      {
+        "type": "hint",
+        "title": "Token 讀取優勢",
+        "content": "無視任何空行、多餘空格與換行格式，是競技程式中最堅不可摧的讀取手法。"
+      }
+    ]
+  },
+  {
+    "page": 23,
+    "phase": "summary",
+    "phaseZh": "思考昇華",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.6 複雜度分析：O(n) 極速枚舉與負收益陷阱",
+    "title": "Self-Test & Edge Cases Mastered",
+    "titleEn": "Self-Test & Edge Cases Mastered",
+    "titleZh": "考點通關自測：三大極限邊界測資實機驗算",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 邊界驗算函式",
+        "html": "<span class=\"token-comment\"># 邊界驗算函式</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "自測驗收",
+        "mean": "驗算函式註解"
+      },
+      {
+        "num": 2,
+        "code": "def solve(A1, B1, C1, A2, B2, C2, n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-ident\">A1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">A2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "精簡求解",
+        "mean": "一行求解函式"
+      },
+      {
+        "num": 3,
+        "code": "    return max((A1*x*x + B1*x + C1) + (A2*(n-x)*(n-x) + B2*(n-x) + C2) for x in range(n + 1))",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-op\">(</span><span class=\"token-ident\">A1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B1</span><span class=\"token-op\">*</span><span class=\"token-ident\">x</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C1</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">(</span><span class=\"token-ident\">A2</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">B2</span><span class=\"token-op\">*</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-ident\">x</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">C2</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">x</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "官方公開測資",
+        "mean": "測資 1 說明"
+      },
+      {
+        "num": 5,
+        "code": "# 測資 1：官方範例 1 (混合正負)",
+        "html": "<span class=\"token-comment\"># 測資 1：官方範例 1 (混合正負)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 11",
+        "mean": "執行測資 1"
+      },
+      {
+        "num": 6,
+        "code": "print(\"自測 1 (範例 1):\", solve(2, -1, 3, 4, -5, 2, 2))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 1 (範例 1):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防禦初值 0",
+        "mean": "測資 2 說明"
+      },
+      {
+        "num": 7,
+        "code": "# 測資 2：全虧損負數測資 (最大收益仍為負數)",
+        "html": "<span class=\"token-comment\"># 測資 2：全虧損負數測資 (最大收益仍為負數)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 -41",
+        "mean": "執行測資 2"
+      },
+      {
+        "num": 8,
+        "code": "print(\"自測 2 (全負數):\", solve(-1, -1, -10, -2, -3, -20, 3))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 2 (全負數):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-op\">-</span><span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "最小規模",
+        "mean": "測資 3 說明"
+      },
+      {
+        "num": 9,
+        "code": "# 測資 3：單一人力極限 n=1",
+        "html": "<span class=\"token-comment\"># 測資 3：單一人力極限 n=1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 9",
+        "mean": "執行測資 3"
+      },
+      {
+        "num": 10,
+        "code": "print(\"自測 3 (n=1人):\", solve(1, 2, 3, 3, 2, 1, 1))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 3 (n=1人):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "自測 1 (範例 1): 11\n自測 2 (全負數): -41\n自測 3 (n=1人): 9",
+    "diagram": {
+      "type": "step",
+      "title": "三大極限測資通過報告",
+      "steps": [
+        {
+          "num": 1,
+          "action": "測資 1 (範例 1)",
+          "desc": "輸出 11 ✅ 正常係數精準通過"
+        },
+        {
+          "num": 2,
+          "action": "測資 2 (全負數)",
+          "desc": "輸出 -41 ✅ 負收益地雷防禦成功"
+        },
+        {
+          "num": 3,
+          "action": "測資 3 (n=1人)",
+          "desc": "輸出 9 ✅ 最小人數邊界驗證成功"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "三大考點全破",
+        "content": "常規數據、全負數極端、最小人力 n=1 全部綠燈通過，代碼毫無破綻！"
+      },
+      {
+        "type": "hint",
+        "title": "心法鞏固",
+        "content": "這正是考場上拿到 100 分滿分的關鍵：不僅寫得出程式碼，更懂得如何徹底驗證它！"
+      }
+    ]
+  },
+  {
+    "page": 24,
+    "phase": "summary",
+    "phaseZh": "思考昇華",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.6.6 複雜度分析：O(n) 極速枚舉與負收益陷阱",
+    "title": "Summary & Next Mission: 14.7 Purchasing Power",
+    "titleEn": "Summary & Next Mission: 14.7 Purchasing Power",
+    "titleZh": "學習總結與下一題預告：14.7 購買力",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 單元 14.6 通關成果回顧",
+        "html": "<span class=\"token-comment\"># 單元 14.6 通關成果回顧</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "回顧成果",
+        "mean": "總結回顧註解"
+      },
+      {
+        "num": 2,
+        "code": "badges = {",
+        "html": "<span class=\"token-ident\">badges</span> <span class=\"token-op\">=</span> <span class=\"token-op\">{</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "條理清晰",
+        "mean": "勳章字典"
+      },
+      {
+        "num": 3,
+        "code": "    \"真題代碼\": \"APCS f312 人力分配\",",
+        "html": "    <span class=\"token-string\">&quot;真題代碼&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;APCS f312 人力分配&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "f312",
+        "mean": "真題代碼"
+      },
+      {
+        "num": 4,
+        "code": "    \"核心技巧\": \"互補約束 X2 = n - X1 降維\",",
+        "html": "    <span class=\"token-string\">&quot;核心技巧&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;互補約束 X2 = n - X1 降維&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "對偶性",
+        "mean": "降維技巧"
+      },
+      {
+        "num": 5,
+        "code": "    \"演算法本質\": \"單層 for 迴圈 O(n) 極速枚舉\",",
+        "html": "    <span class=\"token-string\">&quot;演算法本質&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;單層 for 迴圈 O(n) 極速枚舉&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "O(n)",
+        "mean": "枚舉複雜度"
+      },
+      {
+        "num": 6,
+        "code": "    \"關鍵鐵律\": \"枚舉加一負無窮 (防差一與負收益地雷)\",",
+        "html": "    <span class=\"token-string\">&quot;關鍵鐵律&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;枚舉加一負無窮 (防差一與負收益地雷)&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "口訣",
+        "mean": "關鍵口訣"
+      },
+      {
+        "num": 7,
+        "code": "    \"通關狀態\": \"100% 滿分 AC 通過\"",
+        "html": "    <span class=\"token-string\">&quot;通關狀態&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;100% 滿分 AC 通過&quot;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "滿分",
+        "mean": "通關狀態"
+      },
+      {
+        "num": 8,
+        "code": "}",
+        "html": "<span class=\"token-op\">}</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "for k, v in badges.items():",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">k</span><span class=\"token-op\">,</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">badges</span><span class=\"token-op\">.</span><span class=\"token-ident\">items</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "走訪",
+        "mean": "走訪勳章"
+      },
+      {
+        "num": 10,
+        "code": "    print(f\"[{k}] {v}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;[<span class=\"token-op\">{</span><span class=\"token-ident\">k</span><span class=\"token-op\">}</span>] <span class=\"token-op\">{</span><span class=\"token-ident\">v</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "逐條展示",
+        "mean": "印出條目"
+      },
+      {
+        "num": 11,
+        "code": "print(\"下一站預告: 14.7 購買力 (f605) - 多天價格波動與條件購買！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;下一站預告: 14.7 購買力 (f605) - 多天價格波動與條件購買！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "預告 14.7",
+        "mean": "印出下一題預告"
+      }
+    ],
+    "output": "[真題代碼] APCS f312 人力分配\n[核心技巧] 互補約束 X2 = n - X1 降維\n[演算法本質] 單層 for 迴圈 O(n) 極速枚舉\n[關鍵鐵律] 枚舉加一負無窮 (防差一與負收益地雷)\n[通關狀態] 100% 滿分 AC 通過\n下一站預告: 14.7 購買力 (f605) - 多天價格波動與條件購買！",
+    "diagram": {
+      "type": "flow",
+      "title": "第 14 章初級真題進度推進",
+      "flow": [
+        {
+          "step": 1,
+          "text": "14-1 三角形辨別 (幾何判斷) ✅"
+        },
+        {
+          "step": 2,
+          "text": "14-2 秘密差 (字串奇偶位) ✅"
+        },
+        {
+          "step": 3,
+          "text": "14-3 邏輯運算子 (布林真值表) ✅"
+        },
+        {
+          "step": 4,
+          "text": "14-4 籃球比賽 (多行讀取比分) ✅"
+        },
+        {
+          "step": 5,
+          "text": "14-5 購物車 (正負抵銷統計) ✅"
+        },
+        {
+          "step": 6,
+          "text": "14-6 人力分配 (二次函數枚舉) ✅"
+        },
+        {
+          "step": 7,
+          "text": "14-7 購買力 (多天價格波動) 🚀 NEXT"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "恭喜第六勝達成",
+        "content": "你已經征服了第六道 APCS 實作初級真題，掌握了資源分配與窮舉法求極值的強大武器！"
+      },
+      {
+        "type": "hint",
+        "title": "下一單元核心",
+        "content": "下一單元 14.7「購買力」將進入多天價格波動分析與條件統計，繼續保持全勝戰績！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    initSlideEngine({
+      sectionId: "{{SECTION_ID}}",
+      slidesData: slidesData,
+      colabUrl: "{{COLAB_URL}}"
+    });
+  </script>
+</body>
+</html>

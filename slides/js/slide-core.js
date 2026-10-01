@@ -608,9 +608,21 @@ function renderSlide(index) {
         colabTargetUrl = `https://colab.research.google.com/github/johnnyy-lab/APCS1to3/blob/main/${colabTargetUrl.replace(/^\.\.\//, '')}`;
       }
       const customCard = slide.completionCard;
-      const rawTitle = (customCard && customCard.badge) ? customCard.badge : '🏆 單元挑戰達成！滿分通關徽章';
-      const badgeDesc = (customCard && customCard.summary) ? customCard.summary : `太棒了！您已全數完成本單元所有核心觀念與心智模型的微步進演練。<br>現在正是將觀念化為肌肉記憶的最佳時刻！`;
-      const nextUnitHtml = (customCard && customCard.nextUnit) ? `<div class="completion-next-unit"><strong>👉 下一關預告</strong>：${customCard.nextUnit}</div>` : '';
+      const rawTitle = (customCard && (customCard.badge || customCard.title)) 
+        ? (customCard.badge || customCard.title) 
+        : '🏆 單元挑戰達成！滿分通關徽章';
+      const badgeDesc = (customCard && (customCard.summary || customCard.desc)) 
+        ? (customCard.summary || customCard.desc) 
+        : `太棒了！您已全數完成本單元所有核心觀念與心智模型的微步進演練。<br>現在正是將觀念化為肌肉記憶的最佳時刻！`;
+      let nextUnitText = '';
+      if (customCard && customCard.nextUnit) {
+        if (typeof customCard.nextUnit === 'object') {
+          nextUnitText = `${customCard.nextUnit.unit ? '單元 ' + customCard.nextUnit.unit + ' ' : ''}${customCard.nextUnit.title || customCard.nextUnit.desc || ''}`;
+        } else {
+          nextUnitText = String(customCard.nextUnit);
+        }
+      }
+      const nextUnitHtml = nextUnitText ? `<div class="completion-next-unit"><strong>👉 下一關預告</strong>：${nextUnitText}</div>` : '';
 
       completionCard.innerHTML = `
         <div class="completion-badge-title">
@@ -1905,7 +1917,18 @@ function handleQuizOption(choiceIndex, event) {
   const feedbackExp = document.getElementById('quizFeedbackExp');
   const outputViewport = document.getElementById('outputViewport');
 
-  const correctIndex = Number(currentSlideQuiz.correct || 0);
+  let correctIndex = 0;
+  const rawCorrect = (currentSlideQuiz.correct !== undefined) ? currentSlideQuiz.correct : currentSlideQuiz.answer;
+  if (typeof rawCorrect === 'string') {
+    const trimmed = rawCorrect.trim().toUpperCase();
+    if (trimmed === 'B' || trimmed === '1') {
+      correctIndex = 1;
+    } else {
+      correctIndex = 0;
+    }
+  } else {
+    correctIndex = Number(rawCorrect || 0);
+  }
   const isCorrect = (choiceIndex === correctIndex);
 
   // 解除終端輸出模糊，方便對照

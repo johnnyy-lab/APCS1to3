@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 11.1 函數定義（def）、呼叫流程與參數傳入基礎 | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.1 為什麼需要函數？從重複代碼到模組化封裝（黑盒子概念）",
+    "titleZh": "重複代碼的痛點——相同邏輯四處複製貼上",
+    "titleEn": "The Pain of Repetitive Code: Copy-Paste Hell",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 痛點：若想在多處印出相同卡片，必須反覆複製貼上",
+        "html": "<span class=\"token-comment\"># 痛點：若想在多處印出相同卡片，必須反覆複製貼上</span>",
+        "alt": "說明重複代碼的維護成本",
+        "why": "點出複製貼上的缺點",
+        "mean": "背景註解"
+      },
+      {
+        "num": 2,
+        "code": "print(\"+--------------------+\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;+--------------------+&quot;</span>)",
+        "alt": "print('+--------------------+')",
+        "why": "印出頂部邊框",
+        "mean": "列印邊界"
+      },
+      {
+        "num": 3,
+        "code": "print(\"| 歡迎來到 APCS 課堂 |\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;| 歡迎來到 APCS 課堂 |&quot;</span>)",
+        "alt": "print('| 歡迎來到 APCS 課堂 |')",
+        "why": "印出歡迎文字",
+        "mean": "列印問候"
+      },
+      {
+        "num": 4,
+        "code": "print(\"+--------------------+\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;+--------------------+&quot;</span>)",
+        "alt": "print('+--------------------+')",
+        "why": "印出底部邊框",
+        "mean": "列印邊界"
+      },
+      {
+        "num": 5,
+        "code": "print(\"+--------------------+\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;+--------------------+&quot;</span>)",
+        "alt": "第二次列印邊框",
+        "diff": true,
+        "why": "再次複製貼上",
+        "mean": "重複列印邊界"
+      },
+      {
+        "num": 6,
+        "code": "print(\"| 歡迎來到 APCS 課堂 |\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;| 歡迎來到 APCS 課堂 |&quot;</span>)",
+        "alt": "第二次列印問候",
+        "diff": true,
+        "why": "再次複製貼上文字",
+        "mean": "重複列印問候"
+      },
+      {
+        "num": 7,
+        "code": "print(\"+--------------------+\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;+--------------------+&quot;</span>)",
+        "alt": "第二次列印底邊",
+        "diff": true,
+        "why": "再次複製貼上底邊",
+        "mean": "重複列印邊界"
+      }
+    ],
+    "output": "+--------------------+\n| 歡迎來到 APCS 課堂 |\n+--------------------+\n+--------------------+\n| 歡迎來到 APCS 課堂 |\n+--------------------+",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>重複代碼的維護災難</strong>：當相同邏輯需要印出多次時，若純靠複製貼上，一旦想要修改邊框樣式或文字內容，就必須在程式碼每一處手動改動，容易漏改且冗長。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "重複代碼封，黑盒模組通"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.1 為什麼需要函數？從重複代碼到模組化封裝（黑盒子概念）",
+    "titleZh": "模組化封裝優勢——打包成黑盒子，一處修改處處生效",
+    "titleEn": "Modularity: Edit Once, Benefit Everywhere",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模組化：將重複邏輯封裝進名為 print_welcome 的黑盒子",
+        "html": "<span class=\"token-comment\"># 模組化：將重複邏輯封裝進名為 print_welcome 的黑盒子</span>",
+        "alt": "說明封裝的好處",
+        "why": "建立函數黑盒子概念",
+        "mean": "觀念註解"
+      },
+      {
+        "num": 2,
+        "code": "def print_welcome():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">print_welcome</span>():",
+        "alt": "定義自訂函數 print_welcome",
+        "diff": true,
+        "why": "宣告函數封裝",
+        "mean": "定義函數"
+      },
+      {
+        "num": 3,
+        "code": "    print(\"+--------------------+\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;+--------------------+&quot;</span>)",
+        "alt": "內部指令 1",
+        "why": "縮排 4 格代表屬於函數本體",
+        "mean": "內部列印邊界"
+      },
+      {
+        "num": 4,
+        "code": "    print(\"| 歡迎來到 APCS 課堂 |\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;| 歡迎來到 APCS 課堂 |&quot;</span>)",
+        "alt": "內部指令 2",
+        "why": "封裝問候語",
+        "mean": "內部列印問候"
+      },
+      {
+        "num": 5,
+        "code": "    print(\"+--------------------+\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;+--------------------+&quot;</span>)",
+        "alt": "內部指令 3",
+        "why": "封裝底邊框",
+        "mean": "內部列印底邊"
+      },
+      {
+        "num": 6,
+        "code": "print_welcome()",
+        "html": "<span class=\"token-func\">print_welcome</span>()",
+        "alt": "第一次呼叫",
+        "diff": true,
+        "why": "第一次啟動函數執行",
+        "mean": "首次呼叫"
+      },
+      {
+        "num": 7,
+        "code": "print_welcome()",
+        "html": "<span class=\"token-func\">print_welcome</span>()",
+        "alt": "第二次呼叫",
+        "diff": true,
+        "why": "第二次啟動函數執行",
+        "mean": "再次呼叫"
+      }
+    ],
+    "output": "+--------------------+\n| 歡迎來到 APCS 課堂 |\n+--------------------+\n+--------------------+\n| 歡迎來到 APCS 課堂 |\n+--------------------+",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>黑盒子思維（Black Box）</strong>：將繁瑣細節封裝在函數內部，外部只需寫 <code>print_welcome()</code> 就能重複呼叫。未來若修改邊框，只需改動函數定義處一次，全部呼叫處自動同步更新！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "一處修本體，全域即更新"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.2 函數的定義（def）、命名規範與呼叫（Call）語法",
+    "titleZh": "函數骨架大解剖——def 宣告、命名、圓括號與冒號",
+    "titleEn": "Anatomy of Function Syntax: def, name, (), :",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 函數定義期（Def Time）：登記名稱與指令清單",
+        "html": "<span class=\"token-comment\"># 函數定義期（Def Time）：登記名稱與指令清單</span>",
+        "alt": "定義期註解說明",
+        "why": "建立時間軸觀念",
+        "mean": "定義期概念"
+      },
+      {
+        "num": 2,
+        "code": "def show_banner():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">show_banner</span>():",
+        "alt": "def 關鍵字 + 函數名 + 圓括號 + 冒號",
+        "diff": true,
+        "why": "宣告自訂函數 show_banner",
+        "mean": "宣告函數"
+      },
+      {
+        "num": 3,
+        "code": "    # 冒號後必須嚴格縮排 4 個空格",
+        "html": "    <span class=\"token-comment\"># 冒號後必須嚴格縮排 4 個空格</span>",
+        "alt": "縮排規範說明",
+        "why": "標註縮排界定",
+        "mean": "縮排註解"
+      },
+      {
+        "num": 4,
+        "code": "    title = \"APCS 演算法專題\"",
+        "html": "    <span class=\"token-ident\">title</span> = <span class=\"token-string\">&quot;APCS 演算法專題&quot;</span>",
+        "alt": "內部區域變數宣告",
+        "why": "準備標題文字",
+        "mean": "指派變數"
+      },
+      {
+        "num": 5,
+        "code": "    print(f\"=== {title} ===\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;=== {</span><span class=\"token-ident\">title</span><span class=\"token-string\">} ===&quot;</span>)",
+        "alt": "印出格式化標題",
+        "why": "內部輸出指令",
+        "mean": "格式化輸出"
+      },
+      {
+        "num": 6,
+        "code": "# 此頁僅有 def 定義，尚未呼叫執行",
+        "html": "<span class=\"token-comment\"># 此頁僅有 def 定義，尚未呼叫執行</span>",
+        "alt": "提醒此時尚未觸發呼叫",
+        "why": "強調呼叫前不印出",
+        "mean": "時序提醒"
+      }
+    ],
+    "output": "<span class=\"output-empty\">（已完成函數定義登記，尚未呼叫執行）</span>",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>定義期（Def Time）特徵</strong>：直譯器讀取到 <code>def</code> 時，只會在記憶體登記該函數的名字與程式碼範本，<strong>並不會主動執行內部的縮排程式碼</strong>！因此此時終端機不會有任何輸出。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "冒號縮排四，def來登記"
+      }
+    ]
+  },
+  {
+    "stage": "① 觀念初探",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.2 函數的定義（def）、命名規範與呼叫（Call）語法",
+    "titleZh": "呼叫的魔法——圓括號 () 是發動引擎的鑰匙",
+    "titleEn": "The Power of (): Function Call vs Identifier",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def show_banner():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">show_banner</span>():",
+        "alt": "定義函數 show_banner",
+        "why": "函數定義登記",
+        "mean": "定義函數"
+      },
+      {
+        "num": 2,
+        "code": "    title = \"APCS 演算法專題\"",
+        "html": "    <span class=\"token-ident\">title</span> = <span class=\"token-string\">&quot;APCS 演算法專題&quot;</span>",
+        "alt": "設定標題字串",
+        "why": "準備輸出內容",
+        "mean": "設定變數"
+      },
+      {
+        "num": 3,
+        "code": "    print(f\"=== {title} ===\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;=== {</span><span class=\"token-ident\">title</span><span class=\"token-string\">} ===&quot;</span>)",
+        "alt": "列印橫幅",
+        "why": "印出標題",
+        "mean": "印出結果"
+      },
+      {
+        "num": 4,
+        "code": "# 1. 只有名字：僅拿到函數物件本身，不執行！",
+        "html": "<span class=\"token-comment\"># 1. 只有名字：僅拿到函數物件本身，不執行！</span>",
+        "alt": "對照實驗 1：無括號",
+        "why": "釐清語意差異",
+        "mean": "實驗說明"
+      },
+      {
+        "num": 5,
+        "code": "print(\"只寫名稱型態:\", type(show_banner))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;只寫名稱型態:&quot;</span>, <span class=\"token-builtin\">type</span>(<span class=\"token-func\">show_banner</span>))",
+        "alt": "印出型態，證明只拿到 function 物件",
+        "diff": true,
+        "why": "印證未執行本體",
+        "mean": "印出物件型態"
+      },
+      {
+        "num": 6,
+        "code": "# 2. 加上小括號 ()：真正發動引擎執行內部代碼！",
+        "html": "<span class=\"token-comment\"># 2. 加上小括號 ()：真正發動引擎執行內部代碼！</span>",
+        "alt": "對照實驗 2：加括號",
+        "why": "展示呼叫語法",
+        "mean": "呼叫說明"
+      },
+      {
+        "num": 7,
+        "code": "show_banner()",
+        "html": "<span class=\"token-func\">show_banner</span>()",
+        "alt": "show_banner() 真正呼叫",
+        "diff": true,
+        "why": "觸發函數內部 print",
+        "mean": "發動呼叫"
+      }
+    ],
+    "output": "只寫名稱型態: &lt;class 'function'&gt;\n=== APCS 演算法專題 ===",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>括號是執行開關</strong>：在 Python 中，只寫 <code>show_banner</code> 代表該函數物件本體；加上圓括號 <code>show_banner()</code> 才是命令直譯器「跳進去執行內部所有程式碼」！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "小括號發動，函數才啟動"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.3 程式執行順序：定義期（Def Time）與呼叫期（Call Time）的追蹤",
+    "titleZh": "程式執行順序——跳轉與歸還的時序全景追蹤",
+    "titleEn": "Execution Flow: Def Time vs Call Time",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "print(\"【第 1 步】主流程由上而下開始\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;【第 1 步】主流程由上而下開始&quot;</span>)",
+        "alt": "主程式第 1 步",
+        "why": "時序起點",
+        "mean": "主程式起始"
+      },
+      {
+        "num": 2,
+        "code": "def play_music():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">play_music</span>():",
+        "alt": "定義 play_music 函數",
+        "why": "定義期略過不執行",
+        "mean": "登記函數"
+      },
+      {
+        "num": 3,
+        "code": "    print(\"  ---> 【第 3 步】進入函數內部播放旋律\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;  ---&gt; 【第 3 步】進入函數內部播放旋律&quot;</span>)",
+        "alt": "內部指令第 3 步",
+        "why": "呼叫時才執行此行",
+        "mean": "函數內部指令"
+      },
+      {
+        "num": 4,
+        "code": "print(\"【第 2 步】函數已登記於記憶體，準備發動呼叫\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;【第 2 步】函數已登記於記憶體，準備發動呼叫&quot;</span>)",
+        "alt": "主程式第 2 步",
+        "why": "主流程依序執行",
+        "mean": "準備呼叫"
+      },
+      {
+        "num": 5,
+        "code": "play_music()",
+        "html": "<span class=\"token-func\">play_music</span>()",
+        "alt": "呼叫 play_music()，控制權跳轉",
+        "diff": true,
+        "why": "跳轉至第 3 步",
+        "mean": "控制權跳轉"
+      },
+      {
+        "num": 6,
+        "code": "print(\"【第 4 步】函數結束，返回主流程繼續前進\")",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;【第 4 步】函數結束，返回主流程繼續前進&quot;</span>)",
+        "alt": "主程式第 4 步",
+        "diff": true,
+        "why": "控制權歸還主流程",
+        "mean": "控制權返回"
+      }
+    ],
+    "output": "【第 1 步】主流程由上而下開始\n【第 2 步】函數已登記於記憶體，準備發動呼叫\n  ---> 【第 3 步】進入函數內部播放旋律\n【第 4 步】函數結束，返回主流程繼續前進",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>控制權跳轉與返回（Call & Return）</strong>：當呼叫 <code>play_music()</code> 時，直譯器會暫停主流程，跳進函數執行；函數內部全部執行完畢後，控制權會精確回到呼叫處的下一行繼續往下推進！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "先跳入執行，做完回原處"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.4 單一參數傳入與引數匹配：讓函數具備動態適應力",
+    "titleZh": "單一參數傳入——參數（Parameter）讓函數動態變身",
+    "titleEn": "Single Parameter: Making Functions Dynamic",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# length 是參數（Parameter）：如同預留的變數插槽",
+        "html": "<span class=\"token-comment\"># length 是參數（Parameter）：如同預留的變數插槽</span>",
+        "alt": "參數宣告說明",
+        "why": "解釋參數本質",
+        "mean": "參數註解"
+      },
+      {
+        "num": 2,
+        "code": "def print_divider(length):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">print_divider</span>(<span class=\"token-ident\">length</span>):",
+        "alt": "宣告接收一個參數 length",
+        "diff": true,
+        "why": "讓分隔線長度可動態決定",
+        "mean": "定義帶參函數"
+      },
+      {
+        "num": 3,
+        "code": "    bar = \"=\" * length",
+        "html": "    <span class=\"token-ident\">bar</span> = <span class=\"token-string\">&quot;=&quot;</span> * <span class=\"token-ident\">length</span>",
+        "alt": "字串重複乘法生成長度",
+        "why": "動態產生等號字串",
+        "mean": "生成分隔條"
+      },
+      {
+        "num": 4,
+        "code": "    print(f\"+{bar}+\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;+{</span><span class=\"token-ident\">bar</span><span class=\"token-string\">}+&quot;</span>)",
+        "alt": "印出邊框夾住分隔線",
+        "why": "輸出裝飾線",
+        "mean": "輸出邊框"
+      },
+      {
+        "num": 5,
+        "code": "print_divider(6)",
+        "html": "<span class=\"token-func\">print_divider</span>(<span class=\"token-number\">6</span>)",
+        "alt": "傳入引數 6",
+        "diff": true,
+        "why": "呼叫時代入具體數值 6",
+        "mean": "傳入引數 6"
+      },
+      {
+        "num": 6,
+        "code": "print_divider(12)",
+        "html": "<span class=\"token-func\">print_divider</span>(<span class=\"token-number\">12</span>)",
+        "alt": "傳入引數 12",
+        "diff": true,
+        "why": "呼叫時代入具體數值 12",
+        "mean": "傳入引數 12"
+      }
+    ],
+    "output": "+======+\n+============+",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>參數（Parameter）vs 引數（Argument）</strong>：定義時圓括號內的 <code>length</code> 稱為<strong>參數</strong>（預留名額）；呼叫時傳入的具體數值 <code>6</code>、<code>12</code> 稱為<strong>引數</strong>（實體數據）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "參數占名額，引數傳實值"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.4 單一參數傳入與引數匹配：讓函數具備動態適應力",
+    "titleZh": "參數運算實戰——函數內部像一般變數隨心運算",
+    "titleEn": "Using Parameters Inside Functions: Real-world Practice",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def print_greeting_card(user_name):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">print_greeting_card</span>(<span class=\"token-ident\">user_name</span>):",
+        "alt": "接收字串參數 user_name",
+        "why": "客製化個人卡片",
+        "mean": "定義問候函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\"親愛的 {user_name} 同學：\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;親愛的 {</span><span class=\"token-ident\">user_name</span><span class=\"token-string\">} 同學：&quot;</span>)",
+        "alt": "第一行輸出：帶入姓名",
+        "why": "印出個人化稱謂",
+        "mean": "列印問候抬頭"
+      },
+      {
+        "num": 3,
+        "code": "    print(\"歡迎來到 APCS 程式實作特訓！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;歡迎來到 APCS 程式實作特訓！&quot;</span>)",
+        "alt": "第二行輸出：固定內文",
+        "why": "印出固定歡迎標語",
+        "mean": "列印固定內文"
+      },
+      {
+        "num": 4,
+        "code": "print_greeting_card(\"小華\")",
+        "html": "<span class=\"token-func\">print_greeting_card</span>(<span class=\"token-string\">&quot;小華&quot;</span>)",
+        "alt": "為小華印製卡片",
+        "diff": true,
+        "why": "以小華作為實參傳入",
+        "mean": "呼叫小華"
+      },
+      {
+        "num": 5,
+        "code": "print_greeting_card(\"小明\")",
+        "html": "<span class=\"token-func\">print_greeting_card</span>(<span class=\"token-string\">&quot;小明&quot;</span>)",
+        "alt": "為小明印製卡片",
+        "diff": true,
+        "why": "以小明作為實參傳入",
+        "mean": "呼叫小明"
+      }
+    ],
+    "output": "親愛的 小華 同學：\n歡迎來到 APCS 程式實作特訓！\n親愛的 小明 同學：\n歡迎來到 APCS 程式實作特訓！",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>參數的生命期與代換</strong>：每一次呼叫，參數 <code>user_name</code> 就會被代入對應的引數字串。函數內部可隨心使用 f-string 或各類運算，讓一份程式碼擁有處理無限筆不同數據的彈性！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "參數代入跑，多態免重寫"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.5 多參數位置對應（Positional Arguments）與逗號分隔",
+    "titleZh": "多參數位置引數——依序逗號分隔，一對一嚴格匹配",
+    "titleEn": "Multiple Positional Arguments: Ordered Mapping",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def print_student_record(name, student_id, score):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">print_student_record</span>(<span class=\"token-ident\">name</span>, <span class=\"token-ident\">student_id</span>, <span class=\"token-ident\">score</span>):",
+        "alt": "定義接收三個參數：姓名、學號、成績",
+        "diff": true,
+        "why": "以逗號分隔三個參數名額",
+        "mean": "宣告三參數函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\"學號: {student_id:04d} | 姓名: {name} | 成績: {score}分\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;學號: {</span><span class=\"token-ident\">student_id</span><span class=\"token-string\">:04d} | 姓名: {</span><span class=\"token-ident\">name</span><span class=\"token-string\">} | 成績: {</span><span class=\"token-ident\">score</span><span class=\"token-string\">}分&quot;</span>)",
+        "alt": "格式化印出學生記錄",
+        "why": "依參數變數格式化",
+        "mean": "格式化成績單"
+      },
+      {
+        "num": 3,
+        "code": "# 呼叫時依序傳入：1.姓名(str) 2.學號(int) 3.分數(int)",
+        "html": "<span class=\"token-comment\"># 呼叫時依序傳入：1.姓名(str) 2.學號(int) 3.分數(int)</span>",
+        "alt": "位置引數對齊說明",
+        "why": "強調節奏與順序",
+        "mean": "呼叫說明"
+      },
+      {
+        "num": 4,
+        "code": "print_student_record(\"王小明\", 101, 95)",
+        "html": "<span class=\"token-func\">print_student_record</span>(<span class=\"token-string\">&quot;王小明&quot;</span>, <span class=\"token-number\">101</span>, <span class=\"token-number\">95</span>)",
+        "alt": "傳入小明資料",
+        "diff": true,
+        "why": "王小明->name, 101->student_id, 95->score",
+        "mean": "首筆呼叫"
+      },
+      {
+        "num": 5,
+        "code": "print_student_record(\"李大同\", 102, 88)",
+        "html": "<span class=\"token-func\">print_student_record</span>(<span class=\"token-string\">&quot;李大同&quot;</span>, <span class=\"token-number\">102</span>, <span class=\"token-number\">88</span>)",
+        "alt": "傳入大同資料",
+        "diff": true,
+        "why": "李大同->name, 102->student_id, 88->score",
+        "mean": "次筆呼叫"
+      }
+    ],
+    "output": "學號: 0101 | 姓名: 王小明 | 成績: 95分\n學號: 0102 | 姓名: 李大同 | 成績: 88分",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>位置對應法則（Positional Mapping）</strong>：傳遞引數時，第一個引數自動賦值給第一個參數，第二個給第二個，依此類推。若順序弄反，資料語意就會錯亂！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "多參數逗號，位置一對一"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.5 多參數位置對應（Positional Arguments）與逗號分隔",
+    "titleZh": "多參數複合計算——封裝幾何長方體體積公式",
+    "titleEn": "Multi-parameter Calculations: Geometry Cuboid Volume",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def print_cuboid_volume(length, width, height):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">print_cuboid_volume</span>(<span class=\"token-ident\">length</span>, <span class=\"token-ident\">width</span>, <span class=\"token-ident\">height</span>):",
+        "alt": "定義接收長、寬、高 3 個參數",
+        "diff": true,
+        "why": "長方體三維尺寸",
+        "mean": "宣告長方體函數"
+      },
+      {
+        "num": 2,
+        "code": "    volume = length * width * height",
+        "html": "    <span class=\"token-ident\">volume</span> = <span class=\"token-ident\">length</span> * <span class=\"token-ident\">width</span> * <span class=\"token-ident\">height</span>",
+        "alt": "在函數內部計算體積乘積",
+        "why": "封裝幾何體積核心公式",
+        "mean": "計算長方體體積"
+      },
+      {
+        "num": 3,
+        "code": "    print(f\"尺寸 {length}x{width}x{height}，體積: {volume}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;尺寸 {</span><span class=\"token-ident\">length</span><span class=\"token-string\">}x{</span><span class=\"token-ident\">width</span><span class=\"token-string\">}x{</span><span class=\"token-ident\">height</span><span class=\"token-string\">}，體積: {</span><span class=\"token-ident\">volume</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "印出計算結果報表",
+        "why": "回報長方體資訊",
+        "mean": "印出長方體報表"
+      },
+      {
+        "num": 4,
+        "code": "print_cuboid_volume(5, 4, 3)",
+        "html": "<span class=\"token-func\">print_cuboid_volume</span>(<span class=\"token-number\">5</span>, <span class=\"token-number\">4</span>, <span class=\"token-number\">3</span>)",
+        "alt": "傳入 5, 4, 3 計算體積",
+        "diff": true,
+        "why": "5*4*3 = 60",
+        "mean": "呼叫 5x4x3"
+      },
+      {
+        "num": 5,
+        "code": "print_cuboid_volume(10, 2, 5)",
+        "html": "<span class=\"token-func\">print_cuboid_volume</span>(<span class=\"token-number\">10</span>, <span class=\"token-number\">2</span>, <span class=\"token-number\">5</span>)",
+        "alt": "傳入 10, 2, 5 計算體積",
+        "diff": true,
+        "why": "10*2*5 = 100",
+        "mean": "呼叫 10x2x5"
+      }
+    ],
+    "output": "尺寸 5x4x3，體積: 60\n尺寸 10x2x5，體積: 100",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>函數內部的局部運算</strong>：函數本體內可以建立像 <code>volume</code> 這樣的臨時運算變數，將繁複的數理公式完整封裝在內部，使主程式簡潔清晰。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "封裝長寬高，一次算體積"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.6 無回傳值函數的本質：動作型函數與預設回傳的 None",
+    "titleZh": "動作型函數本質——沒有 return 時預設回傳 None",
+    "titleEn": "Action Functions: Default None Return",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def greet_action(name):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">greet_action</span>(<span class=\"token-ident\">name</span>):",
+        "alt": "定義只有印出動作、無 return 的函數",
+        "why": "示範純動作型函數",
+        "mean": "動作型函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\"哈囉，{name}！\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;哈囉，{</span><span class=\"token-ident\">name</span><span class=\"token-string\">}！&quot;</span>)",
+        "alt": "執行螢幕印出動作",
+        "why": "螢幕輸出非回傳資料",
+        "mean": "印出文字"
+      },
+      {
+        "num": 3,
+        "code": "# 嘗試用變數 result 接收函數的回傳值",
+        "html": "<span class=\"token-comment\"># 嘗試用變數 result 接收函數的回傳值</span>",
+        "alt": "註解：接收回傳值",
+        "why": "探討回傳本質",
+        "mean": "實驗說明"
+      },
+      {
+        "num": 4,
+        "code": "result = greet_action(\"小明\")",
+        "html": "<span class=\"token-ident\">result</span> = <span class=\"token-func\">greet_action</span>(<span class=\"token-string\">&quot;小明&quot;</span>)",
+        "alt": "指派呼叫結果給 result",
+        "diff": true,
+        "why": "觀察接收到的內容",
+        "mean": "接收回傳"
+      },
+      {
+        "num": 5,
+        "code": "print(\"result 的值:\", result)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;result 的值:&quot;</span>, <span class=\"token-ident\">result</span>)",
+        "alt": "印出 result 的值",
+        "why": "印出 None",
+        "mean": "輸出變數值"
+      },
+      {
+        "num": 6,
+        "code": "print(\"result 是否為 None:\", result is None)",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-string\">&quot;result 是否為 None:&quot;</span>, <span class=\"token-ident\">result</span> <span class=\"token-keyword\">is</span> <span class=\"token-keyword\">None</span>)",
+        "alt": "以 is 運算子驗證 None 特性",
+        "diff": true,
+        "why": "結果為 True",
+        "mean": "驗證 None"
+      }
+    ],
+    "output": "哈囉，小明！\nresult 的值: None\nresult 是否為 None: True",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>None 的鐵律</strong>：Python 的任何自訂函數在執行結束後必定會產生回傳值。如果函數內部沒有顯式寫 <code>return</code> 語句，直譯器會<strong>默認回傳 <code>None</code></strong>（代表虛無、無特定資料）。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "無回傳值預設為None"
+      }
+    ]
+  },
+  {
+    "stage": "② 語法鐵律",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1.6 無回傳值函數的本質：動作型函數與預設回傳的 None",
+    "titleZh": "初學者常見失誤——巢狀 print 造成多印出 None",
+    "titleEn": "The Nested Print Trap: Accidental None Output",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def notify(msg):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">notify</span>(<span class=\"token-ident\">msg</span>):",
+        "alt": "定義動作型公告函數",
+        "why": "內部負責印出訊息",
+        "mean": "定義通知函數"
+      },
+      {
+        "num": 2,
+        "code": "    print(f\"[系統公告] {msg}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;[系統公告] {</span><span class=\"token-ident\">msg</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "印出帶標籤訊息",
+        "why": "執行螢幕顯示動作",
+        "mean": "輸出通知"
+      },
+      {
+        "num": 3,
+        "code": "# 1. 正確呼叫：直接執行動作",
+        "html": "<span class=\"token-comment\"># 1. 正確呼叫：直接執行動作</span>",
+        "alt": "正規呼叫示範",
+        "why": "動作型函數呼叫方式",
+        "mean": "正確示範"
+      },
+      {
+        "num": 4,
+        "code": "notify(\"伺服器連線正常\")",
+        "html": "<span class=\"token-func\">notify</span>(<span class=\"token-string\">&quot;伺服器連線正常&quot;</span>)",
+        "alt": "直接呼叫 notify",
+        "diff": true,
+        "why": "乾淨印出一行",
+        "mean": "正常呼叫"
+      },
+      {
+        "num": 5,
+        "code": "# 2. 初學者常犯：外層又套一層 print()",
+        "html": "<span class=\"token-comment\"># 2. 初學者常犯：外層又套一層 print()</span>",
+        "alt": "巢狀 print 陷阱",
+        "why": "外層 print 會印出其回傳值",
+        "mean": "陷阱說明"
+      },
+      {
+        "num": 6,
+        "code": "print(notify(\"資料同步完成\"))",
+        "html": "<span class=\"token-builtin\">print</span>(<span class=\"token-func\">notify</span>(<span class=\"token-string\">&quot;資料同步完成&quot;</span>))",
+        "alt": "外層多包了一層 print",
+        "diff": true,
+        "why": "先印出公告，再印出 notify 回傳的 None",
+        "mean": "巢狀呼叫印出None"
+      }
+    ],
+    "output": "[系統公告] 伺服器連線正常\n[系統公告] 資料同步完成\nNone",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>為什麼會多印出 None？</strong>：第 6 行中，內層 <code>notify(...)</code> 執行時印出了 <code>[系統公告] 資料同步完成</code>；接著外層的 <code>print()</code> 接收到內層的回傳值（<code>None</code>），並將其列印至終端機，因而產生多餘的 <code>None</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "已印出，外層免print"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1 考場地雷一：先呼叫後定義引發 NameError 崩潰",
+    "titleZh": "考場致命地雷一：先呼叫後定義引爆 NameError",
+    "titleEn": "Trap 1: Calling Before Defining Raises NameError",
+    "predictQuiz": {
+      "question": "預測思考：在程式碼第 2 行先呼叫 calculate_area(5, 10)，第 4 行才寫 def 定義，執行時會如何？",
+      "options": [
+        "直譯器自動往後搜尋定義並正確印出 50",
+        "拋出 NameError: name 'calculate_area' is not defined"
+      ],
+      "correct": 1,
+      "answer": 1,
+      "explanation": "Python 直譯器是由上至下逐行執行且無 Hoisting 函式提升機制。在遇到 def 之前該名稱尚未登記於符號表，當場噴出 NameError！"
+    },
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：試圖在定義前就呼叫函數",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：試圖在定義前就呼叫函數</span>",
+        "alt": "地雷註解說明",
+        "why": "標註嚴重考場失分地雷",
+        "mean": "地雷警報"
+      },
+      {
+        "num": 2,
+        "code": "calculate_area(5, 10)",
+        "html": "<span class=\"token-func\"><span class=\"token-wavy-err\">calculate_area</span></span>(<span class=\"token-number\">5</span>, <span class=\"token-number\">10</span>)",
+        "alt": "在 def 宣告之前呼叫",
+        "diff": true,
+        "why": "此時 calculate_area 尚未誕生！",
+        "mean": "未定義即呼叫"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "",
+        "alt": "空行分隔",
+        "why": "分隔線",
+        "mean": "空行"
+      },
+      {
+        "num": 4,
+        "code": "def calculate_area(w, h):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">calculate_area</span>(<span class=\"token-ident\">w</span>, <span class=\"token-ident\">h</span>):",
+        "alt": "下方才定義函數",
+        "why": "定義排在呼叫之後太遲了",
+        "mean": "遲來的定義"
+      },
+      {
+        "num": 5,
+        "code": "    print(w * h)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">w</span> * <span class=\"token-ident\">h</span>)",
+        "alt": "內部面積計算",
+        "why": "印出寬高乘積",
+        "mean": "列印面積"
+      }
+    ],
+    "output": "<span class=\"output-error\">NameError: name 'calculate_area' is not defined</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>致命紅線：無函式提升（No Hoisting）</strong>：與 C/C++（有向前宣告）或 JavaScript（有函式提升）不同，Python 是嚴格純直譯自頂向下執行。在 <code>def</code> 宣告前呼叫，必定引爆 <code>NameError</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "先定義後呼，防範未宣告"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1 考場地雷二：引數個數與參數個數不符拋出 TypeError",
+    "titleZh": "考場致命地雷二：引數少給或多給引爆 TypeError",
+    "titleEn": "Trap 2: Argument Count Mismatch Raises TypeError",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 考場地雷：參數需要 2 個，呼叫卻只給 1 個",
+        "html": "<span class=\"token-comment\"># 💥 考場地雷：參數需要 2 個，呼叫卻只給 1 個</span>",
+        "alt": "參數個數地雷",
+        "why": "位置引數個數不匹配",
+        "mean": "個數地雷"
+      },
+      {
+        "num": 2,
+        "code": "def multiply(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">multiply</span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "定義接收 2 個參數 a 與 b",
+        "why": "明確要求兩個位置引數",
+        "mean": "定義兩參數"
+      },
+      {
+        "num": 3,
+        "code": "    print(a * b)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">a</span> * <span class=\"token-ident\">b</span>)",
+        "alt": "印出兩數乘積",
+        "why": "相乘運算",
+        "mean": "印出乘積"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "",
+        "alt": "空行",
+        "why": "排版空行",
+        "mean": "空行"
+      },
+      {
+        "num": 5,
+        "code": "# 呼叫時只傳入 10，缺少第二個引數 b！",
+        "html": "<span class=\"token-comment\"># 呼叫時只傳入 10，缺少第二個引數 b！</span>",
+        "alt": "註解提示缺少引數",
+        "why": "少給參數錯誤示範",
+        "mean": "錯誤呼叫說明"
+      },
+      {
+        "num": 6,
+        "code": "multiply(10)",
+        "html": "<span class=\"token-func\">multiply</span>(<span class=\"token-number\"><span class=\"token-wavy-err\">10</span></span>)",
+        "alt": "少傳參數引發 TypeError",
+        "diff": true,
+        "why": "缺少 1 個必填位置引數 'b'",
+        "mean": "缺少引數報錯"
+      }
+    ],
+    "output": "<span class=\"output-error\">TypeError: multiply() missing 1 required positional argument: 'b'</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>嚴格數量契約</strong>：位置參數在沒有預設值的情況下，傳入引數個數必須<strong>絕對相等</strong>。少傳會報 <code>missing positional argument</code>，多傳會報 <code>takes 2 positional arguments but 3 were given</code>！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "個數需匹配，少給拋型態"
+      }
+    ]
+  },
+  {
+    "stage": "③ 考場地雷",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1 考場地雷三：自訂函數名稱覆蓋 Python 內建函式災難",
+    "titleZh": "考場致命地雷三：命名撞名覆蓋內建函式的大災難",
+    "titleEn": "Trap 3: Shadowing Built-in Functions Disaster",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 💥 慘劇：自訂函數名稱不慎取名為 sum，覆蓋內建函式",
+        "html": "<span class=\"token-comment\"># 💥 慘劇：自訂函數名稱不慎取名為 sum，覆蓋內建函式</span>",
+        "alt": "覆蓋內建函式警告",
+        "why": "嚴重警告命名地雷",
+        "mean": "撞名警報"
+      },
+      {
+        "num": 2,
+        "code": "def sum(a, b):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\"><span class=\"token-wavy-err\">sum</span></span>(<span class=\"token-ident\">a</span>, <span class=\"token-ident\">b</span>):",
+        "alt": "錯誤命名：覆蓋 Python 原生 sum()",
+        "diff": true,
+        "why": "覆蓋了原本可累加串列的 sum",
+        "mean": "覆蓋原生函式"
+      },
+      {
+        "num": 3,
+        "code": "    print(a + b)",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-ident\">a</span> + <span class=\"token-ident\">b</span>)",
+        "alt": "內部相加輸出",
+        "why": "執行自訂兩數相加",
+        "mean": "自訂相加"
+      },
+      {
+        "num": 4,
+        "code": "sum(3, 5)  # 雖然這行可以跑",
+        "html": "<span class=\"token-func\">sum</span>(<span class=\"token-number\">3</span>, <span class=\"token-number\">5</span>)  <span class=\"token-comment\"># 雖然這行可以跑</span>",
+        "alt": "呼叫自己定義的 sum",
+        "why": "印出 8",
+        "mean": "呼叫自訂函數"
+      },
+      {
+        "num": 5,
+        "code": "# 後續想用原本內建 sum 累加串列，已遭覆蓋而引爆崩潰！",
+        "html": "<span class=\"token-comment\"># 後續想用原本內建 sum 累加串列，已遭覆蓋而引爆崩潰！</span>",
+        "alt": "說明後續連帶災情",
+        "why": "原生功能失效",
+        "mean": "崩潰前兆"
+      },
+      {
+        "num": 6,
+        "code": "numbers = [10, 20, 30]",
+        "html": "<span class=\"token-ident\">numbers</span> = [<span class=\"token-number\">10</span>, <span class=\"token-number\">20</span>, <span class=\"token-number\">30</span>]",
+        "alt": "準備串列數據",
+        "why": "測試累加",
+        "mean": "宣告測試串列"
+      },
+      {
+        "num": 7,
+        "code": "sum(numbers)",
+        "html": "<span class=\"token-func\">sum</span>(<span class=\"token-ident\"><span class=\"token-wavy-err\">numbers</span></span>)",
+        "alt": "原本合法的 sum(numbers) 噴錯",
+        "diff": true,
+        "why": "被自訂的 def sum(a, b) 覆蓋，缺少參數 b！",
+        "mean": "引爆 TypeError"
+      }
+    ],
+    "output": "8\n<span class=\"output-error\">TypeError: sum() missing 1 required positional argument: 'b'</span>",
+    "notes": [
+      {
+        "type": "wa",
+        "text": "<strong>命名禁忌</strong>：絕對不要將自訂函數命名為 <code>sum</code>、<code>max</code>、<code>min</code>、<code>list</code>、<code>len</code>、<code>print</code> 等內建關鍵名！建議加上動詞前綴（如 <code>calc_sum</code>、<code>find_max</code>），安全避開覆蓋悲劇。"
+      },
+      {
+        "type": "mnemonic",
+        "text": "莫撞內建名，安全避覆蓋"
+      }
+    ]
+  },
+  {
+    "stage": "④ 綜合驗收",
+    "chapter": "第 11 章 自訂函數（Function）與變數範圍（Scope）",
+    "section": "11.1 綜合驗收",
+    "titleZh": "單元 11.1 綜合驗收：函數定義、呼叫與黑盒子模組化大圓滿",
+    "titleEn": "Comprehensive Mastery: Function Definition and Calling",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 綜合實戰：黑盒子模組化角色能力值戰報函數",
+        "html": "<span class=\"token-comment\"># 綜合實戰：黑盒子模組化角色能力值戰報函數</span>",
+        "alt": "綜合驗收範例註解",
+        "why": "整合多參數與格式化封裝",
+        "mean": "實戰說明"
+      },
+      {
+        "num": 2,
+        "code": "def report_player(name, role, score):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-func\">report_player</span>(<span class=\"token-ident\">name</span>, <span class=\"token-ident\">role</span>, <span class=\"token-ident\">score</span>):",
+        "alt": "封裝三參數戰報函數",
+        "why": "定義模組化黑盒子",
+        "mean": "宣告戰報函數"
+      },
+      {
+        "num": 3,
+        "code": "    print(f\"[{role}] {name} - 戰鬥力: {score}\")",
+        "html": "    <span class=\"token-builtin\">print</span>(<span class=\"token-string\">f&quot;[{</span><span class=\"token-ident\">role</span><span class=\"token-string\">}] {</span><span class=\"token-ident\">name</span><span class=\"token-string\">} - 戰鬥力: {</span><span class=\"token-ident\">score</span><span class=\"token-string\">}&quot;</span>)",
+        "alt": "印出標準格式化單行戰報",
+        "why": "封裝單元輸出邏輯",
+        "mean": "印出角色資訊"
+      },
+      {
+        "num": 4,
+        "code": "# 主程式：乾淨優雅，透過呼叫復用邏輯",
+        "html": "<span class=\"token-comment\"># 主程式：乾淨優雅，透過呼叫復用邏輯</span>",
+        "alt": "主流程呼叫區塊",
+        "why": "展示模組化後的乾淨呼叫端",
+        "mean": "呼叫說明"
+      },
+      {
+        "num": 5,
+        "code": "report_player(\"艾力克斯\", \"隊長\", 98)",
+        "html": "<span class=\"token-func\">report_player</span>(<span class=\"token-string\">&quot;艾力克斯&quot;</span>, <span class=\"token-string\">&quot;隊長&quot;</span>, <span class=\"token-number\">98</span>)",
+        "alt": "回報艾力克斯",
+        "diff": true,
+        "why": "依序匹配三個位置引數",
+        "mean": "呼叫隊長戰報"
+      },
+      {
+        "num": 6,
+        "code": "report_player(\"貝蒂\", \"先鋒\", 85)",
+        "html": "<span class=\"token-func\">report_player</span>(<span class=\"token-string\">&quot;貝蒂&quot;</span>, <span class=\"token-string\">&quot;先鋒&quot;</span>, <span class=\"token-number\">85</span>)",
+        "alt": "回報貝蒂",
+        "diff": true,
+        "why": "以不同引數復用相同黑盒子",
+        "mean": "呼叫先鋒戰報"
+      }
+    ],
+    "output": "[隊長] 艾力克斯 - 戰鬥力: 98\n[先鋒] 貝蒂 - 戰鬥力: 85",
+    "notes": [
+      {
+        "type": "concept",
+        "text": "<strong>黑盒子模組化大功告成！</strong>：透過 <code>def</code> 定義清晰介面，藉由參數傳遞動態數據，避免了重複代碼與人工作業失誤。你已成功掌握 Python 模組化最堅實的第一步！"
+      },
+      {
+        "type": "mnemonic",
+        "text": "模組化封裝，黑盒解萬難"
+      }
+    ],
+    "completionCard": {
+      "unit": "11.1",
+      "title": "函數定義、呼叫與黑盒子模組化思維掌握！",
+      "stats": [
+        {
+          "label": "學習階段",
+          "val": "4 大階梯"
+        },
+        {
+          "label": "核心語法",
+          "val": "def / 參數 / 呼叫"
+        },
+        {
+          "label": "防坑避雷",
+          "val": "3 項考場地雷"
+        },
+        {
+          "label": "通關認證",
+          "val": "100% 掌握"
+        }
+      ],
+      "nextUnit": {
+        "unit": "11.2",
+        "title": "函數回傳值（return）、多值回傳與衛語句提早結束",
+        "desc": "即將解鎖函數真正的資料產出能力，透視 return 與 print 的天壤之別！"
+      }
+    }
+  }
+];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec11-1",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_11-1_function_definition_and_call_process.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

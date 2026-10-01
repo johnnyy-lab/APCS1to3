@@ -142,8 +142,8 @@ const courseCurriculum = [
     id: "ch11",
     title: "第十一章 函式模組化與遞迴思維",
     sections: [
-      { id: "sec11-1", title: "11.1 自訂函式基礎：定義、呼叫流程與參數傳遞", available: false },
-      { id: "sec11-2", title: "11.2 回傳值 return 與守衛子句（Guard Clauses）", available: false },
+      { id: "sec11-1", title: "11.1 自訂函式基礎：定義、呼叫流程與參數傳遞", available: true, url: "PythAPCS123_11-1_function_definition_and_call_process.html" },
+      { id: "sec11-2", title: "11.2 回傳值 return 與守衛子句（Guard Clauses）", available: true, url: "PythAPCS123_11-2_function_return_and_guard_clauses.html" },
       { id: "sec11-3", title: "11.3 參數傳遞機制與副作用（可變 vs 不可變物件）", available: false },
       { id: "sec11-4", title: "11.4 變數作用域：區域變數與遮蔽現象（Shadowing）", available: false },
       { id: "sec11-5", title: "11.5 全域變數 global 關鍵字與除錯陷阱", available: false },

@@ -187,8 +187,8 @@ const courseCurriculum = [
     sections: [
       { id: "sec14-1", title: "14.1 c294. 三角形辨別（APCS 2016-10 舊版第 1 題）", available: true, url: "PythAPCS123_14-1_triangle_classification_apcs_c294.html" },
       { id: "sec14-2", title: "14.2 c290. 秘密差（APCS 2017-03 舊版第 1 題）", available: true, url: "PythAPCS123_14-2_secret_difference_apcs_c290.html" },
-      { id: "sec14-3", title: "14.3 c461. 邏輯運算子（APCS 2017-10 舊版第 1 題）", available: false },
-      { id: "sec14-4", title: "14.4 e286. 籃球比賽（APCS 2019-06 舊版第 1 題）", available: false },
+      { id: "sec14-3", title: "14.3 c461. 邏輯運算子（APCS 2017-10 舊版第 1 題）", available: true, url: "PythAPCS123_14-3_logic_operators_apcs_c461.html" },
+      { id: "sec14-4", title: "14.4 e286. 籃球比賽（APCS 2019-06 舊版第 1 題）", available: true, url: "PythAPCS123_14-4_basketball_game_apcs_e286.html" },
       { id: "sec14-5", title: "14.5 f579. 購物車（APCS 2020-07 舊版第 1 題）", available: false },
       { id: "sec14-6", title: "14.6 f312. 人力分配（APCS 2020-10 舊版第 1 題）", available: false },
       { id: "sec14-7", title: "14.7 f605. 購買力（APCS 2021-01 舊版第 1 題）", available: false },

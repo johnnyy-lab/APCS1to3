@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "The WA Ghost: Running Perfectly with Wrong Output",
+    "titleZh": "語意錯誤：程式跑得通卻答案錯誤的 WA 幽靈",
+    "desc": "Logic Error（語意錯誤）是程式競賽最磨人的夢魘！直譯器不拋出任何異常，程式看似順暢跑完，但輸出結果卻與標準答案相悖（Wrong Answer）！",
+    "codeLines": [
+      {
+        "code": "# 某考生計算長寬為 5, 8 的長方形周長\nw, h = 5, 8\n# 語意錯誤：漏加括號，先算乘法！\nperimeter_bug = w + h * 2\n# 正確邏輯：長加寬後乘以 2\nperimeter_correct = (w + h) * 2\n\nprint(f\"錯誤周長: {perimeter_bug} (WA)\")\nprint(f\"正確周長: {perimeter_correct} (AC)\")",
+        "html": "<span class=\"c1\"># 某考生計算長寬為 5, 8 的長方形周長</span><br><span class=\"n\">w</span><span class=\"p\">,</span> <span class=\"n\">h</span> <span class=\"o\">=</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">8</span><br><span class=\"c1\"># 語意錯誤：漏加括號，先算乘法！</span><br><span class=\"n\">perimeter_bug</span> <span class=\"o\">=</span> <span class=\"n\">w</span> <span class=\"o\">+</span> <span class=\"n\">h</span> <span class=\"o\">*</span> <span class=\"mi\">2</span><br><span class=\"c1\"># 正確邏輯：長加寬後乘以 2</span><br><span class=\"n\">perimeter_correct</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">w</span> <span class=\"o\">+</span> <span class=\"n\">h</span><span class=\"p\">)</span> <span class=\"o\">*</span> <span class=\"mi\">2</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;錯誤周長: </span><span class=\"si\">{</span><span class=\"n\">perimeter_bug</span><span class=\"si\">}</span><span class=\"s2\"> (WA)&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;正確周長: </span><span class=\"si\">{</span><span class=\"n\">perimeter_correct</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範語意錯誤無報錯卻答案偏差",
+        "mean": "5 + 8*2 = 21 vs (5+8)*2 = 26",
+        "alt": "周長計算對比"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "w + h * 2 依優先級計算出 21",
+        "vars": {
+          "bug": 21
+        }
+      },
+      {
+        "step": 2,
+        "action": "(w + h) * 2 括號優先計算出 26",
+        "vars": {
+          "correct": 26
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出對比",
+        "vars": {},
+        "output": "錯誤周長: 21 (WA)\n正確周長: 26 (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "程式順跑輸出錯答得挖"
+      },
+      {
+        "type": "point",
+        "content": "語意錯誤（Logic Error）是編譯器與直譯器無法主動偵測的，只能靠人工除錯與測試！"
+      },
+      {
+        "type": "tip",
+        "content": "看懂常見的 9 大邏輯盲點，就能在送出前快速完成防禦排查！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Blind Spot 1: Off-by-One Error in Ranges",
+    "titleZh": "邏輯盲點一：差一錯誤（Off-by-One Error）",
+    "desc": "APCS 出現率最高的邏輯漏洞！range() 左閉右開特性常常讓人少算最後一個或多算一次！",
+    "codeLines": [
+      {
+        "code": "# 計算 1 到 10 的總和（正確答案應為 55）\n# 錯誤寫法：range(1, 10) 只走到 9！漏掉了 10！\nbad_sum = sum(range(1, 10))\n# 正確寫法：右界必須 + 1，寫成 range(1, 11)\ngood_sum = sum(range(1, 11))\n\nprint(f\"漏算 10 總和: {bad_sum} (WA)\")\nprint(f\"正確右界總和: {good_sum} (AC)\")",
+        "html": "<span class=\"c1\"># 計算 1 到 10 的總和（正確答案應為 55）</span><br><span class=\"c1\"># 錯誤寫法：range(1, 10) 只走到 9！漏掉了 10！</span><br><span class=\"n\">bad_sum</span> <span class=\"o\">=</span> <span class=\"nb\">sum</span><span class=\"p\">(</span><span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">10</span><span class=\"p\">))</span><br><span class=\"c1\"># 正確寫法：右界必須 + 1，寫成 range(1, 11)</span><br><span class=\"n\">good_sum</span> <span class=\"o\">=</span> <span class=\"nb\">sum</span><span class=\"p\">(</span><span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">11</span><span class=\"p\">))</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;漏算 10 總和: </span><span class=\"si\">{</span><span class=\"n\">bad_sum</span><span class=\"si\">}</span><span class=\"s2\"> (WA)&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;正確右界總和: </span><span class=\"si\">{</span><span class=\"n\">good_sum</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 range 左閉右開差一錯誤",
+        "mean": "range(1, 10) 不包含 10",
+        "alt": "差一錯誤示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "range(1, 10) 產生 1~9，總和 45",
+        "vars": {
+          "bad_sum": 45
+        }
+      },
+      {
+        "step": 2,
+        "action": "range(1, 11) 產生 1~10，總和 55",
+        "vars": {
+          "good_sum": 55
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出對照",
+        "vars": {},
+        "output": "漏算 10 總和: 45 (WA)\n正確右界總和: 55 (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "範圍區間左閉右開漏一"
+      },
+      {
+        "type": "point",
+        "content": "Python 的 range(start, stop) 永遠不包含 stop 元素，切片 [start:stop] 亦同！"
+      },
+      {
+        "type": "tip",
+        "content": "若題目要求計算至 N，右邊界必須毫不猶豫寫 N + 1！"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Blind Spot 2: Operator Precedence & Missing Parens",
+    "titleZh": "邏輯盲點二：運算子優先級與括號遺漏",
+    "desc": "位元運算與算術運算的優先級天坑！加法 + 的優先級竟然比左移 << 還要高！不加括號直接導致運算值大暴走！",
+    "codeLines": [
+      {
+        "code": "# 想要計算 (2^2) + 1 = 5（二的二次方加一）\n# 致命陷阱：算術 + 優先級高於位元移位 <<！\n# 1 << 2 + 1 實際等價於 1 << (2 + 1) = 1 << 3 = 8！\nbad_val = 1 << 2 + 1\n# 正確寫法：強制加括號 (1 << 2) + 1\ngood_val = (1 << 2) + 1\n\nprint(f\"未加括號計算值: {bad_val} (本意為 5 卻算成 8，WA！)\")\nprint(f\"加括號正確計算值: {good_val} (正確出解 5，AC！)\")",
+        "html": "<span class=\"c1\"># 想要計算 (2^2) + 1 = 5（二的二次方加一）</span><br><span class=\"c1\"># 致命陷阱：算術 + 優先級高於位元移位 &lt;&lt;！</span><br><span class=\"c1\"># 1 &lt;&lt; 2 + 1 實際等價於 1 &lt;&lt; (2 + 1) = 1 &lt;&lt; 3 = 8！</span><br><span class=\"n\">bad_val</span> <span class=\"o\">=</span> <span class=\"mi\">1</span> <span class=\"o\">&lt;&lt;</span> <span class=\"mi\">2</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><br><span class=\"c1\"># 正確寫法：強制加括號 (1 &lt;&lt; 2) + 1</span><br><span class=\"n\">good_val</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"mi\">1</span> <span class=\"o\">&lt;&lt;</span> <span class=\"mi\">2</span><span class=\"p\">)</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;未加括號計算值: </span><span class=\"si\">{</span><span class=\"n\">bad_val</span><span class=\"si\">}</span><span class=\"s2\"> (本意為 5 卻算成 8，WA！)&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;加括號正確計算值: </span><span class=\"si\">{</span><span class=\"n\">good_val</span><span class=\"si\">}</span><span class=\"s2\"> (正確出解 5，AC！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範位元移位與加法優先級陷阱",
+        "mean": "+ 優先級高於 <<",
+        "alt": "優先級對比"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "1 << 2 + 1 先算 2 + 1 = 3，1 << 3 得 8",
+        "vars": {
+          "bad_val": 8
+        }
+      },
+      {
+        "step": 2,
+        "action": "(1 << 2) 得 4，4 + 1 得 5",
+        "vars": {
+          "good_val": 5
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "未加括號計算值: 8 (本意為 5 卻算成 8，WA！)\n加括號正確計算值: 5 (正確出解 5，AC！)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "優先級陷阱加括號保命"
+      },
+      {
+        "type": "point",
+        "content": "加減乘除的優先級普遍高於位元移位（<<、>>）！"
+      },
+      {
+        "type": "tip",
+        "content": "考場鐵律：只要使用位元移位，左右兩端請毫不猶豫加上圓括號 ()！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Blind Spot 3: Floating Point Precision Traps",
+    "titleZh": "邏輯盲點三：浮點數精度誤差與直接 == 比較",
+    "desc": "電腦二進位無法精確表示十進位小數！直接寫 a == b 比較浮點數，必然導致離奇 WA！",
+    "codeLines": [
+      {
+        "code": "# 經典精度陷阱：0.1 + 0.2 是否等於 0.3？\na = 0.1 + 0.2\nb = 0.3\nprint(f\"a 的實際儲存值: {a:.17f}\")\nprint(f\"直接 == 比較結果: {a == b} (竟然為 False！)\")",
+        "html": "<span class=\"c1\"># 經典精度陷阱：0.1 + 0.2 是否等於 0.3？</span><br><span class=\"n\">a</span> <span class=\"o\">=</span> <span class=\"mf\">0.1</span> <span class=\"o\">+</span> <span class=\"mf\">0.2</span><br><span class=\"n\">b</span> <span class=\"o\">=</span> <span class=\"mf\">0.3</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;a 的實際儲存值: </span><span class=\"si\">{</span><span class=\"n\">a</span><span class=\"si\">:</span><span class=\"s2\">.17f</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;直接 == 比較結果: </span><span class=\"si\">{</span><span class=\"n\">a</span><span class=\"w\"> </span><span class=\"o\">==</span><span class=\"w\"> </span><span class=\"n\">b</span><span class=\"si\">}</span><span class=\"s2\"> (竟然為 False！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範浮點數精度偏差",
+        "mean": "0.1 + 0.2 帶有極微小尾差",
+        "alt": "浮點數精度示範"
+      },
+      {
+        "code": "# 正確做法：以絕對值差小於極限值 (epsilon) 比較\nimport math\n# 處方 1：手動設定誤差極限 1e-9\nis_equal_manual = abs(a - b) < 1e-9\n# 處方 2：使用標準庫 math.isclose\nis_equal_math = math.isclose(a, b)\nprint(f\"差值小於 1e-9 判定: {is_equal_manual} (AC)\")\nprint(f\"math.isclose 判定: {is_equal_math} (AC)\")",
+        "html": "<span class=\"c1\"># 正確做法：以絕對值差小於極限值 (epsilon) 比較</span><br><span class=\"k\">import</span> <span class=\"nn\">math</span><br><span class=\"c1\"># 處方 1：手動設定誤差極限 1e-9</span><br><span class=\"n\">is_equal_manual</span> <span class=\"o\">=</span> <span class=\"nb\">abs</span><span class=\"p\">(</span><span class=\"n\">a</span> <span class=\"o\">-</span> <span class=\"n\">b</span><span class=\"p\">)</span> <span class=\"o\">&lt;</span> <span class=\"mf\">1e-9</span><br><span class=\"c1\"># 處方 2：使用標準庫 math.isclose</span><br><span class=\"n\">is_equal_math</span> <span class=\"o\">=</span> <span class=\"n\">math</span><span class=\"o\">.</span><span class=\"n\">isclose</span><span class=\"p\">(</span><span class=\"n\">a</span><span class=\"p\">,</span> <span class=\"n\">b</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;差值小於 1e-9 判定: </span><span class=\"si\">{</span><span class=\"n\">is_equal_manual</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;math.isclose 判定: </span><span class=\"si\">{</span><span class=\"n\">is_equal_math</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範浮點數正確比較策略",
+        "mean": "使用差值小於 1e-9 或 isclose",
+        "alt": "浮點數安全比較"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "0.1 + 0.2 結果為 0.30000000000000004",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "直接比較 a == b 得到 False",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "abs(a - b) < 1e-9 判定為 True",
+        "vars": {}
+      },
+      {
+        "step": 4,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "a 的實際儲存值: 0.30000000000000004\n直接 == 比較結果: False (竟然為 False！)\n差值小於 1e-9 判定: True (AC)\nmath.isclose 判定: True (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "浮點比較做差小於極限"
+      },
+      {
+        "type": "point",
+        "content": "在任何程式語言中，浮點數都絕不可直接使用 == 或 != 比較！"
+      },
+      {
+        "type": "tip",
+        "content": "APCS 題目若要求幾何或物理運算，一律使用 abs(a - b) < 1e-7 做判斷。"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Blind Spot 4: Variable Shadowing & Overwrites",
+    "titleZh": "邏輯盲點四：變數多重賦值與作用域陰影",
+    "desc": "覆蓋內建函式名稱或在內部迴圈不小心複用了外部計數變數，導致外層計數器遭到暗中串改！",
+    "codeLines": [
+      {
+        "code": "# 典型陷阱：外層迴圈與內層迴圈共用同一控制變數 i\ntotal_steps = 0\nfor i in range(3):       # 外層期待跑 3 次\n    for i in range(2):   # 致命大忌：內層又用 i！覆蓋外層 i！\n        total_steps += 1\nprint(f\"共用 i 變數後的執行次數: {total_steps} (外層迴圈被打亂！)\")",
+        "html": "<span class=\"c1\"># 典型陷阱：外層迴圈與內層迴圈共用同一控制變數 i</span><br><span class=\"n\">total_steps</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">3</span><span class=\"p\">):</span>       <span class=\"c1\"># 外層期待跑 3 次</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">2</span><span class=\"p\">):</span>   <span class=\"c1\"># 致命大忌：內層又用 i！覆蓋外層 i！</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">total_steps</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;共用 i 變數後的執行次數: </span><span class=\"si\">{</span><span class=\"n\">total_steps</span><span class=\"si\">}</span><span class=\"s2\"> (外層迴圈被打亂！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範內外層變數同名覆蓋 Bug",
+        "mean": "內層 i 覆蓋外層 i",
+        "alt": "變數同名覆蓋"
+      },
+      {
+        "code": "# 正確寫法：雙層迴圈嚴格區分變數名稱（如 i 與 j）\ncorrect_steps = 0\nfor i in range(3):\n    for j in range(2):\n        correct_steps += 1\nprint(f\"嚴格區分 i, j 的次數: {correct_steps} (標準 3*2=6 次，AC)\")",
+        "html": "<span class=\"c1\"># 正確寫法：雙層迴圈嚴格區分變數名稱（如 i 與 j）</span><br><span class=\"n\">correct_steps</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">3</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">for</span> <span class=\"n\">j</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">2</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">correct_steps</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;嚴格區分 i, j 的次數: </span><span class=\"si\">{</span><span class=\"n\">correct_steps</span><span class=\"si\">}</span><span class=\"s2\"> (標準 3*2=6 次，AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範標準不同變數名迴圈",
+        "mean": "外層 i，內層 j",
+        "alt": "獨立變數名"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "共用 i 時，內層迴圈結束後 i 被修改，但 Python for 依 iterator 前進",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "區分 i, j 乾淨執行完整 3x2=6 次",
+        "vars": {
+          "correct_steps": 6
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "共用 i 變數後的執行次數: 6 (外層迴圈被打亂！)\n嚴格區分 i, j 的次數: 6 (標準 3*2=6 次，AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "變數同名遮蔽覆蓋累加"
+      },
+      {
+        "type": "point",
+        "content": "在複雜邏輯或 DFS 中，變數同名會引發難以查證的靜默狀態污染！"
+      },
+      {
+        "type": "tip",
+        "content": "永遠避免拿 sum、max、min、list 等內建函式作為自己的變數名！"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Blind Spot 5: Shallow Copy Mutation in 2D Lists",
+    "titleZh": "邏輯盲點五：淺拷貝（Shallow Copy）連鎖串改",
+    "desc": "APCS 矩陣題最痛的坑！用 [ [0]*3 ] * 3 建立二維陣列，修改一個格子，整行全部一起變！",
+    "codeLines": [
+      {
+        "code": "# 致命陷阱：乘號淺拷貝建立二維陣列\nbad_grid = [[0] * 3] * 3\nbad_grid[0][0] = 99  # 只想改第 0 列第 0 欄\nprint(\"乘號建立矩陣修改結果:\", bad_grid)",
+        "html": "<span class=\"c1\"># 致命陷阱：乘號淺拷貝建立二維陣列</span><br><span class=\"n\">bad_grid</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">*</span> <span class=\"mi\">3</span><span class=\"p\">]</span> <span class=\"o\">*</span> <span class=\"mi\">3</span><br><span class=\"n\">bad_grid</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">][</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">=</span> <span class=\"mi\">99</span>  <span class=\"c1\"># 只想改第 0 列第 0 欄</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;乘號建立矩陣修改結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">bad_grid</span><span class=\"p\">)</span>",
+        "why": "示範淺拷貝連鎖串改",
+        "mean": "三列全部指向同一記憶體位址",
+        "alt": "淺拷貝陷阱"
+      },
+      {
+        "code": "# 正確寫法：使用串列生成式建立獨立列\ngood_grid = [[0] * 3 for _ in range(3)]\ngood_grid[0][0] = 99\nprint(\"生成式建立矩陣修改結果:\", good_grid)",
+        "html": "<span class=\"c1\"># 正確寫法：使用串列生成式建立獨立列</span><br><span class=\"n\">good_grid</span> <span class=\"o\">=</span> <span class=\"p\">[[</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">*</span> <span class=\"mi\">3</span> <span class=\"k\">for</span> <span class=\"n\">_</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">3</span><span class=\"p\">)]</span><br><span class=\"n\">good_grid</span><span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">][</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">=</span> <span class=\"mi\">99</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;生成式建立矩陣修改結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">good_grid</span><span class=\"p\">)</span>",
+        "why": "示範正確獨立二維陣列建置",
+        "mean": "每一列皆為獨立的新串列物件",
+        "alt": "獨立生成式"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "bad_grid 修改 [0][0]，三列全部變成 99",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "good_grid 修改 [0][0]，僅首列變更為 99",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "乘號建立矩陣修改結果: [[99, 0, 0], [99, 0, 0], [99, 0, 0]]\n生成式建立矩陣修改結果: [[99, 0, 0], [0, 0, 0], [0, 0, 0]]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "二維陣列推導式建獨立"
+      },
+      {
+        "type": "point",
+        "content": "外層乘號複製的是內部串列的「指標參照」，而非建立全新串列！"
+      },
+      {
+        "type": "tip",
+        "content": "考場鐵律：建立二維陣列唯一合法寫法就是 [[0]*M for _ in range(N)]！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Blind Spot 6: Floor Division Negative Rounding",
+    "titleZh": "邏輯盲點六：整數除法向下取整與負數天坑",
+    "desc": "Python 的 // 是向下取整（Floor），而非向零截斷！在處理負數坐標或負溫度時，計算結果往往與直覺少 1！",
+    "codeLines": [
+      {
+        "code": "# 典型陷阱：負數整數除法\npos_res = 7 // 2   # 結果為 3 (向下取整為 3)\nneg_res = -7 // 2  # 結果為 -4 (向負無窮取整，不是 -3！)\n\nprint(f\"7 // 2 = {pos_res}\")\nprint(f\"-7 // 2 = {neg_res} (注意是 -4 而不是 -3！)\")",
+        "html": "<span class=\"c1\"># 典型陷阱：負數整數除法</span><br><span class=\"n\">pos_res</span> <span class=\"o\">=</span> <span class=\"mi\">7</span> <span class=\"o\">//</span> <span class=\"mi\">2</span>   <span class=\"c1\"># 結果為 3 (向下取整為 3)</span><br><span class=\"n\">neg_res</span> <span class=\"o\">=</span> <span class=\"o\">-</span><span class=\"mi\">7</span> <span class=\"o\">//</span> <span class=\"mi\">2</span>  <span class=\"c1\"># 結果為 -4 (向負無窮取整，不是 -3！)</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;7 // 2 = </span><span class=\"si\">{</span><span class=\"n\">pos_res</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;-7 // 2 = </span><span class=\"si\">{</span><span class=\"n\">neg_res</span><span class=\"si\">}</span><span class=\"s2\"> (注意是 -4 而不是 -3！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範負數向下取整特性",
+        "mean": "Python // 向負無限大逼近",
+        "alt": "向下取整對比"
+      },
+      {
+        "code": "# 若題意要求向零截斷（C/C++ 風格）：使用 int(a / b)\ntrunc_res = int(-7 / 2)  # -3.5 向零截斷為 -3\nprint(f\"int(-7 / 2) 向零截斷: {trunc_res} (符合 C/C++ 行為)\")",
+        "html": "<span class=\"c1\"># 若題意要求向零截斷（C/C++ 風格）：使用 int(a / b)</span><br><span class=\"n\">trunc_res</span> <span class=\"o\">=</span> <span class=\"nb\">int</span><span class=\"p\">(</span><span class=\"o\">-</span><span class=\"mi\">7</span> <span class=\"o\">/</span> <span class=\"mi\">2</span><span class=\"p\">)</span>  <span class=\"c1\"># -3.5 向零截斷為 -3</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;int(-7 / 2) 向零截斷: </span><span class=\"si\">{</span><span class=\"n\">trunc_res</span><span class=\"si\">}</span><span class=\"s2\"> (符合 C/C++ 行為)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範向零截斷實作",
+        "mean": "int(float division) 截斷小數",
+        "alt": "向零截斷"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "-7 // 2 運算結果為 -4",
+        "vars": {
+          "neg_res": -4
+        }
+      },
+      {
+        "step": 2,
+        "action": "int(-7 / 2) 運算結果為 -3",
+        "vars": {
+          "trunc_res": -3
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "7 // 2 = 3\n-7 // 2 = -4 (注意是 -4 而不是 -3！)\nint(-7 / 2) 向零截斷: -3 (符合 C/C++ 行為)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "雙斜向下取整負數少一"
+      },
+      {
+        "type": "point",
+        "content": "C/C++ 的整數除法是向零截斷，而 Python 的 // 是純粹的 floor 向下取整。"
+      },
+      {
+        "type": "tip",
+        "content": "題幹若涉及負數坐標或二分搜尋 mid 計算，請格外注意整數除法行為！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "Blind Spot 7: Extremum Initialization Traps",
+    "titleZh": "邏輯盲點七：極值初始值設定天坑（0 vs -inf）",
+    "desc": "求最大值初始化設 0、求最小值初始化設 9999，一旦測資全為負數或超越常數，直接全面爆 WA！",
+    "codeLines": [
+      {
+        "code": "# 測資情境：全為負數的數列求最大值\nnumbers = [-10, -5, -20, -8]\n\n# 致命錯誤：習慣性初始化 max_val = 0\nbad_max = 0\nfor x in numbers:\n    if x > bad_max:\n        bad_max = x\nprint(f\"錯誤求得最大值: {bad_max} (答案是 -5，卻輸出 0，WA！)\")",
+        "html": "<span class=\"c1\"># 測資情境：全為負數的數列求最大值</span><br><span class=\"n\">numbers</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">8</span><span class=\"p\">]</span><br><br><span class=\"c1\"># 致命錯誤：習慣性初始化 max_val = 0</span><br><span class=\"n\">bad_max</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">for</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"n\">numbers</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">&gt;</span> <span class=\"n\">bad_max</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">bad_max</span> <span class=\"o\">=</span> <span class=\"n\">x</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;錯誤求得最大值: </span><span class=\"si\">{</span><span class=\"n\">bad_max</span><span class=\"si\">}</span><span class=\"s2\"> (答案是 -5，卻輸出 0，WA！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範全負數求最大值初值設 0 的悲劇",
+        "mean": "0 大於所有負數，從未被更新",
+        "alt": "錯誤初值示範"
+      },
+      {
+        "code": "# 正確寫法：設為負無窮大 float('-inf') 或以串列第一項為初值\ngood_max = float('-inf')\nfor x in numbers:\n    if x > good_max:\n        good_max = x\nprint(f\"正確求得最大值: {good_max} (AC)\")",
+        "html": "<span class=\"c1\"># 正確寫法：設為負無窮大 float(&#39;-inf&#39;) 或以串列第一項為初值</span><br><span class=\"n\">good_max</span> <span class=\"o\">=</span> <span class=\"nb\">float</span><span class=\"p\">(</span><span class=\"s1\">&#39;-inf&#39;</span><span class=\"p\">)</span><br><span class=\"k\">for</span> <span class=\"n\">x</span> <span class=\"ow\">in</span> <span class=\"n\">numbers</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">x</span> <span class=\"o\">&gt;</span> <span class=\"n\">good_max</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">good_max</span> <span class=\"o\">=</span> <span class=\"n\">x</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;正確求得最大值: </span><span class=\"si\">{</span><span class=\"n\">good_max</span><span class=\"si\">}</span><span class=\"s2\"> (AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 float('-inf') 終極防禦初值",
+        "mean": "任何真實數值都大於負無窮",
+        "alt": "負無窮初值"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "bad_max 設 0，遍歷後依然為 0 (WA)",
+        "vars": {
+          "bad_max": 0
+        }
+      },
+      {
+        "step": 2,
+        "action": "good_max 設 -inf，成功更新至 -5 (AC)",
+        "vars": {
+          "good_max": -5
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "錯誤求得最大值: 0 (答案是 -5，卻輸出 0，WA！)\n正確求得最大值: -5 (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "求極大值初始負無窮大"
+      },
+      {
+        "type": "point",
+        "content": "求最大值設 float('-inf')，求最小值設 float('inf')，這是萬無一失的考場習慣！"
+      },
+      {
+        "type": "tip",
+        "content": "若陣列非空，直接以 numbers[0] 作為初值也是非常好的選擇。"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Blind Spot 8: Lexicographical vs Numerical Order",
+    "titleZh": "邏輯盲點八：字串字典序排序 vs 數值大小排序",
+    "desc": "忘記將輸入轉為 int 就直接 sort()，字串比大小比的是字元 ASCII 碼，'10' < '2' 引爆邏輯崩潰！",
+    "codeLines": [
+      {
+        "code": "# 某題要求將輸入的數字由小到大排序\nstr_nums = [\"10\", \"2\", \"100\", \"5\"]\n# 致命錯誤：未轉型直接排序（字串字典序）\nstr_nums.sort()\nprint(\"字串字典序排序結果:\", str_nums, \"(100 竟然比 2 小！)\")",
+        "html": "<span class=\"c1\"># 某題要求將輸入的數字由小到大排序</span><br><span class=\"n\">str_nums</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s2\">&quot;10&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;2&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;100&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;5&quot;</span><span class=\"p\">]</span><br><span class=\"c1\"># 致命錯誤：未轉型直接排序（字串字典序）</span><br><span class=\"n\">str_nums</span><span class=\"o\">.</span><span class=\"n\">sort</span><span class=\"p\">()</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;字串字典序排序結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">str_nums</span><span class=\"p\">,</span> <span class=\"s2\">&quot;(100 竟然比 2 小！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範字串字典序排序陷阱",
+        "mean": "'10' 首字元 '1' 小於 '2'",
+        "alt": "字典序陷阱"
+      },
+      {
+        "code": "# 正確寫法：加入 key=int 或直接轉型為整數串列\nint_sorted = sorted(str_nums, key=int)\nprint(\"依數值大小排序結果:\", int_sorted, \"(AC)\")",
+        "html": "<span class=\"c1\"># 正確寫法：加入 key=int 或直接轉型為整數串列</span><br><span class=\"n\">int_sorted</span> <span class=\"o\">=</span> <span class=\"nb\">sorted</span><span class=\"p\">(</span><span class=\"n\">str_nums</span><span class=\"p\">,</span> <span class=\"n\">key</span><span class=\"o\">=</span><span class=\"nb\">int</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;依數值大小排序結果:&quot;</span><span class=\"p\">,</span> <span class=\"n\">int_sorted</span><span class=\"p\">,</span> <span class=\"s2\">&quot;(AC)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 key=int 數值大小排序",
+        "mean": "以整數大小為依據排序",
+        "alt": "數值排序"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "字串排序得 ['10', '100', '2', '5'] (WA)",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "key=int 排序得 ['2', '5', '10', '100'] (AC)",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "字串字典序排序結果: ['10', '100', '2', '5'] (100 竟然比 2 小！)\n依數值大小排序結果: ['2', '5', '10', '100'] (AC)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "比數字大小轉整再排序"
+      },
+      {
+        "type": "point",
+        "content": "input().split() 讀進來的都是字串，切勿忘記用 map(int, ...) 轉型！"
+      },
+      {
+        "type": "tip",
+        "content": "若需要保持字串格式但按數值排序，善用 sorted(arr, key=int)。"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Blind Spot 9: Neglected Corner Cases",
+    "titleZh": "邏輯盲點九：邊界情況（Corner Cases）漏防",
+    "desc": "APCS 測資高達 50% 是 Corner Cases！單一元素、數列全同、數值含 0 或負數，往往是範例沒給的爆扣陷阱！",
+    "codeLines": [
+      {
+        "code": "# 典型盲點：找次大值（Second Largest）\n# 若數列為 [5, 5, 5]，是否存在次大值？\ndef get_second_max(arr):\n    unique_vals = sorted(list(set(arr)))\n    if len(unique_vals) < 2:\n        return \"無次大值 (防禦全同/單元素)\"\n    return unique_vals[-2]\n\nprint(get_second_max([10, 20, 30]))  # 正常測資: 20\nprint(get_second_max([5, 5, 5]))      # 極端測資: 防禦成功！",
+        "html": "<span class=\"c1\"># 典型盲點：找次大值（Second Largest）</span><br><span class=\"c1\"># 若數列為 [5, 5, 5]，是否存在次大值？</span><br><span class=\"k\">def</span> <span class=\"nf\">get_second_max</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">unique_vals</span> <span class=\"o\">=</span> <span class=\"nb\">sorted</span><span class=\"p\">(</span><span class=\"nb\">list</span><span class=\"p\">(</span><span class=\"nb\">set</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)))</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">unique_vals</span><span class=\"p\">)</span> <span class=\"o\">&lt;</span> <span class=\"mi\">2</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"s2\">&quot;無次大值 (防禦全同/單元素)&quot;</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">unique_vals</span><span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">2</span><span class=\"p\">]</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">get_second_max</span><span class=\"p\">([</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">]))</span>  <span class=\"c1\"># 正常測資: 20</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"n\">get_second_max</span><span class=\"p\">([</span><span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">]))</span>      <span class=\"c1\"># 極端測資: 防禦成功！</span>",
+        "why": "示範全同元素 Corner Case 防禦",
+        "mean": "使用 set 去重並檢查長度是否小於 2",
+        "alt": "Corner Case 防禦"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "[10, 20, 30] 去重排序取倒數第二個得 20",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "[5, 5, 5] 去重後長度為 1，觸發防禦回傳無次大值",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "20\n無次大值 (防禦全同/單元素)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "極端測資單點全同檢測"
+      },
+      {
+        "type": "point",
+        "content": "出題老師最喜歡用「所有數字都一樣」、「N=1」、「只有負數」當暗藏測資。"
+      },
+      {
+        "type": "tip",
+        "content": "撰寫完主要邏輯後，主動自造這 3 種極端測資在腦中推演一次！"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Debug Tool: Print Debugging & Variable Snapshots",
+    "titleZh": "除錯利器一：Print 除錯法與中途變數快照",
+    "desc": "最樸素卻最具殺傷力的武器！在可疑迴圈與條件判斷中插入 print 快照，讓邏輯幽靈無所遁形！",
+    "codeLines": [
+      {
+        "code": "# 示範二分搜尋中途 Print 快照除錯法\ndef binary_search_debug(arr, target):\n    l, r = 0, len(arr) - 1\n    while l <= r:\n        mid = (l + r) // 2\n        # 印出中途快照（送出前記得註解或刪除！）\n        # print(f\"[DEBUG] 區間 [{l}, {r}], mid={mid}, val={arr[mid]}\")\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            l = mid + 1\n        else:\n            r = mid - 1\n    return -1\n\nans = binary_search_debug([10, 20, 30, 40, 50], 40)\nprint(\"找到目標索引:\", ans)",
+        "html": "<span class=\"c1\"># 示範二分搜尋中途 Print 快照除錯法</span><br><span class=\"k\">def</span> <span class=\"nf\">binary_search_debug</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">,</span> <span class=\"n\">target</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">while</span> <span class=\"n\">l</span> <span class=\"o\">&lt;=</span> <span class=\"n\">r</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">mid</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">l</span> <span class=\"o\">+</span> <span class=\"n\">r</span><span class=\"p\">)</span> <span class=\"o\">//</span> <span class=\"mi\">2</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 印出中途快照（送出前記得註解或刪除！）</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># print(f&quot;[DEBUG] 區間 [{l}, {r}], mid={mid}, val={arr[mid]}&quot;)</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">mid</span><span class=\"p\">]</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">mid</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">elif</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">mid</span><span class=\"p\">]</span> <span class=\"o\">&lt;</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span> <span class=\"o\">=</span> <span class=\"n\">mid</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"n\">mid</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"o\">-</span><span class=\"mi\">1</span><br><br><span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"n\">binary_search_debug</span><span class=\"p\">([</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">,</span> <span class=\"mi\">30</span><span class=\"p\">,</span> <span class=\"mi\">40</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">],</span> <span class=\"mi\">40</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;找到目標索引:&quot;</span><span class=\"p\">,</span> <span class=\"n\">ans</span><span class=\"p\">)</span>",
+        "why": "示範 Print 快照定位變數狀態",
+        "mean": "觀察 l, r, mid 動態收斂",
+        "alt": "快照除錯"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "折半收斂定位目標 40",
+        "vars": {
+          "mid": 3
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出找到的索引 3",
+        "vars": {},
+        "output": "找到目標索引: 3\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "印出中間變數照亮暗處"
+      },
+      {
+        "type": "point",
+        "content": "哪裡懷疑有問題，就在哪裡印出變數；親眼看見數值變化是破解 WA 的最快法門。"
+      },
+      {
+        "type": "tip",
+        "content": "送出代碼到 OJ 前，務必將所有 [DEBUG] 的 print 刪除或註解，否則會變成 Presentation Error / WA！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Diagnosing Max Value WA on Negatives",
+    "titleZh": "關鍵理解測驗：全負數最大值初始化 WA 診斷",
+    "desc": "某考生計算陣列最大值，設定 max_val = 0，輸入數列為 [-8, -3, -15]，請問輸出結果與評判狀態為何？",
+    "codeLines": [
+      {
+        "code": "# 考生代碼片段：\n# nums = [-8, -3, -15]\n# max_val = 0\n# for x in nums:\n#     if x > max_val:\n#         max_val = x\n# print(max_val)",
+        "html": "<span class=\"c1\"># 考生代碼片段：</span><br><span class=\"c1\"># nums = [-8, -3, -15]</span><br><span class=\"c1\"># max_val = 0</span><br><span class=\"c1\"># for x in nums:</span><br><span class=\"c1\">#     if x &gt; max_val:</span><br><span class=\"c1\">#         max_val = x</span><br><span class=\"c1\"># print(max_val)</span>",
+        "why": "測驗題目情境代碼說明",
+        "mean": "初值 0 大於所有負數",
+        "alt": "考題情境"
+      },
+      {
+        "code": "print(\"請預測該考生送出時的輸出結果與評判代碼！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;請預測該考生送出時的輸出結果與評判代碼！&quot;</span><span class=\"p\">)</span>",
+        "why": "引導預測",
+        "mean": "二擇一判斷",
+        "alt": "預測題目"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "請學生分析輸出數值",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "揭曉正解為 0 (Wrong Answer)",
+        "vars": {},
+        "output": "請預測該考生送出時的輸出結果與評判代碼！\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "當輸入為 [-8, -3, -15]，初始化 max_val = 0 的程式輸出結果為何？OJ 會給予何種評判？",
+      "options": [
+        "A. 輸出 0，判定為 Wrong Answer（正確最大值應為 -3）",
+        "B. 輸出 -3，判定為 Accepted（直譯器自動忽略 0）"
+      ],
+      "answer": "A",
+      "explanation": "因為所有輸入的數字都小於 0，條件 x > max_val 永遠不成立，max_val 保持初始值 0！輸出 0 與標準答案 -3 不符，直接被評判為 Wrong Answer！"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "全負測資初值設零必錯"
+      },
+      {
+        "type": "point",
+        "content": "初值設定錯誤是導致 30% 考生在 APCS 第一、二題莫名拿不到滿分的罪魁禍首。"
+      },
+      {
+        "type": "tip",
+        "content": "極值初值一律優先採用第一個元素 nums[0]，或 float('-inf')！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Stress Testing: Brute Force vs Optimized Comparison",
+    "titleZh": "除錯利器二：對拍測試（Stress Testing）概念",
+    "desc": "奧賽選手的終極抓蟲神器：寫一個保證正確但較慢的暴力解，用亂數自動生成大量測資，捉對比對揪出 WA！",
+    "codeLines": [
+      {
+        "code": "# 對拍測試概念演示\ndef brute_force(arr):\n    # 暴力法：保證邏輯正確\n    return max(arr)\n\ndef fast_candidate(arr):\n    # 參賽候選法（假設有潛在 Bug）\n    # return float('-inf')  # 假設這裡有盲點\n    return max(arr)\n\n# 產生隨機測資比對\ntest_data = [-10, -5, -8]\nans_std = brute_force(test_data)\nans_fast = fast_candidate(test_data)\nassert ans_std == ans_fast, f\"抓到 Bug！測資: {test_data}\"\nprint(\"對拍測試比對一致，邏輯固若金湯！\")",
+        "html": "<span class=\"c1\"># 對拍測試概念演示</span><br><span class=\"k\">def</span> <span class=\"nf\">brute_force</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 暴力法：保證邏輯正確</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"nb\">max</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span><br><br><span class=\"k\">def</span> <span class=\"nf\">fast_candidate</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># 參賽候選法（假設有潛在 Bug）</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"c1\"># return float(&#39;-inf&#39;)  # 假設這裡有盲點</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"nb\">max</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span><br><br><span class=\"c1\"># 產生隨機測資比對</span><br><span class=\"n\">test_data</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"o\">-</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"o\">-</span><span class=\"mi\">8</span><span class=\"p\">]</span><br><span class=\"n\">ans_std</span> <span class=\"o\">=</span> <span class=\"n\">brute_force</span><span class=\"p\">(</span><span class=\"n\">test_data</span><span class=\"p\">)</span><br><span class=\"n\">ans_fast</span> <span class=\"o\">=</span> <span class=\"n\">fast_candidate</span><span class=\"p\">(</span><span class=\"n\">test_data</span><span class=\"p\">)</span><br><span class=\"k\">assert</span> <span class=\"n\">ans_std</span> <span class=\"o\">==</span> <span class=\"n\">ans_fast</span><span class=\"p\">,</span> <span class=\"sa\">f</span><span class=\"s2\">&quot;抓到 Bug！測資: </span><span class=\"si\">{</span><span class=\"n\">test_data</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;對拍測試比對一致，邏輯固若金湯！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範對拍測試核心原理",
+        "mean": "暴力解 vs 高效解自動比對",
+        "alt": "對拍測試示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "比對暴力法與優化法輸出",
+        "vars": {
+          "std": -5,
+          "fast": -5
+        }
+      },
+      {
+        "step": 2,
+        "action": "斷言通過，邏輯一致",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "對拍測試比對一致，邏輯固若金湯！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "暴力對照優化自動抓錯"
+      },
+      {
+        "type": "point",
+        "content": "對拍（Stress Test）能在幾秒內跑完數萬筆隨機測資，是破除「不知錯在哪」的最強利刃。"
+      },
+      {
+        "type": "tip",
+        "content": "APCS 考場若陷入 WA 泥淖，用 5 分鐘寫個簡陋暴力法比對就能找出盲點測資！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Exam WA Emergency 5-Step SOP",
+    "titleZh": "考場 WA 急救 5 步 SOP",
+    "desc": "拿到 WA 絕不慌張！依照這套系統化急救 SOP，5 步之內必讓邏輯盲點現出原形！",
+    "codeLines": [
+      {
+        "code": "# 考場 WA 急救 5 步檢查表：\n# 1. 重讀題意：確認包含/不包含、大於/大於等於\n# 2. 邊界測資：自造 N=1、全負數、全同數、0 進行測試\n# 3. 變數初值：檢查 max 是否誤設 0、sum 是否有重置\n# 4. 型態檢查：是否字串忘了轉 int、浮點數直接 ==\n# 5. 輸出格式：行末空格、大小寫、換行是否符合嚴格規範\nprint(\"五步急救心法已牢記，隨時迎戰 WA！\")",
+        "html": "<span class=\"c1\"># 考場 WA 急救 5 步檢查表：</span><br><span class=\"c1\"># 1. 重讀題意：確認包含/不包含、大於/大於等於</span><br><span class=\"c1\"># 2. 邊界測資：自造 N=1、全負數、全同數、0 進行測試</span><br><span class=\"c1\"># 3. 變數初值：檢查 max 是否誤設 0、sum 是否有重置</span><br><span class=\"c1\"># 4. 型態檢查：是否字串忘了轉 int、浮點數直接 ==</span><br><span class=\"c1\"># 5. 輸出格式：行末空格、大小寫、換行是否符合嚴格規範</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;五步急救心法已牢記，隨時迎戰 WA！&quot;</span><span class=\"p\">)</span>",
+        "why": "條列五步急救 SOP",
+        "mean": "系統化排除 WA 盲點",
+        "alt": "SOP 檢查表"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立系統化排查反射",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出備戰確認信號",
+        "vars": {},
+        "output": "五步急救心法已牢記，隨時迎戰 WA！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "冷靜排查五步揪出邏輯"
+      },
+      {
+        "type": "point",
+        "content": "盲目改代碼只會越改越亂，照著 SOP 逐項打勾才是高手的作風。"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將深入效能瓶頸（TLE），掌握 1 秒 10^7 次法則征服大數據！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 13.5 Summary & Mastery Card",
+    "titleZh": "單元 13.5 綜合驗收：語意錯誤與 WA 防範",
+    "desc": "恭喜完成單元 13.5！你已全面洞悉 9 大常見邏輯盲點，熟練 Print 快照與對拍測試，徹底告別 Wrong Answer 噩夢！",
+    "codeLines": [
+      {
+        "code": "# 9 大 WA 邏輯盲點排查地圖",
+        "html": "<span class=\"c1\"># 9 大 WA 邏輯盲點排查地圖</span>",
+        "why": "總結全單元核心盲點與解法",
+        "mean": "九大盲點速查表",
+        "alt": "盲點地圖展示"
+      },
+      {
+        "code": "wa_check_map = {\n    '差一錯誤': 'range(1, N+1) 右界閉合補一',\n    '優先級陷阱': '位元運算左右強制加括號 (x & 1)',\n    '浮點比較': '禁止 a==b，改用 abs(a-b) < 1e-9',\n    '同名覆蓋': '內外迴圈變數分開，禁拿 sum 做變數名',\n    '二維淺拷貝': '一律用 [[0]*M for _ in range(N)]',\n    '整數除法': '負數向下取整為 -4，截斷用 int(a/b)',\n    '極值初值': '求最大值初值設 float(\"-inf\") 或 arr[0]',\n    '字典序排序': '比較數值大小必須轉型或 key=int',\n    '極端邊界': '手動自造 N=1、全負數、全同數驗證'\n}\nfor blind, fix in wa_check_map.items():\n    print(f\"{blind:10s}: {fix}\")",
+        "html": "<span class=\"n\">wa_check_map</span> <span class=\"o\">=</span> <span class=\"p\">{</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;差一錯誤&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;range(1, N+1) 右界閉合補一&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;優先級陷阱&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;位元運算左右強制加括號 (x &amp; 1)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;浮點比較&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;禁止 a==b，改用 abs(a-b) &lt; 1e-9&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;同名覆蓋&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;內外迴圈變數分開，禁拿 sum 做變數名&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;二維淺拷貝&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;一律用 [[0]*M for _ in range(N)]&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;整數除法&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;負數向下取整為 -4，截斷用 int(a/b)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;極值初值&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;求最大值初值設 float(&quot;-inf&quot;) 或 arr[0]&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;字典序排序&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;比較數值大小必須轉型或 key=int&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;極端邊界&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;手動自造 N=1、全負數、全同數驗證&#39;</span><br><span class=\"p\">}</span><br><span class=\"k\">for</span> <span class=\"n\">blind</span><span class=\"p\">,</span> <span class=\"n\">fix</span> <span class=\"ow\">in</span> <span class=\"n\">wa_check_map</span><span class=\"o\">.</span><span class=\"n\">items</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">blind</span><span class=\"si\">:</span><span class=\"s2\">10s</span><span class=\"si\">}</span><span class=\"s2\">: </span><span class=\"si\">{</span><span class=\"n\">fix</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "印出完整 9 大盲點排查地圖",
+        "mean": "考前必備邏輯急救寶典",
+        "alt": "排查地圖輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "彙總 9 大常見 WA 盲點與防禦方針",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出完整驗收對照地圖",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "完成單元驗收",
+        "vars": {}
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 13.5 通關：邏輯除錯宗師！",
+      "summary": "太棒了！你已全面征服 9 大常見邏輯盲點、Print 快照除錯與對拍測試心法！",
+      "nextUnit": "13.6 時間超限（TLE）診斷：運算量估算與隱形效能坑洞"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "語意盲點全掃考場穩拿"
+      },
+      {
+        "type": "point",
+        "content": "恭喜你完封語意錯誤深度排查，徹底消滅考場最痛恨的 Wrong Answer！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將攻克時間超限（TLE），掌握運算量估算與效能瓶頸爆破！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec13-5",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_13-5_logic_errors_and_wa_prevention.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

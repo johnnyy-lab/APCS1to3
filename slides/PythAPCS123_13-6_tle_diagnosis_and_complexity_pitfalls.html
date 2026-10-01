@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>單元 12.3 自訂排序鍵值與具名函式 key= | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "id": "p1",
+    "titleEn": "The 1-Second Rule: 10^7 Operations Limit in Python",
+    "titleZh": "時間超限（TLE）：1 秒與 10^7 次運算法則",
+    "desc": "APCS 與多數 OJ 限制程式運行時間為 1 秒。Python 由於直譯器開銷，1 秒內能執行的基本運算上限約為 10^7（一千萬）次！",
+    "codeLines": [
+      {
+        "code": "# 1 秒極限運算模擬：10^7 次基本迴圈計數\nimport time\nstart_time = time.perf_counter()\ncount = 0\nfor _ in range(10000000):  # 10^7 次\n    count += 1\nelapsed = time.perf_counter() - start_time\nprint(f\"10^7 次簡單累加耗時: {elapsed:.3f} 秒 (約在 1 秒臨界線)\")",
+        "html": "<span class=\"c1\"># 1 秒極限運算模擬：10^7 次基本迴圈計數</span><br><span class=\"k\">import</span> <span class=\"nn\">time</span><br><span class=\"n\">start_time</span> <span class=\"o\">=</span> <span class=\"n\">time</span><span class=\"o\">.</span><span class=\"n\">perf_counter</span><span class=\"p\">()</span><br><span class=\"n\">count</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><br><span class=\"k\">for</span> <span class=\"n\">_</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">10000000</span><span class=\"p\">):</span>  <span class=\"c1\"># 10^7 次</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">count</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br><span class=\"n\">elapsed</span> <span class=\"o\">=</span> <span class=\"n\">time</span><span class=\"o\">.</span><span class=\"n\">perf_counter</span><span class=\"p\">()</span> <span class=\"o\">-</span> <span class=\"n\">start_time</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;10^7 次簡單累加耗時: </span><span class=\"si\">{</span><span class=\"n\">elapsed</span><span class=\"si\">:</span><span class=\"s2\">.3f</span><span class=\"si\">}</span><span class=\"s2\"> 秒 (約在 1 秒臨界線)&quot;</span><span class=\"p\">)</span>",
+        "why": "實測 10^7 次運算耗時",
+        "mean": "實機體驗 1 秒極限",
+        "alt": "10^7 耗時測試"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "執行 10^7 次計數",
+        "vars": {
+          "count": 10000000
+        }
+      },
+      {
+        "step": 2,
+        "action": "測量耗時約 0.3~0.8 秒",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "印出實測時間",
+        "vars": {}
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "一秒一千萬次運算極限"
+      },
+      {
+        "type": "point",
+        "content": "C++ 一秒可跑約 10^8 次，Python 速度約慢 5~10 倍，因此 10^7 是絕對安全上限！"
+      },
+      {
+        "type": "tip",
+        "content": "只要估算總運算次數突破 2*10^7，必須立刻更換更高階演算法，切勿心存僥倖！"
+      }
+    ]
+  },
+  {
+    "id": "p2",
+    "titleEn": "Reverse Engineering: Inferring Algorithm from N",
+    "titleZh": "複雜度反推法：由測資規模 N 倒推演算法",
+    "desc": "頂尖選手的逆向思維：看一眼題目的 N 上限，就能 100% 鎖定考官期待的目標時間複雜度！",
+    "codeLines": [
+      {
+        "code": "# 測資規模 N 與演算法對照表\nscale_table = [\n    (\"N <= 20\", \"O(2^N) 或 O(N!)\", \"指數級/階乘級（遞迴枚舉、狀態壓縮 DP）\"),\n    (\"N <= 1000\", \"O(N^2)\", \"平方級（雙重迴圈、Floyd-Warshall）\"),\n    (\"N <= 10^5\", \"O(N log N)\", \"線性對數級（排序、二分搜尋、貪婪法）\"),\n    (\"N <= 10^7\", \"O(N) 或 O(1)\", \"線性級/常數級（單重遍歷、雙指針、雜湊表）\")\n]\nfor limit, comp, algo in scale_table:\n    print(f\"{limit:10s} -> {comp:12s} ({algo})\")",
+        "html": "<span class=\"c1\"># 測資規模 N 與演算法對照表</span><br><span class=\"n\">scale_table</span> <span class=\"o\">=</span> <span class=\"p\">[</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">(</span><span class=\"s2\">&quot;N &lt;= 20&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;O(2^N) 或 O(N!)&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;指數級/階乘級（遞迴枚舉、狀態壓縮 DP）&quot;</span><span class=\"p\">),</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">(</span><span class=\"s2\">&quot;N &lt;= 1000&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;O(N^2)&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;平方級（雙重迴圈、Floyd-Warshall）&quot;</span><span class=\"p\">),</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">(</span><span class=\"s2\">&quot;N &lt;= 10^5&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;O(N log N)&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;線性對數級（排序、二分搜尋、貪婪法）&quot;</span><span class=\"p\">),</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"p\">(</span><span class=\"s2\">&quot;N &lt;= 10^7&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;O(N) 或 O(1)&quot;</span><span class=\"p\">,</span> <span class=\"s2\">&quot;線性級/常數級（單重遍歷、雙指針、雜湊表）&quot;</span><span class=\"p\">)</span><br><span class=\"p\">]</span><br><span class=\"k\">for</span> <span class=\"n\">limit</span><span class=\"p\">,</span> <span class=\"n\">comp</span><span class=\"p\">,</span> <span class=\"n\">algo</span> <span class=\"ow\">in</span> <span class=\"n\">scale_table</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">limit</span><span class=\"si\">:</span><span class=\"s2\">10s</span><span class=\"si\">}</span><span class=\"s2\"> -&gt; </span><span class=\"si\">{</span><span class=\"n\">comp</span><span class=\"si\">:</span><span class=\"s2\">12s</span><span class=\"si\">}</span><span class=\"s2\"> (</span><span class=\"si\">{</span><span class=\"n\">algo</span><span class=\"si\">}</span><span class=\"s2\">)&quot;</span><span class=\"p\">)</span>",
+        "why": "印出 N 與複雜度速查表",
+        "mean": "考場逆向反推演算法",
+        "alt": "規模對照表"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "列出規模對照方針",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出對照表",
+        "vars": {}
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "看測資規模反推複雜度"
+      },
+      {
+        "type": "point",
+        "content": "看到 N = 10^5 還想寫雙重 for 迴圈（10^10 次）？那就是主動向 TLE 投降！"
+      },
+      {
+        "type": "tip",
+        "content": "題目若是 N = 10^5，心中必須浮現「排序後雙指針」或「字典/集合雜湊」！"
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "titleEn": "Hidden Pitfall 1: 'in' on Lists is O(N)",
+    "titleZh": "隱形效能殺手一：在串列中用 in 進行線性查找",
+    "desc": "最容易被忽視的 O(N) 操作！串列的 in 必須由頭到尾逐項比對，放在迴圈裡瞬間退化成 O(N^2) 慘烈超時！",
+    "codeLines": [
+      {
+        "code": "# 模擬 20,000 筆資料查找\nraw_data = list(range(20000))\n# 脆弱寫法：list 查找是 O(N)\n# if target in raw_data:  -> 每次都要掃描兩萬次！\n\n# 救命寫法：轉為 set 集合，查找只要 O(1)！\ndata_set = set(raw_data)\nis_found = 19999 in data_set\nprint(f\"轉為 set 集合後，in 查找複雜度直接降為 O(1): 命中={is_found}\")",
+        "html": "<span class=\"c1\"># 模擬 20,000 筆資料查找</span><br><span class=\"n\">raw_data</span> <span class=\"o\">=</span> <span class=\"nb\">list</span><span class=\"p\">(</span><span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">20000</span><span class=\"p\">))</span><br><span class=\"c1\"># 脆弱寫法：list 查找是 O(N)</span><br><span class=\"c1\"># if target in raw_data:  -&gt; 每次都要掃描兩萬次！</span><br><br><span class=\"c1\"># 救命寫法：轉為 set 集合，查找只要 O(1)！</span><br><span class=\"n\">data_set</span> <span class=\"o\">=</span> <span class=\"nb\">set</span><span class=\"p\">(</span><span class=\"n\">raw_data</span><span class=\"p\">)</span><br><span class=\"n\">is_found</span> <span class=\"o\">=</span> <span class=\"mi\">19999</span> <span class=\"ow\">in</span> <span class=\"n\">data_set</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;轉為 set 集合後，in 查找複雜度直接降為 O(1): 命中=</span><span class=\"si\">{</span><span class=\"n\">is_found</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 set in O(1) 替代 list in O(N)",
+        "mean": "雜湊表秒殺查找",
+        "alt": "set vs list in"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立 20000 筆資料",
+        "vars": {
+          "N": 20000
+        }
+      },
+      {
+        "step": 2,
+        "action": "轉成 set 後 O(1) 瞬間完成查找",
+        "vars": {
+          "is_found": true
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "轉為 set 集合後，in 查找複雜度直接降為 O(1): 命中=True\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "集合查存在串列必超時"
+      },
+      {
+        "type": "point",
+        "content": "list 的 in 是循序遍歷 O(N)，而 set / dict 的 in 是雜湊查表 O(1)！"
+      },
+      {
+        "type": "tip",
+        "content": "只要在迴圈內部需要判斷「是否存在」，第一時間先將參考串列轉為 set()！"
+      }
+    ]
+  },
+  {
+    "id": "p4",
+    "titleEn": "Hidden Pitfall 2: String += Immutable Re-allocation",
+    "titleZh": "隱形效能殺手二：字串 += 累加速度幾何級崩潰",
+    "desc": "Python 字串具備不可變（Immutable）特性！每次 s += char 都會重新配置記憶體並複製全文，N 次操作退化成 O(N^2)！",
+    "codeLines": [
+      {
+        "code": "# 糟糕寫法：在大迴圈內反覆字串 += (退化為 O(N^2))\n# s = \"\"\n# for c in chars: s += c\n\n# 專業寫法：用 list.append() 蒐集，最後一次 .join() (O(N))\nchars = ['A'] * 50000\nparts = []\nfor c in chars:\n    parts.append(c)  # 每次 append 為均攤 O(1)\nfinal_str = \"\".join(parts)  # C 語言底層一次拼接 O(N)\nprint(f\"join() 順暢完成 {len(final_str)} 個字元拼接，速度快百倍！\")",
+        "html": "<span class=\"c1\"># 糟糕寫法：在大迴圈內反覆字串 += (退化為 O(N^2))</span><br><span class=\"c1\"># s = &quot;&quot;</span><br><span class=\"c1\"># for c in chars: s += c</span><br><br><span class=\"c1\"># 專業寫法：用 list.append() 蒐集，最後一次 .join() (O(N))</span><br><span class=\"n\">chars</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"s1\">&#39;A&#39;</span><span class=\"p\">]</span> <span class=\"o\">*</span> <span class=\"mi\">50000</span><br><span class=\"n\">parts</span> <span class=\"o\">=</span> <span class=\"p\">[]</span><br><span class=\"k\">for</span> <span class=\"n\">c</span> <span class=\"ow\">in</span> <span class=\"n\">chars</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">parts</span><span class=\"o\">.</span><span class=\"n\">append</span><span class=\"p\">(</span><span class=\"n\">c</span><span class=\"p\">)</span>  <span class=\"c1\"># 每次 append 為均攤 O(1)</span><br><span class=\"n\">final_str</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;&quot;</span><span class=\"o\">.</span><span class=\"n\">join</span><span class=\"p\">(</span><span class=\"n\">parts</span><span class=\"p\">)</span>  <span class=\"c1\"># C 語言底層一次拼接 O(N)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;join() 順暢完成 </span><span class=\"si\">{</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">final_str</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\"> 個字元拼接，速度快百倍！&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 join 替代 += 字符串接",
+        "mean": "list.append 配 join 達成 O(N)",
+        "alt": "join 拼接示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "append 收集 50000 個字元",
+        "vars": {
+          "parts_len": 50000
+        }
+      },
+      {
+        "step": 2,
+        "action": "''.join(parts) 一次性拼裝完畢",
+        "vars": {
+          "final_len": 50000
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "join() 順暢完成 50000 個字元拼接，速度快百倍！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "字串加等於重開改串接"
+      },
+      {
+        "type": "point",
+        "content": "字串 += 每次都會複製舊字串全部內容，N 達 10^5 時直接卡死！"
+      },
+      {
+        "type": "tip",
+        "content": "所有字串動態拼接，一律養成 parts.append() + ''.join(parts) 的最高教條！"
+      }
+    ]
+  },
+  {
+    "id": "p5",
+    "titleEn": "Hidden Pitfall 3: pop(0) & insert(0) O(N) Shifts",
+    "titleZh": "隱形效能殺手三：在串列前端做 pop(0) 與 insert(0)",
+    "desc": "串列本質是動態陣列，pop(0) 取出首項會強迫後面所有元素向前移動一格（O(N)）！模擬隊列請改用 collections.deque！",
+    "codeLines": [
+      {
+        "code": "# 隊列（Queue）模擬場景：不斷自前端取出\n# 致命寫法：list.pop(0) -> 每次 O(N)，十萬次操作就是 10^10 次搬移！必爆 TLE！\n\n# 正解神兵：collections.deque（雙向佇列）\nfrom collections import deque\nq = deque([1, 2, 3, 4, 5])\nq.append(6)          # 後端加入 O(1)\nhead = q.popleft()   # 前端彈出 O(1) 極速！\nprint(f\"deque.popleft() 極速出列: {head}，剩餘隊列: {list(q)}\")",
+        "html": "<span class=\"c1\"># 隊列（Queue）模擬場景：不斷自前端取出</span><br><span class=\"c1\"># 致命寫法：list.pop(0) -&gt; 每次 O(N)，十萬次操作就是 10^10 次搬移！必爆 TLE！</span><br><br><span class=\"c1\"># 正解神兵：collections.deque（雙向佇列）</span><br><span class=\"k\">from</span> <span class=\"nn\">collections</span> <span class=\"k\">import</span> <span class=\"n\">deque</span><br><span class=\"n\">q</span> <span class=\"o\">=</span> <span class=\"n\">deque</span><span class=\"p\">([</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">4</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">])</span><br><span class=\"n\">q</span><span class=\"o\">.</span><span class=\"n\">append</span><span class=\"p\">(</span><span class=\"mi\">6</span><span class=\"p\">)</span>          <span class=\"c1\"># 後端加入 O(1)</span><br><span class=\"n\">head</span> <span class=\"o\">=</span> <span class=\"n\">q</span><span class=\"o\">.</span><span class=\"n\">popleft</span><span class=\"p\">()</span>   <span class=\"c1\"># 前端彈出 O(1) 極速！</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;deque.popleft() 極速出列: </span><span class=\"si\">{</span><span class=\"n\">head</span><span class=\"si\">}</span><span class=\"s2\">，剩餘隊列: </span><span class=\"si\">{</span><span class=\"nb\">list</span><span class=\"p\">(</span><span class=\"n\">q</span><span class=\"p\">)</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 deque.popleft 實現 O(1) 前端彈出",
+        "mean": "避免 list.pop(0) 的 O(N) 元素搬移",
+        "alt": "deque 示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立 deque 隊列",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "popleft() O(1) 彈出首元素 1",
+        "vars": {
+          "head": 1
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "deque.popleft() 極速出列: 1，剩餘隊列: [2, 3, 4, 5, 6]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "隊列前端操作用雙端列"
+      },
+      {
+        "type": "point",
+        "content": "list.pop() 末端是 O(1)，但 list.pop(0) 前端是 O(N)！"
+      },
+      {
+        "type": "tip",
+        "content": "APCS 廣度優先搜尋（BFS）或輪流排隊題，一律在第一行 from collections import deque！"
+      }
+    ]
+  },
+  {
+    "id": "p6",
+    "titleEn": "Hidden Pitfall 4: Repeated O(N) Calls in Loops",
+    "titleZh": "隱形效能殺手四：在迴圈內反覆呼叫 O(N) 函式",
+    "desc": "在迴圈條件或內部反覆呼叫 max(arr)、min(arr) 或 arr.count(x)，不知不覺間給程式乘上了 N 倍時間開銷！",
+    "codeLines": [
+      {
+        "code": "# 糟糕寫法：在 while 迴圈條件中反覆呼叫 max(arr)\n# while arr and max(arr) > 100:  -> 每次迴圈都花 O(N) 重掃整個串列！\n\n# 專業寫法：維護單一變數或預先計算\narr = [10, 50, 80, 20]\ncur_max = max(arr)  # 迴圈前只呼叫 1 次 O(N)\nprint(\"預先鎖定極值，避免在迴圈內無端揮霍 O(N) 運算量: cur_max =\", cur_max)",
+        "html": "<span class=\"c1\"># 糟糕寫法：在 while 迴圈條件中反覆呼叫 max(arr)</span><br><span class=\"c1\"># while arr and max(arr) &gt; 100:  -&gt; 每次迴圈都花 O(N) 重掃整個串列！</span><br><br><span class=\"c1\"># 專業寫法：維護單一變數或預先計算</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">10</span><span class=\"p\">,</span> <span class=\"mi\">50</span><span class=\"p\">,</span> <span class=\"mi\">80</span><span class=\"p\">,</span> <span class=\"mi\">20</span><span class=\"p\">]</span><br><span class=\"n\">cur_max</span> <span class=\"o\">=</span> <span class=\"nb\">max</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span>  <span class=\"c1\"># 迴圈前只呼叫 1 次 O(N)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;預先鎖定極值，避免在迴圈內無端揮霍 O(N) 運算量: cur_max =&quot;</span><span class=\"p\">,</span> <span class=\"n\">cur_max</span><span class=\"p\">)</span>",
+        "why": "示範預存極值避免迴圈內重複掃描",
+        "mean": "O(N) 呼叫提到迴圈外",
+        "alt": "避免重複呼叫"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "在迴圈外一次性計算 max(arr)",
+        "vars": {
+          "cur_max": 80
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "預先鎖定極值，避免在迴圈內無端揮霍 O(N) 運算量: cur_max = 80\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "迴圈內禁重複呼叫極值"
+      },
+      {
+        "type": "point",
+        "content": "arr.count(x) 與 max(arr) 每次都要完整掃描串列，放在 for 裡面就是 O(N^2)！"
+      },
+      {
+        "type": "tip",
+        "content": "計算頻率請先用 Counter(arr) 預處理，千萬別在迴圈裡呼叫 arr.count(x)！"
+      }
+    ]
+  },
+  {
+    "id": "p7",
+    "titleEn": "Hidden Pitfall 5: Exponential Overlapping Recursion",
+    "titleZh": "隱形效能殺手五：遞迴缺乏記憶化（Memoization）",
+    "desc": "斐波那契數列或動態規劃題目中，未記錄重疊子問題的純遞迴是 O(2^N) 災難！N=40 時運算量破兆必死無疑！",
+    "codeLines": [
+      {
+        "code": "# 救命神丹：functools.lru_cache 裝飾器一行解決！\nfrom functools import lru_cache\n\n@lru_cache(maxsize=None)  # 啟用記憶化快取神盾！\ndef fib_memo(n):\n    if n <= 1:\n        return n\n    return fib_memo(n - 1) + fib_memo(n - 2)\n\n# 瞬間計算出第 50 項，複雜度由 O(2^N) 降為 O(N)！\nans = fib_memo(50)\nprint(f\"fib_memo(50) 極速出解: {ans}\")",
+        "html": "<span class=\"c1\"># 救命神丹：functools.lru_cache 裝飾器一行解決！</span><br><span class=\"k\">from</span> <span class=\"nn\">functools</span> <span class=\"k\">import</span> <span class=\"n\">lru_cache</span><br><br><span class=\"nd\">@lru_cache</span><span class=\"p\">(</span><span class=\"n\">maxsize</span><span class=\"o\">=</span><span class=\"kc\">None</span><span class=\"p\">)</span>  <span class=\"c1\"># 啟用記憶化快取神盾！</span><br><span class=\"k\">def</span> <span class=\"nf\">fib_memo</span><span class=\"p\">(</span><span class=\"n\">n</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">n</span> <span class=\"o\">&lt;=</span> <span class=\"mi\">1</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">n</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">return</span> <span class=\"n\">fib_memo</span><span class=\"p\">(</span><span class=\"n\">n</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><span class=\"p\">)</span> <span class=\"o\">+</span> <span class=\"n\">fib_memo</span><span class=\"p\">(</span><span class=\"n\">n</span> <span class=\"o\">-</span> <span class=\"mi\">2</span><span class=\"p\">)</span><br><br><span class=\"c1\"># 瞬間計算出第 50 項，複雜度由 O(2^N) 降為 O(N)！</span><br><span class=\"n\">ans</span> <span class=\"o\">=</span> <span class=\"n\">fib_memo</span><span class=\"p\">(</span><span class=\"mi\">50</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;fib_memo(50) 極速出解: </span><span class=\"si\">{</span><span class=\"n\">ans</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 lru_cache 達成 O(N) 記憶化遞迴",
+        "mean": "自動快取子問題答案",
+        "alt": "lru_cache 示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "呼叫 fib_memo(50)",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "lru_cache 快取避免重複計算，O(N) 出解",
+        "vars": {
+          "ans": 12586269025
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "fib_memo(50) 極速出解: 12586269025\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "遞迴重疊子問題掛快取"
+      },
+      {
+        "type": "point",
+        "content": "沒加快取的 fib(40) 要算約 10^12 次，直接被 OJ 判 TLE；加了只要 40 次！"
+      },
+      {
+        "type": "tip",
+        "content": "在任何具備重疊子問題的遞迴函式上方，毫不猶豫加上 @lru_cache(None)！"
+      }
+    ]
+  },
+  {
+    "id": "p8",
+    "titleEn": "I/O Acceleration: sys.stdin.readline()",
+    "titleZh": "I/O 效能加速：sys.stdin.readline() 救命仙丹",
+    "desc": "測資筆數突破 10^5 時，常規 input() 會因繁瑣的字串解碼而拖慢執行速度！改用 sys.stdin.readline 提速 3~5 倍！",
+    "codeLines": [
+      {
+        "code": "# 競賽極速 I/O 慣用模板\nimport sys\n# 將 input 變數直接重導向為 sys.stdin.readline\n# input = sys.stdin.readline  # 考場頂部神仙開局！\n\n# 讀入一行並安全去除末尾換行\nfake_line = \"10 20 30\\n\"\ncleaned = fake_line.strip().split()\nnums = list(map(int, cleaned))\nprint(f\"sys.stdin.readline 處理結果: {nums}\")",
+        "html": "<span class=\"c1\"># 競賽極速 I/O 慣用模板</span><br><span class=\"k\">import</span> <span class=\"nn\">sys</span><br><span class=\"c1\"># 將 input 變數直接重導向為 sys.stdin.readline</span><br><span class=\"c1\"># input = sys.stdin.readline  # 考場頂部神仙開局！</span><br><br><span class=\"c1\"># 讀入一行並安全去除末尾換行</span><br><span class=\"n\">fake_line</span> <span class=\"o\">=</span> <span class=\"s2\">&quot;10 20 30</span><span class=\"se\">\\n</span><span class=\"s2\">&quot;</span><br><span class=\"n\">cleaned</span> <span class=\"o\">=</span> <span class=\"n\">fake_line</span><span class=\"o\">.</span><span class=\"n\">strip</span><span class=\"p\">()</span><span class=\"o\">.</span><span class=\"n\">split</span><span class=\"p\">()</span><br><span class=\"n\">nums</span> <span class=\"o\">=</span> <span class=\"nb\">list</span><span class=\"p\">(</span><span class=\"nb\">map</span><span class=\"p\">(</span><span class=\"nb\">int</span><span class=\"p\">,</span> <span class=\"n\">cleaned</span><span class=\"p\">))</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;sys.stdin.readline 處理結果: </span><span class=\"si\">{</span><span class=\"n\">nums</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 sys.stdin.readline 加速技巧",
+        "mean": "直接替換 input 加速 I/O",
+        "alt": "readline 加速"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "模擬 readline 讀入含換行字串",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "strip().split() 切割並 map 為整數",
+        "vars": {
+          "nums": [
+            10,
+            20,
+            30
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "sys.stdin.readline 處理結果: [10, 20, 30]\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "十萬筆測資讀入換系統"
+      },
+      {
+        "type": "point",
+        "content": "在題幹 N 達 10^5 以上時，光是 input() 的讀取開銷就足以引爆 TLE！"
+      },
+      {
+        "type": "tip",
+        "content": "注意：sys.stdin.readline() 會保留末尾換行符號 \\n，記得加 .strip()！"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "titleEn": "Built-in vs Python Loop: C-Level Speed",
+    "titleZh": "常數最佳化：內建函式 vs 手寫 Python 迴圈",
+    "desc": "Python 內建函式（如 sum、min、max、any、all）底層是由 C 語言撰寫編譯，速度是手寫 Python 迴圈的 5~10 倍！",
+    "codeLines": [
+      {
+        "code": "# 數列求和：手寫迴圈 vs 內建 sum()\ndata = list(range(1000))\n# 手寫迴圈：每次迭代都要經過 Python 位元組直譯直譯器檢查\n# 內建函式：一次性把指標交給 C 語言底層迴圈，極速衝刺！\nsum_builtin = sum(data)\nprint(f\"內建 sum() 計算結果: {sum_builtin} (C 語言等級常數優勢！)\")",
+        "html": "<span class=\"c1\"># 數列求和：手寫迴圈 vs 內建 sum()</span><br><span class=\"n\">data</span> <span class=\"o\">=</span> <span class=\"nb\">list</span><span class=\"p\">(</span><span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">1000</span><span class=\"p\">))</span><br><span class=\"c1\"># 手寫迴圈：每次迭代都要經過 Python 位元組直譯直譯器檢查</span><br><span class=\"c1\"># 內建函式：一次性把指標交給 C 語言底層迴圈，極速衝刺！</span><br><span class=\"n\">sum_builtin</span> <span class=\"o\">=</span> <span class=\"nb\">sum</span><span class=\"p\">(</span><span class=\"n\">data</span><span class=\"p\">)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;內建 sum() 計算結果: </span><span class=\"si\">{</span><span class=\"n\">sum_builtin</span><span class=\"si\">}</span><span class=\"s2\"> (C 語言等級常數優勢！)&quot;</span><span class=\"p\">)</span>",
+        "why": "示範內建函式 C 語言加速優勢",
+        "mean": "內建函式效率遠勝手寫迴圈",
+        "alt": "內建函式優勢"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "呼叫內建 sum(data)",
+        "vars": {
+          "sum": 499500
+        }
+      },
+      {
+        "step": 2,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "內建 sum() 計算結果: 499500 (C 語言等級常數優勢！)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "內建函式底層西語極速"
+      },
+      {
+        "type": "point",
+        "content": "能用內建函式解決的，絕不用手寫迴圈慢慢刻。"
+      },
+      {
+        "type": "tip",
+        "content": "串列生成式 [x * 2 for x in arr] 同樣比手寫 append 快上 30%~50%！"
+      }
+    ]
+  },
+  {
+    "id": "p10",
+    "titleEn": "Algorithm Upgrade: From O(N^2) to O(N log N)",
+    "titleZh": "演算法升級思維：降維打擊（O(N^2) -> O(N log N))",
+    "desc": "壓榨常數只能多爭取幾毫秒，真正能徹底粉碎 TLE 的是演算法維度的跨越！從暴力雙重迴圈升級為排序雙指針！",
+    "codeLines": [
+      {
+        "code": "# 經典兩數之和（Two Sum）：在有序陣列中找兩數和為 target\n# 暴力法：雙重迴圈 O(N^2) -> N=10^5 必 TLE！\n# 降維法：雙指針 O(N) 一次遍歷秒殺！\narr = [1, 3, 5, 8, 12, 19]\ntarget = 13\nl, r = 0, len(arr) - 1\nfound = None\nwhile l < r:\n    cur_sum = arr[l] + arr[r]\n    if cur_sum == target:\n        found = (arr[l], arr[r])\n        break\n    elif cur_sum < target:\n        l += 1\n    else:\n        r -= 1\nprint(f\"雙指針 O(N) 極速找到兩數和為 13: {found}\")",
+        "html": "<span class=\"c1\"># 經典兩數之和（Two Sum）：在有序陣列中找兩數和為 target</span><br><span class=\"c1\"># 暴力法：雙重迴圈 O(N^2) -&gt; N=10^5 必 TLE！</span><br><span class=\"c1\"># 降維法：雙指針 O(N) 一次遍歷秒殺！</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">8</span><span class=\"p\">,</span> <span class=\"mi\">12</span><span class=\"p\">,</span> <span class=\"mi\">19</span><span class=\"p\">]</span><br><span class=\"n\">target</span> <span class=\"o\">=</span> <span class=\"mi\">13</span><br><span class=\"n\">l</span><span class=\"p\">,</span> <span class=\"n\">r</span> <span class=\"o\">=</span> <span class=\"mi\">0</span><span class=\"p\">,</span> <span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"o\">-</span> <span class=\"mi\">1</span><br><span class=\"n\">found</span> <span class=\"o\">=</span> <span class=\"kc\">None</span><br><span class=\"k\">while</span> <span class=\"n\">l</span> <span class=\"o\">&lt;</span> <span class=\"n\">r</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">cur_sum</span> <span class=\"o\">=</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">]</span> <span class=\"o\">+</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">]</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">if</span> <span class=\"n\">cur_sum</span> <span class=\"o\">==</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">found</span> <span class=\"o\">=</span> <span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">l</span><span class=\"p\">],</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">r</span><span class=\"p\">])</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">break</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">elif</span> <span class=\"n\">cur_sum</span> <span class=\"o\">&lt;</span> <span class=\"n\">target</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">l</span> <span class=\"o\">+=</span> <span class=\"mi\">1</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"k\">else</span><span class=\"p\">:</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">r</span> <span class=\"o\">-=</span> <span class=\"mi\">1</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;雙指針 O(N) 極速找到兩數和為 13: </span><span class=\"si\">{</span><span class=\"n\">found</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範雙指針降維打擊 O(N^2) 轉 O(N)",
+        "mean": "相向雙指針快速逼近",
+        "alt": "雙指針降維示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "l=0 (1), r=5 (19) 和為 20 > 13，r 左移",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "l=0 (1), r=4 (12) 和為 13 == 13，鎖定答案！",
+        "vars": {
+          "found": [
+            1,
+            12
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "雙指針 O(N) 極速找到兩數和為 13: (1, 12)\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "雙層迴圈改雙指針二分"
+      },
+      {
+        "type": "point",
+        "content": "把 O(N^2) 的暴力列舉升級為雙指針或二分搜尋，是攻克 APCS 第三、四題的關鍵！"
+      },
+      {
+        "type": "tip",
+        "content": "有序陣列 + 兩數和/差/乘積，第一反應就是相向雙指針！"
+      }
+    ]
+  },
+  {
+    "id": "p11",
+    "titleEn": "Profiling: time.perf_counter() Benchmarking",
+    "titleZh": "計時測試利器：time.perf_counter() 實機度量",
+    "desc": "不要憑直覺猜效能！學會用 time.perf_counter() 進行微秒級實機度量，用數據說話！",
+    "codeLines": [
+      {
+        "code": "# 實機度量 list in vs set in 速度差異\nimport time\ntest_list = list(range(10000))\ntest_set = set(test_list)\n\n# 測試 set 查詢速度\nt0 = time.perf_counter()\nfor _ in range(1000):\n    _ = 9999 in test_set\nt_set = time.perf_counter() - t0\n\nprint(f\"set 查詢 1000 次耗時: {t_set:.6f} 秒 (極速常數 O(1))\")",
+        "html": "<span class=\"c1\"># 實機度量 list in vs set in 速度差異</span><br><span class=\"k\">import</span> <span class=\"nn\">time</span><br><span class=\"n\">test_list</span> <span class=\"o\">=</span> <span class=\"nb\">list</span><span class=\"p\">(</span><span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">10000</span><span class=\"p\">))</span><br><span class=\"n\">test_set</span> <span class=\"o\">=</span> <span class=\"nb\">set</span><span class=\"p\">(</span><span class=\"n\">test_list</span><span class=\"p\">)</span><br><br><span class=\"c1\"># 測試 set 查詢速度</span><br><span class=\"n\">t0</span> <span class=\"o\">=</span> <span class=\"n\">time</span><span class=\"o\">.</span><span class=\"n\">perf_counter</span><span class=\"p\">()</span><br><span class=\"k\">for</span> <span class=\"n\">_</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"mi\">1000</span><span class=\"p\">):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">_</span> <span class=\"o\">=</span> <span class=\"mi\">9999</span> <span class=\"ow\">in</span> <span class=\"n\">test_set</span><br><span class=\"n\">t_set</span> <span class=\"o\">=</span> <span class=\"n\">time</span><span class=\"o\">.</span><span class=\"n\">perf_counter</span><span class=\"p\">()</span> <span class=\"o\">-</span> <span class=\"n\">t0</span><br><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;set 查詢 1000 次耗時: </span><span class=\"si\">{</span><span class=\"n\">t_set</span><span class=\"si\">:</span><span class=\"s2\">.6f</span><span class=\"si\">}</span><span class=\"s2\"> 秒 (極速常數 O(1))&quot;</span><span class=\"p\">)</span>",
+        "why": "示範 perf_counter 精確度量",
+        "mean": "驗證資料結構速度差異",
+        "alt": "精確計時示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "測量 set 1000 次查詢",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出量測數據",
+        "vars": {}
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "高精計時實測效能差距"
+      },
+      {
+        "type": "point",
+        "content": "time.perf_counter() 具有最高解析度的系統時鐘，是 Python 效能測試的首選工具。"
+      },
+      {
+        "type": "tip",
+        "content": "本機除錯時，可自造一組 N=10^5 的大測資跑計時，超過 0.8 秒就必須警惕！"
+      }
+    ]
+  },
+  {
+    "id": "p12",
+    "titleEn": "Predict Quiz: Choosing Structure for 10^5 Lookups",
+    "titleZh": "關鍵理解測驗：N=10^5 判斷存在演算法選擇",
+    "desc": "題目有 N = 10^5 個元素，後續有 Q = 10^5 次查詢每次詢問某數字是否存在，若用 list 的 in 運算子，評判結果為何？",
+    "codeLines": [
+      {
+        "code": "# 某考生代碼：\n# nums = list(map(int, input().split()))  # 長度 10^5\n# for _ in range(100000):                 # 查詢 10^5 次\n#     q = int(input())\n#     if q in nums:                       # 每次 in 是 O(N)！\n#         print('YES')\n# 請問此代碼在 OJ 上的命運為何？",
+        "html": "<span class=\"c1\"># 某考生代碼：</span><br><span class=\"c1\"># nums = list(map(int, input().split()))  # 長度 10^5</span><br><span class=\"c1\"># for _ in range(100000):                 # 查詢 10^5 次</span><br><span class=\"c1\">#     q = int(input())</span><br><span class=\"c1\">#     if q in nums:                       # 每次 in 是 O(N)！</span><br><span class=\"c1\">#         print(&#39;YES&#39;)</span><br><span class=\"c1\"># 請問此代碼在 OJ 上的命運為何？</span>",
+        "why": "測驗題目情境代碼說明",
+        "mean": "O(N * Q) = 10^10 次操作",
+        "alt": "考題情境"
+      },
+      {
+        "code": "print(\"請預測 10^5 次 list in 查詢在 OJ 上的評判結果！\")",
+        "html": "<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;請預測 10^5 次 list in 查詢在 OJ 上的評判結果！&quot;</span><span class=\"p\">)</span>",
+        "why": "引導預測",
+        "mean": "二擇一判斷",
+        "alt": "預測題目"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "請學生計算總運算量: 10^5 * 10^5 = 10^10 次",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "揭曉正解為 Time Limit Exceeded (TLE)",
+        "vars": {},
+        "output": "請預測 10^5 次 list in 查詢在 OJ 上的評判結果！\n"
+      }
+    ],
+    "predictQuiz": {
+      "question": "N = 10^5 且 Q = 10^5 時，使用 list 的 in 運算子總運算量達 10^10 次，OJ 評判結果為何？",
+      "options": [
+        "A. Time Limit Exceeded（運算量高達 10^10 次，嚴重超標 10^7 極限）",
+        "B. Accepted（Python 底層自動優化，1 秒內順暢通過）"
+      ],
+      "answer": "A",
+      "explanation": "list 的 in 運算子為 O(N) 線性查找，Q 次查詢總複雜度高達 O(N * Q) = 10^10 次！遠遠突破 1 秒 10^7 次的安全天花板，絕對必然獲得 Time Limit Exceeded！正確解法是先轉為 set(nums)，讓每次查詢降至 O(1)，總運算僅需 10^5 次瞬間 AC！"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "十萬筆查存在集合秒出"
+      },
+      {
+        "type": "point",
+        "content": "只要看到 10^5 筆查找，集合 set 或雜湊表 dict 是唯一通關密碼。"
+      },
+      {
+        "type": "tip",
+        "content": "轉 set 只要一次 O(N) 的成本，卻能換來後續每一次 O(1) 的極速回報！"
+      }
+    ]
+  },
+  {
+    "id": "p13",
+    "titleEn": "Space-Time Tradeoff: Prefix Sum & Lookup Tables",
+    "titleZh": "空間換時間策略：前綴和（Prefix Sum）與查表法",
+    "desc": "空間換時間（Space-Time Tradeoff）是演算法的至高奧義！花 O(N) 空間預先建好前綴和，區間查詢從 O(N) 降為 O(1)！",
+    "codeLines": [
+      {
+        "code": "# 區間總和查詢：建立前綴和陣列 prefix_sum\narr = [3, 1, 4, 1, 5, 9, 2]\n# prefix[k] 代表前 k 個元素的總和\nprefix = [0] * (len(arr) + 1)\nfor i in range(len(arr)):\n    prefix[i + 1] = prefix[i] + arr[i]\n\n# 查詢索引 [2, 5] (元素 4, 1, 5, 9) 的總和：\n# 暴力要遍歷 4 次，前綴和只需 1 次減法：prefix[6] - prefix[2]！\nsub_sum = prefix[6] - prefix[2]\nprint(f\"前綴和 O(1) 瞬間查得區間總和: {sub_sum} (AC)\")",
+        "html": "<span class=\"c1\"># 區間總和查詢：建立前綴和陣列 prefix_sum</span><br><span class=\"n\">arr</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">3</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">4</span><span class=\"p\">,</span> <span class=\"mi\">1</span><span class=\"p\">,</span> <span class=\"mi\">5</span><span class=\"p\">,</span> <span class=\"mi\">9</span><span class=\"p\">,</span> <span class=\"mi\">2</span><span class=\"p\">]</span><br><span class=\"c1\"># prefix[k] 代表前 k 個元素的總和</span><br><span class=\"n\">prefix</span> <span class=\"o\">=</span> <span class=\"p\">[</span><span class=\"mi\">0</span><span class=\"p\">]</span> <span class=\"o\">*</span> <span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><span class=\"p\">)</span><br><span class=\"k\">for</span> <span class=\"n\">i</span> <span class=\"ow\">in</span> <span class=\"nb\">range</span><span class=\"p\">(</span><span class=\"nb\">len</span><span class=\"p\">(</span><span class=\"n\">arr</span><span class=\"p\">)):</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"n\">prefix</span><span class=\"p\">[</span><span class=\"n\">i</span> <span class=\"o\">+</span> <span class=\"mi\">1</span><span class=\"p\">]</span> <span class=\"o\">=</span> <span class=\"n\">prefix</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">]</span> <span class=\"o\">+</span> <span class=\"n\">arr</span><span class=\"p\">[</span><span class=\"n\">i</span><span class=\"p\">]</span><br><br><span class=\"c1\"># 查詢索引 [2, 5] (元素 4, 1, 5, 9) 的總和：</span><br><span class=\"c1\"># 暴力要遍歷 4 次，前綴和只需 1 次減法：prefix[6] - prefix[2]！</span><br><span class=\"n\">sub_sum</span> <span class=\"o\">=</span> <span class=\"n\">prefix</span><span class=\"p\">[</span><span class=\"mi\">6</span><span class=\"p\">]</span> <span class=\"o\">-</span> <span class=\"n\">prefix</span><span class=\"p\">[</span><span class=\"mi\">2</span><span class=\"p\">]</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;前綴和 O(1) 瞬間查得區間總和: </span><span class=\"si\">{</span><span class=\"n\">sub_sum</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "示範前綴和空間換時間",
+        "mean": "一次差值計算區間和",
+        "alt": "前綴和示範"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建置長度為 8 的 prefix 陣列",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "計算 prefix[6] - prefix[2] 得 19",
+        "vars": {
+          "sub_sum": 19
+        }
+      },
+      {
+        "step": 3,
+        "action": "輸出結果",
+        "vars": {},
+        "output": "前綴和 O(1) 瞬間查得區間總和: 19\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "前綴和預處理區間常數"
+      },
+      {
+        "type": "point",
+        "content": "前綴和（Prefix Sum）是 APCS 實作第二、三題最愛考的預處理技巧。"
+      },
+      {
+        "type": "tip",
+        "content": "前綴陣列長度設為 len(arr) + 1，讓 prefix[0] = 0，處理邊界最優雅！"
+      }
+    ]
+  },
+  {
+    "id": "p14",
+    "titleEn": "Exam TLE Emergency 3-Min SOP",
+    "titleZh": "考場 TLE 診斷 SOP：3 分鐘效能急救手冊",
+    "desc": "遇到 TLE 莫慌張！按照 3 分鐘急救清單逐一排查，快速消滅隱形效能黑洞！",
+    "codeLines": [
+      {
+        "code": "# 考場 TLE 5 步急救診斷法：\n# 1. 測資規模評估：N 是否為 10^5？雙重迴圈立刻拆解！\n# 2. 查核 in 運算子：是否在 list 上做 in？立刻轉 set()！\n# 3. 檢查佇列操作：是否有 pop(0)？換成 deque.popleft()！\n# 4. 加速輸入串流：頂部加上 import sys; input = sys.stdin.readline\n# 5. 遞迴加入記憶化：為遞迴函式加上 @lru_cache(None)\nprint(\"五步急救處方就位，TLE 迎刃而解！\")",
+        "html": "<span class=\"c1\"># 考場 TLE 5 步急救診斷法：</span><br><span class=\"c1\"># 1. 測資規模評估：N 是否為 10^5？雙重迴圈立刻拆解！</span><br><span class=\"c1\"># 2. 查核 in 運算子：是否在 list 上做 in？立刻轉 set()！</span><br><span class=\"c1\"># 3. 檢查佇列操作：是否有 pop(0)？換成 deque.popleft()！</span><br><span class=\"c1\"># 4. 加速輸入串流：頂部加上 import sys; input = sys.stdin.readline</span><br><span class=\"c1\"># 5. 遞迴加入記憶化：為遞迴函式加上 @lru_cache(None)</span><br><span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"s2\">&quot;五步急救處方就位，TLE 迎刃而解！&quot;</span><span class=\"p\">)</span>",
+        "why": "總結考場 TLE 急救清單",
+        "mean": "系統化排除效能瓶頸",
+        "alt": "急救清單總結"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "建立系統化效能除錯心智模型",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出備戰信號",
+        "vars": {},
+        "output": "五步急救處方就位，TLE 迎刃而解！\n"
+      }
+    ],
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "估算瓶頸換結構加速讀"
+      },
+      {
+        "type": "point",
+        "content": "90% 的 TLE 只要把 list in 換成 set in、加上 sys.stdin.readline 就能直接翻盤 AC！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將攻克格式地獄（Presentation WA），掌握字元級對齊心法！"
+      }
+    ]
+  },
+  {
+    "id": "p15",
+    "titleEn": "Unit 13.6 Summary & Mastery Card",
+    "titleZh": "單元 13.6 綜合驗收：時間超限與效能優化",
+    "desc": "恭喜完成單元 13.6！你已徹底掌握 1 秒 10^7 次法則、5 大隱形效能坑洞、I/O 加速與降維打擊心法！",
+    "codeLines": [
+      {
+        "code": "# TLE 隱形效能黑洞與對應極速解法地圖",
+        "html": "<span class=\"c1\"># TLE 隱形效能黑洞與對應極速解法地圖</span>",
+        "why": "總結全單元核心優化技能",
+        "mean": "五大效能優化速查表",
+        "alt": "優化地圖展示"
+      },
+      {
+        "code": "tle_fixes = {\n    'list in 查找': '改用 set(arr) 實現 O(1) 常數查詢',\n    '字串反覆 +=': '改用 parts.append() 配 \"\".join(parts)',\n    '前端 pop(0)': '改用 collections.deque 的 popleft()',\n    '大量 input()': '頂部加上 input = sys.stdin.readline',\n    '重疊遞迴': '加上 @functools.lru_cache(None)',\n    '區間和重覆算': '預先建置 prefix_sum 前綴和陣列'\n}\nfor pitfall, fix in tle_fixes.items():\n    print(f\"{pitfall:14s}: {fix}\")",
+        "html": "<span class=\"n\">tle_fixes</span> <span class=\"o\">=</span> <span class=\"p\">{</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;list in 查找&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;改用 set(arr) 實現 O(1) 常數查詢&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;字串反覆 +=&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;改用 parts.append() 配 &quot;&quot;.join(parts)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;前端 pop(0)&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;改用 collections.deque 的 popleft()&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;大量 input()&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;頂部加上 input = sys.stdin.readline&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;重疊遞迴&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;加上 @functools.lru_cache(None)&#39;</span><span class=\"p\">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"s1\">&#39;區間和重覆算&#39;</span><span class=\"p\">:</span> <span class=\"s1\">&#39;預先建置 prefix_sum 前綴和陣列&#39;</span><br><span class=\"p\">}</span><br><span class=\"k\">for</span> <span class=\"n\">pitfall</span><span class=\"p\">,</span> <span class=\"n\">fix</span> <span class=\"ow\">in</span> <span class=\"n\">tle_fixes</span><span class=\"o\">.</span><span class=\"n\">items</span><span class=\"p\">():</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class=\"nb\">print</span><span class=\"p\">(</span><span class=\"sa\">f</span><span class=\"s2\">&quot;</span><span class=\"si\">{</span><span class=\"n\">pitfall</span><span class=\"si\">:</span><span class=\"s2\">14s</span><span class=\"si\">}</span><span class=\"s2\">: </span><span class=\"si\">{</span><span class=\"n\">fix</span><span class=\"si\">}</span><span class=\"s2\">&quot;</span><span class=\"p\">)</span>",
+        "why": "印出完整 6 大效能優化地圖",
+        "mean": "考前極速調優寶典",
+        "alt": "優化地圖輸出"
+      }
+    ],
+    "trace": [
+      {
+        "step": 1,
+        "action": "彙總 6 大常見 TLE 坑洞與對應優化技巧",
+        "vars": {}
+      },
+      {
+        "step": 2,
+        "action": "輸出完整驗收對照地圖",
+        "vars": {}
+      },
+      {
+        "step": 3,
+        "action": "完成單元驗收",
+        "vars": {}
+      }
+    ],
+    "completionCard": {
+      "badge": "🏆 單元 13.6 通關：效能調優大師！",
+      "summary": "太棒了！你已全面掌握 1 秒 10^7 次法則、5 大隱形效能坑洞排查與 I/O 加速神技！",
+      "nextUnit": "13.7 輸出格式防禦與對齊心法（Presentation WA 防範）"
+    },
+    "notes": [
+      {
+        "type": "mnemonic",
+        "content": "時間複雜度破超時關"
+      },
+      {
+        "type": "point",
+        "content": "恭喜你完封時間超限與效能瓶頸排查，徹底具備征服 APCS 大數據測資實力！"
+      },
+      {
+        "type": "tip",
+        "content": "下一單元將攻克考場遺憾率最高的「輸出格式錯誤」，杜絕行末空格與大小寫爆零！"
+      }
+    ]
+  }
+];
+
+  window.addEventListener('DOMContentLoaded', () => {
+      initSlideEngine({
+        sectionId: "sec13-6",
+        slidesData: slidesData,
+        colabUrl: "../ipynb/PythAPCS123_13-6_tle_diagnosis_and_complexity_pitfalls.ipynb"
+      });
+    });
+  </script>
+</body>
+</html>

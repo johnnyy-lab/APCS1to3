@@ -1,0 +1,3726 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "APCS f605 Problem Spec: Purchasing Power",
+    "titleEn": "APCS f605 Problem Spec: Purchasing Power",
+    "titleZh": "真題規格剖析：APCS 2021-01 實作第 1 題「購買力」",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 題目目標：給定 n 項商品與波動門檻 d",
+        "html": "<span class=\"token-comment\"># 題目目標：給定 n 項商品與波動門檻 d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "任務焦點",
+        "mean": "目標說明"
+      },
+      {
+        "num": 2,
+        "code": "# 每項商品有連續 3 天價格 [p1, p2, p3]",
+        "html": "<span class=\"token-comment\"># 每項商品有連續 3 天價格 [p1, p2, p3]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "輸入核心",
+        "mean": "三天價格"
+      },
+      {
+        "num": 3,
+        "code": "# 購買條件：max(prices) - min(prices) >= d",
+        "html": "<span class=\"token-comment\"># 購買條件：max(prices) - min(prices) &gt;= d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "價差門檻",
+        "mean": "購買條件"
+      },
+      {
+        "num": 4,
+        "code": "# 購買成本：sum(prices) // 3（保證為整數）",
+        "html": "<span class=\"token-comment\"># 購買成本：sum(prices) // 3（保證為整數）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "平均值",
+        "mean": "成本計算"
+      },
+      {
+        "num": 5,
+        "code": "# 輸出：購買商品總件數 總花費金額",
+        "html": "<span class=\"token-comment\"># 輸出：購買商品總件數 總花費金額</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "雙輸出",
+        "mean": "輸出要求"
+      },
+      {
+        "num": 6,
+        "code": "n, d = 1, 3",
+        "html": "<span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "載入參數",
+        "mean": "設定 n 與 d"
+      },
+      {
+        "num": 7,
+        "code": "prices = [24, 27, 21]",
+        "html": "<span class=\"token-ident\">prices</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "範例 1 價格",
+        "mean": "三天價格串列"
+      },
+      {
+        "num": 8,
+        "code": "diff = max(prices) - min(prices)",
+        "html": "<span class=\"token-ident\">diff</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "27 - 21 = 6",
+        "mean": "計算全距"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"商品價格: {prices} | 波動價差: {diff} >= {d}? {diff >= d}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;商品價格: <span class=\"token-op\">{</span><span class=\"token-ident\">prices</span><span class=\"token-op\">}</span> | 波動價差: <span class=\"token-op\">{</span><span class=\"token-ident\">diff</span><span class=\"token-op\">}</span> &gt;= <span class=\"token-op\">{</span><span class=\"token-ident\">d</span><span class=\"token-op\">}</span>? <span class=\"token-op\">{</span><span class=\"token-ident\">diff</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "6 >= 3 符合",
+        "mean": "判定是否購買"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"購買花費: {sum(prices) // 3}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;購買花費: <span class=\"token-op\">{</span><span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "72 // 3 = 24",
+        "mean": "計算平均花費"
+      }
+    ],
+    "output": "商品價格: [24, 27, 21] | 波動價差: 6 >= 3? True\n購買花費: 24",
+    "diagram": {
+      "type": "flow",
+      "title": "購買力演算法架構流程",
+      "flow": [
+        {
+          "step": 1,
+          "text": "讀取 n (商品數) 與 d (波動門檻)"
+        },
+        {
+          "step": 2,
+          "text": "逐行讀取每項商品的 3 天價格"
+        },
+        {
+          "step": 3,
+          "text": "計算全距 max - min 是否 >= d"
+        },
+        {
+          "step": 4,
+          "text": "若達標：件數 +1，花費 + sum//3"
+        },
+        {
+          "step": 5,
+          "text": "輸出：件數 總花費 (以空格隔開)"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "真題背景",
+        "content": "APCS 2021 年 1 月實作第 1 題，模擬量化交易中的波動度選品策略。"
+      },
+      {
+        "type": "hint",
+        "title": "雙統計量",
+        "content": "同時維護「購買數量」與「累積花費」，是競賽雙指針/雙計數器的基本功。"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.2 單行三數讀取與極值計算",
+    "title": "Input Format & Daily Prices Spec",
+    "titleEn": "Input Format & Daily Prices Spec",
+    "titleZh": "輸入格式與連續三天價格資料規格",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬多行輸入規格",
+        "html": "<span class=\"token-comment\"># 模擬多行輸入規格</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定商品數與門檻",
+        "mean": "第一行模擬"
+      },
+      {
+        "num": 2,
+        "code": "line1 = \"2 10\"  # n=2, d=10",
+        "html": "<span class=\"token-ident\">line1</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;2 10&quot;</span>  <span class=\"token-comment\"># n=2, d=10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "兩項商品價格",
+        "mean": "後續 n 行模擬"
+      },
+      {
+        "num": 3,
+        "code": "lines = [\"10 20 30\", \"10 12 10\"]",
+        "html": "<span class=\"token-ident\">lines</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-string\">&quot;10 20 30&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;10 12 10&quot;</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "map 切分",
+        "mean": "讀入 n 與 d"
+      },
+      {
+        "num": 4,
+        "code": "n, d = map(int, line1.split())",
+        "html": "<span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">line1</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認輸入",
+        "mean": "印出 n 與 d"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"商品總數 n={n}, 波動門檻 d={d}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;商品總數 n=<span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>, 波動門檻 d=<span class=\"token-op\">{</span><span class=\"token-ident\">d</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "逐筆處理",
+        "mean": "走訪每行"
+      },
+      {
+        "num": 6,
+        "code": "for idx, l in enumerate(lines, 1):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">idx</span><span class=\"token-op\">,</span> <span class=\"token-ident\">l</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">enumerate</span><span class=\"token-op\">(</span><span class=\"token-ident\">lines</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "轉換型別",
+        "mean": "轉為整數串列"
+      },
+      {
+        "num": 7,
+        "code": "    p = list(map(int, l.split()))",
+        "html": "    <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">l</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示三日價格",
+        "mean": "印出商品價格"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"商品 {idx} 三日價格: {p}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;商品 <span class=\"token-op\">{</span><span class=\"token-ident\">idx</span><span class=\"token-op\">}</span> 三日價格: <span class=\"token-op\">{</span><span class=\"token-ident\">p</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "",
+        "mean": ""
+      }
+    ],
+    "output": "商品總數 n=2, 波動門檻 d=10\n商品 1 三日價格: [10, 20, 30]\n商品 2 三日價格: [10, 12, 10]",
+    "diagram": {
+      "type": "step",
+      "title": "資料流向圖解",
+      "steps": [
+        {
+          "num": 1,
+          "action": "第一行",
+          "desc": "n (商品件數 <= 100), d (門檻 <= 100)"
+        },
+        {
+          "num": 2,
+          "action": "第 2 ~ n+1 行",
+          "desc": "每行剛好 3 個整數 (0 <= p_i <= 100)"
+        },
+        {
+          "num": 3,
+          "action": "串流處理",
+          "desc": "逐行讀取、即時判定、無需儲存所有歷史！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "固定三數",
+        "content": "每行固定 3 個數字，既可用 list(map(...))，也可用 p1, p2, p3 = map(...)。"
+      },
+      {
+        "type": "hint",
+        "title": "在線演算法 (Online)",
+        "content": "讀完一筆立刻處理一筆，不需要開大陣列儲存所有商品，空間複雜度 O(1)！"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "Sample 1 & 2 Paper-and-Pencil Trace",
+    "titleEn": "Sample 1 & 2 Paper-and-Pencil Trace",
+    "titleZh": "官方兩大範例測資紙上手算推演",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 官方範例 1：n=1, d=3, 價格=[24, 27, 21]",
+        "html": "<span class=\"token-comment\"># 官方範例 1：n=1, d=3, 價格=[24, 27, 21]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "手算確認",
+        "mean": "範例 1 說明"
+      },
+      {
+        "num": 2,
+        "code": "# 價差 = 27 - 21 = 6 >= 3 -> 買！花費 = (24+27+21)//3 = 24 -> 輸出: 1 24",
+        "html": "<span class=\"token-comment\"># 價差 = 27 - 21 = 6 &gt;= 3 -&gt; 買！花費 = (24+27+21)//3 = 24 -&gt; 輸出: 1 24</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "差額 6 均價 24",
+        "mean": "範例 1 推演"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "多商品測試",
+        "mean": "範例 2 說明"
+      },
+      {
+        "num": 4,
+        "code": "# 官方範例 2：n=2, d=10",
+        "html": "<span class=\"token-comment\"># 官方範例 2：n=2, d=10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "商品 1 符合",
+        "mean": "範例 2 商品 1"
+      },
+      {
+        "num": 5,
+        "code": "# 商品 1: [10, 20, 30] -> 30-10=20 >= 10 -> 買！花費 = 60//3 = 20",
+        "html": "<span class=\"token-comment\"># 商品 1: [10, 20, 30] -&gt; 30-10=20 &gt;= 10 -&gt; 買！花費 = 60//3 = 20</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "商品 2 不符",
+        "mean": "範例 2 商品 2"
+      },
+      {
+        "num": 6,
+        "code": "# 商品 2: [10, 12, 10] -> 12-10=2 < 10 -> 不買！",
+        "html": "<span class=\"token-comment\"># 商品 2: [10, 12, 10] -&gt; 12-10=2 &lt; 10 -&gt; 不買！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "件數 1 花費 20",
+        "mean": "範例 2 總計"
+      },
+      {
+        "num": 7,
+        "code": "# 總計: 買 1 件，總花費 20 -> 輸出: 1 20",
+        "html": "<span class=\"token-comment\"># 總計: 買 1 件，總花費 20 -&gt; 輸出: 1 20</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證官方輸出",
+        "mean": "印出範例 1"
+      },
+      {
+        "num": 8,
+        "code": "print(\"範例 1 正確輸出: 1 24\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;範例 1 正確輸出: 1 24&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證官方輸出",
+        "mean": "印出範例 2"
+      },
+      {
+        "num": 9,
+        "code": "print(\"範例 2 正確輸出: 1 20\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;範例 2 正確輸出: 1 20&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "範例 1 正確輸出: 1 24\n範例 2 正確輸出: 1 20",
+    "diagram": {
+      "type": "compare",
+      "title": "官方兩大範例比較",
+      "left": {
+        "title": "範例 1 (單件商品)",
+        "content": "價格: [24, 27, 21], d=3\n全距 6 >= 3 (符合)\n輸出: 1 24"
+      },
+      "right": {
+        "title": "範例 2 (多件商品過濾)",
+        "content": "商品 1: 全距 20 >= 10 (買)\n商品 2: 全距 2 < 10 (不買)\n輸出: 1 20"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "輸出格式細節",
+        "content": "兩數之間用一個空白隔開，print(count, cost) 會自動在兩者間加入空格！"
+      },
+      {
+        "type": "hint",
+        "title": "全未購買邊界",
+        "content": "若所有商品都不達門檻，請輸出 0 0，初值設 0 自然能涵蓋此情況。"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "Physical Metaphor: Bargain Hunter Strategy",
+    "titleEn": "Physical Metaphor: Bargain Hunter Strategy",
+    "titleZh": "生活直覺建模：特價獵手的抄底時機",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 生活情境：平穩價 vs 暴跌跳樓價",
+        "html": "<span class=\"token-comment\"># 生活情境：平穩價 vs 暴跌跳樓價</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "以生活直覺對應題意",
+        "mean": "情境說明"
+      },
+      {
+        "num": 2,
+        "code": "stable_item = [500, 500, 500]      # 每天都原價，無特價",
+        "html": "<span class=\"token-ident\">stable_item</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">500</span><span class=\"token-op\">,</span> <span class=\"token-number\">500</span><span class=\"token-op\">,</span> <span class=\"token-number\">500</span><span class=\"token-op\">]</span>      <span class=\"token-comment\"># 每天都原價，無特價</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "價差為 0",
+        "mean": "平穩商品"
+      },
+      {
+        "num": 3,
+        "code": "bargain_item = [1200, 400, 800]    # 三天曾跌到400，曾飆到1200！",
+        "html": "<span class=\"token-ident\">bargain_item</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">1200</span><span class=\"token-op\">,</span> <span class=\"token-number\">400</span><span class=\"token-op\">,</span> <span class=\"token-number\">800</span><span class=\"token-op\">]</span>    <span class=\"token-comment\"># 三天曾跌到400，曾飆到1200！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "價差高達 800",
+        "mean": "跳樓特賣商品"
+      },
+      {
+        "num": 4,
+        "code": "d = 300",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">300</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "設定標準",
+        "mean": "設定門檻 300"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"平穩商品價差: {max(stable_item) - min(stable_item)} (放棄)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;平穩商品價差: <span class=\"token-op\">{</span><span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">stable_item</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">stable_item</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> (放棄)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "0 < 300 不出手",
+        "mean": "印出平穩價差"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"特賣商品價差: {max(bargain_item) - min(bargain_item)} >= {d} (出手買入！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;特賣商品價差: <span class=\"token-op\">{</span><span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">bargain_item</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">bargain_item</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> &gt;= <span class=\"token-op\">{</span><span class=\"token-ident\">d</span><span class=\"token-op\">}</span> (出手買入！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "800 >= 300 進場抄底",
+        "mean": "印出特賣價差"
+      }
+    ],
+    "output": "平穩商品價差: 0 (放棄)\n特賣商品價差: 800 >= 300 (出手買入！)",
+    "diagram": {
+      "type": "compare",
+      "title": "市場選品策略比對",
+      "left": {
+        "title": "平穩定價商品",
+        "content": "每天售價差不多\n價差極小 (diff < d)\n不值得出手，放棄購買！"
+      },
+      "right": {
+        "title": "劇烈波動商品",
+        "content": "極端價差達到或超過 d\n出現顯著折價或促銷\n果斷出手買入！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "生活化理解",
+        "content": "價格波動劇烈代表市場出現套利空間或大特價，這正是量化選品的思維。"
+      },
+      {
+        "type": "hint",
+        "title": "門檻 d 的角色",
+        "content": "門檻 d 越小越寬鬆，d=0 時任何商品（甚至平穩商品）都會被買入！"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "Mathematical Concept: Statistical Range",
+    "titleEn": "Mathematical Concept: Statistical Range",
+    "titleZh": "統計學概念：全距 Range = Max - Min",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 統計學全距定義：Range = Max(x) - Min(x)",
+        "html": "<span class=\"token-comment\"># 統計學全距定義：Range = Max(x) - Min(x)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "明確統計定義",
+        "mean": "全距公式"
+      },
+      {
+        "num": 2,
+        "code": "prices = [15, 35, 20]",
+        "html": "<span class=\"token-ident\">prices</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">15</span><span class=\"token-op\">,</span> <span class=\"token-number\">35</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "三天價格",
+        "mean": "測試價格"
+      },
+      {
+        "num": 3,
+        "code": "highest = max(prices)",
+        "html": "<span class=\"token-ident\">highest</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "max() 得 35",
+        "mean": "求最大值"
+      },
+      {
+        "num": 4,
+        "code": "lowest = min(prices)",
+        "html": "<span class=\"token-ident\">lowest</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "min() 得 15",
+        "mean": "求最小值"
+      },
+      {
+        "num": 5,
+        "code": "range_val = highest - lowest",
+        "html": "<span class=\"token-ident\">range_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">highest</span> <span class=\"token-op\">-</span> <span class=\"token-ident\">lowest</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "35 - 15 = 20",
+        "mean": "兩者相減得全距"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"價格清單: {prices}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;價格清單: <span class=\"token-op\">{</span><span class=\"token-ident\">prices</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "確認資料",
+        "mean": "印出串列"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"最高價: {highest}, 最低價: {lowest}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;最高價: <span class=\"token-op\">{</span><span class=\"token-ident\">highest</span><span class=\"token-op\">}</span>, 最低價: <span class=\"token-op\">{</span><span class=\"token-ident\">lowest</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認極值",
+        "mean": "印出最高最低"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"全距 (Range): {range_val}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;全距 (Range): <span class=\"token-op\">{</span><span class=\"token-ident\">range_val</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認全距",
+        "mean": "印出全距"
+      }
+    ],
+    "output": "價格清單: [15, 35, 20]\n最高價: 35, 最低價: 15\n全距 (Range): 20",
+    "diagram": {
+      "type": "step",
+      "title": "全距計算兩大步驟",
+      "steps": [
+        {
+          "num": 1,
+          "action": "尋找極值",
+          "desc": "highest = max(p), lowest = min(p)"
+        },
+        {
+          "num": 2,
+          "action": "作差求全距",
+          "desc": "diff = highest - lowest"
+        },
+        {
+          "num": 3,
+          "action": "門檻判定",
+          "desc": "diff >= d 是否成立？"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "極速計算",
+        "content": "Python 內建 max() 與 min() 在 C 語言底層優化，僅需 2 次比較即可算出！"
+      },
+      {
+        "type": "hint",
+        "title": "全距永遠非負",
+        "content": "因為 max >= min，所以全距 diff >= 0 恆成立，絕不會算出負數價差。"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.3 整數除法平均值計算：sum(prices) // 3",
+    "title": "Cost Model: Integer Division Average",
+    "titleEn": "Cost Model: Integer Division Average",
+    "titleZh": "購入成本模型：三日平均價格與整數除法",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 購入成本定義：三日平均價格 (sum // 3)",
+        "html": "<span class=\"token-comment\"># 購入成本定義：三日平均價格 (sum // 3)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "數學模型",
+        "mean": "成本定義說明"
+      },
+      {
+        "num": 2,
+        "code": "# 題目官方保證：符合條件的商品，其三天價格總和必為 3 的倍數！",
+        "html": "<span class=\"token-comment\"># 題目官方保證：符合條件的商品，其三天價格總和必為 3 的倍數！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "官方題意保證必為整數",
+        "mean": "官方題目保證"
+      },
+      {
+        "num": 3,
+        "code": "prices = [10, 20, 30]  # 總和 60，是 3 的倍數",
+        "html": "<span class=\"token-ident\">prices</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 總和 60，是 3 的倍數</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例數據",
+        "mean": "測試價格"
+      },
+      {
+        "num": 4,
+        "code": "total_sum = sum(prices)",
+        "html": "<span class=\"token-ident\">total_sum</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "sum 得 60",
+        "mean": "加總"
+      },
+      {
+        "num": 5,
+        "code": "avg_cost = total_sum // 3  # 必須使用 // 整數除法！",
+        "html": "<span class=\"token-ident\">avg_cost</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">total_sum</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>  <span class=\"token-comment\"># 必須使用 // 整數除法！</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "60 // 3 得 20",
+        "mean": "整數除以 3"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"價格總和: {total_sum} (可被 3 整除)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;價格總和: <span class=\"token-op\">{</span><span class=\"token-ident\">total_sum</span><span class=\"token-op\">}</span> (可被 3 整除)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "展示總和",
+        "mean": "印出總和"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"購入成本 (整數): {avg_cost}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;購入成本 (整數): <span class=\"token-op\">{</span><span class=\"token-ident\">avg_cost</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示整數結果",
+        "mean": "印出平均成本"
+      }
+    ],
+    "output": "價格總和: 60 (可被 3 整除)\n購入成本 (整數): 20",
+    "diagram": {
+      "type": "compare",
+      "title": "// 整數除法 vs / 浮點除法",
+      "left": {
+        "title": "✅ // 整數除法（正確）",
+        "content": "60 // 3 -> 20 (整數 int)\n輸出印出 20\n100% 格式正確！"
+      },
+      "right": {
+        "title": "❌ / 浮點除法（地雷）",
+        "content": "60 / 3 -> 20.0 (浮點 float)\n輸出印出 20.0\n造成 Presentation WA！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "整數除法 //",
+        "content": "在 Python 3 中，/ 恆回傳 float，// 回傳整數商。APCS 題目要求整數，務必用 //！"
+      },
+      {
+        "type": "hint",
+        "title": "官方良心保證",
+        "content": "題目保證總和必為 3 的倍數，因此 // 3 絕不會發生四捨五入截斷誤差。"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.4 雙計數器模式：購買總件數與花費總金額",
+    "title": "Dual Accumulator Pattern: Count & Cost",
+    "titleEn": "Dual Accumulator Pattern: Count & Cost",
+    "titleZh": "雙統計量維護：件數與花費之同步累加機制",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 雙累加器模式：buy_count 與 total_cost",
+        "html": "<span class=\"token-comment\"># 雙累加器模式：buy_count 與 total_cost</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "競賽核心架構",
+        "mean": "模式說明"
+      },
+      {
+        "num": 2,
+        "code": "buy_count = 0",
+        "html": "<span class=\"token-ident\">buy_count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "初始化件數",
+        "mean": "件數計數器歸零"
+      },
+      {
+        "num": 3,
+        "code": "total_cost = 0",
+        "html": "<span class=\"token-ident\">total_cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "初始化總額",
+        "mean": "花費累加器歸零"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "items = [[24, 27, 21], [10, 12, 10]]",
+        "html": "<span class=\"token-ident\">items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "一買一不買",
+        "mean": "測試兩項商品"
+      },
+      {
+        "num": 6,
+        "code": "d = 3",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "d=3",
+        "mean": "門檻"
+      },
+      {
+        "num": 7,
+        "code": "for p in items:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "走訪",
+        "mean": "迴圈處理"
+      },
+      {
+        "num": 8,
+        "code": "    if max(p) - min(p) >= d:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "全距大於等於 d",
+        "mean": "價差判定"
+      },
+      {
+        "num": 9,
+        "code": "        buy_count += 1",
+        "html": "        <span class=\"token-ident\">buy_count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "累加數量",
+        "mean": "件數 +1"
+      },
+      {
+        "num": 10,
+        "code": "        total_cost += sum(p) // 3",
+        "html": "        <span class=\"token-ident\">total_cost</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "累加成本",
+        "mean": "花費 + 均價"
+      },
+      {
+        "num": 11,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 12,
+        "code": "print(f\"統計結果 -> 購買件數: {buy_count}, 總花費: {total_cost}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;統計結果 -&gt; 購買件數: <span class=\"token-op\">{</span><span class=\"token-ident\">buy_count</span><span class=\"token-op\">}</span>, 總花費: <span class=\"token-op\">{</span><span class=\"token-ident\">total_cost</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印出結果",
+        "mean": "輸出統計結果"
+      }
+    ],
+    "output": "統計結果 -> 購買件數: 1, 總花費: 24",
+    "diagram": {
+      "type": "flow",
+      "title": "雙累加器同步推進流程",
+      "flow": [
+        {
+          "step": 1,
+          "text": "buy_count = 0, total_cost = 0"
+        },
+        {
+          "step": 2,
+          "text": "每項商品試算：diff = max - min"
+        },
+        {
+          "step": 3,
+          "text": "if diff >= d:"
+        },
+        {
+          "step": 4,
+          "text": "buy_count += 1 (數量推進)"
+        },
+        {
+          "step": 5,
+          "text": "total_cost += sum(p)//3 (花費推進)"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "雙計數器協同",
+        "content": "兩個變數相輔相成，只有在觸發購買條件時才同時累加，邏輯嚴密清晰。"
+      },
+      {
+        "type": "hint",
+        "title": "初值全域宣告",
+        "content": "這兩個累加器必須放在所有商品的迴圈外層初始化，不可每輪都歸零！"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "Boundary Defense: Greater Than or Equal `>=`",
+    "titleEn": "Boundary Defense: Greater Than or Equal `>=`",
+    "titleZh": "邊界條件關鍵：大於等於 `>=` 的決定性防線",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 價差剛好等於門檻的邊界案例：prices=[10, 15, 20], d=10",
+        "html": "<span class=\"token-comment\"># 價差剛好等於門檻的邊界案例：prices=[10, 15, 20], d=10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "邊界測試",
+        "mean": "剛好等於案例說明"
+      },
+      {
+        "num": 2,
+        "code": "prices = [10, 15, 20]",
+        "html": "<span class=\"token-ident\">prices</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">15</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "極端價格",
+        "mean": "測試價格"
+      },
+      {
+        "num": 3,
+        "code": "d = 10",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "d=10",
+        "mean": "門檻"
+      },
+      {
+        "num": 4,
+        "code": "diff = max(prices) - min(prices)  # diff = 10，剛好等於 d！",
+        "html": "<span class=\"token-ident\">diff</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># diff = 10，剛好等於 d！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "20-10=10",
+        "mean": "計算差值"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# ❌ 誤寫為嚴格大於 >",
+        "html": "<span class=\"token-comment\"># ❌ 誤寫為嚴格大於 &gt;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分析失誤",
+        "mean": "錯誤嚴格大於說明"
+      },
+      {
+        "num": 7,
+        "code": "wrong_judge = (diff > d)",
+        "html": "<span class=\"token-ident\">wrong_judge</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">diff</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "10 > 10 為 False 造成漏買",
+        "mean": "誤用嚴格大於"
+      },
+      {
+        "num": 8,
+        "code": "# ✅ 正確大於等於 >=",
+        "html": "<span class=\"token-comment\"># ✅ 正確大於等於 &gt;=</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "正解分析",
+        "mean": "正確大於等於說明"
+      },
+      {
+        "num": 9,
+        "code": "correct_judge = (diff >= d)",
+        "html": "<span class=\"token-ident\">correct_judge</span> <span class=\"token-op\">=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">diff</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "10 >= 10 為 True 成功買入",
+        "mean": "正確大於等於"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "print(f\"價差 diff={diff}, 門檻 d={d}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;價差 diff=<span class=\"token-op\">{</span><span class=\"token-ident\">diff</span><span class=\"token-op\">}</span>, 門檻 d=<span class=\"token-op\">{</span><span class=\"token-ident\">d</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "展示對比",
+        "mean": "印出數據"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"❌ 誤寫 diff > d  判定: {wrong_judge} (錯誤放棄！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤寫 diff &gt; d  判定: <span class=\"token-op\">{</span><span class=\"token-ident\">wrong_judge</span><span class=\"token-op\">}</span> (錯誤放棄！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "錯誤 False",
+        "mean": "印出錯誤判定"
+      },
+      {
+        "num": 13,
+        "code": "print(f\"✅ 正確 diff >= d 判定: {correct_judge} (正確購買！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 正確 diff &gt;= d 判定: <span class=\"token-op\">{</span><span class=\"token-ident\">correct_judge</span><span class=\"token-op\">}</span> (正確購買！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "正確 True",
+        "mean": "印出正確判定"
+      }
+    ],
+    "output": "價差 diff=10, 門檻 d=10\n❌ 誤寫 diff > d  判定: False (錯誤放棄！)\n✅ 正確 diff >= d 判定: True (正確購買！)",
+    "diagram": {
+      "type": "compare",
+      "title": "diff >= d vs diff > d 邊界差距",
+      "left": {
+        "title": "❌ diff > d（嚴格大於）",
+        "content": "當 diff == d 時為 False\n題目明確要求「大於或等於」\n剛好達標的商品直接漏買，WA！"
+      },
+      "right": {
+        "title": "✅ diff >= d（大於等於）",
+        "content": "當 diff == d 時依然為 True\n完美對齊題目規格要求\n穩穩拿下滿分！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "審題關鍵字",
+        "content": "看清中文「大於或等於」！程式運算子必須寫 >=，多加一個等號保平安！"
+      },
+      {
+        "type": "standard",
+        "title": "測資必考",
+        "content": "官方測資中幾乎必放 diff == d 的邊界陷阱，專門抓粗心漏掉等號的考生。"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.2 單行三數讀取與極值計算",
+    "title": "Syntax Rule 1: Three-Variable Unpacking Pattern",
+    "titleEn": "Syntax Rule 1: Three-Variable Unpacking Pattern",
+    "titleZh": "語法鐵律一：單行三數讀取與解構賦值寫法",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 兩種單行三數讀取的優美寫法",
+        "html": "<span class=\"token-comment\"># 兩種單行三數讀取的優美寫法</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "語法對比",
+        "mean": "寫法比較說明"
+      },
+      {
+        "num": 2,
+        "code": "raw = \"10 20 30\"",
+        "html": "<span class=\"token-ident\">raw</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;10 20 30&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "輸入資料",
+        "mean": "原始字串"
+      },
+      {
+        "num": 3,
+        "code": "# 寫法 A：直接解構成串列（推薦！後續可直接用 max/min/sum）",
+        "html": "<span class=\"token-comment\"># 寫法 A：直接解構成串列（推薦！後續可直接用 max/min/sum）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "適合聚合函式",
+        "mean": "寫法 A 說明"
+      },
+      {
+        "num": 4,
+        "code": "prices = list(map(int, raw.split()))",
+        "html": "<span class=\"token-ident\">prices</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">raw</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得到 [10, 20, 30]",
+        "mean": "轉為整數串列"
+      },
+      {
+        "num": 5,
+        "code": "# 寫法 B：解構為 3 個獨立整數變數",
+        "html": "<span class=\"token-comment\"># 寫法 B：解構為 3 個獨立整數變數</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "適合獨立呼叫",
+        "mean": "寫法 B 說明"
+      },
+      {
+        "num": 6,
+        "code": "p1, p2, p3 = map(int, raw.split())",
+        "html": "<span class=\"token-ident\">p1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p3</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">raw</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得到 p1=10, p2=20, p3=30",
+        "mean": "解構為三變數"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"寫法 A 串列型態: {prices} (長度 {len(prices)})\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;寫法 A 串列型態: <span class=\"token-op\">{</span><span class=\"token-ident\">prices</span><span class=\"token-op\">}</span> (長度 <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span>)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示型態",
+        "mean": "印出串列"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"寫法 B 獨立變數: p1={p1}, p2={p2}, p3={p3}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;寫法 B 獨立變數: p1=<span class=\"token-op\">{</span><span class=\"token-ident\">p1</span><span class=\"token-op\">}</span>, p2=<span class=\"token-op\">{</span><span class=\"token-ident\">p2</span><span class=\"token-op\">}</span>, p3=<span class=\"token-op\">{</span><span class=\"token-ident\">p3</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示變數",
+        "mean": "印出三變數"
+      }
+    ],
+    "output": "寫法 A 串列型態: [10, 20, 30] (長度 3)\n寫法 B 獨立變數: p1=10, p2=20, p3=30",
+    "diagram": {
+      "type": "compare",
+      "title": "寫法 A (串列) vs 寫法 B (三變數)",
+      "left": {
+        "title": "寫法 A：list(map(...))",
+        "content": "直接支援 max(prices), min(prices)\n直接支援 sum(prices) // 3\n推薦考場使用，最精簡！"
+      },
+      "right": {
+        "title": "寫法 B：p1, p2, p3",
+        "content": "需寫 max(p1, p2, p3)\n需寫 (p1 + p2 + p3) // 3\n變數較多但同樣直觀。"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "推薦寫法 A",
+        "content": "使用 prices 串列封裝，可以直接利用 Python 強大的內建函式庫，寫法更乾淨！"
+      },
+      {
+        "type": "hint",
+        "title": "等價性",
+        "content": "兩種寫法執行效能均在微秒等級，可依個人手感習慣自由選擇。"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.2 單行三數讀取與極值計算",
+    "title": "Syntax Rule 2: Built-in max() & min() on List",
+    "titleEn": "Syntax Rule 2: Built-in max() & min() on List",
+    "titleZh": "語法鐵律二：串列內建 max() 與 min() 的調用規範",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 內建函式 max() 與 min() 支援兩種參數傳入方式：",
+        "html": "<span class=\"token-comment\"># 內建函式 max() 與 min() 支援兩種參數傳入方式：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "函式彈性",
+        "mean": "兩種方式說明"
+      },
+      {
+        "num": 2,
+        "code": "# 方式 1：傳入單一 iterable 容器 (如 list)",
+        "html": "<span class=\"token-comment\"># 方式 1：傳入單一 iterable 容器 (如 list)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "list 傳入",
+        "mean": "容器方式說明"
+      },
+      {
+        "num": 3,
+        "code": "p = [24, 27, 21]",
+        "html": "<span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "資料",
+        "mean": "串列資料"
+      },
+      {
+        "num": 4,
+        "code": "mx1 = max(p)",
+        "html": "<span class=\"token-ident\">mx1</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得 27",
+        "mean": "串列求 max"
+      },
+      {
+        "num": 5,
+        "code": "mn1 = min(p)",
+        "html": "<span class=\"token-ident\">mn1</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得 21",
+        "mean": "串列求 min"
+      },
+      {
+        "num": 6,
+        "code": "# 方式 2：傳入多個離散參數",
+        "html": "<span class=\"token-comment\"># 方式 2：傳入多個離散參數</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逗號分隔",
+        "mean": "離散方式說明"
+      },
+      {
+        "num": 7,
+        "code": "mx2 = max(24, 27, 21)",
+        "html": "<span class=\"token-ident\">mx2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得 27",
+        "mean": "離散求 max"
+      },
+      {
+        "num": 8,
+        "code": "mn2 = min(24, 27, 21)",
+        "html": "<span class=\"token-ident\">mn2</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得 21",
+        "mean": "離散求 min"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"容器方式: max={mx1}, min={mn1}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;容器方式: max=<span class=\"token-op\">{</span><span class=\"token-ident\">mx1</span><span class=\"token-op\">}</span>, min=<span class=\"token-op\">{</span><span class=\"token-ident\">mn1</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證一致",
+        "mean": "印出容器結果"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"離散參數: max={mx2}, min={mn2}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;離散參數: max=<span class=\"token-op\">{</span><span class=\"token-ident\">mx2</span><span class=\"token-op\">}</span>, min=<span class=\"token-op\">{</span><span class=\"token-ident\">mn2</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證一致",
+        "mean": "印出離散結果"
+      }
+    ],
+    "output": "容器方式: max=27, min=21\n離散參數: max=27, min=21",
+    "diagram": {
+      "type": "flow",
+      "title": "max/min 內部查找機制",
+      "flow": [
+        {
+          "step": 1,
+          "text": "傳入 [24, 27, 21]"
+        },
+        {
+          "step": 2,
+          "text": "初始化目前極值 = 第 1 個元素 (24)"
+        },
+        {
+          "step": 3,
+          "text": "依序比對後續元素 (27 > 24 -> 27)"
+        },
+        {
+          "step": 4,
+          "text": "回傳最終極值！時間複雜度 O(L)"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "內建函式優勢",
+        "content": "不要手寫三個 if 比較最大值，直接調用 max() 和 min() 既防筆誤又乾淨！"
+      },
+      {
+        "type": "hint",
+        "title": "非空保證",
+        "content": "題目每行固定 3 個價格，串列永遠不為空，絕不會觸發 ValueError。"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.3 整數除法平均值計算：sum(prices) // 3",
+    "title": "Syntax Rule 3: Zero-Decimal Integer Output",
+    "titleEn": "Syntax Rule 3: Zero-Decimal Integer Output",
+    "titleZh": "語法鐵律三：零小數點輸出防線（// 3 的型別保護）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 比較 / 與 // 在 print 中的型態輸出",
+        "html": "<span class=\"token-comment\"># 比較 / 與 // 在 print 中的型態輸出</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "輸出格式陷阱",
+        "mean": "型態對比說明"
+      },
+      {
+        "num": 2,
+        "code": "total = 72",
+        "html": "<span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">72</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "72",
+        "mean": "總和數值"
+      },
+      {
+        "num": 3,
+        "code": "float_res = total / 3    # 24.0 (float)",
+        "html": "<span class=\"token-ident\">float_res</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">total</span> <span class=\"token-op\">/</span> <span class=\"token-number\">3</span>    <span class=\"token-comment\"># 24.0 (float)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "產生 float 24.0",
+        "mean": "浮點除法"
+      },
+      {
+        "num": 4,
+        "code": "int_res = total // 3     # 24 (int)",
+        "html": "<span class=\"token-ident\">int_res</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">total</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>     <span class=\"token-comment\"># 24 (int)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "產生 int 24",
+        "mean": "整數除法"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"使用 /  輸出: '{float_res}' (帶小數點，WA！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;使用 /  輸出: &#x27;<span class=\"token-op\">{</span><span class=\"token-ident\">float_res</span><span class=\"token-op\">}</span>&#x27; (帶小數點，WA！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "標記 WA 風險",
+        "mean": "印出浮點結果"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"使用 // 輸出: '{int_res}' (純整數，AC！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;使用 // 輸出: &#x27;<span class=\"token-op\">{</span><span class=\"token-ident\">int_res</span><span class=\"token-op\">}</span>&#x27; (純整數，AC！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "標記 AC 標準",
+        "mean": "印出整數結果"
+      }
+    ],
+    "output": "使用 /  輸出: '24.0' (帶小數點，WA！)\n使用 // 輸出: '24' (純整數，AC！)",
+    "diagram": {
+      "type": "compare",
+      "title": "輸出格式比對",
+      "left": {
+        "title": "❌ 浮點數輸出",
+        "content": "print(1, 24.0)\n終端顯示: 1 24.0\n評判系統: WA (格式不符)"
+      },
+      "right": {
+        "title": "✅ 純整數輸出",
+        "content": "print(1, 24)\n終端顯示: 1 24\n評判系統: AC (完全吻合)"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "Presentation WA 殺手",
+        "content": "APCS 評判系統採用字串精確比對，24.0 與 24 被視為不同輸出，直接被判 WA！"
+      },
+      {
+        "type": "standard",
+        "title": "鐵律保證",
+        "content": "只要題目要求整數輸出，所有除法運算一律堅定使用雙斜線 //！"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.5 逐筆處理與多行輸入迴圈完整 AC 實作",
+    "title": "Syntax Rule 4: List Comprehension Filter & Aggregate",
+    "titleEn": "Syntax Rule 4: List Comprehension Filter & Aggregate",
+    "titleZh": "語法鐵律四：列表推導式過濾與聚合函數一行流",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 高級技巧：利用列表推導式一次性完成過濾",
+        "html": "<span class=\"token-comment\"># 高級技巧：利用列表推導式一次性完成過濾</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "高階優雅語法",
+        "mean": "推導式技巧說明"
+      },
+      {
+        "num": 2,
+        "code": "all_items = [[24, 27, 21], [10, 20, 30], [10, 12, 10]]",
+        "html": "<span class=\"token-ident\">all_items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "三組價格",
+        "mean": "所有商品資料"
+      },
+      {
+        "num": 3,
+        "code": "d = 10",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "d=10",
+        "mean": "門檻"
+      },
+      {
+        "num": 4,
+        "code": "# 一行篩選出符合門檻的商品",
+        "html": "<span class=\"token-comment\"># 一行篩選出符合門檻的商品</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "bought = [p for p in all_items if max(p) - min(p) >= d]",
+        "html": "<span class=\"token-ident\">bought</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">p</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">all_items</span> <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "條件過濾",
+        "mean": "列表推導式篩選"
+      },
+      {
+        "num": 6,
+        "code": "# 聚合運算：件數 len(bought)，花費 sum(...)",
+        "html": "<span class=\"token-comment\"># 聚合運算：件數 len(bought)，花費 sum(...)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "count = len(bought)",
+        "html": "<span class=\"token-ident\">count</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">bought</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "取長度",
+        "mean": "求購買件數"
+      },
+      {
+        "num": 8,
+        "code": "cost = sum(sum(p) // 3 for p in bought)",
+        "html": "<span class=\"token-ident\">cost</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">bought</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "生成器加總",
+        "mean": "求總花費金額"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"篩選出合格商品清單: {bought}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;篩選出合格商品清單: <span class=\"token-op\">{</span><span class=\"token-ident\">bought</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示篩選結果",
+        "mean": "印出合格清單"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"最終輸出: {count} {cost}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;最終輸出: <span class=\"token-op\">{</span><span class=\"token-ident\">count</span><span class=\"token-op\">}</span> <span class=\"token-op\">{</span><span class=\"token-ident\">cost</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "輸出 1 20",
+        "mean": "印出最終輸出"
+      }
+    ],
+    "output": "篩選出合格商品清單: [[10, 20, 30]]\n最終輸出: 1 20",
+    "diagram": {
+      "type": "flow",
+      "title": "推導式過濾聚合流向",
+      "flow": [
+        {
+          "step": 1,
+          "text": "讀入所有商品資料集 items"
+        },
+        {
+          "step": 2,
+          "text": "[p for p in items if max(p)-min(p) >= d]"
+        },
+        {
+          "step": 3,
+          "text": "len(bought) 即為購買件數"
+        },
+        {
+          "step": 4,
+          "text": "sum(sum(p)//3 ...) 即為總花費！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "進階高手必學",
+        "content": "版本二的精華所在，省去迴圈與累加變數，展現現代 Python 函數式編程魅力！"
+      },
+      {
+        "type": "hint",
+        "title": "空清單保護",
+        "content": "若 bought 為空清單 []，len 為 0，sum 為 0，天然輸出 0 0，邊界全自動相容！"
+      }
+    ]
+  },
+  {
+    "page": 13,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "Iron Law Mnemonic: Purchasing Power Chant",
+    "titleEn": "Iron Law Mnemonic: Purchasing Power Chant",
+    "titleZh": "語法鐵律口訣：購買力通關七字訣",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 鐵律口訣：全距過門整除三",
+        "html": "<span class=\"token-comment\"># 鐵律口訣：全距過門整除三</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "核心心法",
+        "mean": "口訣提示"
+      },
+      {
+        "num": 2,
+        "code": "def judge_buy(p, d):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">judge_buy</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝邏輯",
+        "mean": "判定函式"
+      },
+      {
+        "num": 3,
+        "code": "    # 全距過門：max - min >= d",
+        "html": "    <span class=\"token-comment\"># 全距過門：max - min &gt;= d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "價差過門檻",
+        "mean": "口訣上半部"
+      },
+      {
+        "num": 4,
+        "code": "    # 整除三：sum // 3",
+        "html": "    <span class=\"token-comment\"># 整除三：sum // 3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "整數除以三",
+        "mean": "口訣下半部"
+      },
+      {
+        "num": 5,
+        "code": "    if max(p) - min(p) >= d:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "落實條件",
+        "mean": "判定大於等於 d"
+      },
+      {
+        "num": 6,
+        "code": "        return True, sum(p) // 3",
+        "html": "        <span class=\"token-keyword\">return</span> <span class=\"token-ident\">True</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "計算花費",
+        "mean": "回傳成立與均價"
+      },
+      {
+        "num": 7,
+        "code": "    return False, 0",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">False</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "安全回傳",
+        "mean": "回傳未買與 0"
+      },
+      {
+        "num": 8,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "ok, cost = judge_buy([24, 27, 21], 3)",
+        "html": "<span class=\"token-ident\">ok</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cost</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">judge_buy</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "呼叫函式",
+        "mean": "測試範例"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"口訣測試 [24, 27, 21]: 購買={ok}, 成本={cost}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;口訣測試 [24, 27, 21]: 購買=<span class=\"token-op\">{</span><span class=\"token-ident\">ok</span><span class=\"token-op\">}</span>, 成本=<span class=\"token-op\">{</span><span class=\"token-ident\">cost</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 True, 24",
+        "mean": "印出結果"
+      }
+    ],
+    "output": "口訣測試 [24, 27, 21]: 購買=True, 成本=24",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "購買力鐵律口訣",
+      "content": "全距過門整除三",
+      "lines": [
+        "全距：max(prices) - min(prices) 求出三日價格差",
+        "過門：大於等於門檻 (>= d) 觸發購買行動",
+        "整除三：花費計算使用 // 3 保持純整數無小數點"
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣速記",
+        "content": "「全距過門整除三」7 個字牢牢鎖死本題的判定式與計算式！"
+      },
+      {
+        "type": "hint",
+        "title": "百戰不殆",
+        "content": "全距、大於等於、整數除法，三大關鍵細節一次全部掌握。"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.3 整數除法平均值計算：sum(prices) // 3",
+    "title": "WA Pitfall 1: Float Division Point Zero Output",
+    "titleEn": "WA Pitfall 1: Float Division Point Zero Output",
+    "titleZh": "考場致命 WA 地雷一：使用單斜線浮點除法導致小數點 WA",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 考場失分大坑：手滑使用 / 浮點除法",
+        "html": "<span class=\"token-comment\"># ❌ 考場失分大坑：手滑使用 / 浮點除法</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "警告型別陷阱",
+        "mean": "失分陷阱說明"
+      },
+      {
+        "num": 2,
+        "code": "p = [24, 27, 21]",
+        "html": "<span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試數據",
+        "mean": "三天價格"
+      },
+      {
+        "num": 3,
+        "code": "wrong_cost = sum(p) / 3   # 24.0",
+        "html": "<span class=\"token-ident\">wrong_cost</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">/</span> <span class=\"token-number\">3</span>   <span class=\"token-comment\"># 24.0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "產生 float 24.0",
+        "mean": "錯誤單斜線除法"
+      },
+      {
+        "num": 4,
+        "code": "correct_cost = sum(p) // 3 # 24",
+        "html": "<span class=\"token-ident\">correct_cost</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span> <span class=\"token-comment\"># 24</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "產生 int 24",
+        "mean": "正確雙斜線除法"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "print(\"❌ 錯誤除法輸出:\", 1, wrong_cost)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;❌ 錯誤除法輸出:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">wrong_cost</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "顯示 1 24.0",
+        "mean": "印出錯誤輸出"
+      },
+      {
+        "num": 7,
+        "code": "print(\"✅ 正確除法輸出:\", 1, correct_cost)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;✅ 正確除法輸出:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">correct_cost</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "顯示 1 24",
+        "mean": "印出正確輸出"
+      },
+      {
+        "num": 8,
+        "code": "print(\"評測系統判定: '1 24.0' != '1 24' -> 0分 WA！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;評測系統判定: &#x27;1 24.0&#x27; != &#x27;1 24&#x27; -&gt; 0分 WA！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "強調系統比對失敗",
+        "mean": "印出評判結果"
+      }
+    ],
+    "output": "❌ 錯誤除法輸出: 1 24.0\n✅ 正確除法輸出: 1 24\n評測系統判定: '1 24.0' != '1 24' -> 0分 WA！",
+    "diagram": {
+      "type": "compare",
+      "title": "除法運算子選擇地雷",
+      "left": {
+        "title": "❌ / 運算子（致命地雷）",
+        "content": "結果型別：float\n數值印出：24.0\n裁判系統比對嚴格失敗！"
+      },
+      "right": {
+        "title": "✅ // 運算子（唯一正解）",
+        "content": "結果型別：int\n數值印出：24\n格式完全吻合，滿分綠燈！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "超高頻錯誤",
+        "content": "很多初學者在 Python 中習慣順手敲 /，完全沒注意到印出了小數點！"
+      },
+      {
+        "type": "standard",
+        "title": "防範法則",
+        "content": "在競技程式中，只要輸出整數，除法首選 //，或者加上 int(...) 強制轉型。"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "WA Pitfall 2: Strictly Greater Missing Equality",
+    "titleEn": "WA Pitfall 2: Strictly Greater Missing Equality",
+    "titleZh": "考場致命 WA 地雷二：誤寫 `> d` 遺漏剛好達標的商品",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 兩項商品，門檻 d=10：",
+        "html": "<span class=\"token-comment\"># 兩項商品，門檻 d=10：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "模擬官方測試點",
+        "mean": "情境說明"
+      },
+      {
+        "num": 2,
+        "code": "# 商品 1 價差 10 (剛好達標)；商品 2 價差 20 (超額達標)",
+        "html": "<span class=\"token-comment\"># 商品 1 價差 10 (剛好達標)；商品 2 價差 20 (超額達標)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "商品 1 差 10，商品 2 差 20",
+        "mean": "剛好達標情境"
+      },
+      {
+        "num": 3,
+        "code": "items = [[10, 15, 20], [10, 20, 30]]",
+        "html": "<span class=\"token-ident\">items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">15</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "d=10",
+        "mean": "門檻"
+      },
+      {
+        "num": 4,
+        "code": "d = 10",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分析遺漏",
+        "mean": "錯誤寫法註解"
+      },
+      {
+        "num": 6,
+        "code": "# ❌ 誤寫為嚴格大於 > d",
+        "html": "<span class=\"token-comment\"># ❌ 誤寫為嚴格大於 &gt; d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "計算漏買",
+        "mean": "統計錯誤件數"
+      },
+      {
+        "num": 7,
+        "code": "cnt_wrong = sum(1 for p in items if max(p) - min(p) > d)",
+        "html": "<span class=\"token-ident\">cnt_wrong</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span> <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "只算到件數 1",
+        "mean": "錯誤式子"
+      },
+      {
+        "num": 8,
+        "code": "# ✅ 正確大於等於 >= d",
+        "html": "<span class=\"token-comment\"># ✅ 正確大於等於 &gt;= d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分析正解",
+        "mean": "正確寫法註解"
+      },
+      {
+        "num": 9,
+        "code": "cnt_correct = sum(1 for p in items if max(p) - min(p) >= d)",
+        "html": "<span class=\"token-ident\">cnt_correct</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span> <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "完整算到件數 2",
+        "mean": "正確式子"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "print(f\"❌ 誤寫 > d  統計件數: {cnt_wrong} (漏掉商品 1！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤寫 &gt; d  統計件數: <span class=\"token-op\">{</span><span class=\"token-ident\">cnt_wrong</span><span class=\"token-op\">}</span> (漏掉商品 1！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "顯示 1 (漏算)",
+        "mean": "印出錯誤件數"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"✅ 正確 >= d 統計件數: {cnt_correct} (完整包含 2 件！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 正確 &gt;= d 統計件數: <span class=\"token-op\">{</span><span class=\"token-ident\">cnt_correct</span><span class=\"token-op\">}</span> (完整包含 2 件！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "顯示 2 (正確)",
+        "mean": "印出正確件數"
+      }
+    ],
+    "output": "❌ 誤寫 > d  統計件數: 1 (漏掉商品 1！)\n✅ 正確 >= d 統計件數: 2 (完整包含 2 件！)",
+    "diagram": {
+      "type": "compare",
+      "title": "邊界遺漏造成的骨牌效應",
+      "left": {
+        "title": "寫成 > d 的結果",
+        "content": "商品 1 (diff=10) 被判為不買！\n購買總件數少 1\n總花費少 15\n兩項數據同時報錯，滿盤皆輸！"
+      },
+      "right": {
+        "title": "寫成 >= d 的結果",
+        "content": "商品 1 順利買入！\n購買總件數精準\n總花費精準\n100% 滿分 AC！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "牽一髮動全身",
+        "content": "漏買一件商品，件數與總花費會同時錯誤，直接失去該測試點分數！"
+      },
+      {
+        "type": "standard",
+        "title": "大於等於原則",
+        "content": "中文「大於或等於」➔ 程式碼 `>=`，再次強調，切莫遺忘等號！"
+      }
+    ]
+  },
+  {
+    "page": 16,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.6 一件都沒買（件數為 0、花費為 0）之邊界檢驗",
+    "title": "WA Pitfall 3: Zero Purchase Output Requirement",
+    "titleEn": "WA Pitfall 3: Zero Purchase Output Requirement",
+    "titleZh": "考場致命 WA 地雷三：一件都沒買時忘記輸出 `0 0`",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 3：全未購買邊界（門檻 d=20 過高）",
+        "html": "<span class=\"token-comment\"># 範例 3：全未購買邊界（門檻 d=20 過高）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "全不買測試點",
+        "mean": "範例 3 情境"
+      },
+      {
+        "num": 2,
+        "code": "items = [[10, 15, 12], [20, 25, 22]]",
+        "html": "<span class=\"token-ident\">items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">15</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">25</span><span class=\"token-op\">,</span> <span class=\"token-number\">22</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "差額皆為 5",
+        "mean": "兩項商品"
+      },
+      {
+        "num": 3,
+        "code": "d = 20",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">20</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "門檻高達 20",
+        "mean": "門檻 20"
+      },
+      {
+        "num": 4,
+        "code": "cnt = 0",
+        "html": "<span class=\"token-ident\">cnt</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "初始化",
+        "mean": "件數設 0"
+      },
+      {
+        "num": 5,
+        "code": "cost = 0",
+        "html": "<span class=\"token-ident\">cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "初始化",
+        "mean": "花費設 0"
+      },
+      {
+        "num": 6,
+        "code": "for p in items:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "檢查",
+        "mean": "走訪"
+      },
+      {
+        "num": 7,
+        "code": "    if max(p) - min(p) >= d:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "5 < 20 不成立",
+        "mean": "判定"
+      },
+      {
+        "num": 8,
+        "code": "        cnt += 1",
+        "html": "        <span class=\"token-ident\">cnt</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "不執行",
+        "mean": "累加"
+      },
+      {
+        "num": 9,
+        "code": "        cost += sum(p) // 3",
+        "html": "        <span class=\"token-ident\">cost</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "不執行",
+        "mean": "累加"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "# 題目規範：若無購買任何商品，請輸出 0 0",
+        "html": "<span class=\"token-comment\"># 題目規範：若無購買任何商品，請輸出 0 0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "規範要求 0 0",
+        "mean": "題目規範提示"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"一件都沒買時輸出結果: '{cnt} {cost}'\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;一件都沒買時輸出結果: &#x27;<span class=\"token-op\">{</span><span class=\"token-ident\">cnt</span><span class=\"token-op\">}</span> <span class=\"token-op\">{</span><span class=\"token-ident\">cost</span><span class=\"token-op\">}</span>&#x27;&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "輸出 0 0",
+        "mean": "印出結果"
+      },
+      {
+        "num": 13,
+        "code": "# 正確做法：cnt 與 cost 初值宣告為 0，自然輸出 0 0！",
+        "html": "<span class=\"token-comment\"># 正確做法：cnt 與 cost 初值宣告為 0，自然輸出 0 0！</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初值設 0 自然相容",
+        "mean": "正確觀念"
+      }
+    ],
+    "output": "一件都沒買時輸出結果: '0 0'",
+    "diagram": {
+      "type": "step",
+      "title": "全未購買自然相容機制",
+      "steps": [
+        {
+          "num": 1,
+          "action": "初始狀態",
+          "desc": "cnt = 0, cost = 0"
+        },
+        {
+          "num": 2,
+          "action": "無一符合",
+          "desc": "所有商品皆未觸發 if 區塊"
+        },
+        {
+          "num": 3,
+          "action": "正常輸出",
+          "desc": "print(cnt, cost) 自然印出 0 0，無需額外 if 特判！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "優雅的零值初值",
+        "content": "只要 cnt = 0, cost = 0，即使一件都沒買，也天然保證輸出 0 0！"
+      },
+      {
+        "type": "hint",
+        "title": "無需寫額外 if",
+        "content": "不用寫 if cnt == 0: print('0 0')，直接 print(cnt, cost) 最簡潔乾淨。"
+      }
+    ]
+  },
+  {
+    "page": 17,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.4 雙計數器模式：購買總件數與花費總金額",
+    "title": "WA Pitfall 4: Accumulator Accidental In-Loop Reset",
+    "titleEn": "WA Pitfall 4: Accumulator Accidental In-Loop Reset",
+    "titleZh": "考場致命 WA 地雷四：累加器放在迴圈內遭不斷歸零",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 致命作用域錯誤：把累加器宣告放在商品迴圈內部",
+        "html": "<span class=\"token-comment\"># ❌ 致命作用域錯誤：把累加器宣告放在商品迴圈內部</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初學者常犯生命週期錯誤",
+        "mean": "作用域陷阱說明"
+      },
+      {
+        "num": 2,
+        "code": "items = [[10, 20, 30], [20, 35, 40]]  # 兩件都符合購買條件",
+        "html": "<span class=\"token-ident\">items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">35</span><span class=\"token-op\">,</span> <span class=\"token-number\">40</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 兩件都符合購買條件</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "合買兩件",
+        "mean": "兩項合格商品"
+      },
+      {
+        "num": 3,
+        "code": "d = 10",
+        "html": "<span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-number\">10</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "d=10",
+        "mean": "門檻"
+      },
+      {
+        "num": 4,
+        "code": "for p in items:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "走訪",
+        "mean": "迴圈開始"
+      },
+      {
+        "num": 5,
+        "code": "    cnt = 0   # ❌ 每輪迴圈都重新歸零！",
+        "html": "    <span class=\"token-ident\">cnt</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>   <span class=\"token-comment\"># ❌ 每輪迴圈都重新歸零！</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "覆蓋 cnt",
+        "mean": "錯誤內層歸零"
+      },
+      {
+        "num": 6,
+        "code": "    cost = 0  # ❌ 舊數據全部被洗掉！",
+        "html": "    <span class=\"token-ident\">cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># ❌ 舊數據全部被洗掉！</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "覆蓋 cost",
+        "mean": "錯誤內層歸零"
+      },
+      {
+        "num": 7,
+        "code": "    if max(p) - min(p) >= d:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "符合",
+        "mean": "判定"
+      },
+      {
+        "num": 8,
+        "code": "        cnt += 1",
+        "html": "        <span class=\"token-ident\">cnt</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "cnt 變成 1",
+        "mean": "累加"
+      },
+      {
+        "num": 9,
+        "code": "        cost += sum(p) // 3",
+        "html": "        <span class=\"token-ident\">cost</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "cost 變成最後一件花費",
+        "mean": "累加"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "print(f\"❌ 錯誤作用域輸出: {cnt} {cost} (本應是 2 51，前人全被抹殺！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 錯誤作用域輸出: <span class=\"token-op\">{</span><span class=\"token-ident\">cnt</span><span class=\"token-op\">}</span> <span class=\"token-op\">{</span><span class=\"token-ident\">cost</span><span class=\"token-op\">}</span> (本應是 2 51，前人全被抹殺！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "輸出只剩最後一件 (1 31)",
+        "mean": "印出錯誤結果"
+      }
+    ],
+    "output": "❌ 錯誤作用域輸出: 1 31 (本應是 2 51，前人全被抹殺！)",
+    "diagram": {
+      "type": "compare",
+      "title": "累加器位置對比",
+      "left": {
+        "title": "❌ 宣告在迴圈內",
+        "content": "for p in items:\n    cnt = 0\n每輪覆蓋前一輪統計\n最後只輸出最後一件商品的結果！"
+      },
+      "right": {
+        "title": "✅ 宣告在迴圈外",
+        "content": "cnt = 0\nfor p in items:\n    cnt += 1\n完整累加所有商品的數據！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "變數作用域清醒度",
+        "content": "全域統計量（總件數、總花費）放迴圈外；單次區域變數（diff、avg）放迴圈內！"
+      },
+      {
+        "type": "standard",
+        "title": "考前核對",
+        "content": "動手敲碼前先想清楚變數生命週期，歸零只能在最開頭執行一次。"
+      }
+    ]
+  },
+  {
+    "page": 18,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.1 題意解析：商品價格波動全距與購買決策過濾",
+    "title": "Pre-Submission Defense Checklist",
+    "titleEn": "Pre-Submission Defense Checklist",
+    "titleZh": "考場防禦：交卷前四道自我防護檢驗清單",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 考前終極檢驗清單快速測試",
+        "html": "<span class=\"token-comment\"># 考前終極檢驗清單快速測試</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防禦驗證",
+        "mean": "自檢說明"
+      },
+      {
+        "num": 2,
+        "code": "def audit_f605(items, d):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">audit_f605</span><span class=\"token-op\">(</span><span class=\"token-ident\">items</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝邏輯",
+        "mean": "審查函式"
+      },
+      {
+        "num": 3,
+        "code": "    cnt = cost = 0  # 1. 迴圈外初始化",
+        "html": "    <span class=\"token-ident\">cnt</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 1. 迴圈外初始化</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "歸零",
+        "mean": "累加器外層宣告"
+      },
+      {
+        "num": 4,
+        "code": "    for p in items:",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "循環",
+        "mean": "走訪每件商品"
+      },
+      {
+        "num": 5,
+        "code": "        if max(p) - min(p) >= d:  # 2. 大於等於 >=",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>  <span class=\"token-comment\"># 2. 大於等於 &gt;=</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "包含等號",
+        "mean": "大於等於判定"
+      },
+      {
+        "num": 6,
+        "code": "            cnt += 1",
+        "html": "            <span class=\"token-ident\">cnt</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "計數",
+        "mean": "件數累加"
+      },
+      {
+        "num": 7,
+        "code": "            cost += sum(p) // 3   # 3. 整數除法 // 3",
+        "html": "            <span class=\"token-ident\">cost</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>   <span class=\"token-comment\"># 3. 整數除法 // 3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "純整數",
+        "mean": "整除三累加"
+      },
+      {
+        "num": 8,
+        "code": "    return cnt, cost",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">cnt</span><span class=\"token-op\">,</span> <span class=\"token-ident\">cost</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "回傳元組",
+        "mean": "回傳結果"
+      },
+      {
+        "num": 9,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 10,
+        "code": "# 自檢 1：官方範例 1 -> 預期 1 24",
+        "html": "<span class=\"token-comment\"># 自檢 1：官方範例 1 -&gt; 預期 1 24</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 (1, 24)",
+        "mean": "執行自檢 1"
+      },
+      {
+        "num": 11,
+        "code": "print(\"自檢 1 (範例 1):\", audit_f605([[24, 27, 21]], 3))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 1 (範例 1):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_f605</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "邊界測試",
+        "mean": "測資 2 說明"
+      },
+      {
+        "num": 12,
+        "code": "# 自檢 2：全未購買極端測資 -> 預期 0 0",
+        "html": "<span class=\"token-comment\"># 自檢 2：全未購買極端測資 -&gt; 預期 0 0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 (0, 0)",
+        "mean": "執行自檢 2"
+      },
+      {
+        "num": 13,
+        "code": "print(\"自檢 2 (全未買):\", audit_f605([[10, 12, 11]], 10))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 2 (全未買):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_f605</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span><span class=\"token-op\">,</span> <span class=\"token-number\">11</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "自檢 1 (範例 1): (1, 24)\n自檢 2 (全未買): (0, 0)",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "考場交卷前四道防禦檢驗清單",
+      "content": "整除累加大於等",
+      "lines": [
+        "一、平均成本是否使用整數除法 sum(p) // 3 杜絕小數點？",
+        "二、門檻判定是否嚴格使用大於等於 (max - min >= d)？",
+        "三、雙累加器 cnt 與 cost 是否在迴圈外層初始化？",
+        "四、全未購買測資是否能正確輸出 0 0？"
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣速記",
+        "content": "「整除累加大於等」7 字口訣，考前逐條自我核對，穩保 100 分滿分！"
+      },
+      {
+        "type": "hint",
+        "title": "雙測資驗證",
+        "content": "交卷前務必同時測試範例 1 (正常購買) 與範例 3 (件數為 0)！"
+      }
+    ]
+  },
+  {
+    "page": 19,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.5 逐筆處理與多行輸入迴圈完整 AC 實作",
+    "title": "Solution Architecture & Dual-Platform Overview",
+    "titleEn": "Solution Architecture & Dual-Platform Overview",
+    "titleZh": "雙平台解答庫導讀：APCS 考場版 vs ZeroJudge 版",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 解答庫三大版本特性對照表",
+        "html": "<span class=\"token-comment\"># 解答庫三大版本特性對照表</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "架構導覽",
+        "mean": "版本清單說明"
+      },
+      {
+        "num": 2,
+        "code": "versions = [",
+        "html": "<span class=\"token-ident\">versions</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "彙整三種解法",
+        "mean": "版本清單陣列"
+      },
+      {
+        "num": 3,
+        "code": "    (\"版本一：APCS 淺顯易懂一般版\", \"分步讀取 n,d、標準 for 迴圈逐筆累加、變數語意明確，新手首選\"),",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本一：APCS 淺顯易懂一般版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;分步讀取 n,d、標準 for 迴圈逐筆累加、變數語意明確，新手首選&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "新手友善",
+        "mean": "版本一特色"
+      },
+      {
+        "num": 4,
+        "code": "    (\"版本二：APCS 極簡高效精煉版\", \"列表推導式過濾 + sum 聚合函數，僅僅 5 行秒殺真題\"),",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本二：APCS 極簡高效精煉版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;列表推導式過濾 + sum 聚合函數，僅僅 5 行秒殺真題&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "競賽速寫",
+        "mean": "版本二特色"
+      },
+      {
+        "num": 5,
+        "code": "    (\"版本三：ZeroJudge 萬用 AC 版\", \"sys.stdin 一次讀取 token，支援連續多組測資 EOF 串流\")",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本三：ZeroJudge 萬用 AC 版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;sys.stdin 一次讀取 token，支援連續多組測資 EOF 串流&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "線上 OJ 支援",
+        "mean": "版本三特色"
+      },
+      {
+        "num": 6,
+        "code": "]",
+        "html": "<span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "for name, desc in versions:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span><span class=\"token-op\">,</span> <span class=\"token-ident\">desc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">versions</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "列印資訊",
+        "mean": "走訪各版本"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"[{name}] -> {desc}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;[<span class=\"token-op\">{</span><span class=\"token-ident\">name</span><span class=\"token-op\">}</span>] -&gt; <span class=\"token-op\">{</span><span class=\"token-ident\">desc</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示版本特性",
+        "mean": "輸出版本介紹"
+      }
+    ],
+    "output": "[版本一：APCS 淺顯易懂一般版] -> 分步讀取 n,d、標準 for 迴圈逐筆累加、變數語意明確，新手首選\n[版本二：APCS 極簡高效精煉版] -> 列表推導式過濾 + sum 聚合函數，僅僅 5 行秒殺真題\n[版本三：ZeroJudge 萬用 AC 版] -> sys.stdin 一次讀取 token，支援連續多組測資 EOF 串流",
+    "diagram": {
+      "type": "compare",
+      "title": "APCS 官方考場 vs ZeroJudge 評測環境差異",
+      "left": {
+        "title": "APCS 官方考場環境",
+        "content": "單次執行僅評測單一完整輸入檔\n讀完即結束，print(cnt, cost) 即滿分\n推薦：版本一（新手）或 版本二（高手）"
+      },
+      "right": {
+        "title": "ZeroJudge 線上解題系統",
+        "content": "伺服器可能連續灌入多組 n 與商品資料\n需以 EOF 迴圈或一次性 token 解析\n推薦：版本三（支援連續多筆測資）"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考場首選",
+        "content": "正式考試直接寫版本一或二；平時刷 ZeroJudge f605 則提交版本三！"
+      },
+      {
+        "type": "hint",
+        "title": "核心共通",
+        "content": "三個版本本質皆為 O(n) 單次在線掃描，邏輯完全一致，保證滿分 AC。"
+      }
+    ]
+  },
+  {
+    "page": 20,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.5 逐筆處理與多行輸入迴圈完整 AC 實作",
+    "title": "Version 1: APCS Standard Easy Solution",
+    "titleEn": "Version 1: APCS Standard Easy Solution",
+    "titleZh": "版本一：APCS 官方考場版（淺顯易懂一般版）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 步驟 1：讀取第一行商品總數 n 與價格波動門檻 d",
+        "html": "<span class=\"token-comment\"># 步驟 1：讀取第一行商品總數 n 與價格波動門檻 d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分步清晰",
+        "mean": "讀取 n 與 d"
+      },
+      {
+        "num": 2,
+        "code": "n, d = map(int, input().split())",
+        "html": "<span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "map 切分",
+        "mean": "解析 n, d"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 4,
+        "code": "# 步驟 2：初始化雙累加器（購買件數與總花費金額）",
+        "html": "<span class=\"token-comment\"># 步驟 2：初始化雙累加器（購買件數與總花費金額）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "雙統計量",
+        "mean": "初始化累加器"
+      },
+      {
+        "num": 5,
+        "code": "buy_count = 0",
+        "html": "<span class=\"token-ident\">buy_count</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "計數器",
+        "mean": "件數歸零"
+      },
+      {
+        "num": 6,
+        "code": "total_cost = 0",
+        "html": "<span class=\"token-ident\">total_cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "累加器",
+        "mean": "花費歸零"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 8,
+        "code": "# 步驟 3：逐一處理 n 項商品近 3 天的價格",
+        "html": "<span class=\"token-comment\"># 步驟 3：逐一處理 n 項商品近 3 天的價格</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "在線讀取",
+        "mean": "迴圈處理 n 項商品"
+      },
+      {
+        "num": 9,
+        "code": "for _ in range(n):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "處理每件",
+        "mean": "循環 n 次"
+      },
+      {
+        "num": 10,
+        "code": "    prices = list(map(int, input().split()))",
+        "html": "    <span class=\"token-ident\">prices</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "整數轉換",
+        "mean": "讀入三天價格串列"
+      },
+      {
+        "num": 11,
+        "code": "    # 判斷最高價與最低價之差是否達到門檻 d",
+        "html": "    <span class=\"token-comment\"># 判斷最高價與最低價之差是否達到門檻 d</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "核心條件",
+        "mean": "門檻判定"
+      },
+      {
+        "num": 12,
+        "code": "    if max(prices) - min(prices) >= d:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "包含等號",
+        "mean": "價差大於等於 d"
+      },
+      {
+        "num": 13,
+        "code": "        buy_count += 1",
+        "html": "        <span class=\"token-ident\">buy_count</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "累計",
+        "mean": "件數加一"
+      },
+      {
+        "num": 14,
+        "code": "        total_cost += sum(prices) // 3",
+        "html": "        <span class=\"token-ident\">total_cost</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">prices</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "整除保護",
+        "mean": "花費累加整數平均"
+      },
+      {
+        "num": 15,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 16,
+        "code": "# 步驟 4：印出購買件數與總花費金額",
+        "html": "<span class=\"token-comment\"># 步驟 4：印出購買件數與總花費金額</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "空格輸出",
+        "mean": "輸出答案"
+      },
+      {
+        "num": 17,
+        "code": "print(buy_count, total_cost)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">buy_count</span><span class=\"token-op\">,</span> <span class=\"token-ident\">total_cost</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "滿分完成",
+        "mean": "輸出兩變數"
+      }
+    ],
+    "output": "【範例一測試輸出】1 24\n【範例二測試輸出】1 20",
+    "diagram": {
+      "type": "flow",
+      "title": "版本一解題管線",
+      "flow": [
+        {
+          "step": 1,
+          "text": "讀取 n, d"
+        },
+        {
+          "step": 2,
+          "text": "buy_count = 0, total_cost = 0"
+        },
+        {
+          "step": 3,
+          "text": "for _ in range(n): prices = list(map(...))"
+        },
+        {
+          "step": 4,
+          "text": "if max(p) - min(p) >= d: cnt+=1; cost+=sum//3"
+        },
+        {
+          "step": 5,
+          "text": "print(buy_count, total_cost) 滿分 AC！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "新手最推",
+        "content": "變數名稱清晰、拆解詳細、邏輯平鋪直敘，考場高壓下最不易慌亂出錯！"
+      },
+      {
+        "type": "hint",
+        "title": "100% AC",
+        "content": "此版本通過官方所有測資點，獲得 100 分滿分。"
+      }
+    ]
+  },
+  {
+    "page": 21,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.5 逐筆處理與多行輸入迴圈完整 AC 實作",
+    "title": "Version 2: APCS Minimal & Efficient Solution",
+    "titleEn": "Version 2: APCS Minimal & Efficient Solution",
+    "titleZh": "版本二：APCS 官方考場版（極簡高效精煉版）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ⚡ 僅僅 5 行程式碼秒殺真題！",
+        "html": "<span class=\"token-comment\"># ⚡ 僅僅 5 行程式碼秒殺真題！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "極致優雅",
+        "mean": "極簡 5 行說明"
+      },
+      {
+        "num": 2,
+        "code": "n, d = map(int, input().split())",
+        "html": "<span class=\"token-ident\">n</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行讀取",
+        "mean": "讀入 n, d"
+      },
+      {
+        "num": 3,
+        "code": "items = [list(map(int, input().split())) for _ in range(n)]",
+        "html": "<span class=\"token-ident\">items</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行接收全部商品",
+        "mean": "推導式讀入所有商品"
+      },
+      {
+        "num": 4,
+        "code": "bought = [p for p in items if max(p) - min(p) >= d]",
+        "html": "<span class=\"token-ident\">bought</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">p</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span> <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行完成條件篩選",
+        "mean": "推導式過濾符合門檻者"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "print(len(bought), sum(sum(p) // 3 for p in bought))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">bought</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">bought</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一行聚合運算印出",
+        "mean": "印出件數與總平均花費"
+      }
+    ],
+    "output": "【極簡 5 行輸出】1 24",
+    "diagram": {
+      "type": "compare",
+      "title": "版本一 vs 版本二 差異對照",
+      "left": {
+        "title": "版本一（一般版）",
+        "content": "行數：約 15 行\n逐步讀取與 if 累加\n適合：初學扎根、求穩求清晰"
+      },
+      "right": {
+        "title": "版本二（極簡版）",
+        "content": "行數：僅僅 5 行！\n列表推導式過濾 + 聚合函式\n適合：競賽選手與追求極速者"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "極速敲碼",
+        "content": "全篇只有 5 行，在正式考場上 90 秒內即可敲完並 AC，大幅節省後續大題時間！"
+      },
+      {
+        "type": "hint",
+        "title": "零件相容",
+        "content": "若無任何商品符合，bought=[]，len=0，sum=0，自然印出 0 0！"
+      }
+    ]
+  },
+  {
+    "page": 22,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.5 逐筆處理與多行輸入迴圈完整 AC 實作",
+    "title": "Version 3: ZeroJudge Universal AC Solution",
+    "titleEn": "Version 3: ZeroJudge Universal AC Solution",
+    "titleZh": "版本三：ZeroJudge 線上評判萬用 AC 版",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "高效 I/O",
+        "mean": "載入 sys 模組"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 3,
+        "code": "def solve():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "模組化",
+        "mean": "主解題函式"
+      },
+      {
+        "num": 4,
+        "code": "    tokens = sys.stdin.read().split()",
+        "html": "    <span class=\"token-ident\">tokens</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">sys</span><span class=\"token-op\">.</span><span class=\"token-ident\">stdin</span><span class=\"token-op\">.</span><span class=\"token-ident\">read</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一次切分所有整數",
+        "mean": "一次讀取所有 token"
+      },
+      {
+        "num": 5,
+        "code": "    if not tokens: return",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">tokens</span><span class=\"token-op\">:</span> <span class=\"token-keyword\">return</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防空防崩潰",
+        "mean": "防空測資"
+      },
+      {
+        "num": 6,
+        "code": "    idx = 0",
+        "html": "    <span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初始化指標",
+        "mean": "指標歸零"
+      },
+      {
+        "num": 7,
+        "code": "    while idx < len(tokens):",
+        "html": "    <span class=\"token-keyword\">while</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "連續測資迭代",
+        "mean": "EOF 循環處理"
+      },
+      {
+        "num": 8,
+        "code": "        n = int(tokens[idx])",
+        "html": "        <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "讀取商品數",
+        "mean": "提取 n"
+      },
+      {
+        "num": 9,
+        "code": "        d = int(tokens[idx + 1])",
+        "html": "        <span class=\"token-ident\">d</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "讀取門檻",
+        "mean": "提取 d"
+      },
+      {
+        "num": 10,
+        "code": "        idx += 2",
+        "html": "        <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "推進指標",
+        "mean": "跳過 2 個 token"
+      },
+      {
+        "num": 11,
+        "code": "        cnt = cost = 0",
+        "html": "        <span class=\"token-ident\">cnt</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "該組答案歸零",
+        "mean": "計數器歸零"
+      },
+      {
+        "num": 12,
+        "code": "        for _ in range(n):",
+        "html": "        <span class=\"token-keyword\">for</span> <span class=\"token-ident\">_</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "循環 n 次",
+        "mean": "處理 n 項商品"
+      },
+      {
+        "num": 13,
+        "code": "            p1, p2, p3 = int(tokens[idx]), int(tokens[idx+1]), int(tokens[idx+2])",
+        "html": "            <span class=\"token-ident\">p1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p3</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">+</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "三個整數價格",
+        "mean": "提取三天價格"
+      },
+      {
+        "num": 14,
+        "code": "            idx += 3",
+        "html": "            <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "推進指標",
+        "mean": "跳過 3 個 token"
+      },
+      {
+        "num": 15,
+        "code": "            if max(p1, p2, p3) - min(p1, p2, p3) >= d:",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p3</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p2</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p3</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "條件過濾",
+        "mean": "全距大於等於 d"
+      },
+      {
+        "num": 16,
+        "code": "                cnt += 1",
+        "html": "                <span class=\"token-ident\">cnt</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "數量 +1",
+        "mean": "件數累加"
+      },
+      {
+        "num": 17,
+        "code": "                cost += (p1 + p2 + p3) // 3",
+        "html": "                <span class=\"token-ident\">cost</span> <span class=\"token-op\">+=</span> <span class=\"token-op\">(</span><span class=\"token-ident\">p1</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">p2</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">p3</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "花費 + 均價",
+        "mean": "花費累加"
+      },
+      {
+        "num": 18,
+        "code": "        print(f\"{cnt} {cost}\")",
+        "html": "        <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;<span class=\"token-op\">{</span><span class=\"token-ident\">cnt</span><span class=\"token-op\">}</span> <span class=\"token-op\">{</span><span class=\"token-ident\">cost</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "輸出單組答案",
+        "mean": "印出該組結果"
+      },
+      {
+        "num": 19,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 20,
+        "code": "if __name__ == '__main__':",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">__name__</span> <span class=\"token-op\">==</span> <span class=\"token-string\">&#x27;__main__&#x27;</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "標準入口",
+        "mean": "標準入口"
+      },
+      {
+        "num": 21,
+        "code": "    solve()",
+        "html": "    <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "調用主函式",
+        "mean": "執行解題"
+      }
+    ],
+    "output": "【ZeroJudge 多測資評判】AC (100% 通過)",
+    "diagram": {
+      "type": "flow",
+      "title": "ZeroJudge 批次 Token 解析架構",
+      "flow": [
+        {
+          "step": 1,
+          "text": "sys.stdin.read().split() 一次切出所有數字 token"
+        },
+        {
+          "step": 2,
+          "text": "讀取 n, d，推進指標 idx += 2"
+        },
+        {
+          "step": 3,
+          "text": "讀取 n 項商品的 3 個價格，累加 cnt 與 cost"
+        },
+        {
+          "step": 4,
+          "text": "print(f'{cnt} {cost}')，自動接續下一組！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "ZeroJudge 綠燈保證",
+        "content": "直接複製此版本貼上 ZeroJudge f605，即可獲得滿分 AC（綠燈通過）！"
+      },
+      {
+        "type": "hint",
+        "title": "Token 讀取優勢",
+        "content": "無視任何空行、多餘空格與換行格式，是競技程式中最堅不可摧的讀取手法。"
+      }
+    ]
+  },
+  {
+    "page": 23,
+    "phase": "summary",
+    "phaseZh": "思考昇華",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.6 一件都沒買（件數為 0、花費為 0）之邊界檢驗",
+    "title": "Self-Test & Edge Cases Mastered",
+    "titleEn": "Self-Test & Edge Cases Mastered",
+    "titleZh": "考點通關自測：三大極限邊界測資實機驗算",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 邊界驗算函式",
+        "html": "<span class=\"token-comment\"># 邊界驗算函式</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "自測驗收",
+        "mean": "驗算函式註解"
+      },
+      {
+        "num": 2,
+        "code": "def solve(items, d):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-ident\">items</span><span class=\"token-op\">,</span> <span class=\"token-ident\">d</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝邏輯",
+        "mean": "精簡求解函式"
+      },
+      {
+        "num": 3,
+        "code": "    bought = [p for p in items if max(p) - min(p) >= d]",
+        "html": "    <span class=\"token-ident\">bought</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">p</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">items</span> <span class=\"token-keyword\">if</span> <span class=\"token-builtin\">max</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">-</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">&gt;=</span> <span class=\"token-ident\">d</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "推導式",
+        "mean": "篩選合格"
+      },
+      {
+        "num": 4,
+        "code": "    return len(bought), sum(sum(p) // 3 for p in bought)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">bought</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">)</span> <span class=\"token-op\">//</span> <span class=\"token-number\">3</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">p</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">bought</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "聚合運算",
+        "mean": "回傳件數與花費"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# 測資 1：官方範例 1 (單件達標)",
+        "html": "<span class=\"token-comment\"># 測資 1：官方範例 1 (單件達標)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 1",
+        "mean": "測資 1 說明"
+      },
+      {
+        "num": 7,
+        "code": "print(\"自測 1 (範例 1):\", solve([[24, 27, 21]], 3))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 1 (範例 1):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">24</span><span class=\"token-op\">,</span> <span class=\"token-number\">27</span><span class=\"token-op\">,</span> <span class=\"token-number\">21</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 (1, 24)",
+        "mean": "執行測資 1"
+      },
+      {
+        "num": 8,
+        "code": "# 測資 2：官方範例 2 (多件過濾)",
+        "html": "<span class=\"token-comment\"># 測資 2：官方範例 2 (多件過濾)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 2",
+        "mean": "測資 2 說明"
+      },
+      {
+        "num": 9,
+        "code": "print(\"自測 2 (範例 2):\", solve([[10, 20, 30], [10, 12, 10]], 10))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 2 (範例 2):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 (1, 20)",
+        "mean": "執行測資 2"
+      },
+      {
+        "num": 10,
+        "code": "# 測資 3：全未購買邊界 (輸出 0 0)",
+        "html": "<span class=\"token-comment\"># 測資 3：全未購買邊界 (輸出 0 0)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "全未買邊界",
+        "mean": "測資 3 說明"
+      },
+      {
+        "num": 11,
+        "code": "print(\"自測 3 (全未買):\", solve([[10, 15, 12], [20, 25, 22]], 20))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 3 (全未買):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">15</span><span class=\"token-op\">,</span> <span class=\"token-number\">12</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-op\">[</span><span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">25</span><span class=\"token-op\">,</span> <span class=\"token-number\">22</span><span class=\"token-op\">]</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 (0, 0)",
+        "mean": "執行測資 3"
+      }
+    ],
+    "output": "自測 1 (範例 1): (1, 24)\n自測 2 (範例 2): (1, 20)\n自測 3 (全未買): (0, 0)",
+    "diagram": {
+      "type": "step",
+      "title": "三大極限測資通過報告",
+      "steps": [
+        {
+          "num": 1,
+          "action": "測資 1 (範例 1)",
+          "desc": "輸出 1 24 ✅ 單件達標精準計算"
+        },
+        {
+          "num": 2,
+          "action": "測資 2 (範例 2)",
+          "desc": "輸出 1 20 ✅ 多件過濾精準統計"
+        },
+        {
+          "num": 3,
+          "action": "測資 3 (全未買)",
+          "desc": "輸出 0 0 ✅ 零件邊界安全通過"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "三大考點全破",
+        "content": "單件達標、多件篩選、全未購買全部綠燈通過，代碼毫無破綻！"
+      },
+      {
+        "type": "hint",
+        "title": "心法鞏固",
+        "content": "在考場上養成寫完代碼後，迅速跑過極限邊界測試的好習慣。"
+      }
+    ]
+  },
+  {
+    "page": 24,
+    "phase": "summary",
+    "phaseZh": "思考昇華",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.7.6 一件都沒買（件數為 0、花費為 0）之邊界檢驗",
+    "title": "Summary & Next Mission: 14.8 Seven Couplet",
+    "titleEn": "Summary & Next Mission: 14.8 Seven Couplet",
+    "titleZh": "學習總結與下一題預告：14.8 七言對聯",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 單元 14.7 通關成果回顧",
+        "html": "<span class=\"token-comment\"># 單元 14.7 通關成果回顧</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "回顧成果",
+        "mean": "總結回顧註解"
+      },
+      {
+        "num": 2,
+        "code": "badges = {",
+        "html": "<span class=\"token-ident\">badges</span> <span class=\"token-op\">=</span> <span class=\"token-op\">{</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "條理清晰",
+        "mean": "勳章字典"
+      },
+      {
+        "num": 3,
+        "code": "    \"真題代碼\": \"APCS f605 購買力\",",
+        "html": "    <span class=\"token-string\">&quot;真題代碼&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;APCS f605 購買力&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "f605",
+        "mean": "真題代碼"
+      },
+      {
+        "num": 4,
+        "code": "    \"核心技巧\": \"全距 max - min >= d 門檻過濾\",",
+        "html": "    <span class=\"token-string\">&quot;核心技巧&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;全距 max - min &gt;= d 門檻過濾&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "統計學全距",
+        "mean": "全距技巧"
+      },
+      {
+        "num": 5,
+        "code": "    \"關鍵鐵律\": \"整數除法 // 3 + 雙累加器模式\",",
+        "html": "    <span class=\"token-string\">&quot;關鍵鐵律&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;整數除法 // 3 + 雙累加器模式&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "型別與累加",
+        "mean": "關鍵鐵律"
+      },
+      {
+        "num": 6,
+        "code": "    \"通關口訣\": \"全距過門整除三\",",
+        "html": "    <span class=\"token-string\">&quot;通關口訣&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;全距過門整除三&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "口訣回扣",
+        "mean": "通關口訣"
+      },
+      {
+        "num": 7,
+        "code": "    \"通關狀態\": \"100% 滿分 AC 通過\"",
+        "html": "    <span class=\"token-string\">&quot;通關狀態&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;100% 滿分 AC 通過&quot;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "滿分",
+        "mean": "通關狀態"
+      },
+      {
+        "num": 8,
+        "code": "}",
+        "html": "<span class=\"token-op\">}</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "for k, v in badges.items():",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">k</span><span class=\"token-op\">,</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">badges</span><span class=\"token-op\">.</span><span class=\"token-ident\">items</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "走訪",
+        "mean": "走訪勳章"
+      },
+      {
+        "num": 10,
+        "code": "    print(f\"[{k}] {v}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;[<span class=\"token-op\">{</span><span class=\"token-ident\">k</span><span class=\"token-op\">}</span>] <span class=\"token-op\">{</span><span class=\"token-ident\">v</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "逐條展示",
+        "mean": "印出條目"
+      },
+      {
+        "num": 11,
+        "code": "print(\"下一站預告: 14.8 七言對聯 (g275) - 詩律平仄與精準索引！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;下一站預告: 14.8 七言對聯 (g275) - 詩律平仄與精準索引！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "預告 14.8",
+        "mean": "印出下一題預告"
+      }
+    ],
+    "output": "[真題代碼] APCS f605 購買力\n[核心技巧] 全距 max - min >= d 門檻過濾\n[關鍵鐵律] 整數除法 // 3 + 雙累加器模式\n[通關口訣] 全距過門整除三\n[通關狀態] 100% 滿分 AC 通過\n下一站預告: 14.8 七言對聯 (g275) - 詩律平仄與精準索引！",
+    "diagram": {
+      "type": "flow",
+      "title": "第 14 章初級真題進度推進",
+      "flow": [
+        {
+          "step": 1,
+          "text": "14-1 三角形辨別 (幾何判斷) ✅"
+        },
+        {
+          "step": 2,
+          "text": "14-2 秘密差 (字串奇偶位) ✅"
+        },
+        {
+          "step": 3,
+          "text": "14-3 邏輯運算子 (布林真值表) ✅"
+        },
+        {
+          "step": 4,
+          "text": "14-4 籃球比賽 (多行讀取比分) ✅"
+        },
+        {
+          "step": 5,
+          "text": "14-5 購物車 (正負抵銷統計) ✅"
+        },
+        {
+          "step": 6,
+          "text": "14-6 人力分配 (二次函數枚舉) ✅"
+        },
+        {
+          "step": 7,
+          "text": "14-7 購買力 (多天價格波動) ✅"
+        },
+        {
+          "step": 8,
+          "text": "14-8 七言對聯 (詩律平仄索引) 🚀 NEXT"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "恭喜第七勝達成",
+        "content": "你已經征服了第七道 APCS 實作初級真題，掌握了價格全距過濾與在線串流處理的利器！"
+      },
+      {
+        "type": "hint",
+        "title": "下一單元核心",
+        "content": "下一單元 14.8「七言對聯」是教育部官方初級題本範例第 1 題，挑戰詩律格律與精準索引對位！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    initSlideEngine({
+      sectionId: "{{SECTION_ID}}",
+      slidesData: slidesData,
+      colabUrl: "{{COLAB_URL}}"
+    });
+  </script>
+</body>
+</html>

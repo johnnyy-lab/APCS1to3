@@ -193,8 +193,8 @@ const courseCurriculum = [
       { id: "sec14-6", title: "14.6 f312. 人力分配（APCS 2020-10 舊版第 1 題）", available: true, url: "PythAPCS123_14-6_manpower_allocation_apcs_f312.html" },
       { id: "sec14-7", title: "14.7 f605. 購買力（APCS 2021-01 舊版第 1 題）", available: true, url: "PythAPCS123_14-7_purchasing_power_apcs_f605.html" },
       { id: "sec14-8", title: "14.8 g275. 七言對聯（官方初級範例第 1 題）", available: true, url: "PythAPCS123_14-8_couplet_apcs_g275.html" },
-      { id: "sec14-9", title: "14.9 g595. 修補圍籬（APCS 2021-11 舊版第 1 題）", available: false },
-      { id: "sec14-10", title: "14.10 m931. 遊戲選角（官方初級範例第 3 題）", available: false },
+      { id: "sec14-9", title: "14.9 g595. 修補圍籬（APCS 2021-11 舊版第 1 題）", available: true, url: "PythAPCS123_14-9_repair_fence_apcs_g595.html" },
+      { id: "sec14-10", title: "14.10 m931. 遊戲選角（官方初級範例第 3 題）", available: true, url: "PythAPCS123_14-10_game_role_apcs_m931.html" },
       { id: "sec14-11", title: "14.11 o711. 裝飲料（官方初級範例第 2 題）", available: false }
     ]
   },

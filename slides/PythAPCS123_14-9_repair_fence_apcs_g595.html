@@ -1,0 +1,3745 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{UNIT_FULL_TITLE}} | APCS 教學投影片</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/slide-core.css">
+</head>
+<body>
+
+  <!-- 最上方導航控制列 -->
+  <div class="deck-topbar">
+    <div class="select-group">
+      <span class="select-label">選擇章節：</span>
+      <select class="nav-select" id="chapterSelect" onchange="onChapterChange()"></select>
+      <select class="nav-select" id="sectionSelect" onchange="onSectionChange()"></select>
+    </div>
+
+    <div class="deck-actions" id="deckActions">
+      <button class="btn btn-theme-toggle" id="btnThemeToggle" onclick="toggleTheme()">
+        切換為 IDLE 考場風格
+      </button>
+      <button class="btn" id="btnPrev" onclick="prevSlide()">
+        <span class="key-badge">◀</span> 上一頁
+      </button>
+      <button class="btn" id="btnNext" onclick="nextSlide()">
+        下一頁 <span class="key-badge">▶</span>
+      </button>
+      <button class="btn" onclick="toggleFullscreen()">
+        全螢幕投影
+      </button>
+    </div>
+    <!-- 頂部細緻進度線 (agytodo 5.2) -->
+    <div class="topbar-progress-line" id="topbarProgressLine"></div>
+  </div>
+
+  <!-- 16:9 投影片畫布 -->
+  <div class="slide-stage" id="slideStage">
+    
+    <!-- 頂部 Header：雙行左主標題 + 雙行右章節目 -->
+    <header class="slide-header" id="slideHeader">
+      <div class="header-left">
+        <h1 class="title-chinese" id="titleChinese">載入中...</h1>
+        <div class="title-english" id="titleEnglish">Loading...</div>
+      </div>
+      <div class="header-right">
+        <div class="breadcrumb-chapter" id="breadcrumbChapter">章節名稱</div>
+        <div class="breadcrumb-section" id="breadcrumbSection">小節名稱</div>
+      </div>
+    </header>
+
+    <!-- 三部分主體 -->
+    <main class="slide-body" id="slideBody">
+      <section class="left-column">
+        <!-- 1. 教學程式碼 -->
+        <article class="card-code">
+          <div class="card-header">
+            <span>教學程式碼</span>
+            <span class="current-theme-pill" id="themePill">Colab 深色風格</span>
+          </div>
+          <div class="code-viewport" id="codeViewport"></div>
+          <div class="code-line-bar" id="codeLineBar"></div>
+        </article>
+
+        <!-- 2. 執行結果 -->
+        <article class="card-output">
+          <div class="output-header">
+            <span>執行結果</span>
+            <span style="font-size: 11px;">純結果輸出</span>
+          </div>
+          <div class="output-viewport-wrap">
+            <div class="output-viewport" id="outputViewport"></div>
+            <!-- 主動預測遮罩與二擇一預測卡 (agytodo 3.2, 3.3) -->
+            <div class="prediction-overlay" id="predictionOverlay" style="display: none;" onclick="revealPrediction(event)">
+              <div class="prediction-badge">🧠 點擊揭曉預測答案</div>
+              <div class="prediction-hint">或按鍵盤 ▶ / 點擊「揭曉答案」解鎖</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 3. 重點說明 -->
+      <aside class="card-notes">
+        <div>
+          <div class="notes-header">
+            <h2 class="notes-title">重點說明</h2>
+          </div>
+          <ul class="notes-list" id="notesList"></ul>
+
+          <!-- 📦 記憶體狀態盒容器 (Mental Model Widget) -->
+          <div class="memory-stage" id="memoryStage" style="display: none;">
+            <div class="memory-stage-header">
+              <span class="memory-title">📦 記憶體置物箱狀態 (Memory State)</span>
+              <span class="memory-hint">門牌與數值</span>
+            </div>
+            <div class="memory-boxes-container" id="memoryBoxesContainer"></div>
+          </div>
+
+          <!-- 📊 迴圈變數追蹤矩陣卡容器 (Mental Model Widget - agytodo 2.4) -->
+          <div class="trace-table-stage" id="traceTableStage" style="display: none;">
+            <div class="trace-table-header">
+              <span class="trace-table-title" id="traceTableTitle">📊 迴圈變數追蹤矩陣 (Trace Table)</span>
+              <span class="trace-table-hint" id="traceTableHint">變數與條件動態追蹤</span>
+            </div>
+            <div class="trace-table-wrap" id="traceTableWrap"></div>
+          </div>
+
+          <!-- 🏆 單元通關徽章與實戰卡片 (agytodo 5.3) -->
+          <div class="completion-card" id="completionCard" style="display: none;"></div>
+        </div>
+
+        <div class="slide-footer">
+          <!-- 微進度指示點 (agytodo 5.2) -->
+          <div class="milestone-dots" id="milestoneDots"></div>
+          <div class="page-indicator" id="pageIndicator">1 / 1</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 跨卡片數據流向平滑導引線 (agytodo 6.1) -->
+    <svg class="flow-guide-svg" id="flowGuideSvg" aria-hidden="true">
+      <defs>
+        <linearGradient id="flowLineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="1" />
+        </linearGradient>
+        <linearGradient id="flowLineGradErr" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#e11d48" stop-opacity="1" />
+        </linearGradient>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#06b6d4" />
+        </marker>
+        <marker id="flowArrowErr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+        </marker>
+        <marker id="flowArrowIdle" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#000000" />
+        </marker>
+      </defs>
+      <path id="flowGuidePath" class="flow-guide-path" d="" />
+      <circle id="flowGuideStartDot" class="flow-guide-start-dot" r="4" cx="-999" cy="-999" />
+      <circle id="flowGuideDot" class="flow-guide-dot" r="4.5" cx="-999" cy="-999" />
+    </svg>
+
+    <!-- 施工中展示區塊 -->
+    <section class="construction-stage" id="constructionStage">
+      <div class="construction-icon-wrap">
+        <svg class="construction-spinner" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <h2 class="construction-title">🚧 內容施工中，敬請期待！</h2>
+      <div class="construction-target" id="constructionTarget">指定單元</div>
+      <p class="construction-desc">
+        本單元教學投影片正在緊鑼密鼓加速製作中！<br>
+        我們將持續遵循「任何微小變化即單獨一頁」與「APCS 考場 IDLE 雙模切換」標準，為您呈現最高質量的自學簡報。
+      </p>
+      <button class="btn-return-demo" onclick="returnToDemoUnit()">
+        <span>👈 返回當前單元投影片觀看示範</span>
+      </button>
+    </section>
+  </div>
+
+  <!-- 行動端常駐拇指控制列 (Mobile Thumb Control Dock) -->
+  <div class="mobile-bottom-dock" id="mobileBottomDock">
+    <button class="dock-btn" id="dockBtnPrev" onclick="prevSlide()" aria-label="上一頁">
+      <span>◀</span>
+      <span>上一頁</span>
+    </button>
+    <div class="dock-page-indicator" id="dockPageIndicator">1 / 1</div>
+    <button class="dock-btn dock-btn-primary" id="dockBtnNext" onclick="nextSlide()" aria-label="下一頁">
+      <span>下一頁</span>
+      <span>▶</span>
+    </button>
+    <button class="dock-btn dock-btn-theme" onclick="toggleTheme()" aria-label="切換風格" title="切換考場/Colab風格">
+      <span id="dockThemeIcon">🏛️ 考場</span>
+    </button>
+  </div>
+
+  <!-- 引入核心引擎腳本 -->
+  <script src="js/slide-core.js"></script>
+
+  <script>
+    /* ==========================================================================
+       單元專屬投影片數據 (Slides Data)
+       ========================================================================== */
+    const slidesData = [
+  {
+    "page": 1,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.1 圍籬損壞修復模型與生活幾何剖析",
+    "title": "APCS g595 Problem Spec: Repair Fence",
+    "titleEn": "APCS g595 Problem Spec: Repair Fence",
+    "titleZh": "真題規格剖析：APCS 2021-11 實作第 1 題「修補圍籬」",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 題目目標：給定 n 根木樁高度 h，其中高度為 0 代表損壞倒塌",
+        "html": "<span class=\"token-comment\"># 題目目標：給定 n 根木樁高度 h，其中高度為 0 代表損壞倒塌</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "確立解題焦點",
+        "mean": "問題目標說明"
+      },
+      {
+        "num": 2,
+        "code": "# 中間木樁損壞：修復高度 = min(左鄰居, 右鄰居)",
+        "html": "<span class=\"token-comment\"># 中間木樁損壞：修復高度 = min(左鄰居, 右鄰居)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "內部取 min",
+        "mean": "中間修復公式"
+      },
+      {
+        "num": 3,
+        "code": "# 最左端損壞 (i=0)：修復高度 = 右鄰居 h[1]",
+        "html": "<span class=\"token-comment\"># 最左端損壞 (i=0)：修復高度 = 右鄰居 h[1]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "邊界無左取右",
+        "mean": "最左修復公式"
+      },
+      {
+        "num": 4,
+        "code": "# 最右端損壞 (i=n-1)：修復高度 = 左鄰居 h[n-2]",
+        "html": "<span class=\"token-comment\"># 最右端損壞 (i=n-1)：修復高度 = 左鄰居 h[n-2]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "邊界無右取左",
+        "mean": "最右修復公式"
+      },
+      {
+        "num": 5,
+        "code": "# 重要保證：絕對不會有連續兩根相鄰木樁同時損壞！",
+        "html": "<span class=\"token-comment\"># 重要保證：絕對不會有連續兩根相鄰木樁同時損壞！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "鄰居必定大於 0",
+        "mean": "題目關鍵保證"
+      },
+      {
+        "num": 6,
+        "code": "h = [3, 0, 5, 0, 4]",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "範例 1 資料",
+        "mean": "範例圍籬高度"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"原始圍籬高度: {h}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;原始圍籬高度: <span class=\"token-op\">{</span><span class=\"token-ident\">h</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示清單",
+        "mean": "印出原始高度"
+      },
+      {
+        "num": 8,
+        "code": "print(\"修復規則: 中間取左右較小者，兩端取唯一相鄰者\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;修復規則: 中間取左右較小者，兩端取唯一相鄰者&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "提示核心規則",
+        "mean": "印出修復規則"
+      },
+      {
+        "num": 9,
+        "code": "print(\"求解目標: 修復所有損壞木樁的總花費 (修復高度之和)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;求解目標: 修復所有損壞木樁的總花費 (修復高度之和)&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "總和累加",
+        "mean": "印出求解目標"
+      }
+    ],
+    "output": "原始圍籬高度: [3, 0, 5, 0, 4]\n修復規則: 中間取左右較小者，兩端取唯一相鄰者\n求解目標: 修復所有損壞木樁的總花費 (修復高度之和)",
+    "diagram": {
+      "type": "flow",
+      "title": "圍籬修補三大位置分類",
+      "flow": [
+        {
+          "step": 1,
+          "text": "巡視木樁 i (若 h[i] == 0 則需修補)"
+        },
+        {
+          "step": 2,
+          "text": "情況 1 (最左 i==0): cost += h[1]"
+        },
+        {
+          "step": 3,
+          "text": "情況 2 (最右 i==n-1): cost += h[n-2]"
+        },
+        {
+          "step": 4,
+          "text": "情況 3 (中間 0<i<n-1): cost += min(h[i-1], h[i+1])"
+        },
+        {
+          "step": 5,
+          "text": "輸出 total_cost 滿分 AC！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "真題背景",
+        "content": "APCS 2021 年 11 月實作第 1 題，是一維陣列相鄰元素探測與邊界控制的經典教科書真題。"
+      },
+      {
+        "type": "hint",
+        "title": "無連續 0 保證",
+        "content": "題目保證不會有相鄰的 0，這代表壞木樁的左鄰右舍高度必定大於 0，簡化了所有決策！"
+      }
+    ]
+  },
+  {
+    "page": 2,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.2 一維陣列相鄰探測與損壞定位",
+    "title": "Input Format & Broken Stake Detection",
+    "titleEn": "Input Format & Broken Stake Detection",
+    "titleZh": "輸入格式與損壞木樁位置定位探測",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 模擬兩行輸入規格",
+        "html": "<span class=\"token-comment\"># 模擬兩行輸入規格</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "總數量",
+        "mean": "第 1 行模擬"
+      },
+      {
+        "num": 2,
+        "code": "line1 = \"5\"",
+        "html": "<span class=\"token-ident\">line1</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;5&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "高度序列",
+        "mean": "第 2 行模擬"
+      },
+      {
+        "num": 3,
+        "code": "line2 = \"3 0 5 0 4\"",
+        "html": "<span class=\"token-ident\">line2</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;3 0 5 0 4&quot;</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "轉整數",
+        "mean": "讀入 n"
+      },
+      {
+        "num": 4,
+        "code": "n = int(line1)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">line1</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "切分整數清單",
+        "mean": "讀入高度串列"
+      },
+      {
+        "num": 5,
+        "code": "h = list(map(int, line2.split()))",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-ident\">line2</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認資料",
+        "mean": "印出輸入數據"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"木樁總數 n={n}, 高度串列: {h}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;木樁總數 n=<span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">}</span>, 高度串列: <span class=\"token-op\">{</span><span class=\"token-ident\">h</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "探測 0",
+        "mean": "推導式探測說明"
+      },
+      {
+        "num": 8,
+        "code": "# 找出所有損壞木樁的索引位置",
+        "html": "<span class=\"token-comment\"># 找出所有損壞木樁的索引位置</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "broken_idx = [i for i in range(n) if h[i] == 0]",
+        "html": "<span class=\"token-ident\">broken_idx</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "過濾出 h[i]==0",
+        "mean": "收集損壞索引"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"損壞木樁索引列表: {broken_idx}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;損壞木樁索引列表: <span class=\"token-op\">{</span><span class=\"token-ident\">broken_idx</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示位置 [1, 3]",
+        "mean": "印出損壞位置"
+      }
+    ],
+    "output": "木樁總數 n=5, 高度串列: [3, 0, 5, 0, 4]\n損壞木樁索引列表: [1, 3]",
+    "diagram": {
+      "type": "step",
+      "title": "輸入資料剖析與探測流程",
+      "steps": [
+        {
+          "num": 1,
+          "action": "第 1 行",
+          "desc": "正整數 n (2 <= n <= 100)"
+        },
+        {
+          "num": 2,
+          "action": "第 2 行",
+          "desc": "n 個非負整數 (0 <= h_i <= 100)"
+        },
+        {
+          "num": 3,
+          "action": "損壞判定",
+          "desc": "h[i] == 0 即為倒塌待修補木樁"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "資料結構選擇",
+        "content": "使用 list 儲存高度，支援隨機存取 h[i-1] 與 h[i+1]，時間複雜度 O(1)。"
+      },
+      {
+        "type": "hint",
+        "title": "下標範圍",
+        "content": "索引範圍為 0 到 n-1，最左端為 0，最右端為 n-1。"
+      }
+    ]
+  },
+  {
+    "page": 3,
+    "phase": "spec",
+    "phaseZh": "真題規格",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.1 圍籬損壞修復模型與生活幾何剖析",
+    "title": "Sample 1 & 2 Manual Simulation Trace",
+    "titleEn": "Sample 1 & 2 Manual Simulation Trace",
+    "titleZh": "官方兩大範例測資紙上手算推演",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 1：h = [3, 0, 5, 0, 4] (均為中間損壞)",
+        "html": "<span class=\"token-comment\"># 範例 1：h = [3, 0, 5, 0, 4] (均為中間損壞)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "中間修補",
+        "mean": "範例 1 說明"
+      },
+      {
+        "num": 2,
+        "code": "# 位置 1 損壞 -> min(h[0], h[2]) = min(3, 5) = 3",
+        "html": "<span class=\"token-comment\"># 位置 1 損壞 -&gt; min(h[0], h[2]) = min(3, 5) = 3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "min(3, 5)=3",
+        "mean": "範例 1 位置 1"
+      },
+      {
+        "num": 3,
+        "code": "# 位置 3 損壞 -> min(h[2], h[4]) = min(5, 4) = 4",
+        "html": "<span class=\"token-comment\"># 位置 3 損壞 -&gt; min(h[2], h[4]) = min(5, 4) = 4</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "min(5, 4)=4",
+        "mean": "範例 1 位置 3"
+      },
+      {
+        "num": 4,
+        "code": "# 總花費 = 3 + 4 = 7 -> 輸出 7",
+        "html": "<span class=\"token-comment\"># 總花費 = 3 + 4 = 7 -&gt; 輸出 7</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3+4=7",
+        "mean": "範例 1 總和"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# 範例 2：h = [0, 6, 8, 0] (兩端邊界損壞！)",
+        "html": "<span class=\"token-comment\"># 範例 2：h = [0, 6, 8, 0] (兩端邊界損壞！)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "兩端修補",
+        "mean": "範例 2 說明"
+      },
+      {
+        "num": 7,
+        "code": "# 位置 0 損壞 (左端) -> 取右鄰居 h[1] = 6",
+        "html": "<span class=\"token-comment\"># 位置 0 損壞 (左端) -&gt; 取右鄰居 h[1] = 6</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "右邊 6",
+        "mean": "範例 2 左端"
+      },
+      {
+        "num": 8,
+        "code": "# 位置 3 損壞 (右端) -> 取左鄰居 h[2] = 8",
+        "html": "<span class=\"token-comment\"># 位置 3 損壞 (右端) -&gt; 取左鄰居 h[2] = 8</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "左邊 8",
+        "mean": "範例 2 右端"
+      },
+      {
+        "num": 9,
+        "code": "# 總花費 = 6 + 8 = 14 -> 輸出 14",
+        "html": "<span class=\"token-comment\"># 總花費 = 6 + 8 = 14 -&gt; 輸出 14</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "6+8=14",
+        "mean": "範例 2 總和"
+      },
+      {
+        "num": 10,
+        "code": "print(\"範例 1 正確輸出: 7\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;範例 1 正確輸出: 7&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證官方輸出",
+        "mean": "印出範例 1"
+      },
+      {
+        "num": 11,
+        "code": "print(\"範例 2 正確輸出: 14\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;範例 2 正確輸出: 14&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證官方輸出",
+        "mean": "印出範例 2"
+      }
+    ],
+    "output": "範例 1 正確輸出: 7\n範例 2 正確輸出: 14",
+    "diagram": {
+      "type": "compare",
+      "title": "官方兩大範例比較",
+      "left": {
+        "title": "範例 1 (內部損壞)",
+        "content": "圍籬: [3, 0, 5, 0, 4]\n皆有左右兩側鄰居\n直接取 min(左, 右)\n總花費: 3 + 4 = 7"
+      },
+      "right": {
+        "title": "範例 2 (端點邊界損壞)",
+        "content": "圍籬: [0, 6, 8, 0]\n位置 0 只能看右邊 (6)\n位置 3 只能看左邊 (8)\n總花費: 6 + 8 = 14"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "範例 2 的巨大啟發",
+        "content": "範例 2 特別展示了「最左端與最右端同時損壞」的極端情境，提醒我們必須防禦邊界！"
+      },
+      {
+        "type": "hint",
+        "title": "單行輸出",
+        "content": "輸出只有一個整數，若整排都沒損壞則輸出 0。"
+      }
+    ]
+  },
+  {
+    "page": 4,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.1 圍籬損壞修復模型與生活幾何剖析",
+    "title": "Geometric Metaphor: Fence Repair Planning",
+    "titleEn": "Geometric Metaphor: Fence Repair Planning",
+    "titleZh": "生活直覺建模：農場工人的修繕節省哲學",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 為什麼中間損壞要取 min(左, 右)？",
+        "html": "<span class=\"token-comment\"># 為什麼中間損壞要取 min(左, 右)？</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "生活化理解",
+        "mean": "幾何思維說明"
+      },
+      {
+        "num": 2,
+        "code": "left_h = 3",
+        "html": "<span class=\"token-ident\">left_h</span> <span class=\"token-op\">=</span> <span class=\"token-number\">3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "3公尺",
+        "mean": "左邊高度"
+      },
+      {
+        "num": 3,
+        "code": "right_h = 5",
+        "html": "<span class=\"token-ident\">right_h</span> <span class=\"token-op\">=</span> <span class=\"token-number\">5</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "5公尺",
+        "mean": "右邊高度"
+      },
+      {
+        "num": 4,
+        "code": "# 若補到 max(3, 5)=5 -> 花費 5，浪費木料且左側落差突兀",
+        "html": "<span class=\"token-comment\"># 若補到 max(3, 5)=5 -&gt; 花費 5，浪費木料且左側落差突兀</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "多花 2 公尺材料",
+        "mean": "取大分析"
+      },
+      {
+        "num": 5,
+        "code": "# 若補到 min(3, 5)=3 -> 花費 3，最省材料且形成平滑防護！",
+        "html": "<span class=\"token-comment\"># 若補到 min(3, 5)=3 -&gt; 花費 3，最省材料且形成平滑防護！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "少花成本",
+        "mean": "取小分析"
+      },
+      {
+        "num": 6,
+        "code": "best_repair = min(left_h, right_h)",
+        "html": "<span class=\"token-ident\">best_repair</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">left_h</span><span class=\"token-op\">,</span> <span class=\"token-ident\">right_h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "min 運算",
+        "mean": "計算較小值"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"左鄰居: {left_h}m, 右鄰居: {right_h}m\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;左鄰居: <span class=\"token-op\">{</span><span class=\"token-ident\">left_h</span><span class=\"token-op\">}</span>m, 右鄰居: <span class=\"token-op\">{</span><span class=\"token-ident\">right_h</span><span class=\"token-op\">}</span>m&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示數值",
+        "mean": "印出鄰居高度"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"最佳修補高度: {best_repair}m (節省木料且視覺平整)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;最佳修補高度: <span class=\"token-op\">{</span><span class=\"token-ident\">best_repair</span><span class=\"token-op\">}</span>m (節省木料且視覺平整)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "得出 3 公尺",
+        "mean": "印出最佳高度"
+      }
+    ],
+    "output": "左鄰居: 3m, 右鄰居: 5m\n最佳修補高度: 3m (節省木料且視覺平整)",
+    "diagram": {
+      "type": "compare",
+      "title": "修補高度決策對比",
+      "left": {
+        "title": "方案 A：補到較高 (5m)",
+        "content": "花費：5 單位木料\n缺點：與左邊形成 2m 突兀落差\n浪費預算！"
+      },
+      "right": {
+        "title": "方案 B：補到較矮 (3m)",
+        "content": "花費：3 單位木料\n優點：與左邊完美平齊連線\n成本最低，最優解！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "貪心思維 (Greedy)",
+        "content": "每處損壞皆取成本較低者，全域總花費自然達到最佳化。"
+      },
+      {
+        "type": "hint",
+        "title": "兩端邊界直覺",
+        "content": "當身處最邊緣時，只有一個鄰居可供參考，因此只能補到與該鄰居等高。"
+      }
+    ]
+  },
+  {
+    "page": 5,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.3 內部一般破損修復：雙側相鄰取較小值",
+    "title": "Intra-Array Neighbor Sensing Logic",
+    "titleEn": "Intra-Array Neighbor Sensing Logic",
+    "titleZh": "內部木樁相鄰探測：左鄰居 h[i-1] 與右鄰居 h[i+1]",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 內部損壞木樁 (0 < i < n - 1) 的標準取值",
+        "html": "<span class=\"token-comment\"># 內部損壞木樁 (0 &lt; i &lt; n - 1) 的標準取值</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "核心探測語法",
+        "mean": "內部探測說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [10, 20, 0, 30, 0, 15]",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">20</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">30</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">15</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 3",
+        "mean": "測試串列"
+      },
+      {
+        "num": 3,
+        "code": "n = len(h)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=6",
+        "mean": "長度"
+      },
+      {
+        "num": 4,
+        "code": "print(f\"圍籬完整高度: {h}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;圍籬完整高度: <span class=\"token-op\">{</span><span class=\"token-ident\">h</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "展示資料",
+        "mean": "印出串列"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# 針對內部損壞點 i=2 進行探測",
+        "html": "<span class=\"token-comment\"># 針對內部損壞點 i=2 進行探測</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "損壞在 2",
+        "mean": "定位 i=2"
+      },
+      {
+        "num": 7,
+        "code": "i = 2",
+        "html": "<span class=\"token-ident\">i</span> <span class=\"token-op\">=</span> <span class=\"token-number\">2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "i=2",
+        "mean": "設定 i"
+      },
+      {
+        "num": 8,
+        "code": "left_val = h[i - 1]   # h[1] = 20",
+        "html": "<span class=\"token-ident\">left_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span>   <span class=\"token-comment\"># h[1] = 20</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "h[1]=20",
+        "mean": "左鄰居索引 i-1"
+      },
+      {
+        "num": 9,
+        "code": "right_val = h[i + 1]  # h[3] = 30",
+        "html": "<span class=\"token-ident\">right_val</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># h[3] = 30</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "h[3]=30",
+        "mean": "右鄰居索引 i+1"
+      },
+      {
+        "num": 10,
+        "code": "repair_cost = min(left_val, right_val)",
+        "html": "<span class=\"token-ident\">repair_cost</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">left_val</span><span class=\"token-op\">,</span> <span class=\"token-ident\">right_val</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "min 得 20",
+        "mean": "取較小值"
+      },
+      {
+        "num": 11,
+        "code": "print(f\"損壞位置 i={i}: 左鄰={left_val}, 右鄰={right_val} -> 修復花費={repair_cost}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;損壞位置 i=<span class=\"token-op\">{</span><span class=\"token-ident\">i</span><span class=\"token-op\">}</span>: 左鄰=<span class=\"token-op\">{</span><span class=\"token-ident\">left_val</span><span class=\"token-op\">}</span>, 右鄰=<span class=\"token-op\">{</span><span class=\"token-ident\">right_val</span><span class=\"token-op\">}</span> -&gt; 修復花費=<span class=\"token-op\">{</span><span class=\"token-ident\">repair_cost</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印證明細",
+        "mean": "印出探測明細"
+      }
+    ],
+    "output": "圍籬完整高度: [10, 20, 0, 30, 0, 15]\n損壞位置 i=2: 左鄰=20, 右鄰=30 -> 修復花費=20",
+    "diagram": {
+      "type": "flow",
+      "title": "內部節點雙向探測雷達",
+      "flow": [
+        {
+          "step": 1,
+          "text": "發現 h[i] == 0 (損壞)"
+        },
+        {
+          "step": 2,
+          "text": "往左探測：h[i-1] (左鄰居)"
+        },
+        {
+          "step": 3,
+          "text": "往右探測：h[i+1] (右鄰居)"
+        },
+        {
+          "step": 4,
+          "text": "計算 cost = min(h[i-1], h[i+1])"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "相鄰位移",
+        "content": "左移一位下標減 1 (i - 1)，右移一位下標加 1 (i + 1)，這是陣列滑窗與局部探測的基礎。"
+      },
+      {
+        "type": "warning",
+        "title": "前提條件",
+        "content": "使用 i-1 與 i+1 的前提是 0 < i < n-1，否則會直接踩進邊界地雷！"
+      }
+    ]
+  },
+  {
+    "page": 6,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.4 邊界越界大陷阱：最左端與最右端",
+    "title": "Boundary Pitfall Anatomy: Left & Right Ends",
+    "titleEn": "Boundary Pitfall Anatomy: Left & Right Ends",
+    "titleZh": "邊界越界解剖：為什麼不能對所有點無腦寫 i-1 和 i+1？",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 示範在端點處無腦使用 i-1 與 i+1 的兩大惡果：",
+        "html": "<span class=\"token-comment\"># 示範在端點處無腦使用 i-1 與 i+1 的兩大惡果：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "揭示邊界深層危害",
+        "mean": "惡果演示說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [0, 6, 8, 0]  # n = 4, 有效索引 0, 1, 2, 3",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># n = 4, 有效索引 0, 1, 2, 3</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "兩端皆損壞",
+        "mean": "測試串列"
+      },
+      {
+        "num": 3,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 4,
+        "code": "# 惡果 1：i = 0 時寫 h[i-1]，在 Python 中會倒轉拿到最後一根木樁 h[-1]！",
+        "html": "<span class=\"token-comment\"># 惡果 1：i = 0 時寫 h[i-1]，在 Python 中會倒轉拿到最後一根木樁 h[-1]！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "Python 負索引特性",
+        "mean": "惡果 1 說明"
+      },
+      {
+        "num": 5,
+        "code": "print(f\"i=0 時 h[i-1] 拿到 h[-1] = {h[-1]} (拿最右端的 0 當左鄰居，大錯！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;i=0 時 h[i-1] 拿到 h[-1] = <span class=\"token-op\">{</span><span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">}</span> (拿最右端的 0 當左鄰居，大錯！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "h[-1] 拿到 0 造成誤判",
+        "mean": "展示負索引倒轉"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "# 惡果 2：i = 3 (n-1) 時寫 h[i+1]，會直接引發 IndexError 崩潰！",
+        "html": "<span class=\"token-comment\"># 惡果 2：i = 3 (n-1) 時寫 h[i+1]，會直接引發 IndexError 崩潰！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "右端越界",
+        "mean": "惡果 2 說明"
+      },
+      {
+        "num": 8,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "保護測試",
+        "mean": "try 捕捉"
+      },
+      {
+        "num": 9,
+        "code": "    crash = h[3 + 1]",
+        "html": "    <span class=\"token-ident\">crash</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "Index 4 越界",
+        "mean": "h[4] 越界"
+      },
+      {
+        "num": 10,
+        "code": "except IndexError as e:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-ident\">IndexError</span> <span class=\"token-keyword\">as</span> <span class=\"token-ident\">e</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "捕捉",
+        "mean": "捕捉 IndexError"
+      },
+      {
+        "num": 11,
+        "code": "    print(f\"i=3 時 h[i+1] 引發崩潰: {type(e).__name__} (0分 RE！)\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;i=3 時 h[i+1] 引發崩潰: <span class=\"token-op\">{</span><span class=\"token-ident\">type</span><span class=\"token-op\">(</span><span class=\"token-ident\">e</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">__name__</span><span class=\"token-op\">}</span> (0分 RE！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印證 0 分 RE",
+        "mean": "印出崩潰訊息"
+      }
+    ],
+    "output": "i=0 時 h[i-1] 拿到 h[-1] = 0 (拿最右端的 0 當左鄰居，大錯！)\ni=3 時 h[i+1] 引發崩潰: IndexError (0分 RE！)",
+    "diagram": {
+      "type": "compare",
+      "title": "端點存取的兩大隱形殺手",
+      "left": {
+        "title": "最左端 i = 0 (負索引倒轉)",
+        "content": "h[0 - 1] = h[-1]\n環狀拿到最右端木樁！\n不會報錯，但邏輯完全錯亂！"
+      },
+      "right": {
+        "title": "最右端 i = n - 1 (越界崩潰)",
+        "content": "h[(n-1) + 1] = h[n]\n超出陣列長度邊界！\n直接拋出 IndexError 程式暴斃！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "Python 獨有陷阱",
+        "content": "Python 支援負索引，i=0 時 h[i-1] 不會報錯，反而默默拿到最末元素，極難排查！"
+      },
+      {
+        "type": "standard",
+        "title": "邊界特判意識",
+        "content": "陣列程式設計第一戒律：凡涉及 i-1 或 i+1，必須先問邊界怎麼辦！"
+      }
+    ]
+  },
+  {
+    "page": 7,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.5 傳統邊界特判解法：三分支互斥防禦",
+    "title": "Traditional Strategy: 3-Way Conditional Branching",
+    "titleEn": "Traditional Strategy: 3-Way Conditional Branching",
+    "titleZh": "解法策略一：傳統三分支邊界特判（if-elif-else）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 策略一：使用三分支明確處理最左、最右與中間",
+        "html": "<span class=\"token-comment\"># 策略一：使用三分支明確處理最左、最右與中間</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "傳統安全解法",
+        "mean": "策略一說明"
+      },
+      {
+        "num": 2,
+        "code": "def repair_traditional(h, n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">repair_traditional</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝邏輯",
+        "mean": "函式定義"
+      },
+      {
+        "num": 3,
+        "code": "    total = 0",
+        "html": "    <span class=\"token-ident\">total</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "累加器",
+        "mean": "總額歸零"
+      },
+      {
+        "num": 4,
+        "code": "    for i in range(n):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "走訪 0..n-1",
+        "mean": "巡視每根木樁"
+      },
+      {
+        "num": 5,
+        "code": "        if h[i] == 0:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "判定 0",
+        "mean": "遇損壞"
+      },
+      {
+        "num": 6,
+        "code": "            if i == 0:       total += h[1]          # 最左端",
+        "html": "            <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>       <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>          <span class=\"token-comment\"># 最左端</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "h[1]",
+        "mean": "最左端分支"
+      },
+      {
+        "num": 7,
+        "code": "            elif i == n - 1: total += h[n - 2]      # 最右端",
+        "html": "            <span class=\"token-keyword\">elif</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span> <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span>      <span class=\"token-comment\"># 最右端</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "h[n-2]",
+        "mean": "最右端分支"
+      },
+      {
+        "num": 8,
+        "code": "            else:            total += min(h[i-1], h[i+1]) # 中間",
+        "html": "            <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>            <span class=\"token-ident\">total</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-comment\"># 中間</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "min 兩側",
+        "mean": "中間取 min 分支"
+      },
+      {
+        "num": 9,
+        "code": "    return total",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-ident\">total</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "回傳答案",
+        "mean": "回傳總花費"
+      },
+      {
+        "num": 10,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "print(\"範例 1 傳統特判修復花費:\", repair_traditional([3, 0, 5, 0, 4], 5))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;範例 1 傳統特判修復花費:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">repair_traditional</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 7",
+        "mean": "印出範例 1 結果"
+      },
+      {
+        "num": 12,
+        "code": "print(\"範例 2 傳統特判修復花費:\", repair_traditional([0, 6, 8, 0], 4))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;範例 2 傳統特判修復花費:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">repair_traditional</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 14",
+        "mean": "印出範例 2 結果"
+      }
+    ],
+    "output": "範例 1 傳統特判修復花費: 7\n範例 2 傳統特判修復花費: 14",
+    "diagram": {
+      "type": "flow",
+      "title": "三分支互斥防禦樹",
+      "flow": [
+        {
+          "step": 1,
+          "text": "發現 h[i] == 0"
+        },
+        {
+          "step": 2,
+          "text": "if i == 0: total += h[1]"
+        },
+        {
+          "step": 3,
+          "text": "elif i == n - 1: total += h[n - 2]"
+        },
+        {
+          "step": 4,
+          "text": "else: total += min(h[i-1], h[i+1])"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "新手最穩健首選",
+        "content": "不用任何巧思技巧，邏輯平鋪直敘，考場最不易緊張出錯，穩穩拿下 100 分！"
+      },
+      {
+        "type": "hint",
+        "title": "時間複雜度",
+        "content": "單次遍歷整個陣列，時間複雜度 O(n)，以 n<=100 計算，耗時僅需 0.00005 秒。"
+      }
+    ]
+  },
+  {
+    "page": 8,
+    "phase": "algo",
+    "phaseZh": "思維拆解",
+    "stage": "① 觀念初探",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.6 陣列降維神技：哨兵前後加框法",
+    "title": "Advanced Strategy: Sentinel Padding Technique",
+    "titleEn": "Advanced Strategy: Sentinel Padding Technique",
+    "titleZh": "解法策略二：競賽級降維神技——哨兵前後加框法",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 策略二：前後各補一個極大值 105 作為虛擬無敵木樁（哨兵）",
+        "html": "<span class=\"token-comment\"># 策略二：前後各補一個極大值 105 作為虛擬無敵木樁（哨兵）</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "高級競賽技巧",
+        "mean": "哨兵概念說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [0, 6, 8, 0]  # 原本最左端 0, 最右端 0",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 原本最左端 0, 最右端 0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "兩端損壞案例",
+        "mean": "原始串列"
+      },
+      {
+        "num": 3,
+        "code": "p = [105] + h + [105]",
+        "html": "<span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "前後拼接 105",
+        "mean": "前後加框 105"
+      },
+      {
+        "num": 4,
+        "code": "# 加框後 p = [105, 0, 6, 8, 0, 105]，原位置 i 變成 i+1",
+        "html": "<span class=\"token-comment\"># 加框後 p = [105, 0, 6, 8, 0, 105]，原位置 i 變成 i+1</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "原 0 變 1",
+        "mean": "索引位移分析"
+      },
+      {
+        "num": 5,
+        "code": "# 當最左端 0 (新索引 1): min(p[0], p[2]) = min(105, 6) = 6！自動化解！",
+        "html": "<span class=\"token-comment\"># 當最左端 0 (新索引 1): min(p[0], p[2]) = min(105, 6) = 6！自動化解！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "min(105, 6)=6",
+        "mean": "左端化解示範"
+      },
+      {
+        "num": 6,
+        "code": "# 當最右端 0 (新索引 4): min(p[3], p[5]) = min(8, 105) = 8！自動化解！",
+        "html": "<span class=\"token-comment\"># 當最右端 0 (新索引 4): min(p[3], p[5]) = min(8, 105) = 8！自動化解！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "min(8, 105)=8",
+        "mean": "右端化解示範"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"加框前: {h}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;加框前: <span class=\"token-op\">{</span><span class=\"token-ident\">h</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 8,
+        "code": "print(f\"加框後: {p}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;加框後: <span class=\"token-op\">{</span><span class=\"token-ident\">p</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示原本",
+        "mean": "印出原串列"
+      },
+      {
+        "num": 9,
+        "code": "print(\"神奇結論: 前後加 105 後，所有邊界點自動等同內部節點，免除所有 if 分支！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;神奇結論: 前後加 105 後，所有邊界點自動等同內部節點，免除所有 if 分支！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示加框",
+        "mean": "印出加框串列"
+      }
+    ],
+    "output": "加框前: [0, 6, 8, 0]\n加框後: [105, 0, 6, 8, 0, 105]\n神奇結論: 前後加 105 後，所有邊界點自動等同內部節點，免除所有 if 分支！",
+    "diagram": {
+      "type": "compare",
+      "title": "傳統三分支 vs 哨兵加框法",
+      "left": {
+        "title": "策略一：三分支特判",
+        "content": "行數約 12 行\n需手動維護 i==0 與 i==n-1\n容易漏寫邊界分支"
+      },
+      "right": {
+        "title": "策略二：哨兵加框法",
+        "content": "行數僅 4 行！\n前後補 105，統一寫 min(p[i-1], p[i+1])\n代碼極致簡潔優雅！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "為什麼是 105？",
+        "content": "題目保證木樁高度 h_i <= 100，補上 105 必定大於任何真實木樁，min 運算必定選中真實鄰居！"
+      },
+      {
+        "type": "hint",
+        "title": "競賽經典心法",
+        "content": "「加框（Padding）」是高階演算法（如二維卷積、圖論網格）中最受青睞的邊界化解神技！"
+      }
+    ]
+  },
+  {
+    "page": 9,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.6 陣列降維神技：哨兵前後加框法",
+    "title": "Syntax Rule 1: List Concatenation Padding",
+    "titleEn": "Syntax Rule 1: List Concatenation Padding",
+    "titleZh": "語法鐵律一：串列加法加框語法 [105] + h + [105]",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# Python 串列加法可以極速完成前後加框",
+        "html": "<span class=\"token-comment\"># Python 串列加法可以極速完成前後加框</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "語法多樣性",
+        "mean": "加框語法說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [3, 0, 5]",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "長度 3",
+        "mean": "原始串列"
+      },
+      {
+        "num": 3,
+        "code": "# 方式 1：串列加法拼接",
+        "html": "<span class=\"token-comment\"># 方式 1：串列加法拼接</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "推薦寫法",
+        "mean": "加法拼接說明"
+      },
+      {
+        "num": 4,
+        "code": "padded_1 = [105] + h + [105]",
+        "html": "<span class=\"token-ident\">padded_1</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "[105] + h + [105]",
+        "mean": "串列加法"
+      },
+      {
+        "num": 5,
+        "code": "# 方式 2：解包語法 (Python 3.5+)",
+        "html": "<span class=\"token-comment\"># 方式 2：解包語法 (Python 3.5+)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "現代寫法",
+        "mean": "解包語法說明"
+      },
+      {
+        "num": 6,
+        "code": "padded_2 = [105, *h, 105]",
+        "html": "<span class=\"token-ident\">padded_2</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">,</span> <span class=\"token-op\">*</span><span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "[105, *h, 105]",
+        "mean": "星號解包"
+      },
+      {
+        "num": 7,
+        "code": "print(f\"串列加法結果: {padded_1}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;串列加法結果: <span class=\"token-op\">{</span><span class=\"token-ident\">padded_1</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示一致性",
+        "mean": "印出加法結果"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"解包語法結果: {padded_2}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;解包語法結果: <span class=\"token-op\">{</span><span class=\"token-ident\">padded_2</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示一致性",
+        "mean": "印出解包結果"
+      },
+      {
+        "num": 9,
+        "code": "print(f\"新長度: {len(padded_1)} (原長度 {len(h)} + 2)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;新長度: <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">padded_1</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> (原長度 <span class=\"token-op\">{</span><span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span><span class=\"token-op\">}</span> + 2)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "確認長度加 2",
+        "mean": "印出新長度"
+      }
+    ],
+    "output": "串列加法結果: [105, 3, 0, 5, 105]\n解包語法結果: [105, 3, 0, 5, 105]\n新長度: 5 (原長度 3 + 2)",
+    "diagram": {
+      "type": "flow",
+      "title": "哨兵加框記憶體結構",
+      "flow": [
+        {
+          "step": 1,
+          "text": "左哨兵 [105] (索引 0)"
+        },
+        {
+          "step": 2,
+          "text": "原始木樁 h[0..n-1] (新索引 1..n)"
+        },
+        {
+          "step": 3,
+          "text": "右哨兵 [105] (新索引 n+1)"
+        },
+        {
+          "step": 4,
+          "text": "遍歷範圍精確鎖定 range(1, n + 1)！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "推薦方式 1",
+        "content": "`[105] + h + [105]` 最直觀好記，考場 3 秒寫完，絕不卡殼！"
+      },
+      {
+        "type": "hint",
+        "title": "掃描範圍注意",
+        "content": "加框後原木樁的位置落在 `1` 到 `n`，因此迴圈範圍是 `range(1, n + 1)`！"
+      }
+    ]
+  },
+  {
+    "page": 10,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.5 傳統邊界特判解法：三分支互斥防禦",
+    "title": "Syntax Rule 2: Explicit Boundary Multi-Branch",
+    "titleEn": "Syntax Rule 2: Explicit Boundary Multi-Branch",
+    "titleZh": "語法鐵律二：多分支邊界互斥結構之對齊規範",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 傳統特判多分支規範：if -> elif -> else",
+        "html": "<span class=\"token-comment\"># 傳統特判多分支規範：if -&gt; elif -&gt; else</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "代碼規範性",
+        "mean": "分支規範說明"
+      },
+      {
+        "num": 2,
+        "code": "n = 4",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-number\">4</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=4",
+        "mean": "長度 4"
+      },
+      {
+        "num": 3,
+        "code": "for i in range(n):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "0..3",
+        "mean": "遍歷索引"
+      },
+      {
+        "num": 4,
+        "code": "    if i == 0:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "i==0",
+        "mean": "左端判斷"
+      },
+      {
+        "num": 5,
+        "code": "        desc = \"最左端 (只能參考右鄰居 h[1])\"",
+        "html": "        <span class=\"token-ident\">desc</span> <span class=\"token-op\">=</span> <span class=\"token-string\">&quot;最左端 (只能參考右鄰居 h[1])&quot;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "只有右邊",
+        "mean": "左端敘述"
+      },
+      {
+        "num": 6,
+        "code": "    elif i == n - 1:",
+        "html": "    <span class=\"token-keyword\">elif</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "i==n-1",
+        "mean": "右端判斷"
+      },
+      {
+        "num": 7,
+        "code": "        desc = f\"最右端 (只能參考左鄰居 h[{n-2}])\"",
+        "html": "        <span class=\"token-ident\">desc</span> <span class=\"token-op\">=</span> f&quot;最右端 (只能參考左鄰居 h[<span class=\"token-op\">{</span><span class=\"token-ident\">n</span><span class=\"token-op\">-</span><span class=\"token-number\">2</span><span class=\"token-op\">}</span>])&quot;\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "只有左邊",
+        "mean": "右端敘述"
+      },
+      {
+        "num": 8,
+        "code": "    else:",
+        "html": "    <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "其他",
+        "mean": "內部判斷"
+      },
+      {
+        "num": 9,
+        "code": "        desc = f\"內部節點 (可參考雙鄰居 h[{i-1}] 與 h[{i+1}])\"",
+        "html": "        <span class=\"token-ident\">desc</span> <span class=\"token-op\">=</span> f&quot;內部節點 (可參考雙鄰居 h[<span class=\"token-op\">{</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">}</span>] 與 h[<span class=\"token-op\">{</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">}</span>])&quot;\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "兩邊都有",
+        "mean": "內部敘述"
+      },
+      {
+        "num": 10,
+        "code": "    print(f\"索引 {i}: {desc}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;索引 <span class=\"token-op\">{</span><span class=\"token-ident\">i</span><span class=\"token-op\">}</span>: <span class=\"token-op\">{</span><span class=\"token-ident\">desc</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印證明確分流",
+        "mean": "印出每位置特性"
+      }
+    ],
+    "output": "索引 0: 最左端 (只能參考右鄰居 h[1])\n索引 1: 內部節點 (可參考雙鄰居 h[0] 與 h[2])\n索引 2: 內部節點 (可參考雙鄰居 h[1] 與 h[3])\n索引 3: 最右端 (只能參考左鄰居 h[2])",
+    "diagram": {
+      "type": "flow",
+      "title": "索引責任劃分表",
+      "flow": [
+        {
+          "step": 1,
+          "text": "i == 0 ➔ 責任邊界：右鄰居 h[1]"
+        },
+        {
+          "step": 2,
+          "text": "i == n - 1 ➔ 責任邊界：左鄰居 h[n - 2]"
+        },
+        {
+          "step": 3,
+          "text": "其餘 0 < i < n - 1 ➔ 內部：min(h[i-1], h[i+1])"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "互斥性保證",
+        "content": "使用 if-elif-else 結構確保每個位置只走入一個唯一分支，杜絕重複累加。"
+      },
+      {
+        "type": "hint",
+        "title": "n >= 2 保證",
+        "content": "題目保證 n >= 2，因此最左端 (0) 與最右端 (n-1) 絕不會是同一個元素。"
+      }
+    ]
+  },
+  {
+    "page": 11,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.5 傳統邊界特判解法：三分支互斥防禦",
+    "title": "Syntax Rule 3: Safe Accumulator Initial State",
+    "titleEn": "Syntax Rule 3: Safe Accumulator Initial State",
+    "titleZh": "語法鐵律三：累加器歸零與零損壞天然相容",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 範例 4：全體木樁完好無損 h = [5, 8, 6]",
+        "html": "<span class=\"token-comment\"># 範例 4：全體木樁完好無損 h = [5, 8, 6]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "邊界測試",
+        "mean": "無損壞範例說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [5, 8, 6]",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 4",
+        "mean": "完好木樁資料"
+      },
+      {
+        "num": 3,
+        "code": "n = len(h)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=3",
+        "mean": "長度"
+      },
+      {
+        "num": 4,
+        "code": "total_cost = 0  # 初始總花費為 0",
+        "html": "<span class=\"token-ident\">total_cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>  <span class=\"token-comment\"># 初始總花費為 0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "安全初值",
+        "mean": "初始化累加器為 0"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "for i in range(n):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "巡視",
+        "mean": "遍歷木樁"
+      },
+      {
+        "num": 7,
+        "code": "    if h[i] == 0:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "皆大於 0 不成立",
+        "mean": "判定損壞"
+      },
+      {
+        "num": 8,
+        "code": "        total_cost += 10  # 此迴圈永遠不會觸發！",
+        "html": "        <span class=\"token-ident\">total_cost</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">10</span>  <span class=\"token-comment\"># 此迴圈永遠不會觸發！</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "不執行",
+        "mean": "累加花費"
+      },
+      {
+        "num": 9,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 10,
+        "code": "print(f\"全無損壞時輸出: {total_cost} (天然保證輸出 0！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;全無損壞時輸出: <span class=\"token-op\">{</span><span class=\"token-ident\">total_cost</span><span class=\"token-op\">}</span> (天然保證輸出 0！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "自然輸出 0",
+        "mean": "印出無損壞結果"
+      }
+    ],
+    "output": "全無損壞時輸出: 0 (天然保證輸出 0！)",
+    "diagram": {
+      "type": "step",
+      "title": "零損壞相容機制",
+      "steps": [
+        {
+          "num": 1,
+          "action": "累加器宣告",
+          "desc": "total_cost = 0"
+        },
+        {
+          "num": 2,
+          "action": "無 0 跳過",
+          "desc": "if h[i] == 0 條件永假，直接 pass"
+        },
+        {
+          "num": 3,
+          "action": "滿分輸出",
+          "desc": "print(total_cost) 自然印出 0，無需特殊 if 特判！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "初值哲學",
+        "content": "累加花費問題初值設 0，計數器問題初值設 0，能天然涵蓋所有「空操作」邊界。"
+      },
+      {
+        "type": "hint",
+        "title": "免額外分支",
+        "content": "不需要寫 `if 0 not in h: print(0)`，迴圈本身就是最優美的過濾器。"
+      }
+    ]
+  },
+  {
+    "page": 12,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.6 陣列降維神技：哨兵前後加框法",
+    "title": "Syntax Rule 4: Generator Expression One-Liner",
+    "titleEn": "Syntax Rule 4: Generator Expression One-Liner",
+    "titleZh": "語法鐵律四：哨兵加框與生成器求和的一行流神技",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 哨兵加框 + 生成器運算式：一行秒殺所有修補計算",
+        "html": "<span class=\"token-comment\"># 哨兵加框 + 生成器運算式：一行秒殺所有修補計算</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "高階優雅語法",
+        "mean": "神技說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [3, 0, 5, 0, 4]",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "測試資料",
+        "mean": "範例 1 串列"
+      },
+      {
+        "num": 3,
+        "code": "n = len(h)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=5",
+        "mean": "木樁數"
+      },
+      {
+        "num": 4,
+        "code": "p = [105] + h + [105]",
+        "html": "<span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "加框",
+        "mean": "前後加 105"
+      },
+      {
+        "num": 5,
+        "code": "ans = sum(min(p[i-1], p[i+1]) for i in range(1, n + 1) if p[i] == 0)",
+        "html": "<span class=\"token-ident\">ans</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "篩選 p[i]==0 並加總 min",
+        "mean": "生成器條件求和"
+      },
+      {
+        "num": 6,
+        "code": "print(f\"範例 1 哨兵一行流計算結果: {ans}\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;範例 1 哨兵一行流計算結果: <span class=\"token-op\">{</span><span class=\"token-ident\">ans</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 7",
+        "mean": "印出答案"
+      }
+    ],
+    "output": "範例 1 哨兵一行流計算結果: 7",
+    "diagram": {
+      "type": "flow",
+      "title": "生成器一行流惰性求和流程",
+      "flow": [
+        {
+          "step": 1,
+          "text": "p = [105] + h + [105]"
+        },
+        {
+          "step": 2,
+          "text": "for i in range(1, n + 1) 走訪原陣列範圍"
+        },
+        {
+          "step": 3,
+          "text": "if p[i] == 0: 即時產生 min(p[i-1], p[i+1])"
+        },
+        {
+          "step": 4,
+          "text": "sum(...) 串流加總，即刻完成！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "版本二的精髓",
+        "content": "這正是考場版本二的核心代碼，省去所有繁瑣分支，打字速度提升 300%！"
+      },
+      {
+        "type": "hint",
+        "title": "可讀性保證",
+        "content": "語法結構宛如數學式 $\\sum \\min(p_{i-1}, p_{i+1})$，清晰明瞭。"
+      }
+    ]
+  },
+  {
+    "page": 13,
+    "phase": "syntax",
+    "phaseZh": "核心語法",
+    "stage": "② 語法鐵律",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.1 圍籬損壞修復模型與生活幾何剖析",
+    "title": "Iron Law Mnemonic: Fence Repair Chant",
+    "titleEn": "Iron Law Mnemonic: Fence Repair Chant",
+    "titleZh": "語法鐵律口訣：修補圍籬通關七字訣",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 鐵律口訣：相鄰取小哨兵框",
+        "html": "<span class=\"token-comment\"># 鐵律口訣：相鄰取小哨兵框</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "核心心法",
+        "mean": "口訣提示"
+      },
+      {
+        "num": 2,
+        "code": "def repair_fence_m(h, n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">repair_fence_m</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝通用函式",
+        "mean": "解題函式"
+      },
+      {
+        "num": 3,
+        "code": "    # 哨兵框：[105] + h + [105]",
+        "html": "    <span class=\"token-comment\"># 哨兵框：[105] + h + [105]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "哨兵框",
+        "mean": "口訣後段落實"
+      },
+      {
+        "num": 4,
+        "code": "    p = [105] + h + [105]",
+        "html": "    <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "前後補 105",
+        "mean": "加框"
+      },
+      {
+        "num": 5,
+        "code": "    # 相鄰取小：min(p[i-1], p[i+1])",
+        "html": "    <span class=\"token-comment\"># 相鄰取小：min(p[i-1], p[i+1])</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "相鄰取小",
+        "mean": "口訣前段落實"
+      },
+      {
+        "num": 6,
+        "code": "    return sum(min(p[i-1], p[i+1]) for i in range(1, n + 1) if p[i] == 0)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "min 求解",
+        "mean": "相鄰取小加總"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 8,
+        "code": "print(\"口訣測試範例 1:\", repair_fence_m([3, 0, 5, 0, 4], 5))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;口訣測試範例 1:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">repair_fence_m</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 7",
+        "mean": "範例 1 測試"
+      },
+      {
+        "num": 9,
+        "code": "print(\"口訣測試範例 2:\", repair_fence_m([0, 6, 8, 0], 4))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;口訣測試範例 2:&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">repair_fence_m</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 14",
+        "mean": "範例 2 測試"
+      }
+    ],
+    "output": "口訣測試範例 1: 7\n口訣測試範例 2: 14",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "修補圍籬鐵律口訣",
+      "content": "相鄰取小哨兵框",
+      "lines": [
+        "相鄰取小：遇到 0 木樁，花費取相鄰左右之較小者 min",
+        "哨兵框：前後各補 105，自動消滅所有最左最右邊界特判"
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣速記",
+        "content": "「相鄰取小哨兵框」7 個字將演算法本質（min）與防禦神技（加框）完美融合！"
+      },
+      {
+        "type": "hint",
+        "title": "秒殺解題",
+        "content": "牢記這七字，考場遇到任何陣列相鄰修補或探測問題，都能迎刃而解。"
+      }
+    ]
+  },
+  {
+    "page": 14,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.4 邊界越界大陷阱：最左端與最右端",
+    "title": "WA Pitfall 1: Left End Negative Index Wrap",
+    "titleEn": "WA Pitfall 1: Left End Negative Index Wrap",
+    "titleZh": "考場致命 WA 地雷一：最左端損壞誤用 h[i-1] 倒轉取到最末木樁",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 考場致命隱形 BUG：i=0 時未特判，直接寫 min(h[i-1], h[i+1])",
+        "html": "<span class=\"token-comment\"># ❌ 考場致命隱形 BUG：i=0 時未特判，直接寫 min(h[i-1], h[i+1])</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "警告負索引倒轉",
+        "mean": "隱形 BUG 說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [0, 6, 8, 100]  # 左端損壞(高度0)，右端完好(高度100)",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">100</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 左端損壞(高度0)，右端完好(高度100)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "末端 100",
+        "mean": "測試串列 1"
+      },
+      {
+        "num": 3,
+        "code": "# i=0 時，h[0-1] = h[-1] = 100！",
+        "html": "<span class=\"token-comment\"># i=0 時，h[0-1] = h[-1] = 100！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "說明",
+        "mean": "分析 h[-1]"
+      },
+      {
+        "num": 4,
+        "code": "wrong_cost = min(h[0 - 1], h[0 + 1])  # min(100, 6) = 6",
+        "html": "<span class=\"token-ident\">wrong_cost</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># min(100, 6) = 6</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "巧合算出 6",
+        "mean": "剛好巧合的算式"
+      },
+      {
+        "num": 5,
+        "code": "# 但如果右端木樁高度是 2 呢？",
+        "html": "<span class=\"token-comment\"># 但如果右端木樁高度是 2 呢？</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "構造反例",
+        "mean": "極端反例說明"
+      },
+      {
+        "num": 6,
+        "code": "h2 = [0, 6, 8, 2]   # 按照題意最左端只能看 h[1]=6！",
+        "html": "<span class=\"token-ident\">h2</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span>   <span class=\"token-comment\"># 按照題意最左端只能看 h[1]=6！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "末端 2",
+        "mean": "測試串列 2"
+      },
+      {
+        "num": 7,
+        "code": "bug_cost = min(h2[0 - 1], h2[0 + 1]) # min(2, 6) = 2 (大錯！題目說左端只能看右鄰居6！)",
+        "html": "<span class=\"token-ident\">bug_cost</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">h2</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h2</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-comment\"># min(2, 6) = 2 (大錯！題目說左端只能看右鄰居6！)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "規範左端只能看右邊",
+        "mean": "題意規則說明"
+      },
+      {
+        "num": 8,
+        "code": "print(f\"❌ 誤用負索引算出花費: {bug_cost} (本應是 6，痛失分數！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤用負索引算出花費: <span class=\"token-op\">{</span><span class=\"token-ident\">bug_cost</span><span class=\"token-op\">}</span> (本應是 6，痛失分數！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "誤選到最末端的 2",
+        "mean": "錯誤計算 min(2, 6)"
+      }
+    ],
+    "output": "❌ 誤用負索引算出花費: 2 (本應是 6，痛失分數！)",
+    "diagram": {
+      "type": "compare",
+      "title": "最左端存取的隱形陷阱",
+      "left": {
+        "title": "❌ 無特判寫 min(h[i-1], h[i+1])",
+        "content": "i=0 時，h[i-1] 拿到 h[-1] (最末木樁)\n若最末木樁很矮，min 會錯誤選中它！\n完全違背題意「左端只參考右邊」！"
+      },
+      "right": {
+        "title": "✅ 嚴格特判 if i == 0",
+        "content": "直接指定 cost = h[1]\n絕不碰觸左側虛無鄰居\n滿分防禦！"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "隱蔽性極高",
+        "content": "若範例中末端木樁剛好很高，此 BUG 不會發作；一旦提交碰到強測資立刻 WA 爆零！"
+      },
+      {
+        "type": "standard",
+        "title": "防範法則",
+        "content": "要麼老老實實寫 if i == 0，要麼使用哨兵前後加框！"
+      }
+    ]
+  },
+  {
+    "page": 15,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.4 邊界越界大陷阱：最左端與最右端",
+    "title": "WA Pitfall 2: Right End IndexError Crash",
+    "titleEn": "WA Pitfall 2: Right End IndexError Crash",
+    "titleZh": "考場致命 WA 地雷二：最右端損壞未特判引發 IndexError 崩潰",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 考場崩潰大忌：i=n-1 時直接存取 h[i+1]",
+        "html": "<span class=\"token-comment\"># ❌ 考場崩潰大忌：i=n-1 時直接存取 h[i+1]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "示範右端越界",
+        "mean": "崩潰情境說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [6, 8, 10, 0]  # n=4, 最右端 i=3 損壞",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">10</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># n=4, 最右端 i=3 損壞</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "h[3]=0",
+        "mean": "右端損壞串列"
+      },
+      {
+        "num": 3,
+        "code": "n = len(h)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=4",
+        "mean": "長度"
+      },
+      {
+        "num": 4,
+        "code": "try:",
+        "html": "<span class=\"token-keyword\">try</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "保護",
+        "mean": "try 捕捉保護"
+      },
+      {
+        "num": 5,
+        "code": "    for i in range(n):",
+        "html": "    <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "0..3",
+        "mean": "遍歷"
+      },
+      {
+        "num": 6,
+        "code": "        if h[i] == 0:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "i=3",
+        "mean": "遇 0"
+      },
+      {
+        "num": 7,
+        "code": "            # 未特判 i == n-1，直接呼叫 h[i+1]",
+        "html": "            <span class=\"token-comment\"># 未特判 i == n-1，直接呼叫 h[i+1]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "未防禦",
+        "mean": "未特判說明"
+      },
+      {
+        "num": 8,
+        "code": "            c = min(h[i-1], h[i+1])",
+        "html": "            <span class=\"token-ident\">c</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "h[4] 越界",
+        "mean": "h[i+1] 越界"
+      },
+      {
+        "num": 9,
+        "code": "except IndexError as e:",
+        "html": "<span class=\"token-keyword\">except</span> <span class=\"token-ident\">IndexError</span> <span class=\"token-keyword\">as</span> <span class=\"token-ident\">e</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "捕捉 IndexError",
+        "mean": "捕捉例外"
+      },
+      {
+        "num": 10,
+        "code": "    print(f\"❌ 發生崩潰: {type(e).__name__} (當場 0分 RE！)\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 發生崩潰: <span class=\"token-op\">{</span><span class=\"token-ident\">type</span><span class=\"token-op\">(</span><span class=\"token-ident\">e</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-ident\">__name__</span><span class=\"token-op\">}</span> (當場 0分 RE！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "證明崩潰",
+        "mean": "印出崩潰訊息"
+      }
+    ],
+    "output": "❌ 發生崩潰: IndexError (當場 0分 RE！)",
+    "diagram": {
+      "type": "step",
+      "title": "最右端越界崩潰剖析",
+      "steps": [
+        {
+          "num": 1,
+          "action": "抵達最後一根",
+          "desc": "i = n - 1 (當前圍籬最後一個元素)"
+        },
+        {
+          "num": 2,
+          "action": "試圖探測右方",
+          "desc": "計算 i + 1 = n，超出合法索引 [0..n-1]"
+        },
+        {
+          "num": 3,
+          "action": "程式暴斃",
+          "desc": "Python 直譯器拋出 IndexError，評判系統直接判定 RE！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "競賽痛點",
+        "content": "只要測資中包含最右端損壞，程式立刻整題 RE 零分，毫無容錯空間！"
+      },
+      {
+        "type": "standard",
+        "title": "防範法則",
+        "content": "必須判定 elif i == n - 1: total += h[n - 2]，切勿存取 h[i+1]！"
+      }
+    ]
+  },
+  {
+    "page": 16,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.6 陣列降維神技：哨兵前後加框法",
+    "title": "WA Pitfall 3: Sentinel Value Too Small Failure",
+    "titleEn": "WA Pitfall 3: Sentinel Value Too Small Failure",
+    "titleZh": "考場致命 WA 地雷三：哨兵數值設定過小破壞 min 運算",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ❌ 哨兵設定地雷：若誤設哨兵為 0 或小於 100 的數字",
+        "html": "<span class=\"token-comment\"># ❌ 哨兵設定地雷：若誤設哨兵為 0 或小於 100 的數字</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "哨兵取值原則",
+        "mean": "哨兵數值陷阱說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [0, 6, 8, 0]  # 最左端正確修補為 6，最右端為 8",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># 最左端正確修補為 6，最右端為 8</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "資料",
+        "mean": "測試串列"
+      },
+      {
+        "num": 3,
+        "code": "# 假設粗心設哨兵為 0：",
+        "html": "<span class=\"token-comment\"># 假設粗心設哨兵為 0：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "示範 0",
+        "mean": "誤設 0 說明"
+      },
+      {
+        "num": 4,
+        "code": "p_wrong = [0] + h + [0]",
+        "html": "<span class=\"token-ident\">p_wrong</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "前後補 0",
+        "mean": "錯誤加框 0"
+      },
+      {
+        "num": 5,
+        "code": "# 最左端 0 的修補變成 min(p[0], p[2]) = min(0, 6) = 0！",
+        "html": "<span class=\"token-comment\"># 最左端 0 的修補變成 min(p[0], p[2]) = min(0, 6) = 0！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "0 與 6 比較",
+        "mean": "計算錯誤花費"
+      },
+      {
+        "num": 6,
+        "code": "cost_wrong = min(p_wrong[0], p_wrong[2])",
+        "html": "<span class=\"token-ident\">cost_wrong</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p_wrong</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p_wrong</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "min 得 0",
+        "mean": "錯誤 min"
+      },
+      {
+        "num": 7,
+        "code": "# ✅ 正確哨兵設為 105 (超過木樁高度上限 100)：",
+        "html": "<span class=\"token-comment\"># ✅ 正確哨兵設為 105 (超過木樁高度上限 100)：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "示範 105",
+        "mean": "正確加框說明"
+      },
+      {
+        "num": 8,
+        "code": "p_correct = [105] + h + [105]",
+        "html": "<span class=\"token-ident\">p_correct</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "前後補 105",
+        "mean": "正確加框 105"
+      },
+      {
+        "num": 9,
+        "code": "cost_correct = min(p_correct[0], p_correct[2])  # min(105, 6) = 6",
+        "html": "<span class=\"token-ident\">cost_correct</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p_correct</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p_correct</span><span class=\"token-op\">[</span><span class=\"token-number\">2</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span>  <span class=\"token-comment\"># min(105, 6) = 6</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "min(105,6)得6",
+        "mean": "正確 min"
+      },
+      {
+        "num": 10,
+        "code": "print(f\"❌ 哨兵誤設 0   求得花費: {cost_wrong} (木樁被補成0公分，WA！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 哨兵誤設 0   求得花費: <span class=\"token-op\">{</span><span class=\"token-ident\">cost_wrong</span><span class=\"token-op\">}</span> (木樁被補成0公分，WA！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "錯誤 0",
+        "mean": "印出錯誤結果"
+      },
+      {
+        "num": 11,
+        "code": "print(f\"✅ 哨兵正確設105 求得花費: {cost_correct} (精準修復到6公分，AC！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 哨兵正確設105 求得花費: <span class=\"token-op\">{</span><span class=\"token-ident\">cost_correct</span><span class=\"token-op\">}</span> (精準修復到6公分，AC！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "正確 6",
+        "mean": "印出正確結果"
+      }
+    ],
+    "output": "❌ 哨兵誤設 0   求得花費: 0 (木樁被補成0公分，WA！)\n✅ 哨兵正確設105 求得花費: 6 (精準修復到6公分，AC！)",
+    "diagram": {
+      "type": "compare",
+      "title": "哨兵數值設定對比",
+      "left": {
+        "title": "❌ 哨兵設為 0 或小數",
+        "content": "求較小值 min 時\n0 比真實木樁都矮！\nmin 永遠錯誤選中哨兵 0，WA！"
+      },
+      "right": {
+        "title": "✅ 哨兵設為 105 或 inf",
+        "content": "題目保證 h_i <= 100\n105 永遠比真實木樁高！\nmin 必定選中真實木樁，AC！"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "哨兵取值金律",
+        "content": "若後續要做 min 運算，哨兵必須設為「極大值」；若做 max 運算，哨兵設「極小值」。"
+      },
+      {
+        "type": "hint",
+        "title": "大於上限即可",
+        "content": "105、999、10**9 或 float('inf') 都是極佳的哨兵數值。"
+      }
+    ]
+  },
+  {
+    "page": 17,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.6 陣列降維神技：哨兵前後加框法",
+    "title": "WA Pitfall 4: Range Shift Mistake in Padded Array",
+    "titleEn": "WA Pitfall 4: Range Shift Mistake in Padded Array",
+    "titleZh": "考場致命 WA 地雷四：加框後未調整迴圈範圍造成哨兵被誤修",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 加框後串列長度由 n 變成 n + 2",
+        "html": "<span class=\"token-comment\"># 加框後串列長度由 n 變成 n + 2</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "加框伴生問題",
+        "mean": "長度位移說明"
+      },
+      {
+        "num": 2,
+        "code": "h = [3, 0, 5, 0, 4]  # n = 5",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># n = 5</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "原 5 根",
+        "mean": "原始串列"
+      },
+      {
+        "num": 3,
+        "code": "n = len(h)",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "n=5",
+        "mean": "長度 n"
+      },
+      {
+        "num": 4,
+        "code": "p = [105] + h + [105]  # p 長度為 7，索引 0 ~ 6",
+        "html": "<span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>  <span class=\"token-comment\"># p 長度為 7，索引 0 ~ 6</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "長度變 7",
+        "mean": "加框串列 p"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# ❌ 誤用 range(n) 遍歷加框後的串列：",
+        "html": "<span class=\"token-comment\"># ❌ 誤用 range(n) 遍歷加框後的串列：</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分析錯誤",
+        "mean": "錯誤範圍說明"
+      },
+      {
+        "num": 7,
+        "code": "# 會走訪索引 0 到 4，遺漏了最後一根原木樁 (新索引 5)！",
+        "html": "<span class=\"token-comment\"># 會走訪索引 0 到 4，遺漏了最後一根原木樁 (新索引 5)！</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": true,
+        "why": "0..4 錯位",
+        "mean": "錯誤使用 range(n)"
+      },
+      {
+        "num": 8,
+        "code": "wrong_indices = list(range(n))",
+        "html": "<span class=\"token-ident\">wrong_indices</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分析正解",
+        "mean": "正確範圍說明"
+      },
+      {
+        "num": 9,
+        "code": "# ✅ 正確走訪原木樁範圍：range(1, n + 1)",
+        "html": "<span class=\"token-comment\"># ✅ 正確走訪原木樁範圍：range(1, n + 1)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "1..5 正解",
+        "mean": "正確 range(1, n+1)"
+      },
+      {
+        "num": 10,
+        "code": "correct_indices = list(range(1, n + 1))",
+        "html": "<span class=\"token-ident\">correct_indices</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 11,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示遺漏",
+        "mean": "印出錯誤索引"
+      },
+      {
+        "num": 12,
+        "code": "print(f\"❌ 誤用 range(n):     {wrong_indices} (少測了原最後一根木樁！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;❌ 誤用 range(n):     <span class=\"token-op\">{</span><span class=\"token-ident\">wrong_indices</span><span class=\"token-op\">}</span> (少測了原最後一根木樁！)&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示精確對應",
+        "mean": "印出正確索引"
+      },
+      {
+        "num": 13,
+        "code": "print(f\"✅ 正確 range(1, n+1): {correct_indices} (精確對應原 5 根木樁！)\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;✅ 正確 range(1, n+1): <span class=\"token-op\">{</span><span class=\"token-ident\">correct_indices</span><span class=\"token-op\">}</span> (精確對應原 5 根木樁！)&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "依序執行解題流程，穩健通過測資",
+        "mean": "解題指令"
+      }
+    ],
+    "output": "❌ 誤用 range(n):     [0, 1, 2, 3, 4] (少測了原最後一根木樁！)\n✅ 正確 range(1, n+1): [1, 2, 3, 4, 5] (精確對應原 5 根木樁！)",
+    "diagram": {
+      "type": "compare",
+      "title": "加框後索引位移對照",
+      "left": {
+        "title": "原串列 h 索引",
+        "content": "h[0]、h[1]、h[2]、...、h[n-1]\n範圍：range(n)"
+      },
+      "right": {
+        "title": "加框串列 p 索引",
+        "content": "p[0]是哨兵！\np[1]到p[n]是原木樁！\n範圍必須寫：range(1, n + 1)"
+      }
+    },
+    "tips": [
+      {
+        "type": "warning",
+        "title": "位移原則",
+        "content": "加框後前面多了一個元素，原木樁索引全部向右位移 +1，範圍必須是 1 到 n！"
+      },
+      {
+        "type": "standard",
+        "title": "檢查法寶",
+        "content": "在終端機 print(p[1], p[n])，確認剛好是原木樁的第一根與最後一根。"
+      }
+    ]
+  },
+  {
+    "page": 18,
+    "phase": "trap",
+    "phaseZh": "考場地雷",
+    "stage": "③ 考場地雷",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.8 全邊界壓力測試與失分地雷排查",
+    "title": "Pre-Submission Defense Checklist",
+    "titleEn": "Pre-Submission Defense Checklist",
+    "titleZh": "考場防禦：交卷前四道自我防護檢驗清單",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 考前終極檢驗清單快速測試",
+        "html": "<span class=\"token-comment\"># 考前終極檢驗清單快速測試</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "終極防禦",
+        "mean": "自檢說明"
+      },
+      {
+        "num": 2,
+        "code": "def audit_g595(h, n):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">audit_g595</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "封裝邏輯",
+        "mean": "審查函式"
+      },
+      {
+        "num": 3,
+        "code": "    # 使用哨兵加框法進行檢驗",
+        "html": "    <span class=\"token-comment\"># 使用哨兵加框法進行檢驗</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 4,
+        "code": "    p = [105] + h + [105]",
+        "html": "    <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "105 加框",
+        "mean": "哨兵加框"
+      },
+      {
+        "num": 5,
+        "code": "    return sum(min(p[i-1], p[i+1]) for i in range(1, n + 1) if p[i] == 0)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "range(1, n+1)",
+        "mean": "安全求和"
+      },
+      {
+        "num": 6,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "# 自檢 1：範例 1 (內部損壞) -> 預期 7",
+        "html": "<span class=\"token-comment\"># 自檢 1：範例 1 (內部損壞) -&gt; 預期 7</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "內部",
+        "mean": "測資 1 說明"
+      },
+      {
+        "num": 8,
+        "code": "print(\"自檢 1 (內部損壞):\", audit_g595([3, 0, 5, 0, 4], 5))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 1 (內部損壞):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_g595</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 7",
+        "mean": "執行自檢 1"
+      },
+      {
+        "num": 9,
+        "code": "# 自檢 2：範例 2 (兩端損壞) -> 預期 14",
+        "html": "<span class=\"token-comment\"># 自檢 2：範例 2 (兩端損壞) -&gt; 預期 14</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "兩端",
+        "mean": "測資 2 說明"
+      },
+      {
+        "num": 10,
+        "code": "print(\"自檢 2 (兩端損壞):\", audit_g595([0, 6, 8, 0], 4))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 2 (兩端損壞):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_g595</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 14",
+        "mean": "執行自檢 2"
+      },
+      {
+        "num": 11,
+        "code": "# 自檢 3：範例 4 (全無損壞) -> 預期 0",
+        "html": "<span class=\"token-comment\"># 自檢 3：範例 4 (全無損壞) -&gt; 預期 0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "無損",
+        "mean": "測資 3 說明"
+      },
+      {
+        "num": 12,
+        "code": "print(\"自檢 3 (全無損壞):\", audit_g595([5, 8, 6], 3))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自檢 3 (全無損壞):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">audit_g595</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-number\">3</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 0",
+        "mean": "執行自檢 3"
+      }
+    ],
+    "output": "自檢 1 (內部損壞): 7\n自檢 2 (兩端損壞): 14\n自檢 3 (全無損壞): 0",
+    "diagram": {
+      "type": "mnemonic",
+      "title": "考場交卷前四道防禦檢驗清單",
+      "content": "哨兵破百界不越",
+      "lines": [
+        "一、若用傳統特判，是否明確分流 i==0 與 i==n-1 杜絕越界？",
+        "二、若用哨兵加框，哨兵數值是否破百 (>=105) 且範圍寫 range(1, n+1)？",
+        "三、是否測試過兩端邊界損壞測資（如 [0, 6, 8, 0]）？",
+        "四、全無損壞時是否能正確輸出 0？"
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "口訣速記",
+        "content": "「哨兵破百界不越」7 字口訣，考前逐條自我排查，陣列邊界萬無一失！"
+      },
+      {
+        "type": "hint",
+        "title": "三大面向驗證",
+        "content": "內部損壞、端點損壞、零損壞，三位一體測試全過，即可放心交卷。"
+      }
+    ]
+  },
+  {
+    "page": 19,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.7 完整 AC 模組拼裝與雙解法對照",
+    "title": "Solution Architecture & Dual-Platform Overview",
+    "titleEn": "Solution Architecture & Dual-Platform Overview",
+    "titleZh": "雙平台解答庫導讀：APCS 考場版 vs ZeroJudge 版",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 解答庫三大版本特性對照表",
+        "html": "<span class=\"token-comment\"># 解答庫三大版本特性對照表</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "架構導覽",
+        "mean": "版本清單說明"
+      },
+      {
+        "num": 2,
+        "code": "versions = [",
+        "html": "<span class=\"token-ident\">versions</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "彙整三種解法",
+        "mean": "版本清單陣列"
+      },
+      {
+        "num": 3,
+        "code": "    (\"版本一：APCS 淺顯易懂一般版\", \"傳統三分支特判 (i==0 / i==n-1 / else)，步驟平鋪直敘，新手首選\"),",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本一：APCS 淺顯易懂一般版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;傳統三分支特判 (i==0 / i==n-1 / else)，步驟平鋪直敘，新手首選&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "新手友善",
+        "mean": "版本一特色"
+      },
+      {
+        "num": 4,
+        "code": "    (\"版本二：APCS 極簡高效精煉版\", \"哨兵前後加框 [105] + sum 生成器，僅僅 4 行秒殺真題\"),",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本二：APCS 極簡高效精煉版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;哨兵前後加框 [105] + sum 生成器，僅僅 4 行秒殺真題&quot;</span><span class=\"token-op\">)</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "競賽速寫",
+        "mean": "版本二特色"
+      },
+      {
+        "num": 5,
+        "code": "    (\"版本三：ZeroJudge 萬用 AC 版\", \"sys.stdin 一次讀取 token，支援連續多組測資 EOF 串流\")",
+        "html": "    <span class=\"token-op\">(</span><span class=\"token-string\">&quot;版本三：ZeroJudge 萬用 AC 版&quot;</span><span class=\"token-op\">,</span> <span class=\"token-string\">&quot;sys.stdin 一次讀取 token，支援連續多組測資 EOF 串流&quot;</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "線上 OJ 支援",
+        "mean": "版本三特色"
+      },
+      {
+        "num": 6,
+        "code": "]",
+        "html": "<span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 7,
+        "code": "for name, desc in versions:",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">name</span><span class=\"token-op\">,</span> <span class=\"token-ident\">desc</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">versions</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "列印資訊",
+        "mean": "走訪各版本"
+      },
+      {
+        "num": 8,
+        "code": "    print(f\"[{name}] -> {desc}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;[<span class=\"token-op\">{</span><span class=\"token-ident\">name</span><span class=\"token-op\">}</span>] -&gt; <span class=\"token-op\">{</span><span class=\"token-ident\">desc</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "展示版本特性",
+        "mean": "輸出版本介紹"
+      }
+    ],
+    "output": "[版本一：APCS 淺顯易懂一般版] -> 傳統三分支特判 (i==0 / i==n-1 / else)，步驟平鋪直敘，新手首選\n[版本二：APCS 極簡高效精煉版] -> 哨兵前後加框 [105] + sum 生成器，僅僅 4 行秒殺真題\n[版本三：ZeroJudge 萬用 AC 版] -> sys.stdin 一次讀取 token，支援連續多組測資 EOF 串流",
+    "diagram": {
+      "type": "compare",
+      "title": "APCS 官方考場 vs ZeroJudge 評測環境差異",
+      "left": {
+        "title": "APCS 官方考場環境",
+        "content": "單次執行僅評測單一完整輸入檔（2 行數據）\n讀完即結束，print(total_cost) 即滿分\n推薦：版本一（新手）或 版本二（高手）"
+      },
+      "right": {
+        "title": "ZeroJudge 線上解題系統",
+        "content": "伺服器可能連續灌入多組 n 與圍籬高度\n需以 EOF 迴圈或一次性 token 解析\n推薦：版本三（支援連續多筆測資）"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "考場首選",
+        "content": "正式考試直接寫版本一或二；平時刷 ZeroJudge g595 則提交版本三！"
+      },
+      {
+        "type": "hint",
+        "title": "核心共通",
+        "content": "三個版本本質皆為 O(n) 單次掃描，邏輯完全一致，保證滿分 AC。"
+      }
+    ]
+  },
+  {
+    "page": 20,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.7 完整 AC 模組拼裝與雙解法對照",
+    "title": "Version 1: APCS Standard Easy Solution",
+    "titleEn": "Version 1: APCS Standard Easy Solution",
+    "titleZh": "版本一：APCS 官方考場版（淺顯易懂一般版）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 步驟 1：讀取木樁總數 n 與高度串列 h",
+        "html": "<span class=\"token-comment\"># 步驟 1：讀取木樁總數 n 與高度串列 h</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "分步清晰",
+        "mean": "讀取輸入說明"
+      },
+      {
+        "num": 2,
+        "code": "n = int(input())",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "整數 n",
+        "mean": "讀入 n"
+      },
+      {
+        "num": 3,
+        "code": "h = list(map(int, input().split()))",
+        "html": "<span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "切分整數清單",
+        "mean": "讀入高度串列"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "# 步驟 2：初始化修復總花費",
+        "html": "<span class=\"token-comment\"># 步驟 2：初始化修復總花費</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初始化",
+        "mean": "累加器歸零"
+      },
+      {
+        "num": 6,
+        "code": "total_cost = 0",
+        "html": "<span class=\"token-ident\">total_cost</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "安全歸零",
+        "mean": "total_cost = 0"
+      },
+      {
+        "num": 7,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 8,
+        "code": "# 步驟 3：巡視每根木樁，遇 0 依位置分流計算",
+        "html": "<span class=\"token-comment\"># 步驟 3：巡視每根木樁，遇 0 依位置分流計算</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "逐根檢查",
+        "mean": "遍歷與分流"
+      },
+      {
+        "num": 9,
+        "code": "for i in range(n):",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "0..n-1",
+        "mean": "for 迴圈"
+      },
+      {
+        "num": 10,
+        "code": "    if h[i] == 0:",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "h[i]==0",
+        "mean": "判斷木樁損壞"
+      },
+      {
+        "num": 11,
+        "code": "        if i == 0:",
+        "html": "        <span class=\"token-keyword\">if</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "i==0",
+        "mean": "最左端條件"
+      },
+      {
+        "num": 12,
+        "code": "            total_cost += h[1]          # 最左端損壞：只能參考右鄰居",
+        "html": "            <span class=\"token-ident\">total_cost</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span>          <span class=\"token-comment\"># 最左端損壞：只能參考右鄰居</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "右邊鄰居",
+        "mean": "累加 h[1]"
+      },
+      {
+        "num": 13,
+        "code": "        elif i == n - 1:",
+        "html": "        <span class=\"token-keyword\">elif</span> <span class=\"token-ident\">i</span> <span class=\"token-op\">==</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "i==n-1",
+        "mean": "最右端條件"
+      },
+      {
+        "num": 14,
+        "code": "            total_cost += h[n - 2]      # 最右端損壞：只能參考左鄰居",
+        "html": "            <span class=\"token-ident\">total_cost</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">n</span> <span class=\"token-op\">-</span> <span class=\"token-number\">2</span><span class=\"token-op\">]</span>      <span class=\"token-comment\"># 最右端損壞：只能參考左鄰居</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "左邊鄰居",
+        "mean": "累加 h[n-2]"
+      },
+      {
+        "num": 15,
+        "code": "        else:",
+        "html": "        <span class=\"token-keyword\">else</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "其他內部",
+        "mean": "中間條件"
+      },
+      {
+        "num": 16,
+        "code": "            total_cost += min(h[i - 1], h[i + 1]) # 中間損壞：取較小者",
+        "html": "            <span class=\"token-ident\">total_cost</span> <span class=\"token-op\">+=</span> <span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">h</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-comment\"># 中間損壞：取較小者</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "左右較矮者",
+        "mean": "累加 min"
+      },
+      {
+        "num": 17,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 18,
+        "code": "print(total_cost)",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">total_cost</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "滿分完成",
+        "mean": "印出總花費"
+      }
+    ],
+    "output": "【範例一測試輸出】7\n【範例二測試輸出】14",
+    "diagram": {
+      "type": "flow",
+      "title": "版本一解題管線",
+      "flow": [
+        {
+          "step": 1,
+          "text": "讀取 n 與高度 h"
+        },
+        {
+          "step": 2,
+          "text": "total_cost = 0"
+        },
+        {
+          "step": 3,
+          "text": "for i in range(n) if h[i] == 0:"
+        },
+        {
+          "step": 4,
+          "text": "三分支特判最左 h[1]、最右 h[n-2]、中間 min"
+        },
+        {
+          "step": 5,
+          "text": "print(total_cost) 滿分 AC！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "新手最推",
+        "content": "變數名稱清晰、拆解詳細、邏輯平鋪直敘，考場高壓下最不易慌亂出錯！"
+      },
+      {
+        "type": "hint",
+        "title": "100% AC",
+        "content": "此版本通過官方所有測資點，獲得 100 分滿分。"
+      }
+    ]
+  },
+  {
+    "page": 21,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.7 完整 AC 模組拼裝與雙解法對照",
+    "title": "Version 2: APCS Minimal & Efficient Solution",
+    "titleEn": "Version 2: APCS Minimal & Efficient Solution",
+    "titleZh": "版本二：APCS 官方考場版（極簡高效精煉版）",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# ⚡ 僅僅 4 行程式碼秒殺真題！",
+        "html": "<span class=\"token-comment\"># ⚡ 僅僅 4 行程式碼秒殺真題！</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "極致優雅",
+        "mean": "極簡 4 行說明"
+      },
+      {
+        "num": 2,
+        "code": "n = int(input())",
+        "html": "<span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "整數 n",
+        "mean": "讀入 n"
+      },
+      {
+        "num": 3,
+        "code": "p = [105] + list(map(int, input().split())) + [105]",
+        "html": "<span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-builtin\">list</span><span class=\"token-op\">(</span><span class=\"token-builtin\">map</span><span class=\"token-op\">(</span><span class=\"token-builtin\">int</span><span class=\"token-op\">,</span> <span class=\"token-builtin\">input</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "前後拼接 105 哨兵",
+        "mean": "讀入並加框 105"
+      },
+      {
+        "num": 4,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 5,
+        "code": "print(sum(min(p[i - 1], p[i + 1]) for i in range(1, n + 1) if p[i] == 0))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-op\">-</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "range(1, n+1) 篩選 0 並取 min 求和",
+        "mean": "一行生成器求和並印出"
+      }
+    ],
+    "output": "【極簡 4 行輸出】7",
+    "diagram": {
+      "type": "compare",
+      "title": "版本一 vs 版本二 差異對照",
+      "left": {
+        "title": "版本一（一般版）",
+        "content": "行數：約 15 行\n傳統三分支特判邊界\n適合：初學扎根、求穩求清晰"
+      },
+      "right": {
+        "title": "版本二（極簡版）",
+        "content": "行數：僅僅 4 行！\n哨兵前後加框 + 生成器求和\n適合：競賽選手與追求極速者"
+      }
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "極速敲碼",
+        "content": "全篇只有 4 行，在正式考場上 60 秒內即可敲完並 AC，大幅節省後續大題時間！"
+      },
+      {
+        "type": "hint",
+        "title": "消滅分支",
+        "content": "徹底擺脫 if i == 0 與 if i == n - 1，寫法極具高級競技美感。"
+      }
+    ]
+  },
+  {
+    "page": 22,
+    "phase": "solution",
+    "phaseZh": "解答庫",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.7 完整 AC 模組拼裝與雙解法對照",
+    "title": "Version 3: ZeroJudge Universal AC Solution",
+    "titleEn": "Version 3: ZeroJudge Universal AC Solution",
+    "titleZh": "版本三：ZeroJudge 線上評判萬用 AC 版",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "import sys",
+        "html": "<span class=\"token-keyword\">import</span> <span class=\"token-ident\">sys</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "高效 I/O",
+        "mean": "載入 sys 模組"
+      },
+      {
+        "num": 2,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 3,
+        "code": "def solve():",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "模組化",
+        "mean": "主解題函式"
+      },
+      {
+        "num": 4,
+        "code": "    tokens = sys.stdin.read().split()",
+        "html": "    <span class=\"token-ident\">tokens</span> <span class=\"token-op\">=</span> <span class=\"token-ident\">sys</span><span class=\"token-op\">.</span><span class=\"token-ident\">stdin</span><span class=\"token-op\">.</span><span class=\"token-ident\">read</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">.</span><span class=\"token-builtin\">split</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "一次切分所有整數",
+        "mean": "一次讀取所有 token"
+      },
+      {
+        "num": 5,
+        "code": "    if not tokens: return",
+        "html": "    <span class=\"token-keyword\">if</span> <span class=\"token-keyword\">not</span> <span class=\"token-ident\">tokens</span><span class=\"token-op\">:</span> <span class=\"token-keyword\">return</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "防空防崩潰",
+        "mean": "防空測資"
+      },
+      {
+        "num": 6,
+        "code": "    idx = 0",
+        "html": "    <span class=\"token-ident\">idx</span> <span class=\"token-op\">=</span> <span class=\"token-number\">0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "初始化指標",
+        "mean": "指標歸零"
+      },
+      {
+        "num": 7,
+        "code": "    while idx < len(tokens):",
+        "html": "    <span class=\"token-keyword\">while</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">&lt;</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "連續測資迭代",
+        "mean": "EOF 循環處理"
+      },
+      {
+        "num": 8,
+        "code": "        n = int(tokens[idx]); idx += 1",
+        "html": "        <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">;</span> <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-number\">1</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "木樁數",
+        "mean": "讀取 n 並推進"
+      },
+      {
+        "num": 9,
+        "code": "        h = [int(tokens[idx + i]) for i in range(n)]",
+        "html": "        <span class=\"token-ident\">h</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-builtin\">int</span><span class=\"token-op\">(</span><span class=\"token-ident\">tokens</span><span class=\"token-op\">[</span><span class=\"token-ident\">idx</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">i</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-ident\">n</span><span class=\"token-op\">)</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "切出高度清單",
+        "mean": "提取 n 根木樁高度"
+      },
+      {
+        "num": 10,
+        "code": "        idx += n",
+        "html": "        <span class=\"token-ident\">idx</span> <span class=\"token-op\">+=</span> <span class=\"token-ident\">n</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "前進",
+        "mean": "指標跳過 n 個"
+      },
+      {
+        "num": 11,
+        "code": "        p = [105] + h + [105]",
+        "html": "        <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "哨兵神技",
+        "mean": "加框 105"
+      },
+      {
+        "num": 12,
+        "code": "        ans = sum(min(p[i-1], p[i+1]) for i in range(1, n + 1) if p[i] == 0)",
+        "html": "        <span class=\"token-ident\">ans</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "生成器加總",
+        "mean": "計算總花費"
+      },
+      {
+        "num": 13,
+        "code": "        print(ans)",
+        "html": "        <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-ident\">ans</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "印出結果",
+        "mean": "輸出答案"
+      },
+      {
+        "num": 14,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 15,
+        "code": "if __name__ == '__main__':",
+        "html": "<span class=\"token-keyword\">if</span> <span class=\"token-ident\">__name__</span> <span class=\"token-op\">==</span> <span class=\"token-string\">&#x27;__main__&#x27;</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "標準入口",
+        "mean": "標準入口"
+      },
+      {
+        "num": 16,
+        "code": "    solve()",
+        "html": "    <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "調用主函式",
+        "mean": "執行解題"
+      }
+    ],
+    "output": "【ZeroJudge 多測資評判】AC (100% 通過)",
+    "diagram": {
+      "type": "flow",
+      "title": "ZeroJudge 批次 Token 解析架構",
+      "flow": [
+        {
+          "step": 1,
+          "text": "sys.stdin.read().split() 一次切出所有數字 token"
+        },
+        {
+          "step": 2,
+          "text": "讀取 n，推進指標 idx += 1"
+        },
+        {
+          "step": 3,
+          "text": "提取 n 根高度，推進指標 idx += n"
+        },
+        {
+          "step": 4,
+          "text": "加框計算花費並 print(ans)，循環直到 EOF！"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "ZeroJudge 綠燈保證",
+        "content": "直接複製此版本貼上 ZeroJudge g595，即可獲得滿分 AC（綠燈通過）！"
+      },
+      {
+        "type": "hint",
+        "title": "Token 讀取優勢",
+        "content": "無視任何空行、多餘空格與換行格式，是競技程式中最堅不可摧的讀取手法。"
+      }
+    ]
+  },
+  {
+    "page": 23,
+    "phase": "summary",
+    "phaseZh": "思考昇華",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.8 全邊界壓力測試與失分地雷排查",
+    "title": "Self-Test & Edge Cases Mastered",
+    "titleEn": "Self-Test & Edge Cases Mastered",
+    "titleZh": "考點通關自測：三大極限邊界測資實機驗算",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "def solve(h):",
+        "html": "<span class=\"token-keyword\">def</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "封裝精簡求解",
+        "mean": "自測函式"
+      },
+      {
+        "num": 2,
+        "code": "    n = len(h)",
+        "html": "    <span class=\"token-ident\">n</span> <span class=\"token-op\">=</span> <span class=\"token-builtin\">len</span><span class=\"token-op\">(</span><span class=\"token-ident\">h</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "長度",
+        "mean": "木樁數"
+      },
+      {
+        "num": 3,
+        "code": "    p = [105] + h + [105]",
+        "html": "    <span class=\"token-ident\">p</span> <span class=\"token-op\">=</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span> <span class=\"token-op\">+</span> <span class=\"token-ident\">h</span> <span class=\"token-op\">+</span> <span class=\"token-op\">[</span><span class=\"token-number\">105</span><span class=\"token-op\">]</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "前後加框",
+        "mean": "加框 105"
+      },
+      {
+        "num": 4,
+        "code": "    return sum(min(p[i-1], p[i+1]) for i in range(1, n + 1) if p[i] == 0)",
+        "html": "    <span class=\"token-keyword\">return</span> <span class=\"token-builtin\">sum</span><span class=\"token-op\">(</span><span class=\"token-builtin\">min</span><span class=\"token-op\">(</span><span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">-</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">,</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">+</span><span class=\"token-number\">1</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">for</span> <span class=\"token-ident\">i</span> <span class=\"token-keyword\">in</span> <span class=\"token-builtin\">range</span><span class=\"token-op\">(</span><span class=\"token-number\">1</span><span class=\"token-op\">,</span> <span class=\"token-ident\">n</span> <span class=\"token-op\">+</span> <span class=\"token-number\">1</span><span class=\"token-op\">)</span> <span class=\"token-keyword\">if</span> <span class=\"token-ident\">p</span><span class=\"token-op\">[</span><span class=\"token-ident\">i</span><span class=\"token-op\">]</span> <span class=\"token-op\">==</span> <span class=\"token-number\">0</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "求和",
+        "mean": "計算總額"
+      },
+      {
+        "num": 5,
+        "code": "",
+        "html": "&nbsp;",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 6,
+        "code": "# 測資 1：範例 1 (內部損壞) -> 預期 7",
+        "html": "<span class=\"token-comment\"># 測資 1：範例 1 (內部損壞) -&gt; 預期 7</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 1",
+        "mean": "測資 1 說明"
+      },
+      {
+        "num": 7,
+        "code": "print(\"自測 1 (範例 1):\", solve([3, 0, 5, 0, 4]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 1 (範例 1):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">3</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">4</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 7",
+        "mean": "執行測資 1"
+      },
+      {
+        "num": 8,
+        "code": "# 測資 2：範例 2 (兩端損壞) -> 預期 14",
+        "html": "<span class=\"token-comment\"># 測資 2：範例 2 (兩端損壞) -&gt; 預期 14</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 2 兩端",
+        "mean": "測資 2 說明"
+      },
+      {
+        "num": 9,
+        "code": "print(\"自測 2 (兩端損壞):\", solve([0, 6, 8, 0]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 2 (兩端損壞):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">0</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">0</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 14",
+        "mean": "執行測資 2"
+      },
+      {
+        "num": 10,
+        "code": "# 測資 3：範例 4 (全無損壞) -> 預期 0",
+        "html": "<span class=\"token-comment\"># 測資 3：範例 4 (全無損壞) -&gt; 預期 0</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "範例 4 無損",
+        "mean": "測資 3 說明"
+      },
+      {
+        "num": 11,
+        "code": "print(\"自測 3 (全無損壞):\", solve([5, 8, 6]))",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;自測 3 (全無損壞):&quot;</span><span class=\"token-op\">,</span> <span class=\"token-ident\">solve</span><span class=\"token-op\">(</span><span class=\"token-op\">[</span><span class=\"token-number\">5</span><span class=\"token-op\">,</span> <span class=\"token-number\">8</span><span class=\"token-op\">,</span> <span class=\"token-number\">6</span><span class=\"token-op\">]</span><span class=\"token-op\">)</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "驗證得 0",
+        "mean": "執行測資 3"
+      }
+    ],
+    "output": "自測 1 (範例 1): 7\n自測 2 (兩端損壞): 14\n自測 3 (全無損壞): 0",
+    "diagram": {
+      "type": "step",
+      "title": "三大極限測資通過報告",
+      "steps": [
+        {
+          "num": 1,
+          "action": "測資 1 (內部損壞)",
+          "desc": "輸出 7 ✅ 雙向探測精準計算"
+        },
+        {
+          "num": 2,
+          "action": "測資 2 (兩端損壞)",
+          "desc": "輸出 14 ✅ 邊界端點安全過濾"
+        },
+        {
+          "num": 3,
+          "action": "測資 3 (全無損壞)",
+          "desc": "輸出 0 ✅ 零損壞天然相容"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "三大考點全破",
+        "content": "內部、端點、無損壞三大情境全部綠燈通過，代碼毫無破綻！"
+      },
+      {
+        "type": "hint",
+        "title": "心法鞏固",
+        "content": "掌握了哨兵加框技巧，未來在遇到二維地圖加框（周圍補一圈海）時將如魚得水！"
+      }
+    ]
+  },
+  {
+    "page": 24,
+    "phase": "summary",
+    "phaseZh": "思考昇華",
+    "stage": "④ 綜合驗收",
+    "chapter": "第 14 章 APCS 實作真題特訓（初級題）",
+    "section": "14.9.8 全邊界壓力測試與失分地雷排查",
+    "title": "Summary & Next Mission: 14.10 Game Role",
+    "titleEn": "Summary & Next Mission: 14.10 Game Role",
+    "titleZh": "學習總結與下一題預告：14.10 遊戲選角",
+    "codeLines": [
+      {
+        "num": 1,
+        "code": "# 單元 14.9 通關成果回顧",
+        "html": "<span class=\"token-comment\"># 單元 14.9 通關成果回顧</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "回顧成果",
+        "mean": "總結回顧註解"
+      },
+      {
+        "num": 2,
+        "code": "badges = {",
+        "html": "<span class=\"token-ident\">badges</span> <span class=\"token-op\">=</span> <span class=\"token-op\">{</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "條理清晰",
+        "mean": "勳章字典"
+      },
+      {
+        "num": 3,
+        "code": "    \"真題代碼\": \"APCS g595 修補圍籬\",",
+        "html": "    <span class=\"token-string\">&quot;真題代碼&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;APCS g595 修補圍籬&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "g595",
+        "mean": "真題代碼"
+      },
+      {
+        "num": 4,
+        "code": "    \"核心技巧\": \"一維陣列相鄰探測 (h[i-1], h[i+1])\",",
+        "html": "    <span class=\"token-string\">&quot;核心技巧&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;一維陣列相鄰探測 (h[i-1], h[i+1])&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "相鄰探測",
+        "mean": "核心技巧"
+      },
+      {
+        "num": 5,
+        "code": "    \"關鍵防禦\": \"邊界特判 (i==0, i==n-1) 或 哨兵加框 [105]\",",
+        "html": "    <span class=\"token-string\">&quot;關鍵防禦&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;邊界特判 (i==0, i==n-1) 或 哨兵加框 [105]&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "哨兵神技",
+        "mean": "關鍵防禦"
+      },
+      {
+        "num": 6,
+        "code": "    \"通關口訣\": \"相鄰取小哨兵框\",",
+        "html": "    <span class=\"token-string\">&quot;通關口訣&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;相鄰取小哨兵框&quot;</span><span class=\"token-op\">,</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "口訣回扣",
+        "mean": "通關口訣"
+      },
+      {
+        "num": 7,
+        "code": "    \"通關狀態\": \"100% 滿分 AC 通過\"",
+        "html": "    <span class=\"token-string\">&quot;通關狀態&quot;</span><span class=\"token-op\">:</span> <span class=\"token-string\">&quot;100% 滿分 AC 通過&quot;</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "滿分",
+        "mean": "通關狀態"
+      },
+      {
+        "num": 8,
+        "code": "}",
+        "html": "<span class=\"token-op\">}</span>\n",
+        "alt": "",
+        "diff": false,
+        "error": false,
+        "why": "",
+        "mean": ""
+      },
+      {
+        "num": 9,
+        "code": "for k, v in badges.items():",
+        "html": "<span class=\"token-keyword\">for</span> <span class=\"token-ident\">k</span><span class=\"token-op\">,</span> <span class=\"token-ident\">v</span> <span class=\"token-keyword\">in</span> <span class=\"token-ident\">badges</span><span class=\"token-op\">.</span><span class=\"token-ident\">items</span><span class=\"token-op\">(</span><span class=\"token-op\">)</span><span class=\"token-op\">:</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "走訪",
+        "mean": "走訪勳章"
+      },
+      {
+        "num": 10,
+        "code": "    print(f\"[{k}] {v}\")",
+        "html": "    <span class=\"token-builtin\">print</span><span class=\"token-op\">(</span>f&quot;[<span class=\"token-op\">{</span><span class=\"token-ident\">k</span><span class=\"token-op\">}</span>] <span class=\"token-op\">{</span><span class=\"token-ident\">v</span><span class=\"token-op\">}</span>&quot;<span class=\"token-op\">)</span>\n",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "逐條展示",
+        "mean": "印出條目"
+      },
+      {
+        "num": 11,
+        "code": "print(\"下一站預告: 14.10 遊戲選角 (m931) - 平方和戰力與第二大值篩選！\")",
+        "html": "<span class=\"token-builtin\">print</span><span class=\"token-op\">(</span><span class=\"token-string\">&quot;下一站預告: 14.10 遊戲選角 (m931) - 平方和戰力與第二大值篩選！&quot;</span><span class=\"token-op\">)</span>",
+        "alt": "",
+        "diff": true,
+        "error": false,
+        "why": "預告 14.10",
+        "mean": "印出下一題預告"
+      }
+    ],
+    "output": "[真題代碼] APCS g595 修補圍籬\n[核心技巧] 一維陣列相鄰探測 (h[i-1], h[i+1])\n[關鍵防禦] 邊界特判 (i==0, i==n-1) 或 哨兵加框 [105]\n[通關口訣] 相鄰取小哨兵框\n[通關狀態] 100% 滿分 AC 通過\n下一站預告: 14.10 遊戲選角 (m931) - 平方和戰力與第二大值篩選！",
+    "diagram": {
+      "type": "flow",
+      "title": "第 14 章初級真題進度推進",
+      "flow": [
+        {
+          "step": 1,
+          "text": "14-1 三角形辨別 (幾何判斷) ✅"
+        },
+        {
+          "step": 2,
+          "text": "14-2 秘密差 (字串奇偶位) ✅"
+        },
+        {
+          "step": 3,
+          "text": "14-3 邏輯運算子 (布林真值表) ✅"
+        },
+        {
+          "step": 4,
+          "text": "14-4 籃球比賽 (多行讀取比分) ✅"
+        },
+        {
+          "step": 5,
+          "text": "14-5 購物車 (正負抵銷統計) ✅"
+        },
+        {
+          "step": 6,
+          "text": "14-6 人力分配 (二次函數枚舉) ✅"
+        },
+        {
+          "step": 7,
+          "text": "14-7 購買力 (多天價格波動) ✅"
+        },
+        {
+          "step": 8,
+          "text": "14-8 七言對聯 (詩律平仄索引) ✅"
+        },
+        {
+          "step": 9,
+          "text": "14-9 修補圍籬 (哨兵加框填補) ✅"
+        },
+        {
+          "step": 10,
+          "text": "14-10 遊戲選角 (第二大值篩選) 🚀 NEXT"
+        }
+      ]
+    },
+    "tips": [
+      {
+        "type": "standard",
+        "title": "恭喜第九勝達成",
+        "content": "你已經攻克了第九道 APCS 實作初級真題，徹底掌握了一維陣列邊界處理的頂級神器！"
+      },
+      {
+        "type": "hint",
+        "title": "下一單元核心",
+        "content": "下一單元 14.10「遊戲選角」是教育部官方初級題本範例第 3 題，解密「第二大值」的精準篩選！"
+      }
+    ]
+  }
+];
+
+    // 啟動引擎
+    initSlideEngine({
+      sectionId: "{{SECTION_ID}}",
+      slidesData: slidesData,
+      colabUrl: "{{COLAB_URL}}"
+    });
+  </script>
+</body>
+</html>

@@ -1440,7 +1440,7 @@
         載入中...
       </div>
       <div class="banner-sub">
-        <span class="banner-sub-item">🧪 自動評分（第三期）：<strong id="bannerGraderCount" style="color: #34d399;">94 / 118 節（79.7% 全面推進）</strong></span>
+        <span class="banner-sub-item">🧪 自動評分（第三期）：<strong id="bannerGraderCount" style="color: #34d399;">推進中</strong></span>
         <span class="banner-sub-item">🖥️ 教學投影片：<strong id="bannerSlideCount">118 / 118 節（100.0%）</strong></span>
         <span class="banner-sub-item">📘 教學筆記本：<strong id="bannerNotebookCount">118 / 118 節（100%）</strong></span>
         <span class="banner-sub-item">🎯 系統特色：<strong>遠端智慧評判・Google 帳號防偽綁定・雲端試算表記錄</strong></span>
@@ -1481,7 +1481,7 @@
         <div class="stat-meta">
           <div class="stat-label">Colab 自動評分（第三期）</div>
           <div class="stat-value" id="statGraderCount">79 節</div>
-          <div class="stat-sub" id="statGraderRatio">第 1～11 章全數上線，12 章推進 (79/118)</div>
+          <div class="stat-sub" id="statGraderRatio">自動評分推進中</div>
         </div>
       </div>
     </section>
@@ -1539,7 +1539,7 @@
           <button class="filter-pill active" type="button" data-filter="all">全部 (118)</button>
           <button class="filter-pill" type="button" data-filter="slide-ready">🖥️ 投影片上線 (118)</button>
           <button class="filter-pill" type="button" data-filter="completed">✅ Colab 上線 (118)</button>
-          <button class="filter-pill" type="button" data-filter="grader-ready">🧪 自動評分 (94)</button>
+          <button class="filter-pill" type="button" data-filter="grader-ready">🧪 自動評分</button>
           <button class="filter-pill" type="button" data-filter="syntax">📘 語法篇 (1~13章)</button>
           <button class="filter-pill" type="button" data-filter="apcs">🏆 APCS 真題 (14~15章)</button>
         </div>
@@ -3300,6 +3300,28 @@
     }
 
     /**
+     * 將章節數字陣列轉為「1～13、15」形式的連續區間字串
+     * @param {number[]} nums 已遞增排序的章節數字陣列
+     * @returns {string} 連續區間文字，空陣列回傳空字串
+     */
+    function formatChapterRange(nums) {
+      if (!nums || !nums.length) return "";
+      const parts = [];
+      let start = nums[0];
+      let prev = nums[0];
+      for (let i = 1; i < nums.length; i++) {
+        if (nums[i] === prev + 1) {
+          prev = nums[i];
+        } else {
+          parts.push(start === prev ? `${start}` : `${start}～${prev}`);
+          start = prev = nums[i];
+        }
+      }
+      parts.push(start === prev ? `${start}` : `${start}～${prev}`);
+      return parts.join("、");
+    }
+
+    /**
      * 動態計算並更新儀表板統計數字與進度條
      */
     function updateDashboardStats() {
@@ -3319,7 +3341,47 @@
           if (s.hasGrader) graders++;
         });
       });
-      
+
+      // 依章節統計自動評分覆蓋情形，供進度敘述動態產生，避免寫死章節數字而過時
+      const graderByChapter = new Map();
+      courseData.forEach(ch => {
+        const tot = ch.sections.length;
+        const done = ch.sections.reduce((acc, s) => acc + (s.hasGrader ? 1 : 0), 0);
+        graderByChapter.set(ch.chapterNum, { total: tot, done });
+      });
+      const chapterEntries = [...graderByChapter.entries()].sort((a, b) => a[0] - b[0]);
+      const chaptersFull = chapterEntries
+        .filter(([, v]) => v.total > 0 && v.done === v.total)
+        .map(([k]) => k);
+      const chaptersPartial = chapterEntries
+        .filter(([, v]) => v.done > 0 && v.done < v.total);
+      const chaptersEmpty = chapterEntries
+        .filter(([, v]) => v.done === 0)
+        .map(([k]) => k);
+      const chaptersEmptyCount = chaptersEmpty.reduce(
+        (acc, ch) => acc + graderByChapter.get(ch).total,
+        0
+      );
+
+      const graderSummaryParts = [];
+      if (chaptersFull.length) {
+        graderSummaryParts.push(`第 ${formatChapterRange(chaptersFull)} 章全章達陣`);
+      }
+      chaptersPartial.forEach(([ch, v]) => {
+        graderSummaryParts.push(`第 ${ch} 章支援至 ${v.done} / ${v.total} 節`);
+      });
+      if (chaptersEmptyCount) {
+        graderSummaryParts.push(`第 ${formatChapterRange(chaptersEmpty)} 章共 ${chaptersEmptyCount} 節尚未支援`);
+      }
+      const graderSummary = graderSummaryParts.length
+        ? graderSummaryParts.join("，")
+        : "尚未開始支援自動評分";
+
+      const graderChapterSummary =
+        chaptersFull.length === chapterEntries.length
+          ? `全課程 ${chapterEntries.length} 章全章達陣`
+          : graderSummary;
+
       const bannerBadgeStatusEl = document.querySelector(".banner-badge-status");
       const bannerContentTextEl = document.querySelector(".banner-content");
       if (bannerBadgeStatusEl) {
@@ -3328,7 +3390,7 @@
       if (bannerContentTextEl) {
          bannerContentTextEl.innerHTML = `
            <strong>🎉 第一、二期工程圓滿達陣：</strong>全課程 15 章共 118 節教學筆記本與教學投影片已 100% 全數上線！<br>
-           <strong>🔥 第三期重大工程【Colab 智慧自動評分與雙軌身分認證系統】：</strong>目前進度 <strong>${graders} / ${total} 節</strong>（第 1～11 章全章達陣，第 1～12 章全章達陣，第 13 章已支援至 13.1，覆蓋率已達 73.7%！）。<br>
+           <strong>🔥 第三期重大工程【Colab 智慧自動評分與雙軌身分認證系統】：</strong>目前進度 <strong>${graders} / ${total} 節</strong>（${graderChapterSummary}，覆蓋率 ${total ? ((graders / total) * 100).toFixed(1) : "0.0"}%）。<br>
            <strong>📖 使用方式超直覺：</strong>學生完成上方練習後，至筆記本末端表單填寫姓名，點擊 ▶ 播放鍵即可自動調用遠端官方評分器（安全無解答、防篡改），並同時連結 Google 官方認證綁定真實帳號，即時產出視覺化成績單與榮譽徽章，並自動登錄至後台 Google 試算表！
          `;
       }
@@ -3357,7 +3419,7 @@
       if (countEl) countEl.textContent = `${completed} 節`;
       if (ratioEl) ratioEl.textContent = `筆記本 ${completed}/${total} 已上線`;
       if (graderCountEl) graderCountEl.textContent = `${graders} 節`;
-      if (graderRatioEl) graderRatioEl.textContent = `第 1～11 章全數就緒，12 章推進 (${graders}/${total})`;
+      if (graderRatioEl) graderRatioEl.textContent = `${graderChapterSummary}（自動評分 ${graders}/${total} 節）`;
       if (progTextEl) progTextEl.textContent = `${completed} / ${total} 節 (${percent}%)`;
       if (progBarEl) progBarEl.style.width = `${percent}%`;
       if (slideTextEl) slideTextEl.textContent = `${slides} / ${total} 節 (${slidePercent}%)`;

@@ -27,6 +27,7 @@ import os
 import json
 import urllib.request
 import urllib.parse
+import unicodedata
 from datetime import datetime, timezone, timedelta
 import logging
 
@@ -37,83 +38,31 @@ logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。"""
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    return text + " " * max(0, width - _disp_width(text))
+
 # ------------------------------------------------------------------------------
 # 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
 # ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
 
 def fetch_google_account_info():
-    """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
     env = globals()
-    if env.get("google_email") and env.get("google_name"):
-        return env.get("google_email"), env.get("google_name")
-
-    google_email = None
-    google_name = None
-
-    try:
-        from google.colab import auth
-        print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
-        auth.authenticate_user()
-
-        # 方法 1: 使用 Google Drive API v3 (about:get) 抓取真實 displayName 與 emailAddress
-        # Colab ADC 預設包含 drive 權限，能 100% 精準獲取 Google 帳號中文顯示名稱（如：葉明昌）
-        try:
-            import google.auth
-            from googleapiclient.discovery import build
-            creds, _ = google.auth.default()
-            drive_service = build('drive', 'v3', credentials=creds, cache_discovery=False)
-            about = drive_service.about().get(fields="user(displayName,emailAddress)").execute()
-            u_obj = about.get("user", {})
-            google_name = u_obj.get("displayName")
-            google_email = u_obj.get("emailAddress")
-        except Exception:
-            pass
-
-        # 方法 2: 若 Drive API 失敗，嘗試透過 OAuth2 userinfo / tokeninfo 備援
-        if not google_email or not google_name:
-            try:
-                import google.auth
-                from google.auth.transport.requests import Request
-                credentials, _ = google.auth.default()
-                credentials.refresh(Request())
-                token = credentials.token
-
-                for ep in [
-                    f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={token}",
-                    "https://www.googleapis.com/oauth2/v3/userinfo",
-                    "https://www.googleapis.com/oauth2/v2/userinfo"
-                ]:
-                    try:
-                        req = urllib.request.Request(
-                            ep,
-                            headers={"Authorization": f"Bearer {token}"}
-                        )
-                        with urllib.request.urlopen(req, timeout=5) as resp:
-                            u_data = json.loads(resp.read().decode('utf-8'))
-                            if not google_email:
-                                google_email = u_data.get("email") or u_data.get("emailAddress")
-                            if not google_name:
-                                google_name = (
-                                    u_data.get("name")
-                                    or u_data.get("given_name")
-                                    or u_data.get("displayName")
-                                )
-                            if google_email and google_name:
-                                break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-        # 方法 3: 若只有 email 但 Google API 沒給 name，以 email 前綴作為暱稱回退
-        if google_email and not google_name:
-            google_name = google_email.split("@")[0]
-
-    except Exception:
-        pass
-
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
     return google_email, google_name
+
 
 def auto_grade_unit_2_1():
     env = globals()
@@ -242,30 +191,30 @@ def auto_grade_unit_2_1():
         # ----------------------------------------------------------------------
         # 2-1-3 染紅效應——整數與浮點數混合運算自動晉升為浮點數 (共 26 分)
         # ----------------------------------------------------------------------
-        ("2-1-3", "填空題", "整數乘以 1.0 自動染紅晉升 (val = 8.0)", 7,
+        ("2-1-3", "填空題", "整數乘以 1.0 自動染紅晉升 (up_float = 8.0)", 7,
          lambda g: (
-             (True, "染紅成功！8 * 1.0 晉升為浮點數 val = 8.0（<class 'float'>）")
-             if ("val" in g and g.get("val") == 8.0 and type(g.get("val")) is float)
+             (True, "染紅成功！8 * 1.0 晉升為浮點數 up_float = 8.0（<class 'float'>）")
+             if ("up_float" in g and g.get("up_float") == 8.0 and type(g.get("up_float")) is float)
              else (
-                 (False, "val 目前是整數 8，請在填空處乘以浮點數 1.0 觸發晉升為 8.0！")
-                 if ("val" in g and g.get("val") == 8 and type(g.get("val")) is int)
-                 else (False, "找不到變數 val，請在填空處填入 1.0 並點擊播放鍵執行！")
+                 (False, "up_float 目前是整數 8，請在填空處乘以浮點數 1.0 觸發晉升為 8.0！")
+                 if ("up_float" in g and g.get("up_float") == 8 and type(g.get("up_float")) is int)
+                 else (False, "找不到變數 up_float，請在填空處填入 1.0 並點擊播放鍵執行！")
              )
          )),
 
-        ("2-1-3", "練習題", "整數與浮點數混合相加 sum_val", 11,
+        ("2-1-3", "練習題", "整數與浮點數混合相加 mix_sum", 11,
          lambda g: (
-             (True, f"混合相加染紅成功：sum_val = {g.get('sum_val')}（<class 'float'>）")
-             if ("sum_val" in g and type(g.get("sum_val")) is float and
-                 "a" in g and "b" in g and type(g.get("a")) is int and type(g.get("b")) is float and
-                 abs(g.get("sum_val") - (g.get("a") + g.get("b"))) < 1e-9)
+             (True, f"混合相加染紅成功：mix_sum = {g.get('mix_sum')}（<class 'float'>）")
+             if ("mix_sum" in g and type(g.get("mix_sum")) is float and
+                 "mix_int" in g and "mix_float" in g and type(g.get("mix_int")) is int and type(g.get("mix_float")) is float and
+                 abs(g.get("mix_sum") - (g.get("mix_int") + g.get("mix_float"))) < 1e-9)
              else (
-                 (False, "變數 b 必須是浮點數（例如 0.5 或 5.0），才能示範染紅晉升效應喔！")
-                 if ("b" in g and type(g.get("b")) is int)
+                 (False, "變數 mix_float 必須是浮點數（例如 0.5 或 5.0），才能示範染紅晉升效應喔！")
+                 if ("mix_float" in g and type(g.get("mix_float")) is int)
                  else (
-                     (False, "變數 a 必須是純整數（int，例如 10 或 20）！")
-                     if ("a" in g and type(g.get("a")) is float)
-                     else (False, "找不到變數 a, b 或 sum_val，請宣告 a 與 b 並將 a + b 存入 sum_val！")
+                     (False, "變數 mix_int 必須是純整數（int，例如 10 或 20）！")
+                     if ("mix_int" in g and type(g.get("mix_int")) is float)
+                     else (False, "找不到變數 mix_int, mix_float 或 mix_sum，請宣告 mix_int 與 mix_float 並將 mix_int + mix_float 存入 mix_sum！")
                  )
              )
          )),
@@ -275,16 +224,12 @@ def auto_grade_unit_2_1():
              (True, "三數連加染紅成功：ans_float = 10.0（整數 5 與 3 被 2.0 染紅為 float）！")
              if ("ans_float" in g and g.get("ans_float") == 10.0 and type(g.get("ans_float")) is float)
              else (
-                 (True, "三數連加染紅成功：ans = 10.0（整數 5 與 3 被 2.0 染紅為 float）！")
+                 (False, "偵測到變數 ans = 10.0！本題已鎖定專屬變數 ans_float，請改用 ans_float = 5 + 3 + 2.0 並重新點擊播放鍵，避免變數撞名被覆蓋！")
                  if ("ans" in g and g.get("ans") == 10.0 and type(g.get("ans")) is float)
                  else (
-                     (False, "檢測到變數 ans 被 2-1-4 填空題覆蓋為 5！在 2-1-3 挑戰題建議將變數命名為 ans_float = 5 + 3 + 2.0 避免覆蓋喔！")
-                     if ("ans_float" not in g and g.get("ans") == 5)
-                     else (
-                         (False, "計算結果目前是純整數 10，算式中請包含 2.0 浮點數讓結果自動晉升為 10.0！")
-                         if (g.get("ans_float") == 10 or g.get("ans") == 10)
-                         else (False, "找不到變數 ans_float（或 ans=10.0），請寫出 5 + 3 + 2.0 計算並存入 ans_float！")
-                     )
+                     (False, "計算結果目前是純整數 10，算式中請包含 2.0 浮點數讓結果自動晉升為 10.0！")
+                     if (g.get("ans_float") == 10)
+                     else (False, "找不到變數 ans_float，請寫出 5 + 3 + 2.0 計算並存入 ans_float！")
                  )
              )
          )),
@@ -292,18 +237,14 @@ def auto_grade_unit_2_1():
         # ----------------------------------------------------------------------
         # 2-1-4 APCS 考場的致命失分陷阱——4.0 與 4 大不相同 (共 26 分)
         # ----------------------------------------------------------------------
-        ("2-1-4", "填空題", "修正 3.0 為純整數 3 避免 WA (ans = 5)", 7,
+        ("2-1-4", "填空題", "修正 3.0 為純整數 3 避免 WA (pure_int = 5)", 7,
          lambda g: (
-             (True, "修正成功！ans = 3 + 2 得到純整數 5（<class 'int'>），成功避開 5.0 WA 陷阱！")
-             if ("ans" in g and g.get("ans") == 5 and type(g.get("ans")) is int)
+             (True, "修正成功！pure_int = 3 + 2 得到純整數 5（<class 'int'>），成功避開 5.0 WA 陷阱！")
+             if ("pure_int" in g and g.get("pure_int") == 5 and type(g.get("pure_int")) is int)
              else (
-                 (False, "變數 ans 目前為浮點數 5.0！請將 3.0 修改為純整數 3，確保輸出為純整數 5！")
-                 if ("ans" in g and (g.get("ans") == 5.0 or (g.get("ans") == 5 and type(g.get("ans")) is float)))
-                 else (
-                     (False, "變數 ans 目前仍為 10.0，請至 2-1-4 填空題執行 ans = 3 + 2 並點擊播放鍵！")
-                     if ("ans" in g and g.get("ans") == 10.0)
-                     else (False, "找不到變數 ans 或數值不為 5，請填入純整數 3 並點擊播放鍵執行！")
-                 )
+                 (False, "變數 pure_int 目前為浮點數 5.0！請將 3.0 修改為純整數 3，確保輸出為純整數 5！")
+                 if ("pure_int" in g and (g.get("pure_int") == 5.0 or (g.get("pure_int") == 5 and type(g.get("pure_int")) is float)))
+                 else (False, "找不到變數 pure_int 或數值不為 5，請填入純整數 3 並點擊播放鍵執行！")
              )
          )),
 
@@ -313,13 +254,13 @@ def auto_grade_unit_2_1():
              if ("length" in g and "width" in g and
                  type(g.get("length")) is int and type(g.get("width")) is int and
                  g.get("length") > 0 and g.get("width") > 0 and
-                 not any(isinstance(g.get(k), float) for k in ["perimeter", "peri", "ans_p"] if k in g))
+                 not any(isinstance(g.get(k), float) for k in ["perimeter", "peri", "perim"] if k in g))
              else (
                  (False, "題目要求輸入都是整數，length 與 width 必須是純整數（int），請勿加上小數點！")
                  if (("length" in g and type(g.get("length")) is float) or ("width" in g and type(g.get("width")) is float))
                  else (
                      (False, "檢測到周長變數為浮點數，在 APCS 輸出帶小數點會被判 WA 喔！請確保計算過程不使用浮點數！")
-                     if any(isinstance(g.get(k), float) for k in ["perimeter", "peri", "ans_p"] if k in g)
+                     if any(isinstance(g.get(k), float) for k in ["perimeter", "peri", "perim"] if k in g)
                      else (False, "找不到變數 length 或 width，請依題目宣告長度與寬度純整數！")
                  )
              )
@@ -357,7 +298,7 @@ def auto_grade_unit_2_1():
             icon = "❌"
             status = f"未通過 (0/{pts}分)"
 
-        out_lines = [f"{icon} [{uid} {qtype}] {name:<32} ➔ {status}"]
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
         if not ok:
             out_lines.append(f"   💡 提示：{msg}")
         item_outputs.append(out_lines)
@@ -372,7 +313,7 @@ def auto_grade_unit_2_1():
             "message": msg
         })
 
-    if total_score >= 95:
+    if total_score >= 90:
         badge = "🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通整數與浮點數本質，考場零 WA！"
     elif total_score >= 80:
         badge = "🥈 卓越冒險者（銀牌徽章 🥈）—— 表現極佳，型態觀念清晰扎實！"
@@ -447,12 +388,17 @@ def auto_grade_unit_2_1():
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
                 data=req_data,
-                headers={'Content-Type': 'application/json'}
+                headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！")
-        except Exception as e:
-            print(f"📡 [雲端回報] 雲端登錄通訊提示（不影響本地測驗）：{e}")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                pass
+            print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
     if total_score < 100:
         print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")

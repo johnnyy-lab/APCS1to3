@@ -41,7 +41,7 @@ LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3
 def fetch_google_account_info():
     """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
     env = globals()
-    if env.get("google_email"):
+    if env.get("google_email") and env.get("google_name"):
         return env.get("google_email"), env.get("google_name")
 
     google_email = None
@@ -52,64 +52,57 @@ def fetch_google_account_info():
         print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
         auth.authenticate_user()
 
-        # 方法 A: 嘗試透過 gcloud print-identity-token 解碼 JWT (OIDC claims)
+        # 方法 1: 使用 Google Drive API v3 (about:get) 抓取真實 displayName 與 emailAddress
+        # Colab ADC 預設包含 drive 權限，能 100% 精準獲取 Google 帳號中文顯示名稱（如：葉明昌）
         try:
-            import subprocess
-            import base64
-            res = subprocess.run(
-                ["gcloud", "auth", "print-identity-token"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=5
-            )
-            if res.returncode == 0 and res.stdout.strip():
-                parts = res.stdout.strip().split(".")
-                if len(parts) >= 2:
-                    p = parts[1]
-                    p += "=" * ((4 - len(p) % 4) % 4)
-                    payload = json.loads(base64.urlsafe_b64decode(p).decode("utf-8"))
-                    google_email = payload.get("email")
-                    google_name = payload.get("name") or payload.get("given_name")
+            import google.auth
+            from googleapiclient.discovery import build
+            creds, _ = google.auth.default()
+            drive_service = build('drive', 'v3', credentials=creds, cache_discovery=False)
+            about = drive_service.about().get(fields="user(displayName,emailAddress)").execute()
+            u_obj = about.get("user", {})
+            google_name = u_obj.get("displayName")
+            google_email = u_obj.get("emailAddress")
         except Exception:
             pass
 
-        # 方法 B: 透過 OAuth2 userinfo endpoint
+        # 方法 2: 若 Drive API 失敗，嘗試透過 OAuth2 userinfo / tokeninfo 備援
         if not google_email or not google_name:
-            import google.auth
-            from google.auth.transport.requests import Request
-            credentials, _ = google.auth.default(scopes=[
-                'https://www.googleapis.com/auth/userinfo.email',
-                'https://www.googleapis.com/auth/userinfo.profile'
-            ])
-            credentials.refresh(Request())
-            token = credentials.token
+            try:
+                import google.auth
+                from google.auth.transport.requests import Request
+                credentials, _ = google.auth.default()
+                credentials.refresh(Request())
+                token = credentials.token
 
-            for ep in [
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                "https://www.googleapis.com/oauth2/v2/userinfo"
-            ]:
-                try:
-                    req = urllib.request.Request(
-                        ep,
-                        headers={"Authorization": f"Bearer {token}"}
-                    )
-                    with urllib.request.urlopen(req, timeout=5) as resp:
-                        user_data = json.loads(resp.read().decode('utf-8'))
-                        if not google_email:
-                            google_email = user_data.get("email")
-                        if not google_name:
-                            google_name = (
-                                user_data.get("name")
-                                or user_data.get("given_name")
-                                or user_data.get("displayName")
-                            )
-                        if google_email and google_name:
-                            break
-                except Exception:
-                    continue
+                for ep in [
+                    f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={token}",
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    "https://www.googleapis.com/oauth2/v2/userinfo"
+                ]:
+                    try:
+                        req = urllib.request.Request(
+                            ep,
+                            headers={"Authorization": f"Bearer {token}"}
+                        )
+                        with urllib.request.urlopen(req, timeout=5) as resp:
+                            u_data = json.loads(resp.read().decode('utf-8'))
+                            if not google_email:
+                                google_email = u_data.get("email") or u_data.get("emailAddress")
+                            if not google_name:
+                                google_name = (
+                                    u_data.get("name")
+                                    or u_data.get("given_name")
+                                    or u_data.get("displayName")
+                                )
+                            if google_email and google_name:
+                                break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
-        # 方法 C: 若有 email 但 Google 隱私未釋放 name，以 email 前綴作為暱稱回退
+        # 方法 3: 若只有 email 但 Google API 沒給 name，以 email 前綴作為暱稱回退
         if google_email and not google_name:
             google_name = google_email.split("@")[0]
 
@@ -386,15 +379,23 @@ def auto_grade_unit_2_1():
     print(f"🎖️ 獲得榮譽等級：{badge}")
     print("=" * 72)
 
+    # 組合送往試算表之學生名稱（若有座號學號，格式化為 [學號] 姓名，確保試算表能記錄學號）
+    if declared_id and declared_id != "無座號":
+        sheet_student_name = f"[{declared_id}] {declared_name}"
+    else:
+        sheet_student_name = declared_name
+
     # --------------------------------------------------------------------------
     # 📝 1. 本地日誌記錄（在 Colab 環境中產生評分紀錄檔）
     # --------------------------------------------------------------------------
     log_data = {
         "unit": "2-1",
         "unit_title": "數值型態分類（整數與浮點數）",
-        "student_name": declared_name,
+        "student_name": sheet_student_name,
         "student_id": declared_id,
         "declared_name": declared_name,
+        "name": declared_name,
+        "id": declared_id,
         "google_name": final_google_name,
         "student_email": final_email,
         "google_email": google_email if google_email else final_email,

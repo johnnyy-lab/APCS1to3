@@ -337,21 +337,9 @@ def auto_grade_unit_2_1():
          )),
     ]
 
-    print("=" * 72)
-    print(" 📊 《PythAPCS123》單元 2-1：數值型態分類（整數與浮點數） —— 自動評分報告")
-    print(f" 👤 學員姓名：{declared_name}")
-    print(f" 🆔 學號座號：{declared_id}")
-    if google_email:
-        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
-    elif not is_colab:
-        print(f" 💻 執行環境：本機環境（免登入自評）")
-    else:
-        print(f" 📧 登記信箱：{final_email}")
-    print(f" ⏰ 送交時間：{timestamp_str}")
-    print("=" * 72)
-
     pass_count = 0
     item_results = []
+    item_outputs = []
 
     for uid, qtype, name, pts, checker in test_cases:
         try:
@@ -369,9 +357,10 @@ def auto_grade_unit_2_1():
             icon = "❌"
             status = f"未通過 (0/{pts}分)"
 
-        print(f"{icon} [{uid} {qtype}] {name:<32} ➔ {status}")
+        out_lines = [f"{icon} [{uid} {qtype}] {name:<32} ➔ {status}"]
         if not ok:
-            print(f"   💡 提示：{msg}")
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
 
         item_results.append({
             "uid": uid,
@@ -383,7 +372,6 @@ def auto_grade_unit_2_1():
             "message": msg
         })
 
-    print("-" * 72)
     if total_score >= 95:
         badge = "🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通整數與浮點數本質，考場零 WA！"
     elif total_score >= 80:
@@ -393,8 +381,24 @@ def auto_grade_unit_2_1():
     else:
         badge = "🌱 潛力新星 —— 請確認上方各題目是否都已按下播放鍵 ▶ 執行作答喔！"
 
-    print(f"📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
-    print(f"🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 2-1：數值型態分類（整數與浮點數） —— 自動評分報告")
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for l in lines:
+            print(l)
     print("=" * 72)
 
     # 組合送往試算表之學生名稱（若有座號學號，格式化為 [學號] 姓名，確保試算表能記錄學號）

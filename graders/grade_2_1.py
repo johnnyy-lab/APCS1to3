@@ -28,6 +28,10 @@ import json
 import urllib.request
 import urllib.parse
 from datetime import datetime, timezone, timedelta
+import logging
+
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
@@ -123,15 +127,26 @@ def auto_grade_unit_2_1():
     # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
 
-    # 3. 整合身分識別欄位
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
     if google_email:
         final_email = google_email
         final_google_name = google_name if google_name else declared_name
         combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
     else:
         fallback_email = str(env.get("student_email", "")).strip()
-        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未授權 Google / 匿名"
-        final_google_name = "未綁定 Google"
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
         combined_display_name = declared_name
 
     tw_tz = timezone(timedelta(hours=8))
@@ -328,6 +343,8 @@ def auto_grade_unit_2_1():
     print(f" 🆔 學號座號：{declared_id}")
     if google_email:
         print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
     else:
         print(f" 📧 登記信箱：{final_email}")
     print(f" ⏰ 送交時間：{timestamp_str}")
@@ -387,10 +404,12 @@ def auto_grade_unit_2_1():
         sheet_student_name = declared_name
 
     # 組合送往試算表之學生信箱（第四欄格式化為 [Google暱稱]email，例如 [葉明昌]smallchangyeh@gmail.com）
-    if final_google_name and final_google_name != "未綁定 Google" and "@" in final_email:
+    if google_email:
         sheet_student_email = f"[{final_google_name}]{final_email}"
+    elif not is_colab:
+        sheet_student_email = "[本機]offline"
     else:
-        sheet_student_email = final_email
+        sheet_student_email = f"[訪客]{final_email}"
 
     # --------------------------------------------------------------------------
     # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）

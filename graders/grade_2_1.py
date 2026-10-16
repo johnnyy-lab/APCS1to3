@@ -27,7 +27,7 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
@@ -116,9 +116,9 @@ def auto_grade_unit_2_1():
     total_score = 0
     max_score = 100
 
-    # 1. 讀取學生姓名與學號座號（分開獨立欄位）
-    declared_name = str(env.get("student_name", "")).strip() or "自學冒險者"
-    declared_id = str(env.get("student_id", "")).strip() or "無座號"
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
 
     # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
@@ -134,7 +134,8 @@ def auto_grade_unit_2_1():
         final_google_name = "未綁定 Google"
         combined_display_name = declared_name
 
-    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
     # 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯)
     test_cases = [
@@ -385,8 +386,14 @@ def auto_grade_unit_2_1():
     else:
         sheet_student_name = declared_name
 
+    # 組合送往試算表之學生信箱（第四欄格式化為 [Google暱稱]email，例如 [葉明昌]smallchangyeh@gmail.com）
+    if final_google_name and final_google_name != "未綁定 Google" and "@" in final_email:
+        sheet_student_email = f"[{final_google_name}]{final_email}"
+    else:
+        sheet_student_email = final_email
+
     # --------------------------------------------------------------------------
-    # 📝 1. 本地日誌記錄（在 Colab 環境中產生評分紀錄檔）
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
     # --------------------------------------------------------------------------
     log_data = {
         "unit": "2-1",
@@ -397,8 +404,9 @@ def auto_grade_unit_2_1():
         "name": declared_name,
         "id": declared_id,
         "google_name": final_google_name,
-        "student_email": final_email,
-        "google_email": google_email if google_email else final_email,
+        "student_email": sheet_student_email,
+        "google_email": sheet_student_email,
+        "email": sheet_student_email,
         "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
@@ -408,17 +416,6 @@ def auto_grade_unit_2_1():
         "details": item_results
     }
 
-    try:
-        log_filename = f"score_log_unit_2_1.json"
-        with open(log_filename, "w", encoding="utf-8") as lf:
-            json.dump(log_data, lf, ensure_ascii=False, indent=2)
-        print(f"💾 [本地存檔] 評分紀錄檔已生成：{log_filename}（可於左側檔案區下載備查）")
-    except Exception as e:
-        print(f"⚠️ 本地日誌寫入提示：{e}")
-
-    # --------------------------------------------------------------------------
-    # 📡 2. 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
-    # --------------------------------------------------------------------------
     if LOG_WEBHOOK_URL:
         try:
             req_data = json.dumps(log_data).encode('utf-8')

@@ -392,6 +392,7 @@ def auto_grade_unit_2_1():
     else:
         print(f" 📧 登記信箱：{final_email}")
     print(f" ⏰ 送交時間：{timestamp_str}")
+    print("-" * 72)
     print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
     print(f" 🎖️ 獲得榮譽等級：{badge}")
     print("=" * 72)

@@ -40,40 +40,92 @@ LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3
 
 def fetch_google_account_info():
     """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
+    env = globals()
+    if env.get("google_email"):
+        return env.get("google_email"), env.get("google_name")
+
+    google_email = None
+    google_name = None
+
     try:
         from google.colab import auth
         print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
         auth.authenticate_user()
-        
-        import google.auth
-        from google.auth.transport.requests import Request
-        credentials, _ = google.auth.default(scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ])
-        credentials.refresh(Request())
-        token = credentials.token
-        
-        req = urllib.request.Request(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            user_data = json.loads(resp.read().decode('utf-8'))
-            return user_data.get("email"), user_data.get("name")
-    except Exception as e:
-        # 非 Colab 環境、無網路或學生略過授權
-        return None, None
+
+        # 方法 A: 嘗試透過 gcloud print-identity-token 解碼 JWT (OIDC claims)
+        try:
+            import subprocess
+            import base64
+            res = subprocess.run(
+                ["gcloud", "auth", "print-identity-token"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=5
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                parts = res.stdout.strip().split(".")
+                if len(parts) >= 2:
+                    p = parts[1]
+                    p += "=" * ((4 - len(p) % 4) % 4)
+                    payload = json.loads(base64.urlsafe_b64decode(p).decode("utf-8"))
+                    google_email = payload.get("email")
+                    google_name = payload.get("name") or payload.get("given_name")
+        except Exception:
+            pass
+
+        # 方法 B: 透過 OAuth2 userinfo endpoint
+        if not google_email or not google_name:
+            import google.auth
+            from google.auth.transport.requests import Request
+            credentials, _ = google.auth.default(scopes=[
+                'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile'
+            ])
+            credentials.refresh(Request())
+            token = credentials.token
+
+            for ep in [
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                "https://www.googleapis.com/oauth2/v2/userinfo"
+            ]:
+                try:
+                    req = urllib.request.Request(
+                        ep,
+                        headers={"Authorization": f"Bearer {token}"}
+                    )
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        user_data = json.loads(resp.read().decode('utf-8'))
+                        if not google_email:
+                            google_email = user_data.get("email")
+                        if not google_name:
+                            google_name = (
+                                user_data.get("name")
+                                or user_data.get("given_name")
+                                or user_data.get("displayName")
+                            )
+                        if google_email and google_name:
+                            break
+                except Exception:
+                    continue
+
+        # 方法 C: 若有 email 但 Google 隱私未釋放 name，以 email 前綴作為暱稱回退
+        if google_email and not google_name:
+            google_name = google_email.split("@")[0]
+
+    except Exception:
+        pass
+
+    return google_email, google_name
 
 def auto_grade_unit_2_1():
     env = globals()
     total_score = 0
     max_score = 100
 
-    # 1. 讀取學生在表單自行輸入之姓名（中文全名或學號）
-    declared_name = str(env.get("student_name", "")).strip()
-    if not declared_name or declared_name == "自學冒險者":
-        declared_name = "自學冒險者（未填姓名）"
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位）
+    declared_name = str(env.get("student_name", "")).strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or "無座號"
 
     # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
@@ -81,8 +133,8 @@ def auto_grade_unit_2_1():
     # 3. 整合身分識別欄位
     if google_email:
         final_email = google_email
-        final_google_name = google_name if google_name else "Google無暱稱"
-        combined_display_name = f"{declared_name} (Google暱稱: {final_google_name})"
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
     else:
         fallback_email = str(env.get("student_email", "")).strip()
         final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未授權 Google / 匿名"
@@ -278,7 +330,8 @@ def auto_grade_unit_2_1():
 
     print("=" * 72)
     print(" 📊 《PythAPCS123》單元 2-1：數值型態分類（整數與浮點數） —— 自動評分報告")
-    print(f" 👤 學員自填姓名：{declared_name}")
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
     if google_email:
         print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
     else:
@@ -339,7 +392,8 @@ def auto_grade_unit_2_1():
     log_data = {
         "unit": "2-1",
         "unit_title": "數值型態分類（整數與浮點數）",
-        "student_name": combined_display_name,
+        "student_name": declared_name,
+        "student_id": declared_id,
         "declared_name": declared_name,
         "google_name": final_google_name,
         "student_email": final_email,

@@ -26,12 +26,26 @@ import sys
 import os
 import json
 import urllib.request
-import urllib.parse
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timezone, timedelta
+import logging
+
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
+
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。"""
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    return text + " " * max(0, width - _disp_width(text))
 
 # ------------------------------------------------------------------------------
 # 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
@@ -39,58 +53,58 @@ if hasattr(sys.stdout, 'reconfigure'):
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
 
 def fetch_google_account_info():
-    """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
-    try:
-        from google.colab import auth
-        print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
-        auth.authenticate_user()
-        
-        import google.auth
-        from google.auth.transport.requests import Request
-        credentials, _ = google.auth.default(scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ])
-        credentials.refresh(Request())
-        token = credentials.token
-        
-        req = urllib.request.Request(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            user_data = json.loads(resp.read().decode('utf-8'))
-            return user_data.get("email"), user_data.get("name")
-    except Exception as e:
-        return None, None
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
+    env = globals()
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
+    return google_email, google_name
+
 
 def auto_grade_unit_2_2():
     env = globals()
     total_score = 0
     max_score = 100
 
-    # 1. 讀取學生姓名
-    declared_name = str(env.get("student_name", "")).strip()
-    if not declared_name or declared_name == "自學冒險者":
-        declared_name = "自學冒險者（未填姓名）"
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
 
-    # 2. 獲取 Google 帳號資訊
+    # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
 
-    # 3. 整合身分識別
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
     if google_email:
         final_email = google_email
-        final_google_name = google_name if google_name else "Google無暱稱"
-        combined_display_name = f"{declared_name} (Google暱稱: {final_google_name})"
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
     else:
         fallback_email = str(env.get("student_email", "")).strip()
-        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未授權 Google / 匿名"
-        final_google_name = "未綁定 Google"
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
         combined_display_name = declared_name
 
-    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 4. 強制換算台灣時間（GMT+8）
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    # 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯)
+    # 5. 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯 lambda)
+    # 所有題目配分加總必須剛好等於 100 分！
+    # 變數一律只認題幹指定的專屬名稱；挑戰題題幹未指定名稱時，僅接受語意化備援，
+    # 絕不收 ans、res、temp 等通用路人名（詳見 AGYRules/colab_notebook_grade_rules.md 第三節）。
     test_cases = [
         # ----------------------------------------------------------------------
         # 2-2-1 整數加法與減法（+、-）——數值增減與負數運算 (共 20 分)
@@ -108,16 +122,15 @@ def auto_grade_unit_2_2():
              if ("temp_yesterday" in g and "temp_today" in g and
                  type(g.get("temp_yesterday")) is int and type(g.get("temp_today")) is int and
                  (g.get("temp_today") - g.get("temp_yesterday") in [8, -8] or
-                  any(g.get(k) in [8, -8] for k in ["diff", "change", "ans", "temp_diff"] if k in g)))
+                  any(g.get(k) in [8, -8] for k in ["temp_diff", "temp_change", "diff", "change"] if k in g)))
              else (False, "找不到 temp_yesterday 或 temp_today，請依練習題宣告氣溫變數並印出差值！")
          )),
 
-        ("2-2-1", "挑戰題", "勇者地底迷宮生命值結算 (hp > 0)", 6,
+        ("2-2-1", "挑戰題", "勇者地底迷宮生命值結算 (base_hp = 80)", 6,
          lambda g: (
-             (True, f"勇者生命值計算完成：{next(g.get(k) for k in ['hp', 'base_hp', 'final_hp'] if k in g and type(g.get(k)) is int and g.get(k) > 0)}")
-             if any(k in g and type(g.get(k)) is int and g.get(k) > 0 for k in ["hp", "final_hp"]) or
-                (g.get("base_hp") == 80 and any(type(v) is int and v > 0 for k, v in g.items() if "hp" in k.lower()))
-             else (False, "請宣告勇者生命值變數（如 base_hp = 80），並計算經增減扣血後的最終血量！")
+             (True, f"勇者生命值計算完成：hp = {g.get('hp')}")
+             if ("hp" in g and type(g.get("hp")) is int and g.get("hp") > 0)
+             else (False, "請依挑戰題用 base_hp = 80 搭配恢復 45、扣除 30 與扣減 20，把最終生命值存入 hp 並執行！")
          )),
 
         # ----------------------------------------------------------------------
@@ -141,10 +154,13 @@ def auto_grade_unit_2_2():
 
         ("2-2-2", "挑戰題", "開學特賣文具結帳總金額計算", 6,
          lambda g: (
-             (True, "文具結帳金額計算成功（包含鉛筆、筆記本、橡皮擦總額）！")
-             if any(k in g and type(g.get(k)) is int and g.get(k) > 0 for k in ["total", "total_price", "cost", "ans_stationery", "total_cost"]) or
-                (any("pencil" in k for k in g) and any(type(v) is int and v > 0 for k, v in g.items() if "total" in k or "cost" in k))
-             else (False, "請宣告文具數量並使用乘法與加法計算出結帳總金額（存入如 total 變數）！")
+             (True, f"文具結帳金額計算成功：stationery_total = {g.get('stationery_total')}")
+             if ("stationery_total" in g and type(g.get("stationery_total")) is int and g.get("stationery_total") > 0)
+             else (
+                 (False, "請把鉛筆、筆記本、橡皮擦的總金額存入專屬變數 stationery_total，不要用 ans 這類通用名！")
+                 if any(k in g for k in ["pencil_count", "notebook_count", "eraser_count"])
+                 else (False, "請依挑戰題宣告鉛筆、筆記本、橡皮擦數量，用乘法與加法計算總金額並存入 stationery_total！")
+             )
          )),
 
         # ----------------------------------------------------------------------
@@ -166,12 +182,11 @@ def auto_grade_unit_2_2():
              else (False, "找不到 base_fare, rate_per_km, extra_km，請依練習題說明計算總車資！")
          )),
 
-        ("2-2-3", "挑戰題", "野餐採購先乘後加減折價券 (應付 700)", 6,
+        ("2-2-3", "挑戰題", "野餐採購先乘後加減折價券 (picnic_total = 700)", 6,
          lambda g: (
-             (True, "野餐採購總額計算正確（150 + 8*45 + 8*30 - 50 = 700）！")
-             if any(g.get(k) == 700 for k in ["total", "ans", "pay", "final_pay", "total_cost"] if k in g) or
-                any(type(v) is int and v == 700 for v in g.values())
-             else (False, "請依挑戰題情境計算野餐應付總額（150 + 8*45 + 8*30 - 50 = 700）！")
+             (True, "野餐採購總額計算正確：150 + 8*45 + 8*30 - 50 = 700！")
+             if (g.get("picnic_total") == 700 and type(g.get("picnic_total")) is int)
+             else (False, "請依挑戰題設計 150 + 8*45 + 8*30 - 50 的一行算式，把應付總額存入專屬變數 picnic_total！")
          )),
 
         # ----------------------------------------------------------------------
@@ -193,12 +208,11 @@ def auto_grade_unit_2_2():
              else (False, "找不到 top, bottom, height，請使用小括號 (top + bottom) * height 計算並印出！")
          )),
 
-        ("2-2-4", "挑戰題", "好友同行特惠小括號結算 ((main + drink) * 4 = 900)", 6,
+        ("2-2-4", "挑戰題", "好友同行特惠小括號結算 (table_total = 900)", 6,
          lambda g: (
-             (True, "好友同行金額計算成功：(180 + 45) * 4 = 900！")
-             if any(g.get(k) == 900 for k in ["total", "ans", "table_total", "total_price"] if k in g) or
-                (g.get("main_meal") == 180 and g.get("drink") == 45 and any(v == 900 for v in g.values()))
-             else (False, "請使用一組小括號 (main_meal + drink) * count 計算總金額（預期 900 元）！")
+             (True, f"好友同行金額計算成功：table_total = (180 + 45) * 4 = {g.get('table_total')}")
+             if ("table_total" in g and type(g.get("table_total")) is int and g.get("table_total") == 900)
+             else (False, "請用小括號把單人消費 (main_meal + drink) 先加起來，再乘以同行人數 friend_count，把結果存入 table_total！")
          )),
 
         # ----------------------------------------------------------------------
@@ -211,37 +225,32 @@ def auto_grade_unit_2_2():
              else (False, "找不到 math_formula 或數值不為 150，請在外層填入合法小括號 () 並執行！")
          )),
 
-        ("2-2-5", "練習題", "五變數雙層巢狀小括號 ((a+b)*c - d)*e", 8,
+        ("2-2-5", "練習題", "五變數雙層巢狀小括號 ((v1+v2)*v3 - v4)*v5", 8,
          lambda g: (
-             (True, f"雙層巢狀小括號運算正確：((a+b)*c - d)*e = {((g.get('a')+g.get('b'))*g.get('c') - g.get('d'))*g.get('e')}")
-             if ("a" in g and "b" in g and "c" in g and "d" in g and "e" in g and
-                 type(g.get("a")) is int and type(g.get("b")) is int and type(g.get("c")) is int and
-                 type(g.get("d")) is int and type(g.get("e")) is int and
-                 ((g.get('a')+g.get('b'))*g.get('c') - g.get('d'))*g.get('e') in [36, 50])
-             else (False, "找不到變數 a, b, c, d, e，請依練習題宣告並計算 ((a+b)*c - d)*e！")
+             (True, f"雙層巢狀小括號運算正確：(({g.get('v1')}+{g.get('v2')})*{g.get('v3')} - {g.get('v4')})*{g.get('v5')} = {((g.get('v1')+g.get('v2'))*g.get('v3') - g.get('v4'))*g.get('v5')}")
+             if ("v1" in g and "v2" in g and "v3" in g and "v4" in g and "v5" in g and
+                 type(g.get("v1")) is int and type(g.get("v2")) is int and type(g.get("v3")) is int and
+                 type(g.get("v4")) is int and type(g.get("v5")) is int and
+                 ((g.get('v1')+g.get('v2'))*g.get('v3') - g.get('v4'))*g.get('v5') in [36, 50])
+             else (False, "找不到變數 v1, v2, v3, v4, v5，請依練習題宣告並計算 ((v1+v2)*v3 - v4)*v5！")
          )),
 
-        ("2-2-5", "挑戰題", "戰略遊戲傷害結算雙重小括號一行整合", 6,
+        ("2-2-5", "挑戰題", "戰略遊戲傷害結算雙重小括號一行整合 (final_damage)", 6,
          lambda g: (
-             (True, "戰略遊戲最終傷害計算成功（雙層小括號整合運算）！")
-             if any(k in g and type(g.get(k)) in [int, float] and g.get(k) > 0 for k in ["final_damage", "damage", "ans", "total_damage"]) or
-                (any(k in g for k in ["attack", "weapon", "critical_rate"]) and any(type(v) in [int, float] and v > 0 for k, v in g.items() if "damage" in k.lower()))
-             else (False, "請宣告 5 個戰鬥變數，並以包含雙重小括號的一行算式計算最終傷害！")
+             (True, f"戰略遊戲最終傷害計算成功：final_damage = {g.get('final_damage')}")
+             if ("final_damage" in g and type(g.get("final_damage")) in [int, float] and g.get("final_damage") > 0)
+             else (
+                 (False, "請把三步驟結合成一行雙重小括號算式，並把最終傷害存入專屬變數 final_damage！")
+                 if any(k in g for k in ["attack", "weapon", "critical_rate", "element_rate"])
+                 else (False, "請依挑戰題宣告 attack、weapon、critical_rate、defense、element_rate 五個變數並計算 final_damage！")
+             )
          )),
     ]
 
-    print("=" * 72)
-    print(" 📊 《PythAPCS123》單元 2-2：整數基本算術運算與優先級 —— 自動評分報告")
-    print(f" 👤 學員自填姓名：{declared_name}")
-    if google_email:
-        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
-    else:
-        print(f" 📧 登記信箱：{final_email}")
-    print(f" ⏰ 送交時間：{timestamp_str}")
-    print("=" * 72)
-
+    # 6. 前置遍歷評分運算（結論先行前置計算）
     pass_count = 0
     item_results = []
+    item_outputs = []
 
     for uid, qtype, name, pts, checker in test_cases:
         try:
@@ -259,9 +268,10 @@ def auto_grade_unit_2_2():
             icon = "❌"
             status = f"未通過 (0/{pts}分)"
 
-        print(f"{icon} [{uid} {qtype}] {name:<32} ➔ {status}")
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
         if not ok:
-            print(f"   💡 提示：{msg}")
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
 
         item_results.append({
             "uid": uid,
@@ -273,29 +283,69 @@ def auto_grade_unit_2_2():
             "message": msg
         })
 
-    print("-" * 72)
-    if total_score >= 95:
+    # 7. 計算榮譽等級徽章
+    if total_score >= 90:
         badge = "🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通四則運算優先級與小括號統御力！"
     elif total_score >= 80:
         badge = "🥈 卓越冒險者（銀牌徽章 🥈）—— 表現極佳，算術與優先級觀念扎實！"
     elif total_score >= 60:
-        badge = "🥉 扎根學徒（銅牌徽章 🥉）—— 基礎已建立，請針對紅叉題目稍作檢查！"
+        badge = "🥉 扎根學徒（銅牌徽章 🥉）—— 基礎已建立，請針對紅叉題目稍作微調！"
     else:
         badge = "🌱 潛力新星 —— 請確認上方各題目是否都已按下播放鍵 ▶ 執行作答喔！"
 
-    print(f"📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
-    print(f"🎖️ 獲得榮譽等級：{badge}")
+    # 8. 三段式頂部資訊排版（結論先行，防範 VS Code 終端折疊截斷）
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 2-2：整數基本算術運算與優先級 —— 自動評分報告")
+    print("=" * 72)
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for l in lines:
+            print(l)
     print("=" * 72)
 
-    # 1. 本地日誌
+    # 9. 組合送往試算表之學生名稱（若有座號學號，格式化為 [學號] 姓名，確保試算表能記錄學號）
+    if declared_id and declared_id != "無座號":
+        sheet_student_name = f"[{declared_id}] {declared_name}"
+    else:
+        sheet_student_name = declared_name
+
+    # 組合送往試算表之學生信箱（第四欄格式化為 [Google暱稱]email，例如 [葉明昌]smallchangyeh@gmail.com）
+    if google_email:
+        sheet_student_email = f"[{final_google_name}]{final_email}"
+    elif not is_colab:
+        sheet_student_email = "[本機]offline"
+    else:
+        sheet_student_email = f"[訪客]{final_email}"
+
+    # --------------------------------------------------------------------------
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook，支援離線安全容錯）
+    # 鐵律：絕不產生任何本地日誌暫存檔，保持學員 Colab 目錄 100% 純淨。
+    # --------------------------------------------------------------------------
     log_data = {
         "unit": "2-2",
         "unit_title": "整數基本算術運算與優先級",
-        "student_name": combined_display_name,
+        "student_name": sheet_student_name,
+        "student_id": declared_id,
         "declared_name": declared_name,
+        "name": declared_name,
+        "id": declared_id,
         "google_name": final_google_name,
-        "student_email": final_email,
-        "google_email": google_email if google_email else final_email,
+        "student_email": sheet_student_email,
+        "google_email": sheet_student_email,
+        "email": sheet_student_email,
         "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
@@ -305,32 +355,29 @@ def auto_grade_unit_2_2():
         "details": item_results
     }
 
-    try:
-        log_filename = "score_log_unit_2_2.json"
-        with open(log_filename, "w", encoding="utf-8") as lf:
-            json.dump(log_data, lf, ensure_ascii=False, indent=2)
-        print(f"💾 [本地存檔] 評分紀錄檔已生成：{log_filename}（可於左側檔案區下載備查）")
-    except Exception as e:
-        print(f"⚠️ 本地日誌寫入提示：{e}")
-
-    # 2. 雲端 Webhook
     if LOG_WEBHOOK_URL:
         try:
             req_data = json.dumps(log_data).encode('utf-8')
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
                 data=req_data,
-                headers={'Content-Type': 'application/json'}
+                headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！")
-        except Exception as e:
-            print(f"📡 [雲端回報] 雲端登錄通訊提示（不影響本地測驗）：{e}")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                pass
+            print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
     if total_score < 100:
         print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")
         print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
         print("=" * 72)
 
-# 執行評分
-auto_grade_unit_2_2()
+# 執行評分入口
+if __name__ == "__main__" or "auto_grade_unit_2_2" in globals():
+    auto_grade_unit_2_2()

@@ -27,75 +27,107 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timezone, timedelta
+import logging
+
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# ------------------------------------------------------------------------------
-# 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
-# ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_2-4_power_and_square_root.ipynb"
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
+
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
+    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    total = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            total += 2
+        else:
+            total += 1
+    return total
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    gap = width - _disp_width(text)
+    if gap > 0:
+        return text + " " * gap
+    return text
+
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
 
 def fetch_google_account_info():
-    """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
-    try:
-        from google.colab import auth
-        print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
-        auth.authenticate_user()
-        
-        import google.auth
-        from google.auth.transport.requests import Request
-        credentials, _ = google.auth.default(scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ])
-        credentials.refresh(Request())
-        token = credentials.token
-        
-        req = urllib.request.Request(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            user_data = json.loads(resp.read().decode('utf-8'))
-            return user_data.get("email"), user_data.get("name")
-    except Exception as e:
-        return None, None
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
+    env = globals()
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
+    return google_email, google_name
+
 
 def auto_grade_unit_2_4():
     env = globals()
     total_score = 0
     max_score = 100
 
-    # 1. 讀取學生姓名
-    declared_name = str(env.get("student_name", "")).strip()
-    if not declared_name or declared_name == "自學冒險者":
-        declared_name = "自學冒險者（未填姓名）"
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
 
-    # 2. 獲取 Google 帳號資訊
+    # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
 
-    # 3. 整合身分識別
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
     if google_email:
         final_email = google_email
-        final_google_name = google_name if google_name else "Google無暱稱"
-        combined_display_name = f"{declared_name} (Google暱稱: {final_google_name})"
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
     else:
         fallback_email = str(env.get("student_email", "")).strip()
-        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未授權 Google / 匿名"
-        final_google_name = "未綁定 Google"
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
         combined_display_name = declared_name
 
-    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    # 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯)
-    test_cases = [
+    test_cases = test_cases = [
         # ----------------------------------------------------------------------
         # 2-4-1 次方運算雙星號（**）與脫字符號（^）的巨大陷阱 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-1", "填空題", "正方形草皮平方運算 (area = 49)", 7,
+        ("2-4-1", "填空題", "正方形草皮平方運算 (area = 49)", 7, ("area",),
          lambda g: (
              (True, "雙星號次方運算成功：area = 7 ** 2 = 49！")
              if (g.get("area") == 49 and type(g.get("area")) is int)
@@ -106,7 +138,7 @@ def auto_grade_unit_2_4():
              )
          )),
 
-        ("2-4-1", "練習題", "底數與指數次方計算 (base ** exp)", 10,
+        ("2-4-1", "練習題", "底數與指數次方計算 (base ** exp)", 10, ("base", "exp"),
          lambda g: (
              (True, f"次方計算正確：{g.get('base')} ** {g.get('exp')} = {g.get('base') ** g.get('exp')}")
              if ("base" in g and "exp" in g and
@@ -115,7 +147,7 @@ def auto_grade_unit_2_4():
              else (False, "找不到變數 base 或 exp，請依練習題說明使用 ** 計算次方並印出！")
          )),
 
-        ("2-4-1", "挑戰題", "益生菌週期暴增次方運算 (initial * 3**cycles)", 8,
+        ("2-4-1", "挑戰題", "益生菌週期暴增次方運算 (initial * 3**cycles)", 8, ("total_bacteria", "bacteria", "ans", "final_count", "cycles"),
          lambda g: (
              (True, "益生菌繁殖暴增計算完成！")
              if any(k in g and type(g.get(k)) is int and g.get(k) >= 5 for k in ["total_bacteria", "bacteria", "ans", "final_count"]) or
@@ -126,7 +158,7 @@ def auto_grade_unit_2_4():
         # ----------------------------------------------------------------------
         # 2-4-2 次方的超高優先級與負數括號陷阱 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-2", "填空題", "負數底數小括號保護 (ans_positive = 9)", 7,
+        ("2-4-2", "填空題", "負數底數小括號保護 (ans_positive = 9)", 7, ("ans_positive",),
          lambda g: (
              (True, "負數小括號保護成功：ans_positive = (-3) ** 2 = 9！")
              if (g.get("ans_positive") == 9 and type(g.get("ans_positive")) is int)
@@ -137,7 +169,7 @@ def auto_grade_unit_2_4():
              )
          )),
 
-        ("2-4-2", "練習題", "負底數偶數次方計算 (neg_base, even_exp)", 10,
+        ("2-4-2", "練習題", "負底數偶數次方計算 (neg_base, even_exp)", 10, ("neg_base", "even_exp"),
          lambda g: (
              (True, f"負數次方正確：({g.get('neg_base')}) ** {g.get('even_exp')} = {g.get('neg_base') ** g.get('even_exp')}")
              if ("neg_base" in g and "even_exp" in g and
@@ -147,7 +179,7 @@ def auto_grade_unit_2_4():
              else (False, "找不到 neg_base（負數）或 even_exp（偶數），請以小括號計算次方並印出！")
          )),
 
-        ("2-4-2", "挑戰題", "二次多項式數值計算 (y = a*x**2 + b*x + c ➔ 25)", 8,
+        ("2-4-2", "挑戰題", "二次多項式數值計算 (y = a*x**2 + b*x + c ➔ 25)", 8, ("poly_val", "ans", "res", "y"),
          lambda g: (
              (True, "二次多項式計算成功：當 x = -2 時 y = 25！")
              if (g.get("y") == 25 and type(g.get("y")) is int) or
@@ -158,14 +190,14 @@ def auto_grade_unit_2_4():
         # ----------------------------------------------------------------------
         # 2-4-3 用 a ** 0.5 進行開根號計算與浮點型態轉變 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-3", "填空題", "0.5 次方開根號求斜邊 (hypotenuse = 5.0)", 7,
+        ("2-4-3", "填空題", "0.5 次方開根號求斜邊 (hypotenuse = 5.0)", 7, ("hypotenuse",),
          lambda g: (
              (True, "開根號成功：hypotenuse = 25 ** 0.5 = 5.0（<class 'float'>）！")
              if (g.get("hypotenuse") == 5.0 and type(g.get("hypotenuse")) is float)
              else (False, "找不到 hypotenuse 或數值不為 5.0，請在空格填入 0.5 並點擊播放鍵執行！")
          )),
 
-        ("2-4-3", "練習題", "正方形面積開根號求邊長 (area_val ** 0.5)", 10,
+        ("2-4-3", "練習題", "正方形面積開根號求邊長 (area_val ** 0.5)", 10, ("area_val", "side", "length", "ans"),
          lambda g: (
              (True, f"開根號求邊長正確：{g.get('area_val')} ** 0.5 = {g.get('area_val') ** 0.5}")
              if ("area_val" in g and
@@ -175,7 +207,7 @@ def auto_grade_unit_2_4():
              else (False, "找不到變數 area_val，請宣告面積並使用 ** 0.5 計算邊長！")
          )),
 
-        ("2-4-3", "挑戰題", "畢氏定理斜邊長度計算 ((6**2 + 8**2)**0.5 ➔ 10.0)", 8,
+        ("2-4-3", "挑戰題", "畢氏定理斜邊長度計算 ((6**2 + 8**2)**0.5 ➔ 10.0)", 8, ("c", "hypotenuse", "ans", "a", "b"),
          lambda g: (
              (True, "畢氏定理計算正確：斜邊 c = 10.0！")
              if any(abs(g.get(k) - 10.0) < 1e-9 for k in ["c", "hypotenuse", "ans"] if k in g) or
@@ -186,14 +218,14 @@ def auto_grade_unit_2_4():
         # ----------------------------------------------------------------------
         # 2-4-4 APCS 實戰質數判定加速——開根號取整 int(n ** 0.5) 技巧 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-4", "填空題", "開根號取整質數檢查上限 (check_limit = 8)", 7,
+        ("2-4-4", "填空題", "開根號取整質數檢查上限 (check_limit = 8)", 7, ("check_limit",),
          lambda g: (
              (True, "開根號取整成功：check_limit = int(80 ** 0.5) = 8！")
              if (g.get("check_limit") == 8 and type(g.get("check_limit")) is int)
              else (False, "找不到 check_limit 或數值不為 8，請填入 int 與 ** 0.5 並執行！")
          )),
 
-        ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10,
+        ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10, ("target_n", "res", "ans", "limit", "root"),
          lambda g: (
              (True, f"開根號取整正確：int({g.get('target_n')} ** 0.5) = {int(g.get('target_n') ** 0.5)}")
              if ("target_n" in g and type(g.get("target_n")) is int and
@@ -202,7 +234,7 @@ def auto_grade_unit_2_4():
              else (False, "找不到變數 target_n，請依練習題使用 int(target_n ** 0.5) 取整數並印出！")
          )),
 
-        ("2-4-4", "挑戰題", "整數平方根檢測器 (r 與 r**2 精準還原)", 8,
+        ("2-4-4", "挑戰題", "整數平方根檢測器 (r 與 r**2 精準還原)", 8, ("test_val", "r", "root", "sq", "r_squared", "restore"),
          lambda g: (
              (True, "整數平方根檢測器運作正確！")
              if any(k in g for k in ["r", "root"]) and any(k in g for k in ["sq", "r_squared", "restore"]) or
@@ -211,24 +243,15 @@ def auto_grade_unit_2_4():
          )),
     ]
 
-    print("=" * 72)
-    print(" 📊 《PythAPCS123》單元 2-4：次方運算與開根號求解 —— 自動評分報告")
-    print(f" 👤 學員自填姓名：{declared_name}")
-    if google_email:
-        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
-    else:
-        print(f" 📧 登記信箱：{final_email}")
-    print(f" ⏰ 送交時間：{timestamp_str}")
-    print("=" * 72)
-
     pass_count = 0
     item_results = []
+    item_outputs = []
 
-    for uid, qtype, name, pts, checker in test_cases:
+    for uid, qtype, name, pts, watch, checker in test_cases:
         try:
             ok, msg = checker(env)
-        except Exception as e:
-            ok, msg = False, f"執行檢驗時發生異常：{e}"
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
 
         item_score = pts if ok else 0
         total_score += item_score
@@ -240,9 +263,10 @@ def auto_grade_unit_2_4():
             icon = "❌"
             status = f"未通過 (0/{pts}分)"
 
-        print(f"{icon} [{uid} {qtype}] {name:<32} ➔ {status}")
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
         if not ok:
-            print(f"   💡 提示：{msg}")
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
 
         item_results.append({
             "uid": uid,
@@ -251,67 +275,122 @@ def auto_grade_unit_2_4():
             "passed": ok,
             "score": item_score,
             "max_score": pts,
-            "message": msg
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
-    print("-" * 72)
-    if total_score >= 95:
-        badge = "🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通次方高特權與開根號取整核心實戰！"
+    if total_score >= 90:
+        badge = '🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通次方高特權與開根號取整核心實戰！'
     elif total_score >= 80:
-        badge = "🥈 卓越冒險者（銀牌徽章 🥈）—— 表現極佳，次方與根號運算熟練！"
+        badge = '🥈 卓越冒險者（銀牌徽章 🥈）—— 表現極佳，次方與根號運算熟練！'
     elif total_score >= 60:
-        badge = "🥉 扎根學徒（銅牌徽章 🥉）—— 基礎已建立，請針對紅叉題目稍作檢查！"
+        badge = '🥉 扎根學徒（銅牌徽章 🥉）—— 基礎已建立，請針對紅叉題目稍作檢查！'
     else:
-        badge = "🌱 潛力新星 —— 請確認上方各題目是否都已按下播放鍵 ▶ 執行作答喔！"
+        badge = '🌱 潛力新星 —— 請確認上方各題目是否都已按下播放鍵 ▶ 執行作答喔！'
 
-    print(f"📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
-    print(f"🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 2-4：次方運算與開根號求解 —— 自動評分報告")
+    print("=" * 72)
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for line in lines:
+            print(line)
     print("=" * 72)
 
-    # 1. 本地日誌
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
+    if google_email:
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
+    elif not is_colab:
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
+    else:
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
+
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
+
+    # --------------------------------------------------------------------------
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
+    # 鐵律：絕不產生任何本地日誌暫存檔。
+    # --------------------------------------------------------------------------
     log_data = {
         "unit": "2-4",
         "unit_title": "次方運算與開根號求解",
-        "student_name": combined_display_name,
         "declared_name": declared_name,
-        "google_name": final_google_name,
-        "student_email": final_email,
-        "google_email": google_email if google_email else final_email,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
+        "student_name": declared_name,
+        "student_id": declared_id,
+        "name": declared_name,
+        "id": declared_id,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
         "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
         "pass_count": pass_count,
         "total_count": len(test_cases),
         "badge": badge,
-        "details": item_results
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_2_4.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
 
-    try:
-        log_filename = "score_log_unit_2_4.json"
-        with open(log_filename, "w", encoding="utf-8") as lf:
-            json.dump(log_data, lf, ensure_ascii=False, indent=2)
-        print(f"💾 [本地存檔] 評分紀錄檔已生成：{log_filename}（可於左側檔案區下載備查）")
-    except Exception as e:
-        print(f"⚠️ 本地日誌寫入提示：{e}")
-
-    # 2. 雲端 Webhook
     if LOG_WEBHOOK_URL:
         try:
-            req_data = json.dumps(log_data).encode('utf-8')
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
                 data=req_data,
-                headers={'Content-Type': 'application/json'}
+                headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！")
-        except Exception as e:
-            print(f"📡 [雲端回報] 雲端登錄通訊提示（不影響本地測驗）：{e}")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
     if total_score < 100:
         print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")
         print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
         print("=" * 72)
+
 
 # 執行評分
 auto_grade_unit_2_4()

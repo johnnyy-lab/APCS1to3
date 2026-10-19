@@ -26,6 +26,7 @@ import sys
 import os
 import json
 import urllib.request
+import urllib.parse
 import unicodedata
 from datetime import datetime, timezone, timedelta
 import logging
@@ -47,10 +48,24 @@ def _pad(text, width):
     """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
     return text + " " * max(0, width - _disp_width(text))
 
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
+
 # ------------------------------------------------------------------------------
 # 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
 # ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_2-2_integer_arithmetic_and_precedence.ipynb"
 
 def fetch_google_account_info():
     """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
@@ -101,7 +116,7 @@ def auto_grade_unit_2_2():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    # 5. 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯 lambda)
+    # 5. 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 觀察變數, 檢驗邏輯)
     # 所有題目配分加總必須剛好等於 100 分！
     # 變數一律只認題幹指定的專屬名稱。
     # 五個挑戰題只認 hp、stationery_total、picnic_total、table_total、final_damage，不接受其他名稱。
@@ -110,14 +125,14 @@ def auto_grade_unit_2_2():
         # ----------------------------------------------------------------------
         # 2-2-1 整數加法與減法（+、-）——數值增減與負數運算 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-1", "填空題", "零用錢增減計算 (final_wallet = 275)", 6,
+        ("2-2-1", "填空題", "零用錢增減計算 (final_wallet = 275)", 6, ("final_wallet",),
          lambda g: (
              (True, "加減運算成功：final_wallet = 275！")
              if (g.get("final_wallet") == 275 and type(g.get("final_wallet")) is int)
              else (False, "找不到變數 final_wallet 或數值不為 275，請確認 wallet - lunch + reward 並執行！")
          )),
 
-        ("2-2-1", "練習題", "前後氣溫溫差變化量 (temp_yesterday, temp_today)", 8,
+        ("2-2-1", "練習題", "前後氣溫溫差變化量 (temp_yesterday, temp_today)", 8, ("temp_yesterday", "temp_today"),
          lambda g: (
              (True, f"溫差變化計算正確：昨天 {g.get('temp_yesterday')} 度，今天 {g.get('temp_today')} 度（變化量 {g.get('temp_today') - g.get('temp_yesterday')}）")
              if ("temp_yesterday" in g and "temp_today" in g and
@@ -126,7 +141,7 @@ def auto_grade_unit_2_2():
              else (False, "找不到 temp_yesterday 或 temp_today，請依練習題宣告氣溫變數並印出差值！")
          )),
 
-        ("2-2-1", "挑戰題", "勇者地底迷宮生命值結算 (base_hp = 80)", 6,
+        ("2-2-1", "挑戰題", "勇者地底迷宮生命值結算 (base_hp = 80)", 6, ("hp",),
          lambda g: (
              (True, f"勇者生命值計算完成：hp = {g.get('hp')}")
              if ("hp" in g and type(g.get("hp")) is int and g.get("hp") > 0)
@@ -136,14 +151,14 @@ def auto_grade_unit_2_2():
         # ----------------------------------------------------------------------
         # 2-2-2 整數乘法（*）與代數陷阱——星號連乘與嚴禁省略乘號 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-2", "填空題", "操場長寬相乘面積計算 (area = 96)", 6,
+        ("2-2-2", "填空題", "操場長寬相乘面積計算 (area = 96)", 6, ("area",),
          lambda g: (
              (True, "乘法運算成功：area = length * width = 96！")
              if (g.get("area") == 96 and type(g.get("area")) is int)
              else (False, "找不到變數 area 或數值不為 96，請在空格填入乘號 * 並點擊播放鍵執行！")
          )),
 
-        ("2-2-2", "練習題", "營養午餐便當總額 (unit_price, quantity)", 8,
+        ("2-2-2", "練習題", "營養午餐便當總額 (unit_price, quantity)", 8, ("unit_price", "quantity"),
          lambda g: (
              (True, f"便當總額計算正確：{g.get('unit_price')} * {g.get('quantity')} = {g.get('unit_price') * g.get('quantity')}")
              if ("unit_price" in g and "quantity" in g and
@@ -152,7 +167,7 @@ def auto_grade_unit_2_2():
              else (False, "找不到變數 unit_price 或 quantity，請依練習題說明計算單價乘以數量！")
          )),
 
-        ("2-2-2", "挑戰題", "開學特賣文具結帳總金額計算", 6,
+        ("2-2-2", "挑戰題", "開學特賣文具結帳總金額計算", 6, ("stationery_total", "pencil_count", "notebook_count", "eraser_count"),
          lambda g: (
              (True, f"文具結帳金額計算成功：stationery_total = {g.get('stationery_total')}")
              if ("stationery_total" in g and type(g.get("stationery_total")) is int and g.get("stationery_total") > 0)
@@ -166,14 +181,14 @@ def auto_grade_unit_2_2():
         # ----------------------------------------------------------------------
         # 2-2-3 運算子優先級鐵則——先乘後加減與由左至右結合性 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-3", "填空題", "打工日薪先乘後加 (total_salary = 1100)", 6,
+        ("2-2-3", "填空題", "打工日薪先乘後加 (total_salary = 1100)", 6, ("total_salary",),
          lambda g: (
              (True, "日薪計算正確：total_salary = 200 + 180 * 5 = 1100！")
              if (g.get("total_salary") == 1100 and type(g.get("total_salary")) is int)
              else (False, "找不到 total_salary 或數值不為 1100，請填入乘號 * 並執行！")
          )),
 
-        ("2-2-3", "練習題", "計程車跳表總車資 (base_fare, rate_per_km, extra_km)", 8,
+        ("2-2-3", "練習題", "計程車跳表總車資 (base_fare, rate_per_km, extra_km)", 8, ("base_fare", "rate_per_km", "extra_km"),
          lambda g: (
              (True, f"車資先乘後加正確：基本費 {g.get('base_fare')} + 單價 {g.get('rate_per_km')} * 里程 {g.get('extra_km')}")
              if ("base_fare" in g and "rate_per_km" in g and "extra_km" in g and
@@ -182,7 +197,7 @@ def auto_grade_unit_2_2():
              else (False, "找不到 base_fare, rate_per_km, extra_km，請依練習題說明計算總車資！")
          )),
 
-        ("2-2-3", "挑戰題", "野餐採購先乘後加減折價券 (picnic_total = 700)", 6,
+        ("2-2-3", "挑戰題", "野餐採購先乘後加減折價券 (picnic_total = 700)", 6, ("picnic_total",),
          lambda g: (
              (True, "野餐採購總額計算正確：150 + 8*45 + 8*30 - 50 = 700！")
              if (g.get("picnic_total") == 700 and type(g.get("picnic_total")) is int)
@@ -192,14 +207,14 @@ def auto_grade_unit_2_2():
         # ----------------------------------------------------------------------
         # 2-2-4 運算順序的王牌指揮官——小括號 (...) 搶先執行權 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-4", "填空題", "禮物與包裝分攤小括號 (each_pay = 200)", 6,
+        ("2-2-4", "填空題", "禮物與包裝分攤小括號 (each_pay = 200)", 6, ("each_pay",),
          lambda g: (
              (True, "小括號搶先加總成功：each_pay = (500 + 100) // 3 = 200！")
              if (g.get("each_pay") == 200 and type(g.get("each_pay")) is int)
              else (False, "找不到 each_pay 或數值不為 200，請在 gift + wrap 外圍加上小括號 () 並執行！")
          )),
 
-        ("2-2-4", "練習題", "梯形上底加下底乘高 (top, bottom, height)", 8,
+        ("2-2-4", "練習題", "梯形上底加下底乘高 (top, bottom, height)", 8, ("top", "bottom", "height"),
          lambda g: (
              (True, f"梯形公式小括號運算正確：({g.get('top')} + {g.get('bottom')}) * {g.get('height')} = {(g.get('top') + g.get('bottom')) * g.get('height')}")
              if ("top" in g and "bottom" in g and "height" in g and
@@ -208,7 +223,7 @@ def auto_grade_unit_2_2():
              else (False, "找不到 top, bottom, height，請使用小括號 (top + bottom) * height 計算並印出！")
          )),
 
-        ("2-2-4", "挑戰題", "好友同行特惠小括號結算 (table_total = 900)", 6,
+        ("2-2-4", "挑戰題", "好友同行特惠小括號結算 (table_total = 900)", 6, ("table_total",),
          lambda g: (
              (True, f"好友同行金額計算成功：table_total = (180 + 45) * 4 = {g.get('table_total')}")
              if ("table_total" in g and type(g.get("table_total")) is int and g.get("table_total") == 900)
@@ -218,14 +233,14 @@ def auto_grade_unit_2_2():
         # ----------------------------------------------------------------------
         # 2-2-5 多重巢狀小括號與括號大忌——由內而外層層拆解 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-5", "填空題", "禁絕中括號改用合法小括號 (math_formula = 150)", 6,
+        ("2-2-5", "填空題", "禁絕中括號改用合法小括號 (math_formula = 150)", 6, ("math_formula",),
          lambda g: (
              (True, "合法小括號運算成功：math_formula = 5 * ((10 - 2) * 3 + 6) = 150！")
              if (g.get("math_formula") == 150 and type(g.get("math_formula")) is int)
              else (False, "找不到 math_formula 或數值不為 150，請在外層填入合法小括號 () 並執行！")
          )),
 
-        ("2-2-5", "練習題", "五變數雙層巢狀小括號 ((v1+v2)*v3 - v4)*v5", 8,
+        ("2-2-5", "練習題", "五變數雙層巢狀小括號 ((v1+v2)*v3 - v4)*v5", 8, ("v1", "v2", "v3", "v4", "v5"),
          lambda g: (
              (True, f"雙層巢狀小括號運算正確：(({g.get('v1')}+{g.get('v2')})*{g.get('v3')} - {g.get('v4')})*{g.get('v5')} = {((g.get('v1')+g.get('v2'))*g.get('v3') - g.get('v4'))*g.get('v5')}")
              if ("v1" in g and "v2" in g and "v3" in g and "v4" in g and "v5" in g and
@@ -235,7 +250,7 @@ def auto_grade_unit_2_2():
              else (False, "找不到變數 v1, v2, v3, v4, v5，請依練習題宣告並計算 ((v1+v2)*v3 - v4)*v5！")
          )),
 
-        ("2-2-5", "挑戰題", "戰略遊戲傷害結算雙重小括號一行整合 (final_damage)", 6,
+        ("2-2-5", "挑戰題", "戰略遊戲傷害結算雙重小括號一行整合 (final_damage)", 6, ("final_damage", "attack", "weapon", "critical_rate", "element_rate"),
          lambda g: (
              (True, f"戰略遊戲最終傷害計算成功：final_damage = {g.get('final_damage')}")
              if ("final_damage" in g and type(g.get("final_damage")) in [int, float] and g.get("final_damage") > 0)
@@ -252,11 +267,11 @@ def auto_grade_unit_2_2():
     item_results = []
     item_outputs = []
 
-    for uid, qtype, name, pts, checker in test_cases:
+    for uid, qtype, name, pts, watch, checker in test_cases:
         try:
             ok, msg = checker(env)
-        except Exception as e:
-            ok, msg = False, f"執行檢驗時發生異常：{e}"
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
 
         item_score = pts if ok else 0
         total_score += item_score
@@ -280,7 +295,8 @@ def auto_grade_unit_2_2():
             "passed": ok,
             "score": item_score,
             "max_score": pts,
-            "message": msg
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
     # 7. 計算榮譽等級徽章
@@ -316,56 +332,75 @@ def auto_grade_unit_2_2():
             print(l)
     print("=" * 72)
 
-    # 9. 組合送往試算表之學生名稱（若有座號學號，格式化為 [學號] 姓名，確保試算表能記錄學號）
-    if declared_id and declared_id != "無座號":
-        sheet_student_name = f"[{declared_id}] {declared_name}"
-    else:
-        sheet_student_name = declared_name
-
-    # 組合送往試算表之學生信箱（第四欄格式化為 [Google暱稱]email，例如 [葉明昌]smallchangyeh@gmail.com）
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
     if google_email:
-        sheet_student_email = f"[{final_google_name}]{final_email}"
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
     elif not is_colab:
-        sheet_student_email = "[本機]offline"
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
     else:
-        sheet_student_email = f"[訪客]{final_email}"
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
+
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
 
     # --------------------------------------------------------------------------
-    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook，支援離線安全容錯）
-    # 鐵律：絕不產生任何本地日誌暫存檔，保持學員 Colab 目錄 100% 純淨。
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
+    # 鐵律：絕不產生任何本地日誌暫存檔。
     # --------------------------------------------------------------------------
     log_data = {
         "unit": "2-2",
         "unit_title": "整數基本算術運算與優先級",
-        "student_name": sheet_student_name,
-        "student_id": declared_id,
         "declared_name": declared_name,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
+        "student_name": declared_name,
+        "student_id": declared_id,
         "name": declared_name,
         "id": declared_id,
-        "google_name": final_google_name,
-        "student_email": sheet_student_email,
-        "google_email": sheet_student_email,
-        "email": sheet_student_email,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
         "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
         "pass_count": pass_count,
         "total_count": len(test_cases),
         "badge": badge,
-        "details": item_results
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_2_2.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
 
     if LOG_WEBHOOK_URL:
         try:
-            req_data = json.dumps(log_data).encode('utf-8')
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
                 data=req_data,
                 headers={"Content-Type": "application/json"}
             )
             with urllib.request.urlopen(req, timeout=5) as response:
-                pass
-            print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
         except Exception:
             # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
             if not is_colab:
@@ -378,6 +413,5 @@ def auto_grade_unit_2_2():
         print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
         print("=" * 72)
 
-# 執行評分入口
-if __name__ == "__main__" or "auto_grade_unit_2_2" in globals():
-    auto_grade_unit_2_2()
+# 執行評分
+auto_grade_unit_2_2()

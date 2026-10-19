@@ -40,13 +40,25 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 
 def _disp_width(text):
-    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。"""
-    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
+
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
+    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    total = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            total += 2
+        else:
+            total += 1
+    return total
 
 
 def _pad(text, width):
     """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
-    return text + " " * max(0, width - _disp_width(text))
+    gap = width - _disp_width(text)
+    if gap > 0:
+        return text + " " * gap
+    return text
 
 
 def _student_value(env, names):

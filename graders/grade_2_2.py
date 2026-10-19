@@ -103,7 +103,8 @@ def auto_grade_unit_2_2():
 
     # 5. 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯 lambda)
     # 所有題目配分加總必須剛好等於 100 分！
-    # 變數一律只認題幹指定的專屬名稱；挑戰題題幹未指定名稱時，僅接受語意化備援，
+    # 變數一律只認題幹指定的專屬名稱。
+    # 五個挑戰題只認 hp、stationery_total、picnic_total、table_total、final_damage，不接受其他名稱。
     # 絕不收 ans、res、temp 等通用路人名（詳見 AGYRules/colab_notebook_grade_rules.md 第三節）。
     test_cases = [
         # ----------------------------------------------------------------------

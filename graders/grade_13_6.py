@@ -1,59 +1,101 @@
-# -*- coding: utf-8 -*-
-"""
-PythAPCS123 - 單元 13-6 自動評分器
-單元名稱：超時（Time Limit Exceeded, TLE）警報排查與常數優化
-本腳本支援：
-1. 學生自評/無登入測試模式（良心信條）
-2. Colab OAuth 身分識別機制
-3. Google 試算表 Webhook 成績同步
-4. 18 題全方位檢測（6 大 TLE 排查與效能優化核心，每題配分，滿分 100 分）
-5. 本地 JSON 診斷報告輸出
-"""
+# ==============================================================================
+# 🧪 《PythAPCS123》單元 13-6：超時（Time Limit Exceeded, TLE）警報排查與常數優化 —— 官方智慧評分與日誌記錄器
+# 存放位置：web/graders/grade_13_6.py
+# 版權宣告：PythAPCS123 教材團隊版權所有
+# ==============================================================================
+#
+# 🕵️‍♂️【給順藤摸瓜找到這裡的程式冒險者 —— 一封來自教材團隊的良心提醒信】
+#
+# 嗨！聰明的同學：
+# 如果你有本事一路順著 Colab 的程式碼追查到 GitHub，並打開了這份評分腳本，
+# 我們要真誠地為你喝采！這代表你具備敏銳的觀察力、駭客的探究精神，以及優異的程式直覺。
+# 這種「打破砂鍋問到底、想搞懂系統底層怎麼運作」的好奇心，正是優秀工程師最珍貴的特質。
+#
+# 不過，請你暫時停下滾輪，聽老師一句良心建議：
+# 既然你已經具備順利找到這裡的實力（這資質說不定早就有 APCS 實作 3 級分以上的水準了！😄），
+# 直接看這份評分代碼裡的答案，對你的邏輯思維與未來的考場實戰毫無幫助——
+# 因為在正式的 APCS 考場與真實世界的開發中，可沒有評分原始碼能讓你看喔！
+#
+# 程式設計最迷人的地方，在於親自思考、撞牆、除錯，直到測資全綠的那份無可取代的成就感。
+#
+# 何不現在就帥氣地關掉這個視窗，回到 Colab 筆記本，靠自己的雙手把每一題寫出來？
+# 真正的程式大師，靠實力讓系統亮起綠燈！期待在未來的 APCS 考場與競賽舞台看見你的精彩表現！🚀
+# ==============================================================================
 
 import sys
 import os
 import json
-import datetime
+import urllib.request
+import urllib.parse
+import unicodedata
+from datetime import datetime, timezone, timedelta
+import logging
 import io
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
-if sys.platform == "win32":
+# 確保輸出支援 UTF-8
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
+LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_13-6_time_limit_exceeded_and_performance_tuning.ipynb"
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
+
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
+    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    total = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            total += 2
+        else:
+            total += 1
+    return total
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    gap = width - _disp_width(text)
+    if gap > 0:
+        return text + " " * gap
+    return text
+
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
+
+def fetch_google_account_info():
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
+    env = globals()
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
+    return google_email, google_name
+
+def extract_notebook_history():
+    hist_text = ""
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
+        from IPython import get_ipython
+        ip = get_ipython()
+        if ip and hasattr(ip, "user_ns"):
+            In = ip.user_ns.get("In", [])
+            hist_text = "\n".join(In)
     except Exception:
         pass
-
-UNIT_ID = "13-6"
-UNIT_TITLE = "超時（Time Limit Exceeded, TLE）警報排查與常數優化"
-
-QUESTIONS = [
-    # 13.6.1 運算量安全估算
-    {"id": "q1", "name": "實作 13.6.1：is_operation_count_safe 10^7 安全上限判定", "points": 6},
-    {"id": "q2", "name": "實作 13.6.1：is_operation_count_safe 超限 10^7+1 判定 False", "points": 6},
-    {"id": "q3", "name": "實作 13.6.1：is_operation_count_safe 極小運算量安全判定", "points": 5},
-    # 13.6.2 演算法可行性評估
-    {"id": "q4", "name": "實作 13.6.2：evaluate_algorithm_feasibility O(N)/O(NlogN) 判定 PASS", "points": 6},
-    {"id": "q5", "name": "實作 13.6.2：evaluate_algorithm_feasibility O(N^2) 10^5 判定 TLE", "points": 6},
-    {"id": "q6", "name": "實作 13.6.2：evaluate_algorithm_feasibility 小規模 O(N^2) 判定 PASS", "points": 5},
-    # 13.6.3 死迴圈防禦與安全除法
-    {"id": "q7", "name": "實作 13.6.3：safe_count_divisions 連續整除次數精確計算", "points": 6},
-    {"id": "q8", "name": "實作 13.6.3：safe_count_divisions 無法整除時即刻中斷杜絕死迴圈", "points": 6},
-    {"id": "q9", "name": "實作 13.6.3：safe_count_divisions 質數與邊界 n=1 安全收斂", "points": 5},
-    # 13.6.4 集合加速與極速交集
-    {"id": "q10", "name": "實作 13.6.4：count_common_elements_fast 集合快速交集統計", "points": 6},
-    {"id": "q11", "name": "實作 13.6.4：count_common_elements_fast 重複元素去重與無交集處理", "points": 6},
-    {"id": "q12", "name": "實作 13.6.4：count_common_elements_fast 空串列邊界安全防禦", "points": 5},
-    # 13.6.5 高效交替字串產生
-    {"id": "q13", "name": "實作 13.6.5：build_alternating_string 奇偶長度 AB 交替組裝", "points": 6},
-    {"id": "q14", "name": "實作 13.6.5：build_alternating_string 長度 1 與長度 0 邊界處理", "points": 5},
-    {"id": "q15", "name": "實作 13.6.5：build_alternating_string 效能規範：不得於迴圈字串累加", "points": 5},
-    # 13.6.6 極速串流 I/O 解析
-    {"id": "q16", "name": "實作 13.6.6：parse_stream_sum 多行整數字串快速 readline 累加", "points": 6},
-    {"id": "q17", "name": "實作 13.6.6：parse_stream_sum 正負數與空串流邊界處理", "points": 5},
-    {"id": "q18", "name": "實作 13.6.6：parse_stream_sum EOF 正確中斷與標準輸入環境還原", "points": 5},
-]
-
-# ----------------- 檢查函式實作 -----------------
+    return hist_text
 
 def check_q1(g, hist):
     fn = g.get("is_operation_count_safe")
@@ -278,130 +320,236 @@ def check_q18(g, hist):
         return True, "偵測到串流 EOF 中斷邏輯！"
     return False, "標準輸入未復原或單行讀取失敗。"
 
-CHECK_FUNCS = {
-    "q1": check_q1,
-    "q2": check_q2,
-    "q3": check_q3,
-    "q4": check_q4,
-    "q5": check_q5,
-    "q6": check_q6,
-    "q7": check_q7,
-    "q8": check_q8,
-    "q9": check_q9,
-    "q10": check_q10,
-    "q11": check_q11,
-    "q12": check_q12,
-    "q13": check_q13,
-    "q14": check_q14,
-    "q15": check_q15,
-    "q16": check_q16,
-    "q17": check_q17,
-    "q18": check_q18,
-}
 
-def extract_notebook_history():
-    hist_text = ""
-    try:
-        from IPython import get_ipython
-        ip = get_ipython()
-        if ip and hasattr(ip, "user_ns"):
-            In = ip.user_ns.get("In", [])
-            hist_text = "\n".join(In)
-    except Exception:
-        pass
-    return hist_text
-
-def run_grading(user_globals=None):
-    g = {}
-    if user_globals is not None:
-        g.update(user_globals)
-    else:
-        try:
-            import __main__
-            g.update(__main__.__dict__)
-        except Exception:
-            pass
-
-    hist = extract_notebook_history()
-
-    results = []
+def auto_grade_unit_13_6():
+    env = globals()
     total_score = 0
-    max_score = sum(q["points"] for q in QUESTIONS)
+    max_score = 100
 
-    for q in QUESTIONS:
-        qid = q["id"]
-        checker = CHECK_FUNCS.get(qid)
-        passed, msg = False, "未執行或未檢測到結果"
-        if checker:
-            try:
-                passed, msg = checker(g, hist)
-            except Exception as e:
-                passed, msg = False, f"檢測時發生例外錯誤: {str(e)}"
-        
-        score = q["points"] if passed else 0
-        total_score += score
-        results.append({
-            "id": qid,
-            "name": q["name"],
-            "points": q["points"],
-            "score": score,
-            "passed": passed,
-            "feedback": msg
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
+
+    # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
+    google_email, google_name = fetch_google_account_info()
+
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
+    if google_email:
+        final_email = google_email
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
+    else:
+        fallback_email = str(env.get("student_email", "")).strip()
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
+        combined_display_name = declared_name
+
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+    # 取得 IPython 執行歷史（Colab 的 _ih 與 In 同源；本機測試可注入 _ih）
+    input_history = env.get("_ih", env.get("In", []))
+    history_str = "\n".join(str(x) for x in input_history) if isinstance(input_history, list) else ""
+    history_clean = history_str.replace(" ", "")
+
+    test_cases = [
+        ('13-6-1', '實作題', 'is_operation_count_safe 10^7 安全上限判定', 6, ("is_operation_count_safe",),
+         lambda g: check_q1(g, history_str)),
+        ('13-6-1', '實作題', 'is_operation_count_safe 超限 10^7+1 判定 False', 6, ("is_operation_count_safe",),
+         lambda g: check_q2(g, history_str)),
+        ('13-6-1', '實作題', 'is_operation_count_safe 極小運算量安全判定', 5, ("is_operation_count_safe",),
+         lambda g: check_q3(g, history_str)),
+        ('13-6-2', '實作題', 'evaluate_algorithm_feasibility O(N)/O(NlogN) 判定 PASS', 6, ("evaluate_algorithm_feasibility",),
+         lambda g: check_q4(g, history_str)),
+        ('13-6-2', '實作題', 'evaluate_algorithm_feasibility O(N^2) 10^5 判定 TLE', 6, ("evaluate_algorithm_feasibility",),
+         lambda g: check_q5(g, history_str)),
+        ('13-6-2', '實作題', 'evaluate_algorithm_feasibility 小規模 O(N^2) 判定 PASS', 5, ("evaluate_algorithm_feasibility",),
+         lambda g: check_q6(g, history_str)),
+        ('13-6-3', '實作題', 'safe_count_divisions 連續整除次數精確計算', 6, ("safe_count_divisions",),
+         lambda g: check_q7(g, history_str)),
+        ('13-6-3', '實作題', 'safe_count_divisions 無法整除時即刻中斷杜絕死迴圈', 6, ("safe_count_divisions",),
+         lambda g: check_q8(g, history_str)),
+        ('13-6-3', '實作題', 'safe_count_divisions 質數與邊界 n=1 安全收斂', 5, ("safe_count_divisions",),
+         lambda g: check_q9(g, history_str)),
+        ('13-6-4', '實作題', 'count_common_elements_fast 集合快速交集統計', 6, ("count_common_elements_fast",),
+         lambda g: check_q10(g, history_str)),
+        ('13-6-4', '實作題', 'count_common_elements_fast 重複元素去重與無交集處理', 6, ("count_common_elements_fast",),
+         lambda g: check_q11(g, history_str)),
+        ('13-6-4', '實作題', 'count_common_elements_fast 空串列邊界安全防禦', 5, ("count_common_elements_fast",),
+         lambda g: check_q12(g, history_str)),
+        ('13-6-5', '實作題', 'build_alternating_string 奇偶長度 AB 交替組裝', 6, ("build_alternating_string",),
+         lambda g: check_q13(g, history_str)),
+        ('13-6-5', '實作題', 'build_alternating_string 長度 1 與長度 0 邊界處理', 5, ("build_alternating_string",),
+         lambda g: check_q14(g, history_str)),
+        ('13-6-5', '實作題', 'build_alternating_string 效能規範：不得於迴圈字串累加', 5, ("build_alternating_string",),
+         lambda g: check_q15(g, history_str)),
+        ('13-6-6', '實作題', 'parse_stream_sum 多行整數字串快速 readline 累加', 6, ("parse_stream_sum",),
+         lambda g: check_q16(g, history_str)),
+        ('13-6-6', '實作題', 'parse_stream_sum 正負數與空串流邊界處理', 5, ("parse_stream_sum",),
+         lambda g: check_q17(g, history_str)),
+        ('13-6-6', '實作題', 'parse_stream_sum EOF 正確中斷與標準輸入環境還原', 5, ("parse_stream_sum",),
+         lambda g: check_q18(g, history_str)),
+    ]
+
+    pass_count = 0
+    item_results = []
+    item_outputs = []
+
+    for uid, qtype, name, pts, watch, checker in test_cases:
+        try:
+            ok, msg = checker(env)
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
+
+        item_score = pts if ok else 0
+        total_score += item_score
+        if ok:
+            pass_count += 1
+            icon = "✅"
+            status = f"通過 (+{pts}分)"
+        else:
+            icon = "❌"
+            status = f"未通過 (0/{pts}分)"
+
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
+        if not ok:
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
+
+        item_results.append({
+            "uid": uid,
+            "type": qtype,
+            "name": name,
+            "passed": ok,
+            "score": item_score,
+            "max_score": pts,
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
-    return total_score, max_score, results
+    if total_score >= 90:
+        badge = '🏆 卓越宗師 (Mastery)'
+    elif total_score >= 80:
+        badge = '🥈 熟練精通 (Proficient)'
+    elif total_score >= 60:
+        badge = '🥉 基礎達標 (Pass)'
+    else:
+        badge = '🥉 仍需努力'
 
-def main():
-    user_name = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("STUDENT_NAME", "匿名學員")
-    student_id = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("STUDENT_ID", "無學號")
-    user_email = "未綁定 (良心信條模式)"
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 13-6：超時（Time Limit Exceeded, TLE）警報排查與常數優化 —— 自動評分報告")
+    print("=" * 72)
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for line in lines:
+            print(line)
+    print("=" * 72)
 
-    total_score, max_score, results = run_grading()
-    pass_ratio = (total_score / max_score) * 100 if max_score > 0 else 0
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
+    if google_email:
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
+    elif not is_colab:
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
+    else:
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
 
-    print("=" * 64)
-    print(f"🎯 PythAPCS123 自動評分系統 - 單元 {UNIT_ID}：{UNIT_TITLE}")
-    print(f"👤 學習者：{user_name} ({student_id}) | 認證身分：{user_email}")
-    print(f"⏰ 評分時間：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 64)
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
 
-    for r in results:
-        mark = "✅ [通過]" if r["passed"] else "❌ [未過]"
-        print(f"{mark} {r['name']} ({r['score']}/{r['points']}分)")
-        print(f"    💡 回饋：{r['feedback']}")
-
-    print("-" * 64)
-    print(f"📊 總結得分：{total_score} / {max_score} 分 (達成率: {pass_ratio:.1f}%)")
-    
-    badge = "🥉 仍需努力"
-    if pass_ratio >= 90:
-        badge = "🏆 卓越宗師 (Mastery)"
-    elif pass_ratio >= 75:
-        badge = "🥈 熟練精通 (Proficient)"
-    elif pass_ratio >= 60:
-        badge = "🥉 基礎達標 (Pass)"
-    print(f"🏅 榮譽成就：{badge}")
-    print("=" * 64)
-
-    report_data = {
-        "unit_id": UNIT_ID,
-        "unit_title": UNIT_TITLE,
-        "student_name": user_name,
-        "student_id": student_id,
+    # --------------------------------------------------------------------------
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
+    # 鐵律：絕不產生任何本地日誌暫存檔。
+    # --------------------------------------------------------------------------
+    log_data = {
+        "unit": "13-6",
+        "unit_title": "超時（Time Limit Exceeded, TLE）警報排查與常數優化",
+        "declared_name": declared_name,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
+        "student_name": declared_name,
+        "student_id": declared_id,
+        "name": declared_name,
+        "id": declared_id,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
+        "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
-        "pass_ratio": pass_ratio,
+        "pass_count": pass_count,
+        "total_count": len(test_cases),
         "badge": badge,
-        "timestamp": datetime.datetime.now().isoformat(),
-        "results": results
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_13_6.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
-    try:
-        with open(f"grade_report_{UNIT_ID.replace('-', '_')}.json", "w", encoding="utf-8") as rf:
-            json.dump(report_data, rf, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
 
-    return total_score
+    if LOG_WEBHOOK_URL:
+        try:
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                LOG_WEBHOOK_URL,
+                data=req_data,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
-if __name__ == "__main__":
-    main()
+    if total_score < 100:
+        print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")
+        print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
+        print("=" * 72)
+
+
+# 執行評分
+auto_grade_unit_13_6()

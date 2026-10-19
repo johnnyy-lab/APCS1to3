@@ -123,7 +123,7 @@ def auto_grade_unit_3_4():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 3-4-1 認識 abs() 絕對值函數——數線上的無向距離守護者 (共 25 分)
         # ----------------------------------------------------------------------

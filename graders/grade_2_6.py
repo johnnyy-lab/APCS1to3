@@ -123,7 +123,7 @@ def auto_grade_unit_2_6():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 2-6-1 電腦的原生母語——二進位常數表示法（0b） (共 25 分)
         # ----------------------------------------------------------------------

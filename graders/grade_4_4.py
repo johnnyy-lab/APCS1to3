@@ -126,7 +126,7 @@ def auto_grade_unit_4_4():
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 4-4-1 字串標籤與變數混合輸出——變數名牌 vs 字串引號的本質區別 (共 20 分)
         # ----------------------------------------------------------------------

@@ -123,7 +123,7 @@ def auto_grade_unit_1_6():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # 1-6-1 行首嚴禁任意留白——抓出出列站錯的 IndentationError (共 25 分)
         ("1-6-1", "填空題", "刪除行首多餘空格 score = 95", 7, ("score",),
          lambda g: (True, "成功刪除行首多餘空格，score = 95") if g.get("score") == 95

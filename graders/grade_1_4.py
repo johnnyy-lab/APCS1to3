@@ -123,7 +123,7 @@ def auto_grade_unit_1_4():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # 1-4-1 最常見的累加捷徑：+= (共 20 分)
         ("1-4-1", "填空題", "撲滿零用錢累加 coin_box += 20", 6, ("coin_box",),
          lambda g: (True, "累加運算正確：coin_box = 100") if g.get("coin_box") == 100

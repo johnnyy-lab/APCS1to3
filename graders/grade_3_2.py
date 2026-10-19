@@ -123,7 +123,7 @@ def auto_grade_unit_3_2():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 3-2-1 ord() 字元身分證——探訪 ASCII 編碼與連續性特徵 (共 20 分)
         # ----------------------------------------------------------------------

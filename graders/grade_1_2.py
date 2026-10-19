@@ -123,7 +123,7 @@ def auto_grade_unit_1_2():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # 1-2-1 等號不是等於！認識單向賦值輸送帶（Assignment） (共 19 分)
         ("1-2-1", "填空題", "賦值運算子 energy = 250", 6, ("energy",),
          lambda g: (True, "輸送帶順利運作：energy = 250") if g.get("energy") == 250

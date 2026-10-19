@@ -123,7 +123,7 @@ def auto_grade_unit_1_3():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # 1-3-1 多變數同時賦值——雙手齊發的打包與解包 (共 19 分)
         ("1-3-1", "填空題", "雙變數同時賦值 x, y = 10, 20", 6, ("x", "y"),
          lambda g: (True, "雙變數同時賦值成功：x=10, y=20") if g.get("x") in [10, 20] and g.get("y") in [20, 30]

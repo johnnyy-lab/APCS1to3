@@ -123,7 +123,7 @@ def auto_grade_unit_2_5():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 2-5-1 單斜線除法（/）——必定產生浮點數的魔法轉身 (共 25 分)
         # ----------------------------------------------------------------------

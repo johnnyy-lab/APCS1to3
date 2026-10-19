@@ -123,7 +123,7 @@ def auto_grade_unit_2_7():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 2-7-1 位元 AND（&）與超光速奇偶判斷（x & 1） (共 25 分)
         # ----------------------------------------------------------------------

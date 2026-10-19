@@ -123,7 +123,7 @@ def auto_grade_unit_3_3():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 3-3-1 max() 與 min() 多參數比大小——誰是擂台冠軍與墊底守門員 (共 34 分)
         # ----------------------------------------------------------------------

@@ -27,80 +27,111 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timezone, timedelta
+import logging
+
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# ------------------------------------------------------------------------------
-# 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
-# ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_6-1_counting_loop_for_and_range.ipynb"
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
+
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
+    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    total = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            total += 2
+        else:
+            total += 1
+    return total
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    gap = width - _disp_width(text)
+    if gap > 0:
+        return text + " " * gap
+    return text
+
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
 
 def fetch_google_account_info():
-    """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
-    try:
-        from google.colab import auth
-        print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
-        auth.authenticate_user()
-        
-        import google.auth
-        from google.auth.transport.requests import Request
-        credentials, _ = google.auth.default(scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ])
-        credentials.refresh(Request())
-        token = credentials.token
-        
-        req = urllib.request.Request(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            user_data = json.loads(resp.read().decode('utf-8'))
-            return user_data.get("email"), user_data.get("name")
-    except Exception as e:
-        return None, None
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
+    env = globals()
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
+    return google_email, google_name
+
 
 def auto_grade_unit_6_1():
     env = globals()
     total_score = 0
     max_score = 100
 
-    # 1. 讀取學生姓名
-    declared_name = str(env.get("student_name", "")).strip()
-    if not declared_name or declared_name == "自學冒險者":
-        declared_name = "自學冒險者（未填姓名）"
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
 
-    # 2. 獲取 Google 帳號資訊
+    # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
 
-    # 3. 整合身分識別
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
     if google_email:
         final_email = google_email
-        final_google_name = google_name if google_name else "Google無暱稱"
-        combined_display_name = f"{declared_name} (Google暱稱: {final_google_name})"
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
     else:
         fallback_email = str(env.get("student_email", "")).strip()
-        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未授權 Google / 匿名"
-        final_google_name = "未綁定 Google"
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
         combined_display_name = declared_name
 
-    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    # 取得 IPython 執行歷史（若在 Colab 環境）
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
     history_clean = history_str.replace(" ", "")
 
-    # 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯)
     test_cases = [
         # ----------------------------------------------------------------------
         # 6-1-1 為什麼需要迴圈：終結重複複製貼上的自動化引擎 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-1-1", "填空題", "重複輸出勵志口號 (for _ in range(3))", 4,
+        ("6-1-1", "填空題", "重複輸出勵志口號 (for _ in range(3))", 4, (),
          lambda g: (
              (True, "迴圈結構與重複次數填寫正確：for _ in range(3)！")
              if ("for" in history_str and "range(3)" in history_clean and
@@ -108,7 +139,7 @@ def auto_grade_unit_6_1():
              else (False, "請在 6-1-1 填空題空格填入 for 與 3！")
          )),
 
-        ("6-1-1", "練習題", "校園廣播連續播報 (times 次廣播)", 4,
+        ("6-1-1", "練習題", "校園廣播連續播報 (times 次廣播)", 4, ("times",),
          lambda g: (
              (True, "校園廣播連續播報迴圈輸出正確！")
              if (("times" in g or "times" in history_str) and
@@ -116,7 +147,7 @@ def auto_grade_unit_6_1():
              else (False, "請設定 times 並使用 for 迴圈印出 times 次校園廣播！")
          )),
 
-        ("6-1-1", "挑戰題", "星際探測訊號 (repeat_count = 6)", 5,
+        ("6-1-1", "挑戰題", "星際探測訊號 (repeat_count = 6)", 5, ("repeat_count",),
          lambda g: (
              (True, "星際探測訊號 6 次重複輸出成功！")
              if (("repeat_count" in g or "repeat_count" in history_str) and
@@ -127,7 +158,7 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-2 for 迴圈解剖學：標頭行、迴圈變數與縮排本體 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-1-2", "填空題", "for 迴圈解剖宣告 (for i in range(4):)", 4,
+        ("6-1-2", "填空題", "for 迴圈解剖宣告 (for i in range(4):)", 4, (),
          lambda g: (
              (True, "for 迴圈變數、關鍵字與冒號宣告填寫正確：for i in range(4):！")
              if ("foriinrange(4):" in history_clean or
@@ -135,7 +166,7 @@ def auto_grade_unit_6_1():
              else (False, "請在 6-1-2 填空題空格填入變數 i、關鍵字 in 與冒號 :！")
          )),
 
-        ("6-1-2", "練習題", "機器人巡邏站 (patrol_turns 與完成宣告)", 4,
+        ("6-1-2", "練習題", "機器人巡邏站 (patrol_turns 與完成宣告)", 4, ("patrol_turns",),
          lambda g: (
              (True, "巡邏輪數走訪與結束輸出完全吻合！")
              if (("patrol_turns" in g or "patrol_turns" in history_str) and
@@ -143,7 +174,7 @@ def auto_grade_unit_6_1():
              else (False, "請走訪 range(patrol_turns) 印出巡邏步數，結束後印出『巡邏任務完成！』！")
          )),
 
-        ("6-1-2", "挑戰題", "太空發射塔檢測 (check_count = 5 與發射準備完成)", 5,
+        ("6-1-2", "挑戰題", "太空發射塔檢測 (check_count = 5 與發射準備完成)", 5, ("check_count",),
          lambda g: (
              (True, "太空發射塔各階段檢測走訪與就緒輸出成功！")
              if (("check_count" in g or "check_count" in history_str) and
@@ -154,7 +185,7 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-3 單參數 range(n)：由 0 開始走訪前閉後開的次數控制器 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-1-3", "填空題", "單參數 range 載入關卡 (range(4))", 4,
+        ("6-1-3", "填空題", "單參數 range 載入關卡 (range(4))", 4, (),
          lambda g: (
              (True, "單參數 range(4) 終止值設定正確！")
              if ("range(4)" in history_clean and
@@ -162,7 +193,7 @@ def auto_grade_unit_6_1():
              else (False, "請在 6-1-3 填空題填入 4，讓迴圈走訪 0 到 3 關卡！")
          )),
 
-        ("6-1-3", "練習題", "門診排號機 (wait_count 號碼牌計算)", 4,
+        ("6-1-3", "練習題", "門診排號機 (wait_count 號碼牌計算)", 4, ("wait_count",),
          lambda g: (
              (True, "門診叫號號碼牌 (i + 1) 計算與輸出正確！")
              if (("wait_count" in g or "wait_count" in history_str) and
@@ -170,7 +201,7 @@ def auto_grade_unit_6_1():
              else (False, "請利用 wait_count 與 i + 1 印出各號碼牌至 1 號櫃檯辦理！")
          )),
 
-        ("6-1-3", "挑戰題", "自訂乘法倍數列表 (base = 7, count = 5)", 5,
+        ("6-1-3", "挑戰題", "自訂乘法倍數列表 (base = 7, count = 5)", 5, ("base", "count"),
          lambda g: (
              (True, "7 的前 5 個倍數列表生成與輸出成功！")
              if ((("base" in g and "count" in g) or ("base" in history_str and "count" in history_str)) and
@@ -182,7 +213,7 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-4 雙參數 range(start, stop)：指定起點的前閉後開區間精算 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-1-4", "填空題", "雙參數 range 起訖平方計算 (range(1, 6))", 4,
+        ("6-1-4", "填空題", "雙參數 range 起訖平方計算 (range(1, 6))", 4, (),
          lambda g: (
              (True, "雙參數起點 1 與終點 6 填寫精確無誤！")
              if ("range(1,6)" in history_clean and
@@ -190,7 +221,7 @@ def auto_grade_unit_6_1():
              else (False, "請在 6-1-4 填空題空格填入起點 1 與終點 6！")
          )),
 
-        ("6-1-4", "練習題", "頁碼範圍列印機 (start_page, end_page)", 4,
+        ("6-1-4", "練習題", "頁碼範圍列印機 (start_page, end_page)", 4, ("start_page", "end_page"),
          lambda g: (
              (True, "頁碼範圍雙參數 range 走訪列印正確！")
              if ((("start_page" in g and "end_page" in g) or ("start_page" in history_str and "end_page" in history_str)) and
@@ -198,7 +229,7 @@ def auto_grade_unit_6_1():
              else (False, "請設定 start_page 與 end_page，並走訪 range(start_page, end_page + 1) 列印頁碼！")
          )),
 
-        ("6-1-4", "挑戰題", "攝氏轉華氏溫度對照表 (c_start = 20, c_end = 25)", 5,
+        ("6-1-4", "挑戰題", "攝氏轉華氏溫度對照表 (c_start = 20, c_end = 25)", 5, ("c_start", "c_end"),
          lambda g: (
              (True, "攝氏區間溫度轉換華氏對照表計算無誤！")
              if ((("c_start" in g and "c_end" in g) or ("c_start" in history_str and "c_end" in history_str)) and
@@ -210,7 +241,7 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-5 三參數正步進 range(start, stop, step)：等差跳步巡航 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-1-5", "填空題", "三參數正步進 (range(10, 51, 10))", 4,
+        ("6-1-5", "填空題", "三參數正步進 (range(10, 51, 10))", 4, (),
          lambda g: (
              (True, "三參數起點 10 與步進 10 填寫正確！")
              if ("range(10,51,10)" in history_clean or
@@ -218,7 +249,7 @@ def auto_grade_unit_6_1():
              else (False, "請在 6-1-5 填空題填入起點 10 與步進值 10！")
          )),
 
-        ("6-1-5", "練習題", "偶數巡航機 (limit 正偶數走訪)", 4,
+        ("6-1-5", "練習題", "偶數巡航機 (limit 正偶數走訪)", 4, ("limit",),
          lambda g: (
              (True, "偶數巡航步進為 2 之走訪輸出正確！")
              if (("limit" in g or "limit" in history_str) and
@@ -226,7 +257,7 @@ def auto_grade_unit_6_1():
              else (False, "請設定 limit，並使用 range(2, limit + 1, 2) 依序印出所有正偶數！")
          )),
 
-        ("6-1-5", "挑戰題", "跳步餘數特訓 (100 起跨步 15 至 < 180)", 4,
+        ("6-1-5", "挑戰題", "跳步餘數特訓 (100 起跨步 15 至 < 180)", 4, (),
          lambda g: (
              (True, "三位數跨步 15 走訪與除以 10 之餘數運算成功！")
              if ("range(100,180,15)" in history_clean or
@@ -237,14 +268,14 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-6 負步進倒數計時 range(start, stop, -step)：倒著數的邊界與防空轉陷阱 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-1-6", "填空題", "負步進倒數邊界 (range(10, 5, -1))", 4,
+        ("6-1-6", "填空題", "負步進倒數邊界 (range(10, 5, -1))", 4, (),
          lambda g: (
              (True, "負步進終止界限 5 與 -1 填寫正確：range(10, 5, -1)！")
              if ("range(10,5,-1)" in history_clean or "range(10, 5, -1)" in history_str)
              else (False, "請在 6-1-6 填空題填入終止邊界 5 與負步進值 -1！")
          )),
 
-        ("6-1-6", "練習題", "倒數計時器 (start_countdown 倒數至 1 加 Time is up!)", 4,
+        ("6-1-6", "練習題", "倒數計時器 (start_countdown 倒數至 1 加 Time is up!)", 4, ("start_countdown",),
          lambda g: (
              (True, "倒數計時器與結束廣播輸出正確！")
              if (("start_countdown" in g or "start_countdown" in history_str) and
@@ -253,7 +284,7 @@ def auto_grade_unit_6_1():
              else (False, "請由 start_countdown 倒數至 1（步進 -1）印出 Countdown，結束印出 Time is up!！")
          )),
 
-        ("6-1-6", "挑戰題", "雙倍速倒數遞減 (start_val = 20, 步進 -4 加 Complete!)", 4,
+        ("6-1-6", "挑戰題", "雙倍速倒數遞減 (start_val = 20, 步進 -4 加 Complete!)", 4, ("start_val",),
          lambda g: (
              (True, "步進值 -4 倒數遞減至正整數與 Complete 輸出成功！")
              if (("start_val" in g or "start_val" in history_str or "-4" in history_str) and
@@ -264,14 +295,14 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-7 迴圈追蹤表（Trace Table）：手繪變數逐輪演變的視覺化除錯法 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-1-7", "填空題", "迴圈追蹤手算結果 (expected_result = 5)", 4,
+        ("6-1-7", "填空題", "迴圈追蹤手算結果 (expected_result = 5)", 4, ("expected_result",),
          lambda g: (
              (True, "手繪追蹤值填寫精準無誤：expected_result = 5！")
              if (g.get("expected_result") == 5 or "expected_result=5" in history_clean)
              else (False, "請在 6-1-7 填空題空格填入 i = 2 時 result 的計算結果 5！")
          )),
 
-        ("6-1-7", "練習題", "等差跳步追蹤演算法 (steps = 3, status = i * 3 + 2)", 4,
+        ("6-1-7", "練習題", "等差跳步追蹤演算法 (steps = 3, status = i * 3 + 2)", 4, ("steps",),
          lambda g: (
              (True, "等差跳步計算追蹤 (status = i * 3 + 2) 輸出正確！")
              if (("steps" in g or "steps" in history_str) and
@@ -279,7 +310,7 @@ def auto_grade_unit_6_1():
              else (False, "請依 steps 走訪並印出每一輪 Step i: status (status = i * 3 + 2)！")
          )),
 
-        ("6-1-7", "挑戰題", "二元二次運算追蹤模擬 (val = k * k - k)", 4,
+        ("6-1-7", "挑戰題", "二元二次運算追蹤模擬 (val = k * k - k)", 4, (),
          lambda g: (
              (True, "二次多項式運算追蹤 (val = k * k - k) 走訪成功！")
              if (("k*k-k" in history_clean or "k**2-k" in history_clean or "k * k - k" in history_str) and
@@ -291,7 +322,7 @@ def auto_grade_unit_6_1():
         # ----------------------------------------------------------------------
         # 6-1-8 字串字元逐一走訪：for ch in text 的自然序列走訪初體驗 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-1-8", "填空題", "字串走訪關鍵字與變數 (for c in greeting:)", 4,
+        ("6-1-8", "填空題", "字串走訪關鍵字與變數 (for c in greeting:)", 4, (),
          lambda g: (
              (True, "字串走訪關鍵字 for 與變數 greeting 填寫正確！")
              if ("forcingreeting:" in history_clean or
@@ -299,7 +330,7 @@ def auto_grade_unit_6_1():
              else (False, "請在 6-1-8 填空題填入關鍵字 for 與字串變數名稱 greeting！")
          )),
 
-        ("6-1-8", "練習題", "文字打卡機逐字走訪 (for ch in text 印 [CHAR] ch)", 4,
+        ("6-1-8", "練習題", "文字打卡機逐字走訪 (for ch in text 印 [CHAR] ch)", 4, ("text",),
          lambda g: (
              (True, "文字打卡機字元走訪輸出正確！")
              if (("text" in g or "text" in history_str) and
@@ -307,7 +338,7 @@ def auto_grade_unit_6_1():
              else (False, "請使用 for ch in text 走訪字串，每一輪輸出 [CHAR] ch！")
          )),
 
-        ("6-1-8", "挑戰題", "數字字串分析兩倍數值 (digits = '2026', int(ch) * 2)", 4,
+        ("6-1-8", "挑戰題", "數字字串分析兩倍數值 (digits = '2026', int(ch) * 2)", 4, ("digits",),
          lambda g: (
              (True, "數字字串型態轉換為 int 並印出兩倍數值成功！")
              if (("digits" in g or "digits" in history_str or "2026" in history_str) and
@@ -316,24 +347,15 @@ def auto_grade_unit_6_1():
          )),
     ]
 
-    print("=" * 72)
-    print(" 📊 《PythAPCS123》單元 6-1：計數迴圈與 range 函式解析 —— 自動評分報告")
-    print(f" 👤 學員自填姓名：{declared_name}")
-    if google_email:
-        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
-    else:
-        print(f" 📧 登記信箱：{final_email}")
-    print(f" ⏰ 送交時間：{timestamp_str}")
-    print("=" * 72)
-
     pass_count = 0
     item_results = []
+    item_outputs = []
 
-    for uid, qtype, name, pts, checker in test_cases:
+    for uid, qtype, name, pts, watch, checker in test_cases:
         try:
             ok, msg = checker(env)
-        except Exception as e:
-            ok, msg = False, f"執行檢驗時發生異常：{e}"
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
 
         item_score = pts if ok else 0
         total_score += item_score
@@ -345,9 +367,10 @@ def auto_grade_unit_6_1():
             icon = "❌"
             status = f"未通過 (0/{pts}分)"
 
-        print(f"{icon} [{uid} {qtype}] {name:<36} ➔ {status}")
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
         if not ok:
-            print(f"   💡 提示：{msg}")
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
 
         item_results.append({
             "uid": uid,
@@ -356,71 +379,122 @@ def auto_grade_unit_6_1():
             "passed": ok,
             "score": item_score,
             "max_score": pts,
-            "message": msg
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
-    print("-" * 72)
-    if total_score >= 95:
-        badge = "🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通 for 計數迴圈與 range 函式之三維參數控制，迴圈追蹤手感如行雲流水！"
+    if total_score >= 90:
+        badge = '🏆 傳奇大師（金牌徽章 🥇）—— 徹底精通 for 計數迴圈與 range 函式之三維參數控制，迴圈追蹤手感如行雲流水！'
     elif total_score >= 80:
-        badge = "🥈 卓越冒險者（銀牌徽章 🥈）—— 表現優異，正負步進與字串序列走訪思維清晰敏銳！"
+        badge = '🥈 卓越冒險者（銀牌徽章 🥈）—— 表現優異，正負步進與字串序列走訪思維清晰敏銳！'
     elif total_score >= 60:
-        badge = "🥉 扎根學徒（銅牌徽章 🥉）—— 基礎已建立，請針對紅叉題目微調邊界與格式！"
+        badge = '🥉 扎根學徒（銅牌徽章 🥉）—— 基礎已建立，請針對紅叉題目微調邊界與格式！'
     else:
-        badge = "🌱 潛力新星 —— 請確認上方各題目是否都已按下播放鍵 ▶ 執行作答喔！"
+        badge = '🌱 潛力新星 —— 請確認上方各題目是否都已按下播放鍵 ▶ 執行作答喔！'
 
-    print(f"📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
-    print(f"🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 6-1：計數迴圈與 range 函式解析 —— 自動評分報告")
+    print("=" * 72)
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for line in lines:
+            print(line)
     print("=" * 72)
 
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
+    if google_email:
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
+    elif not is_colab:
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
+    else:
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
+
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
+
     # --------------------------------------------------------------------------
-    # 📝 1. 本地日誌記錄（在 Colab 環境中產生評分紀錄檔）
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
+    # 鐵律：絕不產生任何本地日誌暫存檔。
     # --------------------------------------------------------------------------
     log_data = {
         "unit": "6-1",
         "unit_title": "計數迴圈與 range 函式解析",
-        "student_name": combined_display_name,
         "declared_name": declared_name,
-        "google_name": final_google_name,
-        "student_email": final_email,
-        "google_email": google_email if google_email else final_email,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
+        "student_name": declared_name,
+        "student_id": declared_id,
+        "name": declared_name,
+        "id": declared_id,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
         "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
         "pass_count": pass_count,
         "total_count": len(test_cases),
         "badge": badge,
-        "details": item_results
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_6_1.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
 
-    try:
-        log_filename = "score_log_unit_6_1.json"
-        with open(log_filename, "w", encoding="utf-8") as lf:
-            json.dump(log_data, lf, ensure_ascii=False, indent=2)
-        print(f"💾 [本地存檔] 評分紀錄檔已生成：{log_filename}（可於左側檔案區下載備查）")
-    except Exception as e:
-        print(f"⚠️ 本地日誌寫入提示：{e}")
-
-    # --------------------------------------------------------------------------
-    # 📡 2. 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
-    # --------------------------------------------------------------------------
     if LOG_WEBHOOK_URL:
         try:
-            req_data = json.dumps(log_data).encode('utf-8')
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
                 data=req_data,
-                headers={'Content-Type': 'application/json'}
+                headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！")
-        except Exception as e:
-            print(f"📡 [雲端回報] 雲端登錄通訊提示（不影響本地測驗）：{e}")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
     if total_score < 100:
         print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")
         print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
         print("=" * 72)
+
 
 # 執行評分
 auto_grade_unit_6_1()

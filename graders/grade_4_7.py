@@ -126,7 +126,7 @@ def auto_grade_unit_4_7():
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 4-7-1 連續三行純整數讀入模式 (共 20 分)
         # ----------------------------------------------------------------------

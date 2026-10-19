@@ -126,7 +126,7 @@ def auto_grade_unit_4_3():
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 4-3-1 認識結尾參數 end——揭開自動換行 \n 的秘密 (共 20 分)
         # ----------------------------------------------------------------------

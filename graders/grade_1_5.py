@@ -123,7 +123,7 @@ def auto_grade_unit_1_5():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # 1-5-1 井字號單行註解——給未來的自己與夥伴的備忘小紙條 (共 20 分)
         ("1-5-1", "填空題", "中文備忘錄加入註解符號 #", 6, ("score",),
          lambda g: (True, "註解成功隱形：score = 90") if g.get("score") in [90, 100]

@@ -126,7 +126,7 @@ def auto_grade_unit_4_1():
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 4-1-1 print() 的初體驗——電腦的發聲大喇叭與字串輸出 (共 20 分)
         # ----------------------------------------------------------------------

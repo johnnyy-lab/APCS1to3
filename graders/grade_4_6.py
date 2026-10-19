@@ -126,7 +126,7 @@ def auto_grade_unit_4_6():
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 4-6-1 字串拆解 split() 與多變數解包 (共 20 分)
         # ----------------------------------------------------------------------

@@ -126,7 +126,7 @@ def auto_grade_unit_4_5():
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 4-5-1 input() 的本質——電腦的靈敏耳朵與「輸入一律為字串」的鐵律 (共 20 分)
         # ----------------------------------------------------------------------

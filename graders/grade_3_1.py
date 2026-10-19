@@ -123,7 +123,7 @@ def auto_grade_unit_3_1():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 3-1-1 int() 浮點數轉整數——無條件向零截斷（Truncation） (共 20 分)
         # ----------------------------------------------------------------------

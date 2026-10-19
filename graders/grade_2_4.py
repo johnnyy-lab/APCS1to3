@@ -123,7 +123,7 @@ def auto_grade_unit_2_4():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # ----------------------------------------------------------------------
         # 2-4-1 次方運算雙星號（**）與脫字符號（^）的巨大陷阱 (共 25 分)
         # ----------------------------------------------------------------------

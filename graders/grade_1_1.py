@@ -123,7 +123,7 @@ def auto_grade_unit_1_1():
     tw_tz = timezone(timedelta(hours=8))
     timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    test_cases = test_cases = [
+    test_cases = [
         # 1-1-1 變數基本概念
         ("1-1-1", "填空題", "變數建立 score = 95", 5, ("score",),
          lambda g: (True, "置物箱正確貼上名牌 score 並放入 95") if g.get("score") == 95

@@ -299,8 +299,8 @@ def auto_grade_unit_2_1():
     for uid, qtype, name, pts, watch, checker in test_cases:
         try:
             ok, msg = checker(env)
-        except Exception as e:
-            ok, msg = False, f"執行檢驗時發生異常：{e}"
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
 
         item_score = pts if ok else 0
         total_score += item_score

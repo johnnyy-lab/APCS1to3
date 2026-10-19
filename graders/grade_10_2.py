@@ -27,94 +27,125 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timezone, timedelta
+import logging
+
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# ------------------------------------------------------------------------------
-# 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
-# ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_10-2_tuple_advanced_and_hashable.ipynb"
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
+
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
+    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    total = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            total += 2
+        else:
+            total += 1
+    return total
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    gap = width - _disp_width(text)
+    if gap > 0:
+        return text + " " * gap
+    return text
+
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
 
 def fetch_google_account_info():
-    """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
-    try:
-        from google.colab import auth
-        print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
-        auth.authenticate_user()
-        
-        import google.auth
-        from google.auth.transport.requests import Request
-        credentials, _ = google.auth.default(scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ])
-        credentials.refresh(Request())
-        token = credentials.token
-        
-        req = urllib.request.Request(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            user_data = json.loads(resp.read().decode('utf-8'))
-            return user_data.get("email"), user_data.get("name")
-    except Exception as e:
-        return None, None
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
+    env = globals()
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
+    return google_email, google_name
+
 
 def auto_grade_unit_10_2():
     env = globals()
     total_score = 0
     max_score = 100
 
-    # 1. 讀取學生姓名
-    declared_name = str(env.get("student_name", "")).strip()
-    if not declared_name or declared_name == "自學冒險者":
-        declared_name = "自學冒險者（未填姓名）"
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
 
-    # 2. 獲取 Google 帳號資訊
+    # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
     google_email, google_name = fetch_google_account_info()
 
-    # 3. 整合身分識別
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
     if google_email:
         final_email = google_email
-        final_google_name = google_name if google_name else "Google無暱稱"
-        combined_display_name = f"{declared_name} (Google暱稱: {final_google_name})"
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
     else:
         fallback_email = str(env.get("student_email", "")).strip()
-        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未授權 Google / 匿名"
-        final_google_name = "未綁定 Google"
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
         combined_display_name = declared_name
 
-    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    # 取得 IPython 執行歷史（若在 Colab 環境）
     input_history = env.get("_ih", env.get("In", []))
     history_str = "\n".join(input_history) if isinstance(input_history, list) else ""
     history_clean = history_str.replace(" ", "")
 
-    # 題目檢驗清單：(子單元, 題型, 題目說明, 配分, 檢驗邏輯)
     test_cases = [
         # ----------------------------------------------------------------------
         # 10-2-1 記憶體行為本質與 id() (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-2-1", "填空題", "使用 id() 驗證元組重賦值產生新位址", 5,
+        ("10-2-1", "填空題", "使用 id() 驗證元組重賦值產生新位址", 5, (),
          lambda g: (
              (True, "id() 記憶體探測填空正確！")
              if ("id(a)" in history_clean)
              else (False, "請在 10-2-1 填空題填入 id(a) 觀察位址變化！")
          )),
 
-        ("10-2-1", "練習題", "不可變字串與元組位址驗證儀 (id1 != id2)", 6,
+        ("10-2-1", "練習題", "不可變字串與元組位址驗證儀 (id1 != id2)", 6, (),
          lambda g: (
              (True, "元組加法新物件位址驗證正確！")
              if ("id(" in history_str and "!=" in history_str) or ("id1" in history_str and "id2" in history_str)
              else (False, "請記錄 t1 與 t2 的 id 並驗證兩者位址相異！")
          )),
 
-        ("10-2-1", "挑戰題", "純淨不可變容器檢測 (isinstance int/float/str/tuple)", 5,
+        ("10-2-1", "挑戰題", "純淨不可變容器檢測 (isinstance int/float/str/tuple)", 5, (),
          lambda g: (
              (True, "不可變純淨型態檢測正確！")
              if ("isinstance" in history_str and ("tuple" in history_str or "list" in history_str)) or ("SAFE" in history_str)
@@ -124,21 +155,21 @@ def auto_grade_unit_10_2():
         # ----------------------------------------------------------------------
         # 10-2-2 可雜湊（Hashable）本質 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-2-2", "填空題", "計算不可變元組雜湊指紋 hash(coord)", 5,
+        ("10-2-2", "填空題", "計算不可變元組雜湊指紋 hash(coord)", 5, (),
          lambda g: (
              (True, "hash() 函式填空正確！")
              if ("hash(coord)" in history_clean)
              else (False, "請在 10-2-2 填空題填入 hash(coord)！")
          )),
 
-        ("10-2-2", "練習題", "元組雜湊一致性驗證 hash(t1) == hash(t2)", 6,
+        ("10-2-2", "練習題", "元組雜湊一致性驗證 hash(t1) == hash(t2)", 6, (),
          lambda g: (
              (True, "雜湊一致性比對正確！")
              if ("hash(t1) == hash(t2)" in history_str or "hash(t1)==hash(t2)" in history_clean or "hash(" in history_str)
              else (False, "請驗證內容相同的兩個元組其 hash 值完全相等！")
          )),
 
-        ("10-2-2", "挑戰題", "動態輸入資料可雜湊性整數檢驗", 6,
+        ("10-2-2", "挑戰題", "動態輸入資料可雜湊性整數檢驗", 6, (),
          lambda g: (
              (True, "可雜湊性檢測正確！")
              if ("isinstance(hash(" in history_clean or "hash(" in history_str)
@@ -148,21 +179,21 @@ def auto_grade_unit_10_2():
         # ----------------------------------------------------------------------
         # 10-2-3 巢狀元組與結構化資料打包 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-2-3", "填空題", "巢狀解包 sid, name, (math, eng, sci) = record", 5,
+        ("10-2-3", "填空題", "巢狀解包 sid, name, (math, eng, sci) = record", 5, (),
          lambda g: (
              (True, "多層巢狀解包填空正確！")
              if ("sid, name" in history_str and "math" in history_str) or ("record" in history_str)
              else (False, "請在 10-2-3 填空題填入多層解包變數！")
          )),
 
-        ("10-2-3", "練習題", "學生卡成績統計器 (sid, name, (s1, s2, s3))", 6,
+        ("10-2-3", "練習題", "學生卡成績統計器 (sid, name, (s1, s2, s3))", 6, (),
          lambda g: (
              (True, "學生卡巢狀打包與統計正確！")
              if ("(" in history_str and "sum(" in history_str) and ("name" in history_str or "sid" in history_str)
              else (False, "請打包為 (sid, name, (s1, s2, s3)) 並計算成績總和！")
          )),
 
-        ("10-2-3", "挑戰題", "二維多線段長度統計 ((r1, c1), (r2, c2))", 6,
+        ("10-2-3", "挑戰題", "二維多線段長度統計 ((r1, c1), (r2, c2))", 6, (),
          lambda g: (
              (True, "巢狀線段長度統計正確！")
              if ("abs(" in history_str and "((" in history_str)
@@ -172,21 +203,21 @@ def auto_grade_unit_10_2():
         # ----------------------------------------------------------------------
         # 10-2-4 座標位移向量應用 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-2-4", "填空題", "八方向對角向量補齊 (-1, -1) 與 (1, 1)", 5,
+        ("10-2-4", "填空題", "八方向對角向量補齊 (-1, -1) 與 (1, 1)", 5, (),
          lambda g: (
              (True, "八方向位移向量填空正確！")
              if ("(-1, -1)" in history_str or "(-1,-1)" in history_clean) and ("(1, 1)" in history_str or "(1,1)" in history_clean)
              else (False, "請在 10-2-4 填空題補齊對角線位移向量！")
          )),
 
-        ("10-2-4", "練習題", "網格安全位移探測器 (r + dr, c + dc)", 6,
+        ("10-2-4", "練習題", "網格安全位移探測器 (r + dr, c + dc)", 6, (),
          lambda g: (
              (True, "向量位移與邊界判定正確！")
              if ("r + dr" in history_str or "c + dc" in history_str or "0 <= nr < R" in history_str)
              else (False, "請使用位移向量計算新座標並加入邊界保護！")
          )),
 
-        ("10-2-4", "挑戰題", "連續向量步進路徑生成", 6,
+        ("10-2-4", "挑戰題", "連續向量步進路徑生成", 6, (),
          lambda g: (
              (True, "連續步進軌跡計算正確！")
              if ("for" in history_str and ("dr" in history_str or "dc" in history_str or "DIRECTIONS" in history_str))
@@ -196,21 +227,21 @@ def auto_grade_unit_10_2():
         # ----------------------------------------------------------------------
         # 10-2-5 多傳回值模擬打包 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-2-5", "填空題", "奇偶數總和打包為 (odd_sum, even_sum)", 5,
+        ("10-2-5", "填空題", "奇偶數總和打包為 (odd_sum, even_sum)", 5, (),
          lambda g: (
              (True, "多值統計元組打包填空正確！")
              if ("(odd_sum, even_sum)" in history_str or "(odd_sum,even_sum)" in history_clean)
              else (False, "請在 10-2-5 填空題填入 (odd_sum, even_sum)！")
          )),
 
-        ("10-2-5", "練習題", "四合一數據分析打包 (len, sum, max, min)", 6,
+        ("10-2-5", "練習題", "四合一數據分析打包 (len, sum, max, min)", 6, (),
          lambda g: (
              (True, "四項統計指標打包正確！")
              if ("len(" in history_str and "sum(" in history_str and "max(" in history_str and "min(" in history_str)
              else (False, "請將長度、總和、最大值、最小值打包為四元組！")
          )),
 
-        ("10-2-5", "挑戰題", "正負數與零計數三元組 (pos, neg, zero)", 6,
+        ("10-2-5", "挑戰題", "正負數與零計數三元組 (pos, neg, zero)", 6, (),
          lambda g: (
              (True, "正負零計數三元組打包正確！")
              if ("> 0" in history_str and "< 0" in history_str and "== 0" in history_str)
@@ -220,120 +251,175 @@ def auto_grade_unit_10_2():
         # ----------------------------------------------------------------------
         # 10-2-6 元組字典序排序原則 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-2-6", "填空題", "雙條件排序鍵值 (-score, penalties)", 5,
+        ("10-2-6", "填空題", "雙條件排序鍵值 (-score, penalties)", 5, (),
          lambda g: (
              (True, "多條件排序元組填空正確！")
              if ("-p1_score" in history_str or "-score" in history_str or "-p" in history_clean)
              else (False, "請在 10-2-6 填空題填入 (-score, penalties)！")
          )),
 
-        ("10-2-6", "練習題", "兩位選手多條件勝負判定 (-solved, penalty, id)", 6,
+        ("10-2-6", "練習題", "兩位選手多條件勝負判定 (-solved, penalty, id)", 6, (),
          lambda g: (
              (True, "多準則勝負比對正確！")
              if ("-s" in history_clean or "p1" in history_str) and ("<" in history_str or ">" in history_str)
              else (False, "請使用元組 (-solved, penalty, id) 比較兩位選手高下！")
          )),
 
-        ("10-2-6", "挑戰題", "三點距離原點多準則排序", 5,
+        ("10-2-6", "挑戰題", "三點距離原點多準則排序", 5, (),
          lambda g: (
              (True, "座標多準則排序正確！")
              if ("abs(" in history_str and "sort" in history_str) or ("sorted(" in history_str)
              else (False, "請依照曼哈頓距離與座標字典序對三點進行排序！")
          ))    ]
 
-    print("=" * 72)
-    print(f"📊 《PythAPCS123》單元 10-2：元組進階操作與可雜湊特性（Hashable） —— 自動評分報告")
-    print(f"👤 學生姓名: {combined_display_name}")
-    print(f"📧 帳號識別: {final_email}")
-    print(f"⏰ 評分時間: {timestamp_str}")
-    print("=" * 72)
+    pass_count = 0
+    item_results = []
+    item_outputs = []
 
-    passed_count = 0
-    detailed_results = []
-
-    for sub_id, q_type, title, weight, check_fn in test_cases:
+    for uid, qtype, name, pts, watch, checker in test_cases:
         try:
-            passed, msg = check_fn(env)
-        except Exception as err:
-            passed = False
-            msg = f"評分檢測過程發生例外狀況: {err}"
+            ok, msg = checker(env)
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
 
-        status_icon = "✅ 通過" if passed else "❌ 未通過"
-        points = weight if passed else 0
-        total_score += points
-        if passed:
-            passed_count += 1
+        item_score = pts if ok else 0
+        total_score += item_score
+        if ok:
+            pass_count += 1
+            icon = "✅"
+            status = f"通過 (+{pts}分)"
+        else:
+            icon = "❌"
+            status = f"未通過 (0/{pts}分)"
 
-        print(f"[{status_icon}] ({points:2d}/{weight:2d}分) {sub_id} {q_type} - {title}")
-        print(f"       回饋: {msg}")
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
+        if not ok:
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
 
-        detailed_results.append({
-            "sub_unit": sub_id,
-            "type": q_type,
-            "title": title,
-            "score": points,
-            "max_score": weight,
-            "passed": passed,
-            "feedback": msg
+        item_results.append({
+            "uid": uid,
+            "type": qtype,
+            "name": name,
+            "passed": ok,
+            "score": item_score,
+            "max_score": pts,
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
-    print("-" * 72)
-    print(f"🎯 總結成績: {total_score} / {max_score} 分 (通過題數: {passed_count}/{len(test_cases)})")
-
-    # 等級評語
-    if total_score == 100:
-        level_comment = "🏆 完美滿分！你已經徹底攻克二維陣列核心技術，具備 APCS 實戰高手水準！"
+    if total_score >= 90:
+        badge = '🏆 完美滿分！你已經徹底攻克二維陣列核心技術，具備 APCS 實戰高手水準！'
     elif total_score >= 80:
-        level_comment = "🌟 優秀！觀念掌握非常扎實，稍微細心檢查即可登峰造極！"
+        badge = '🌟 優秀！觀念掌握非常扎實，稍微細心檢查即可登峰造極！'
     elif total_score >= 60:
-        level_comment = "👍 及格！基本概念已建立，建議複習未通過的題目加強熟悉度！"
+        badge = '👍 及格！基本概念已建立，建議複習未通過的題目加強熟悉度！'
     else:
-        level_comment = "💪 請再接再厲！建議回到上方微型階梯逐題操作並執行程式碼！"
+        badge = '💪 請再接再厲！建議回到上方微型階梯逐題操作並執行程式碼！'
 
-    print(f"💬 導師評語: {level_comment}")
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 10-2：元組進階操作與可雜湊特性（Hashable） —— 自動評分報告")
+    print("=" * 72)
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for line in lines:
+            print(line)
     print("=" * 72)
 
-    # 4. 本地 JSON 報告儲存
-    report_data = {
-        "unit_id": "10-2",
-        "unit_name": "元組進階操作與可雜湊特性（Hashable）",
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
+    if google_email:
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
+    elif not is_colab:
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
+    else:
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
+
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
+
+    # --------------------------------------------------------------------------
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
+    # 鐵律：絕不產生任何本地日誌暫存檔。
+    # --------------------------------------------------------------------------
+    log_data = {
+        "unit": "10-2",
+        "unit_title": "元組進階操作與可雜湊特性（Hashable）",
+        "declared_name": declared_name,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
         "student_name": declared_name,
-        "google_name": final_google_name,
-        "google_email": final_email,
-        "score": total_score,
-        "max_score": max_score,
-        "passed_count": passed_count,
-        "total_questions": len(test_cases),
-        "comment": level_comment,
+        "student_id": declared_id,
+        "name": declared_name,
+        "id": declared_id,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
         "timestamp": timestamp_str,
-        "details": detailed_results
+        "total_score": total_score,
+        "max_score": max_score,
+        "pass_count": pass_count,
+        "total_count": len(test_cases),
+        "badge": badge,
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_10_2.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
 
-    try:
-        filename = f"grade_report_10_2.json"
-        with open(filename, "w", encoding="utf-8") as rf:
-            json.dump(report_data, rf, ensure_ascii=False, indent=2)
-        print(f"💾 本地成績報告已儲存至: {filename}")
-    except Exception as e:
-        print(f"⚠️ 本地儲存失敗: {e}")
-
-    # 5. 上傳雲端 Webhook
-    if LOG_WEBHOOK_URL and LOG_WEBHOOK_URL.startswith("http"):
+    if LOG_WEBHOOK_URL:
         try:
-            payload = json.dumps(report_data).encode("utf-8")
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST"
+                data=req_data,
+                headers={"Content-Type": "application/json"}
             )
             with urllib.request.urlopen(req, timeout=5) as response:
-                if response.status in (200, 302):
-                    print("🚀 成績已成功同步至教材團隊雲端學習資料庫！")
-                else:
-                    print(f"📡 雲端同步回應代碼: {response.status}")
-        except Exception as e:
-            print("💡 （雲端記錄通道離線或連線逾時，本地成績記錄依然完全有效）")
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
-if __name__ == "__main__":
-    auto_grade_unit_10_2()
+    if total_score < 100:
+        print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")
+        print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
+        print("=" * 72)
+
+
+# 執行評分
+auto_grade_unit_10_2()

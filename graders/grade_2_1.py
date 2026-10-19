@@ -48,10 +48,24 @@ def _pad(text, width):
     """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
     return text + " " * max(0, width - _disp_width(text))
 
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
+
 # ------------------------------------------------------------------------------
 # 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
 # ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_2-1_numeric_types_int_and_float.ipynb"
 
 def fetch_google_account_info():
     """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
@@ -106,7 +120,7 @@ def auto_grade_unit_2_1():
         # ----------------------------------------------------------------------
         # 2-1-1 數字世界的兩大宗族——整數積木（int）與浮點果汁（float） (共 24 分)
         # ----------------------------------------------------------------------
-        ("2-1-1", "填空題", "整數與浮點數外觀宣告 (my_int, my_float)", 7,
+        ("2-1-1", "填空題", "整數與浮點數外觀宣告 (my_int, my_float)", 7, ("my_int", "my_float"),
          lambda g: (
              (True, "成功建立整數積木 my_int=10 與浮點果汁 my_float=10.0！")
              if (g.get("my_int") == 10 and type(g.get("my_int")) is int and
@@ -118,25 +132,25 @@ def auto_grade_unit_2_1():
              )
          )),
 
-        ("2-1-1", "練習題", "價格與重量變數 (price_int, weight_float)", 10,
+        ("2-1-1", "練習題", "價格與重量變數 (price_int, wt_float)", 10, ("price_int", "wt_float"),
          lambda g: (
-             (True, f"型態正確：price_int={g.get('price_int')} (int), weight_float={g.get('weight_float')} (float)")
-             if ("price_int" in g and "weight_float" in g and
-                 type(g.get("price_int")) is int and type(g.get("weight_float")) is float and
+             (True, f"型態正確：price_int={g.get('price_int')} (int), wt_float={g.get('wt_float')} (float)")
+             if ("price_int" in g and "wt_float" in g and
+                 type(g.get("price_int")) is int and type(g.get("wt_float")) is float and
                  (g.get("price_int") in [85, 120] or g.get("price_int") > 0) and
-                 (g.get("weight_float") in [2.5, 0.75] or g.get("weight_float") > 0))
+                 (g.get("wt_float") in [2.5, 0.75] or g.get("wt_float") > 0))
              else (
                  (False, "price_int 必須是純整數（int），請勿加上小數點！")
                  if ("price_int" in g and type(g.get("price_int")) is float)
                  else (
-                     (False, "weight_float 必須是帶有小數點的浮點數（float）！")
-                     if ("weight_float" in g and type(g.get("weight_float")) is int)
-                     else (False, "找不到變數 price_int 或 weight_float，請依練習題說明宣告並設定數值！")
+                     (False, "wt_float 必須是帶有小數點的浮點數（float）！")
+                     if ("wt_float" in g and type(g.get("wt_float")) is int)
+                     else (False, "找不到變數 price_int 或 wt_float，請依練習題說明宣告並設定數值！")
                  )
              )
          )),
 
-        ("2-1-1", "挑戰題", "圓周率與半徑宣告 (pi, r)", 7,
+        ("2-1-1", "挑戰題", "圓周率與半徑宣告 (pi, r)", 7, ("pi", "r"),
          lambda g: (
              (True, f"常數宣告正確：pi={g.get('pi')} (float), r={g.get('r')} (int)")
              if ("pi" in g and "r" in g and
@@ -156,21 +170,21 @@ def auto_grade_unit_2_1():
         # ----------------------------------------------------------------------
         # 2-1-2 查驗身分的照妖鏡——認識內建型態檢查工具 type() (共 24 分)
         # ----------------------------------------------------------------------
-        ("2-1-2", "填空題", "type() 照妖鏡檢驗浮點數 num", 7,
+        ("2-1-2", "填空題", "type() 照妖鏡檢驗浮點數 num", 7, ("num",),
          lambda g: (
              (True, f"照妖鏡檢驗成功：num={g.get('num')} 身分型態為 <class 'float'>！")
              if ("num" in g and g.get("num") == 99.9 and type(g.get("num")) is float)
              else (False, "找不到變數 num=99.9，請確認在填空處填入 type 並執行！")
          )),
 
-        ("2-1-2", "練習題", "自訂數值型態檢驗 sample_val", 10,
+        ("2-1-2", "練習題", "自訂數值型態檢驗 sample_val", 10, ("sample_val",),
          lambda g: (
              (True, f"成功建立數值 sample_val={g.get('sample_val')}，其型態為 {type(g.get('sample_val')).__name__}！")
              if ("sample_val" in g and type(g.get("sample_val")) in [int, float])
              else (False, "找不到數值變數 sample_val，請建立整數或浮點數 sample_val（如 7 或 7.0）！")
          )),
 
-        ("2-1-2", "挑戰題", "三數型態對比 (v1=0, v2=0.0, v3=-50)", 7,
+        ("2-1-2", "挑戰題", "三數型態對比 (v1=0, v2=0.0, v3=-50)", 7, ("v1", "v2", "v3"),
          lambda g: (
              (True, f"三數型態透視成功：v1=0 (int), v2=0.0 (float), v3=-50 (int)！")
              if ("v1" in g and "v2" in g and "v3" in g and
@@ -191,7 +205,7 @@ def auto_grade_unit_2_1():
         # ----------------------------------------------------------------------
         # 2-1-3 染紅效應——整數與浮點數混合運算自動晉升為浮點數 (共 26 分)
         # ----------------------------------------------------------------------
-        ("2-1-3", "填空題", "整數乘以 1.0 自動染紅晉升 (up_float = 8.0)", 7,
+        ("2-1-3", "填空題", "整數乘以 1.0 自動染紅晉升 (up_float = 8.0)", 7, ("up_float",),
          lambda g: (
              (True, "染紅成功！8 * 1.0 晉升為浮點數 up_float = 8.0（<class 'float'>）")
              if ("up_float" in g and g.get("up_float") == 8.0 and type(g.get("up_float")) is float)
@@ -202,7 +216,7 @@ def auto_grade_unit_2_1():
              )
          )),
 
-        ("2-1-3", "練習題", "整數與浮點數混合相加 mix_sum", 11,
+        ("2-1-3", "練習題", "整數與浮點數混合相加 mix_sum", 11, ("mix_int", "mix_float", "mix_sum"),
          lambda g: (
              (True, f"混合相加染紅成功：mix_sum = {g.get('mix_sum')}（<class 'float'>）")
              if ("mix_sum" in g and type(g.get("mix_sum")) is float and
@@ -219,7 +233,7 @@ def auto_grade_unit_2_1():
              )
          )),
 
-        ("2-1-3", "挑戰題", "三數混合連加染紅 (ans_float = 10.0)", 8,
+        ("2-1-3", "挑戰題", "三數混合連加染紅 (ans_float = 10.0)", 8, ("ans_float", "ans"),
          lambda g: (
              (True, "三數連加染紅成功：ans_float = 10.0（整數 5 與 3 被 2.0 染紅為 float）！")
              if ("ans_float" in g and g.get("ans_float") == 10.0 and type(g.get("ans_float")) is float)
@@ -237,7 +251,7 @@ def auto_grade_unit_2_1():
         # ----------------------------------------------------------------------
         # 2-1-4 APCS 考場的致命失分陷阱——4.0 與 4 大不相同 (共 26 分)
         # ----------------------------------------------------------------------
-        ("2-1-4", "填空題", "修正 3.0 為純整數 3 避免 WA (pure_int = 5)", 7,
+        ("2-1-4", "填空題", "修正 3.0 為純整數 3 避免 WA (pure_int = 5)", 7, ("pure_int",),
          lambda g: (
              (True, "修正成功！pure_int = 3 + 2 得到純整數 5（<class 'int'>），成功避開 5.0 WA 陷阱！")
              if ("pure_int" in g and g.get("pure_int") == 5 and type(g.get("pure_int")) is int)
@@ -248,7 +262,7 @@ def auto_grade_unit_2_1():
              )
          )),
 
-        ("2-1-4", "練習題", "長寬與周長純整數運算 (length, width)", 11,
+        ("2-1-4", "練習題", "長寬與周長純整數運算 (length, width)", 11, ("length", "width"),
          lambda g: (
              (True, f"長寬與周長計算正確：length={g.get('length')}, width={g.get('width')}（周長 {(g.get('length')+g.get('width'))*2}，純整數）")
              if ("length" in g and "width" in g and
@@ -266,7 +280,7 @@ def auto_grade_unit_2_1():
              )
          )),
 
-        ("2-1-4", "挑戰題", "破除 100.0 浮點陷阱維持整數 score", 8,
+        ("2-1-4", "挑戰題", "破除 100.0 浮點陷阱維持整數 score", 8, ("score",),
          lambda g: (
              (True, "完美修正！score = 100 為純正整數（<class 'int'>），成功避開 APCS 考場的 100.0 WA 陷阱！")
              if ("score" in g and g.get("score") == 100 and type(g.get("score")) is int)
@@ -282,7 +296,7 @@ def auto_grade_unit_2_1():
     item_results = []
     item_outputs = []
 
-    for uid, qtype, name, pts, checker in test_cases:
+    for uid, qtype, name, pts, watch, checker in test_cases:
         try:
             ok, msg = checker(env)
         except Exception as e:
@@ -310,7 +324,8 @@ def auto_grade_unit_2_1():
             "passed": ok,
             "score": item_score,
             "max_score": pts,
-            "message": msg
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
     if total_score >= 90:
@@ -344,55 +359,74 @@ def auto_grade_unit_2_1():
             print(l)
     print("=" * 72)
 
-    # 組合送往試算表之學生名稱（若有座號學號，格式化為 [學號] 姓名，確保試算表能記錄學號）
-    if declared_id and declared_id != "無座號":
-        sheet_student_name = f"[{declared_id}] {declared_name}"
-    else:
-        sheet_student_name = declared_name
-
-    # 組合送往試算表之學生信箱（第四欄格式化為 [Google暱稱]email，例如 [葉明昌]smallchangyeh@gmail.com）
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
     if google_email:
-        sheet_student_email = f"[{final_google_name}]{final_email}"
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
     elif not is_colab:
-        sheet_student_email = "[本機]offline"
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
     else:
-        sheet_student_email = f"[訪客]{final_email}"
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
+
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
 
     # --------------------------------------------------------------------------
     # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
     # --------------------------------------------------------------------------
     log_data = {
         "unit": "2-1",
         "unit_title": "數值型態分類（整數與浮點數）",
-        "student_name": sheet_student_name,
-        "student_id": declared_id,
         "declared_name": declared_name,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
+        "student_name": declared_name,
+        "student_id": declared_id,
         "name": declared_name,
         "id": declared_id,
-        "google_name": final_google_name,
-        "student_email": sheet_student_email,
-        "google_email": sheet_student_email,
-        "email": sheet_student_email,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
         "timestamp": timestamp_str,
         "total_score": total_score,
         "max_score": max_score,
         "pass_count": pass_count,
         "total_count": len(test_cases),
         "badge": badge,
-        "details": item_results
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_2_1.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
 
     if LOG_WEBHOOK_URL:
         try:
-            req_data = json.dumps(log_data).encode('utf-8')
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
                 data=req_data,
                 headers={"Content-Type": "application/json"}
             )
             with urllib.request.urlopen(req, timeout=5) as response:
-                pass
-            print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
         except Exception:
             # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
             if not is_colab:

@@ -121,8 +121,7 @@ def auto_grade_unit_2_2():
              (True, f"溫差變化計算正確：昨天 {g.get('temp_yesterday')} 度，今天 {g.get('temp_today')} 度（變化量 {g.get('temp_today') - g.get('temp_yesterday')}）")
              if ("temp_yesterday" in g and "temp_today" in g and
                  type(g.get("temp_yesterday")) is int and type(g.get("temp_today")) is int and
-                 (g.get("temp_today") - g.get("temp_yesterday") in [8, -8] or
-                  any(g.get(k) in [8, -8] for k in ["temp_diff", "temp_change", "diff", "change"] if k in g)))
+                 g.get("temp_today") - g.get("temp_yesterday") in [8, -8])
              else (False, "找不到 temp_yesterday 或 temp_today，請依練習題宣告氣溫變數並印出差值！")
          )),
 

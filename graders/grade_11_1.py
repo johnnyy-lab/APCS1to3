@@ -27,44 +27,63 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timezone, timedelta
+import logging
+
+# 抑制 google_auth_httplib2 的 timeout 內部警告
+logging.getLogger("google_auth_httplib2").setLevel(logging.ERROR)
 
 # 確保輸出支援 UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# ------------------------------------------------------------------------------
-# 🌐 雲端後台成績記錄端點（已綁定 Google 試算表 Webhook）
-# ------------------------------------------------------------------------------
 LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3HffQNYob-M9OxxJVPX04LxeBY22IvYcFh8v2hTZgWsX5InKQ/exec"
+# 版次 token。Apps Script 用它確認這次送出的是現行契約。
+GRADER_VERSION = "2026-10-19"
+NOTEBOOK_FILE = "PythAPCS123_11-1_function_definition_and_call_process.ipynb"
+
+def _disp_width(text):
+    """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
+
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
+    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    total = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            total += 2
+        else:
+            total += 1
+    return total
+
+
+def _pad(text, width):
+    """以顯示寬度為基準補齊空白，讓全形題名在終端也能對齊。"""
+    gap = width - _disp_width(text)
+    if gap > 0:
+        return text + " " * gap
+    return text
+
+
+def _student_value(env, names):
+    """各題學生實際值，截斷到 80 字元，方便分辨 7 與 7.0。"""
+    parts = []
+    for name in names:
+        if name in env:
+            parts.append(f"{name}={env.get(name)!r}")
+        else:
+            parts.append(f"{name}=缺")
+    return ", ".join(parts)[:80]
 
 def fetch_google_account_info():
-    """在 Google Colab 環境下嘗試透過官方 OAuth 取得登入者真實 Email 與 Google 暱稱"""
-    try:
-        from google.colab import auth
-        print("🔐 正在連結 Google 帳號進行身分認證（若跳出授權彈窗，請點選你的 Google 帳號並按允許）...")
-        auth.authenticate_user()
-        
-        import google.auth
-        from google.auth.transport.requests import Request
-        credentials, _ = google.auth.default(scopes=[
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ])
-        credentials.refresh(Request())
-        token = credentials.token
-        
-        req = urllib.request.Request(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            google_email = data.get("email", "")
-            google_name = data.get("name", "")
-            return google_email, google_name
-    except Exception:
-        return "", ""
+    """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
+
+    鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
+    絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
+    env = globals()
+    google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
+    google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
+    return google_email, google_name
 
 def get_submission_env():
     """取得 Colab / 本地端全域變數與執行歷史代碼"""
@@ -85,52 +104,53 @@ def get_submission_env():
     except Exception:
         return {}, []
 
-def auto_grade_unit_11_1(student_name=""):
-    """
-    單元 11-1：函數定義（def）、呼叫流程與參數傳入基礎 自動評分主程式
-    滿分 100 分：
-    - 填空題 6 題，每題 5 分，共 30 分
-    - 練習題 6 題，每題 6 分，共 36 分
-    - 挑戰題 6 題，共 34 分 (前 4 題各 6 分，後 2 題各 5 分)
-    """
+
+def auto_grade_unit_11_1():
+    env = globals()
+    total_score = 0
+    max_score = 100
+
+    # 1. 讀取學生姓名與學號座號（分開獨立欄位，支援全域變數與環境變數）
+    declared_name = str(env.get("student_name", "")).strip() or os.environ.get("STUDENT_NAME", "").strip() or "自學冒險者"
+    declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
+
+    # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
+    google_email, google_name = fetch_google_account_info()
+
+    # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
+    is_colab = False
+    try:
+        import google.colab
+        is_colab = True
+    except ImportError:
+        is_colab = False
+
+    if google_email:
+        final_email = google_email
+        final_google_name = google_name if google_name else declared_name
+        combined_display_name = f"{declared_name} (Google: {final_google_name})"
+    elif not is_colab:
+        final_email = "本機"
+        final_google_name = "本機"
+        combined_display_name = f"{declared_name} (本機)"
+    else:
+        fallback_email = str(env.get("student_email", "")).strip()
+        final_email = fallback_email if fallback_email and fallback_email != "student@example.com" else "未綁定 Google"
+        final_google_name = "訪客"
+        combined_display_name = declared_name
+
+    tw_tz = timezone(timedelta(hours=8))
+    timestamp_str = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
+
     env, history = get_submission_env()
     history_str = "\n".join(history)
     history_clean = history_str.replace(" ", "").replace("\t", "")
-
-    # 1. 取得使用者身分
-    declared_name = student_name.strip() if student_name else ""
-    if not declared_name:
-        for var_name in ["student_name", "my_name", "user_name", "author"]:
-            val = env.get(var_name)
-            if isinstance(val, str) and val.strip():
-                declared_name = val.strip()
-                break
-
-    google_email, google_name = fetch_google_account_info()
-
-    # 顯示姓名決策
-    if declared_name and google_name:
-        combined_display_name = f"{declared_name} ({google_name})"
-    elif declared_name:
-        combined_display_name = declared_name
-    elif google_name:
-        combined_display_name = google_name
-    else:
-        combined_display_name = "自主學習冒險者"
-
-    final_email = google_email if google_email else "未綁定 Google 帳號"
-    final_google_name = google_name if google_name else "無"
-
-    # 2. 評分測試案例 (共 18 題，合計 100 分)
-    total_score = 0
-    max_score = 100
-    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     test_cases = [
         # ----------------------------------------------------------------------
         # 11-1-1 為什麼需要函數？黑盒子概念 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-1-1", "填空題", "定義並呼叫印出標題函數 print_banner()", 5,
+        ("11-1-1", "填空題", "定義並呼叫印出標題函數 print_banner()", 5, ("print_banner",),
          lambda g: (
              (True, "print_banner 函數定義與呼叫正確！")
              if (callable(g.get("print_banner"))) or
@@ -138,7 +158,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請定義 def print_banner(): 並呼叫該函數！")
          )),
 
-        ("11-1-1", "練習題", "自訂競技賽事結尾橫幅 print_game_summary()", 6,
+        ("11-1-1", "練習題", "自訂競技賽事結尾橫幅 print_game_summary()", 6, ("print_game_summary",),
          lambda g: (
              (True, "print_game_summary 函數實作正確！")
              if (callable(g.get("print_game_summary"))) or
@@ -146,7 +166,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請定義可呼叫的 print_game_summary 函數並輸出橫幅！")
          )),
 
-        ("11-1-1", "挑戰題", "設計多階層日誌排版 log_start 與 log_finish", 6,
+        ("11-1-1", "挑戰題", "設計多階層日誌排版 log_start 與 log_finish", 6, ("log_start", "log_finish"),
          lambda g: (
              (True, "log_start 與 log_finish 多階層日誌函數實作正確！")
              if (callable(g.get("log_start")) and callable(g.get("log_finish"))) or
@@ -157,7 +177,7 @@ def auto_grade_unit_11_1(student_name=""):
         # ----------------------------------------------------------------------
         # 11-1-2 函數的定義（def）、命名規範與呼叫 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-1-2", "填空題", "修正 def 與括號呼叫 show_system_alert()", 5,
+        ("11-1-2", "填空題", "修正 def 與括號呼叫 show_system_alert()", 5, ("show_system_alert",),
          lambda g: (
              (True, "show_system_alert 定義與括號呼叫正確！")
              if (callable(g.get("show_system_alert"))) or
@@ -165,7 +185,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請補上 def 關鍵字與 show_system_alert() 括號進行呼叫！")
          )),
 
-        ("11-1-2", "練習題", "APCS 考前提醒函數 show_exam_tips()", 6,
+        ("11-1-2", "練習題", "APCS 考前提醒函數 show_exam_tips()", 6, ("show_exam_tips",),
          lambda g: (
              (True, "show_exam_tips 考前提醒函數實作正確！")
              if (callable(g.get("show_exam_tips"))) or
@@ -173,7 +193,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請依 PEP 8 命名規範定義 show_exam_tips() 並印出三點技巧！")
          )),
 
-        ("11-1-2", "挑戰題", "自訂模擬伺服器狀態 check_server_status()", 6,
+        ("11-1-2", "挑戰題", "自訂模擬伺服器狀態 check_server_status()", 6, ("check_server_status",),
          lambda g: (
              (True, "check_server_status 伺服器狀態函數實作正確！")
              if (callable(g.get("check_server_status"))) or
@@ -184,7 +204,7 @@ def auto_grade_unit_11_1(student_name=""):
         # ----------------------------------------------------------------------
         # 11-1-3 程式執行順序：定義期與呼叫期追蹤 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-1-3", "填空題", "先定義後呼叫時序調整 trigger_alarm()", 5,
+        ("11-1-3", "填空題", "先定義後呼叫時序調整 trigger_alarm()", 5, ("trigger_alarm",),
          lambda g: (
              (True, "先定義後呼叫時序調整正確！")
              if (callable(g.get("trigger_alarm"))) or
@@ -192,7 +212,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請遵守先定義後呼叫原則，在 def trigger_alarm() 之後呼叫它！")
          )),
 
-        ("11-1-3", "練習題", "多函數先後跳轉時序 step_one 與 step_two", 6,
+        ("11-1-3", "練習題", "多函數先後跳轉時序 step_one 與 step_two", 6, ("step_one", "step_two"),
          lambda g: (
              (True, "多函數跳轉時序定義正確！")
              if (callable(g.get("step_one")) and callable(g.get("step_two"))) or
@@ -200,7 +220,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請定義 step_one() 與 step_two() 依序呼叫並印出時序！")
          )),
 
-        ("11-1-3", "挑戰題", "巢狀時序追蹤與主流程 execution_log 記錄", 6,
+        ("11-1-3", "挑戰題", "巢狀時序追蹤與主流程 execution_log 記錄", 6, ("execution_log",),
          lambda g: (
              (True, "巢狀時序 execution_log 記錄驗證正確！")
              if (g.get("execution_log") == ["main_task start", "sub_task executed", "main_task end"]) or
@@ -211,7 +231,7 @@ def auto_grade_unit_11_1(student_name=""):
         # ----------------------------------------------------------------------
         # 11-1-4 單一參數傳入與引數匹配 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-1-4", "填空題", "倒數計時函數單參數傳入 print_countdown(n)", 5,
+        ("11-1-4", "填空題", "倒數計時函數單參數傳入 print_countdown(n)", 5, ("print_countdown",),
          lambda g: (
              (True, "倒數計時單參數填空正確！")
              if (callable(g.get("print_countdown"))) or
@@ -219,7 +239,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請完成 print_countdown(n) 定義並傳入 3 進行呼叫！")
          )),
 
-        ("11-1-4", "練習題", "個人化問候卡片 print_greeting_card(user_name)", 6,
+        ("11-1-4", "練習題", "個人化問候卡片 print_greeting_card(user_name)", 6, ("print_greeting_card",),
          lambda g: (
              (True, "個人化問候卡片函數實作正確！")
              if (callable(g.get("print_greeting_card"))) or
@@ -227,7 +247,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請定義 print_greeting_card(user_name) 並傳入人名測試！")
          )),
 
-        ("11-1-4", "挑戰題", "幾何正方形圖形產生器 draw_square(side_length)", 6,
+        ("11-1-4", "挑戰題", "幾何正方形圖形產生器 draw_square(side_length)", 6, ("draw_square",),
          lambda g: (
              (True, "正方形產生器函數實作正確！")
              if (callable(g.get("draw_square"))) or
@@ -238,7 +258,7 @@ def auto_grade_unit_11_1(student_name=""):
         # ----------------------------------------------------------------------
         # 11-1-5 多參數位置對應 (Positional Arguments) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("11-1-5", "填空題", "多邊形周長多參數傳遞 print_polygon_perimeter", 5,
+        ("11-1-5", "填空題", "多邊形周長多參數傳遞 print_polygon_perimeter", 5, ("print_polygon_perimeter",),
          lambda g: (
              (True, "多邊形周長多參數填空正確！")
              if (callable(g.get("print_polygon_perimeter"))) or
@@ -246,7 +266,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請呼叫 print_polygon_perimeter 並依序傳入名稱、邊數與邊長！")
          )),
 
-        ("11-1-5", "練習題", "座標位移播報函數 announce_move(player, x, y, dx, dy)", 6,
+        ("11-1-5", "練習題", "座標位移播報函數 announce_move(player, x, y, dx, dy)", 6, ("announce_move",),
          lambda g: (
              (True, "座標位移播報函數定義正確！")
              if (callable(g.get("announce_move"))) or
@@ -254,7 +274,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請定義 announce_move 接收 5 個參數並計算移動後的新座標！")
          )),
 
-        ("11-1-5", "挑戰題", "自訂三維長方體體積報表 print_cuboid_volume", 5,
+        ("11-1-5", "挑戰題", "自訂三維長方體體積報表 print_cuboid_volume", 5, ("print_cuboid_volume",),
          lambda g: (
              (True, "長方體體積報表函數正確！")
              if (callable(g.get("print_cuboid_volume"))) or
@@ -265,7 +285,7 @@ def auto_grade_unit_11_1(student_name=""):
         # ----------------------------------------------------------------------
         # 11-1-6 無回傳值函數與 None 預設回傳 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("11-1-6", "填空題", "動作型函數無 return 預設為 None 驗證 status is None", 5,
+        ("11-1-6", "填空題", "動作型函數無 return 預設為 None 驗證 status is None", 5, ("status",),
          lambda g: (
              (True, "status is None 填空驗證正確！")
              if (g.get("status") is None and "mark_completed" in history_str) or
@@ -273,7 +293,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請呼叫 mark_completed() 並驗證回傳的 status 是否為 None！")
          )),
 
-        ("11-1-6", "練習題", "事件日誌動作函數 log_event 與 log_res is None 檢查", 6,
+        ("11-1-6", "練習題", "事件日誌動作函數 log_event 與 log_res is None 檢查", 6, ("log_event", "log_res"),
          lambda g: (
              (True, "log_event 動作型函數與 None 回傳檢查正確！")
              if (callable(g.get("log_event")) and g.get("log_res") is None) or
@@ -281,7 +301,7 @@ def auto_grade_unit_11_1(student_name=""):
              else (False, "請定義無 return 的 log_event 並以 log_res 接收驗證為 None！")
          )),
 
-        ("11-1-6", "挑戰題", "驗證多個動作函數之傳回清單 results == [None, None]", 5,
+        ("11-1-6", "挑戰題", "驗證多個動作函數之傳回清單 results == [None, None]", 5, ("results",),
          lambda g: (
              (True, "多動作函數傳回清單驗證正確！")
              if (g.get("results") == [None, None]) or
@@ -290,99 +310,154 @@ def auto_grade_unit_11_1(student_name=""):
          ))
     ]
 
-    print("=" * 72)
-    print(f"📊 《PythAPCS123》單元 11-1：函數定義（def）、呼叫流程與參數傳入基礎 —— 自動評分報告")
-    print(f"👤 學生姓名: {combined_display_name}")
-    print(f"📧 帳號識別: {final_email}")
-    print(f"⏰ 評分時間: {timestamp_str}")
-    print("=" * 72)
+    pass_count = 0
+    item_results = []
+    item_outputs = []
 
-    passed_count = 0
-    detailed_results = []
-
-    for sub_id, q_type, title, weight, check_fn in test_cases:
+    for uid, qtype, name, pts, watch, checker in test_cases:
         try:
-            passed, msg = check_fn(env)
-        except Exception as err:
-            passed = False
-            msg = f"評分檢測過程發生例外狀況: {err}"
+            ok, msg = checker(env)
+        except Exception:
+            ok, msg = False, "執行檢驗時發生異常，請確認程式碼是否可正常執行"
 
-        status_icon = "✅ 通過" if passed else "❌ 未通過"
-        points = weight if passed else 0
-        total_score += points
-        if passed:
-            passed_count += 1
+        item_score = pts if ok else 0
+        total_score += item_score
+        if ok:
+            pass_count += 1
+            icon = "✅"
+            status = f"通過 (+{pts}分)"
+        else:
+            icon = "❌"
+            status = f"未通過 (0/{pts}分)"
 
-        print(f"[{status_icon}] ({points:2d}/{weight:2d}分) {sub_id} {q_type} - {title}")
-        print(f"       回饋: {msg}")
+        out_lines = [f"{icon} [{uid} {qtype}] {_pad(name, 44)} ➔ {status}"]
+        if not ok:
+            out_lines.append(f"   💡 提示：{msg}")
+        item_outputs.append(out_lines)
 
-        detailed_results.append({
-            "sub_unit": sub_id,
-            "type": q_type,
-            "title": title,
-            "score": points,
-            "max_score": weight,
-            "passed": passed,
-            "feedback": msg
+        item_results.append({
+            "uid": uid,
+            "type": qtype,
+            "name": name,
+            "passed": ok,
+            "score": item_score,
+            "max_score": pts,
+            "message": msg,
+            "student_value": _student_value(env, watch)
         })
 
-    print("-" * 72)
-    print(f"🎯 總結成績: {total_score} / {max_score} 分 (通過題數: {passed_count}/{len(test_cases)})")
-
-    # 等級評語
-    if total_score == 100:
-        level_comment = "🏆 完美滿分！你已經徹底攻克自訂函數與作用域核心技術，具備 APCS 實戰高手水準！"
+    if total_score >= 90:
+        badge = '🏆 完美滿分！你已經徹底攻克自訂函數與作用域核心技術，具備 APCS 實戰高手水準！'
     elif total_score >= 80:
-        level_comment = "🌟 優秀！模組化概念與函數傳參掌握非常扎實，稍微細心檢查即可登峰造極！"
+        badge = '🌟 優秀！模組化概念與函數傳參掌握非常扎實，稍微細心檢查即可登峰造極！'
     elif total_score >= 60:
-        level_comment = "👍 及格！基本函數已建立，建議複習未通過的題目加強熟悉度！"
+        badge = '👍 及格！基本函數已建立，建議複習未通過的題目加強熟悉度！'
     else:
-        level_comment = "💪 請再接再厲！建議回到上方微型階梯逐題操作並執行程式碼！"
+        badge = '💪 請再接再厲！建議回到上方微型階梯逐題操作並執行程式碼！'
 
-    print(f"💬 導師評語: {level_comment}")
+    print("=" * 72)
+    print(" 📊 《PythAPCS123》單元 11-1：函數定義（def）、呼叫流程與參數傳入基礎 —— 自動評分報告")
+    print("=" * 72)
+    print(f" 📈 本單元實作測驗總得分：{total_score} / {max_score} 分（通過題數：{pass_count} / {len(test_cases)} 題）")
+    print(f" 🎖️ 獲得榮譽等級：{badge}")
+    print("=" * 72)
+    print(f" 👤 學員姓名：{declared_name}")
+    print(f" 🆔 學號座號：{declared_id}")
+    if google_email:
+        print(f" 🔑 Google 帳號認證：{google_email}（暱稱：{final_google_name}）")
+    elif not is_colab:
+        print(f" 💻 執行環境：本機環境（免登入自評）")
+    else:
+        print(f" 📧 登記信箱：{final_email}")
+    print(f" ⏰ 送交時間：{timestamp_str}")
+    print("=" * 72)
+    print(" 📝 題目作答細項檢驗：")
+    for lines in item_outputs:
+        for line in lines:
+            print(line)
     print("=" * 72)
 
-    # 4. 本地 JSON 報告儲存
-    report_data = {
-        "unit_id": "11-1",
-        "unit_name": "函數定義（def）、呼叫流程與參數傳入基礎",
+    # 試算表姓名、學號用學生輸入原值。暱稱與 email 在本機填「本機測試」。
+    if google_email:
+        sheet_google_name = google_name if google_name else declared_name
+        sheet_google_email = google_email
+    elif not is_colab:
+        sheet_google_name = "本機測試"
+        sheet_google_email = "本機測試"
+    else:
+        sheet_google_name = "未認證"
+        sheet_google_email = "未認證"
+
+    score_fingerprint = ",".join(
+        f"{item['uid']}:{item['type']}:{'1' if item['passed'] else '0'}"
+        for item in item_results
+    )
+
+    # --------------------------------------------------------------------------
+    # 📡 雲端後台成績記錄（Google Apps Script 試算表 Webhook）
+    # 欄位拆開送出。相同成績是否寫入由 Apps Script 判斷，這裡只讀回應。
+    # 鐵律：絕不產生任何本地日誌暫存檔。
+    # --------------------------------------------------------------------------
+    log_data = {
+        "unit": "11-1",
+        "unit_title": "函數定義（def）、呼叫流程與參數傳入基礎",
+        "declared_name": declared_name,
+        "declared_id": declared_id,
+        "google_name": sheet_google_name,
+        "google_email": sheet_google_email,
         "student_name": declared_name,
-        "google_name": final_google_name,
-        "google_email": final_email,
-        "score": total_score,
-        "max_score": max_score,
-        "passed_count": passed_count,
-        "total_questions": len(test_cases),
-        "comment": level_comment,
+        "student_id": declared_id,
+        "name": declared_name,
+        "id": declared_id,
+        "student_email": sheet_google_email,
+        "email": sheet_google_email,
         "timestamp": timestamp_str,
-        "details": detailed_results
+        "total_score": total_score,
+        "max_score": max_score,
+        "pass_count": pass_count,
+        "total_count": len(test_cases),
+        "badge": badge,
+        "details": item_results,
+        "grader_version": GRADER_VERSION,
+        "grader_source": os.environ.get("GRADER_SOURCE", "").strip() or "web/graders/grade_11_1.py",
+        "notebook_file": NOTEBOOK_FILE,
+        "score_fingerprint": score_fingerprint
     }
 
-    try:
-        filename = f"grade_report_11_1.json"
-        with open(filename, "w", encoding="utf-8") as rf:
-            json.dump(report_data, rf, ensure_ascii=False, indent=2)
-        print(f"💾 本地成績報告已儲存至: {filename}")
-    except Exception as e:
-        print(f"⚠️ 本地儲存失敗: {e}")
-
-    # 5. 上傳雲端 Webhook
-    if LOG_WEBHOOK_URL and LOG_WEBHOOK_URL.startswith("http"):
+    if LOG_WEBHOOK_URL:
         try:
-            payload = json.dumps(report_data).encode("utf-8")
+            req_data = json.dumps(log_data, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 LOG_WEBHOOK_URL,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST"
+                data=req_data,
+                headers={"Content-Type": "application/json"}
             )
             with urllib.request.urlopen(req, timeout=5) as response:
-                if response.status in (200, 302):
-                    print("🚀 成績已成功同步至教材團隊雲端學習資料庫！")
-                else:
-                    print(f"📡 雲端同步回應代碼: {response.status}")
-        except Exception as e:
-            print("💡 （雲端記錄通道離線或連線逾時，本地成績記錄依然完全有效）")
+                raw_body = response.read().decode("utf-8", errors="replace").strip()
+            status = ""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status", "")).strip().lower()
+                except json.JSONDecodeError:
+                    status = ""
+            if status == "duplicate":
+                print("📡 [雲端回報] 成績與上次相同，未重複登錄（本機成績仍有效）。\n")
+            else:
+                print("📡 [雲端回報] 成績已成功上傳並登錄至授課試算表！\n")
+        except Exception:
+            # 離線測試或連線逾時溫和提示，絕不噴出紅色例外
+            if not is_colab:
+                print("📡 [本機模式] 成績已於本機評分完成（雲端試算表未連線）。\n")
+            else:
+                print("📡 [離線模式] 暫時無法連線至雲端試算表，但本機評分已完成。\n")
 
-if __name__ == "__main__":
-    auto_grade_unit_11_1()
+    if total_score < 100:
+        print("\n💡 小技巧：若有題目顯示 ❌ 未通過，請回到上方對應題目的儲存格修改程式碼，")
+        print("   並務必重新點擊該題的『▶ 播放鍵』執行，再回來執行此評分儲存格就可以刷新成績與紀錄囉！")
+        print("=" * 72)
+
+
+# 執行評分
+auto_grade_unit_11_1()

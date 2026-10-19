@@ -143,7 +143,7 @@ def auto_grade_unit_6_8():
         ("6-8-1", "練習題", "固定 N 筆加總與筆數統計 (total_sum = 100, count = 4)", 4, ("total_sum", "count"),
          lambda g: (
              (True, "固定 N 筆輸入與累加統計輸出正確！")
-             if (g.get("total_sum") == 100 and (g.get("count") in (2, 3, 4) or g.get("count") is not None)) or
+             if (g.get("total_sum") == 100 and g.get("count") in (2, 3, 4)) or
                 (("total_sum" in g or "total_sum" in history_str) and
                  ("assert count == 4 and total_sum == 100" in history_str or
                   "assertcount==4andtotal_sum==100" in history_clean))

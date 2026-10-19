@@ -88,6 +88,8 @@ def fetch_google_account_info():
 def check_q1(g, hist):
     fp = g.get("first_pos")
     lp = g.get("last_pos")
+    if fp is None and lp is None:
+        return False, "請確認填入 first_pos = 2 與 last_pos = 4。"
     if (fp == 2 and lp == 4) or ("first_pos = 2" in hist and "last_pos = 4" in hist):
         return True, "太棒了！精準標註數值 30 最左側索引 2 與最右側索引 4！"
     return False, "請確認填入 first_pos = 2 與 last_pos = 4。"
@@ -95,23 +97,31 @@ def check_q1(g, hist):
 def check_q2(g, hist):
     fi = g.get("first_idx")
     li = g.get("last_idx")
+    if fi is None and li is None:
+        return False, "請以迴圈記錄數值 4 的首度 (1) 與最後 (4) 出現索引。"
     if (fi == 1 and li == 4) or ("if first_idx is None:" in hist and "last_idx = i" in hist):
         return True, "完全正確！透過單一走訪精準找出數值 4 之首度出現 1 與最後出現 4！"
     return False, "請以迴圈記錄數值 4 的首度 (1) 與最後 (4) 出現索引。"
 
 def check_q3(g, hist):
     m = g.get("m")
+    if m is None:
+        return False, "請展示初次計算 mid = 4 命中之局限性。"
     if m == 4 or ("m = (l + r) // 2" in hist):
         return True, "太精闢了！展示精確二分命中中央索引 4，證明其無法保證最左側邊界！"
     return False, "請展示初次計算 mid = 4 命中之局限性。"
 
 def check_q4(g, hist):
+    if g.get('find_lower_bound') is None:
+        return False, "請確認填入 arr[m] >= target 與 r = m - 1。"
     if ("arr[m] >= target" in hist or "arr[m] >= x" in hist) and "r = m - 1" in hist:
         return True, "完全正確！下邊界核心大於等於判定與向左逼近 r = m - 1 完美掌握！"
     return False, "請確認填入 arr[m] >= target 與 r = m - 1。"
 
 def check_q5(g, hist):
     func = g.get("lower_bound")
+    if func is None:
+        return False, "請實作 lower_bound(arr, target) 並正確回傳第一個 >= 目標的索引。"
     if callable(func):
         try:
             if func([15, 20, 20, 20, 35, 50], 20) == 1 and func([15, 20, 20, 20, 35, 50], 30) == 4:
@@ -124,18 +134,24 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     next_idx = g.get("next_lvl_idx")
+    if next_idx is None:
+        return False, "請使用 lower_bound 查詢經驗值 500 的超越門檻 (索引 3)。"
     # exp_levels = [100, 250, 450, 700, 1000], cur_exp = 500 -> 第 3 個索引 (700 exp)
     if next_idx == 3 or ("lower_bound(exp_levels" in hist):
         return True, "太實用了！成功運用 lower_bound 找到 500 exp 下一個升級門檻位於索引 3 (700 exp)！"
     return False, "請使用 lower_bound 查詢經驗值 500 的超越門檻 (索引 3)。"
 
 def check_q7(g, hist):
+    if g.get('my_upper_bound') is None:
+        return False, "請在填空處填入嚴格大於符號 >。"
     if ("arr[m] > x" in hist or "arr[m] > target" in hist) and "r = m - 1" in hist:
         return True, "完全正確！Upper Bound 嚴格大於 > 條件填空無誤！"
     return False, "請在填空處填入嚴格大於符號 >。"
 
 def check_q8(g, hist):
     func = g.get("upper_bound")
+    if func is None:
+        return False, "請實作 upper_bound(arr, target) 尋找第一個嚴格大於目標的位置。"
     if callable(func):
         try:
             if func([5, 10, 10, 10, 15, 20], 10) == 4 and func([5, 10, 10, 10, 15, 20], 0) == 0:
@@ -148,18 +164,24 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     idx = g.get("idx")
+    if idx is None:
+        return False, "請使用 upper_bound(parts, 50) 定位首個超標零件。"
     # parts = [48, 49, 50, 50, 50, 51, 52] -> upper_bound(50) = 5 (尺寸 51)
     if idx == 5 or ("upper_bound(parts, 50)" in hist):
         return True, "精彩！upper_bound 精準鎖定第一個超標零件位於索引 5 (51 mm)！"
     return False, "請使用 upper_bound(parts, 50) 定位首個超標零件。"
 
 def check_q10(g, hist):
+    if g.get('items') is None:
+        return False, "請確認填入 len(items) - 1 與 while left <= right。"
     if "len(items) - 1" in hist and ("left <= right" in hist or "l <= r" in hist):
         return True, "完全正確！雙閉區間四大金剛 len - 1 與 while <= 掌握無懈可擊！"
     return False, "請確認填入 len(items) - 1 與 while left <= right。"
 
 def check_q11(g, hist):
     func = g.get("search_single")
+    if func is None:
+        return False, "請驗證單元素串列在目標存在與不存在時之二分搜尋表現。"
     if callable(func):
         try:
             if func([99], 99) == 0 and func([99], 100) == -1:
@@ -172,6 +194,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     func = g.get("safe_bsearch")
+    if func is None:
+        return False, "請驗證傳入空串列時二分搜尋安全退出回傳 -1。"
     if callable(func):
         try:
             if func([], 10) == -1:
@@ -183,12 +207,16 @@ def check_q12(g, hist):
     return False, "請驗證傳入空串列時二分搜尋安全退出回傳 -1。"
 
 def check_q13(g, hist):
+    if g.get('first_match') is None:
+        return False, "請填入相等條件 arr[pos] == x。"
     if "arr[pos] == x" in hist or "arr[pos] == target" in hist:
         return True, "完全正確！雙重防護條件 pos < len(arr) and arr[pos] == x 填寫正確！"
     return False, "請填入相等條件 arr[pos] == x。"
 
 def check_q14(g, hist):
     func = g.get("find_first_occurrence")
+    if func is None:
+        return False, "請實作 find_first_occurrence(arr, target) 鎖定首度出現位置。"
     if callable(func):
         try:
             nums = [1, 2, 2, 2, 3, 4, 4, 5]
@@ -202,6 +230,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     func = g.get("find_last_occurrence")
+    if func is None:
+        return False, "請實作 find_last_occurrence 函數尋找目標最後一次出現的索引。"
     if callable(func):
         try:
             data = [5, 8, 8, 8, 8, 12]
@@ -215,12 +245,16 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     freq = g.get("freq")
+    if freq is None:
+        return False, "請填入 freq = ub - lb 公式計算出現次數。"
     if freq == 4 or ("ub - lb" in hist or "upper_bound(scores" in hist):
         return True, "完全正確！ub - lb 秒求 70 分人數共 4 人，O(log N) 統計神技！"
     return False, "請填入 freq = ub - lb 公式計算出現次數。"
 
 def check_q17(g, hist):
     ac = g.get("ans_counts")
+    if ac is None:
+        return False, "請以 ub - lb 公式計算各目標之出現次數清單。"
     # targets = [60, 80, 100] -> [3, 2, 0]
     if ac == [3, 2, 0] or ("upper_bound(grades, t) - lower_bound(grades, t)" in hist):
         return True, "太棒了！批次計算 [60, 80, 100] 出現次數 [3, 2, 0] 完全無誤！"
@@ -228,6 +262,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     irc = g.get("in_range_count")
+    if irc is None:
+        return False, "請利用 upper_bound(175) - lower_bound(165) 計算區間內總人數 (5位)。"
     # heights = [155, 160, 162, 165, 168, 170, 172, 175, 180, 185]
     # [165, 175] 內: 165, 168, 170, 172, 175 共 5 位！
     if irc == 5 or ("R_bound - L_bound" in hist and "upper_bound(heights, 175)" in hist):

@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("reverse_sublist")
+    if not callable(fn):
+        return False, "尚未正確實作 reverse_sublist 或反轉結果不符。"
     if callable(fn):
         try:
             r = fn([1, 2, 3, 4, 5], 1, 3)
@@ -112,6 +114,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("reverse_sublist")
+    if not callable(fn):
+        return False, "全區間或單元素反轉失敗。"
     if callable(fn):
         try:
             r1 = fn([1, 2, 3], 0, 2)
@@ -126,6 +130,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("reverse_sublist")
+    if not callable(fn):
+        return False, "兩元素反轉不符。"
     if callable(fn):
         try:
             if fn([1, 2], 0, 1) == [2, 1]:
@@ -138,6 +144,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("safe_pipeline_executor")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_pipeline_executor 或平均值不符。"
     if callable(fn):
         try:
             if fn(["10", "20", "30"]) == 20.0:
@@ -150,6 +158,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("safe_pipeline_executor")
+    if not callable(fn):
+        return False, "非數字字串過濾有誤。"
     if callable(fn):
         try:
             if fn(["5", "invalid", "15"]) == 10.0:
@@ -162,6 +172,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("safe_pipeline_executor")
+    if not callable(fn):
+        return False, "空資料未回傳 0.0。"
     if callable(fn):
         try:
             if fn([]) == 0.0 and fn(["abc", "xyz"]) == 0.0:
@@ -174,6 +186,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("binary_search_with_logs")
+    if not callable(fn):
+        return False, "尚未正確實作 binary_search_with_logs 或索引不符。"
     if callable(fn):
         try:
             pos, logs = fn([1, 3, 5, 7, 9], 7)
@@ -187,6 +201,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("binary_search_with_logs")
+    if not callable(fn):
+        return False, "日誌歷程格式不符或未包含 [DEBUG]。"
     if callable(fn):
         try:
             _, logs = fn([1, 3, 5, 7, 9], 7)
@@ -200,6 +216,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("binary_search_with_logs")
+    if not callable(fn):
+        return False, "查無目標時未回傳 -1。"
     if callable(fn):
         try:
             pos_nf, logs_nf = fn([1, 2, 3], 99)
@@ -213,6 +231,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("divide_and_assert_invariant")
+    if not callable(fn):
+        return False, "尚未正確實作 divide_and_assert_invariant 或商餘不符。"
     if callable(fn):
         try:
             if fn(10, 3) == (3, 1) and fn(29, 6) == (4, 5):
@@ -225,6 +245,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("divide_and_assert_invariant")
+    if not callable(fn):
+        return False, "整除或負數除法斷言失敗。"
     if callable(fn):
         try:
             if fn(20, 5) == (4, 0) and fn(-15, 4) == (-4, 1):
@@ -237,6 +259,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("divide_and_assert_invariant")
+    if not callable(fn):
+        return False, "除數為 0 時未能引爆 AssertionError。"
     if callable(fn):
         try:
             threw = False
@@ -256,6 +280,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("find_top_two")
+    if not callable(fn):
+        return False, "尚未正確實作 find_top_two 或回傳值不符。"
     if callable(fn):
         try:
             if fn([1, 2, 3, 4]) == (4, 3) and fn([10, 5, 20, 15]) == (20, 15):
@@ -268,6 +294,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("find_top_two")
+    if not callable(fn):
+        return False, "全負數輸入查找失敗。"
     if callable(fn):
         try:
             if fn([-5, -1, -10]) == (-1, -5) and fn([-5, -10, -3]) == (-3, -5):
@@ -280,6 +308,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("find_top_two")
+    if not callable(fn):
+        return False, "元素不足或全相同時未回傳 None。"
     if callable(fn):
         try:
             if fn([7, 7, 7]) is None and fn([99]) is None and fn([]) is None:
@@ -292,6 +322,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("apcs_standard_solution")
+    if not callable(fn):
+        return False, "尚未正確實作 apcs_standard_solution 或輸出不符。"
     if callable(fn):
         try:
             test_in = "4\n3 6 9 12\n"
@@ -306,6 +338,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("apcs_standard_solution")
+    if not callable(fn):
+        return False, "全負數測資輸出結果不符。"
     if callable(fn):
         try:
             test_neg = "3\n-9 -3 -6\n"
@@ -320,6 +354,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("apcs_standard_solution")
+    if not callable(fn):
+        return False, "輸出內容包含多餘行數或污染文字。"
     if callable(fn):
         try:
             test_mix = "5\n10 15 20 33 7\n"

@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("diagnose_code_phase")
+    if not callable(fn):
+        return False, "尚未正確實作 diagnose_code_phase 或正常語法未回傳 'SYNTAX_OK'。"
     if callable(fn):
         try:
             r1 = fn("print('Hello Python')")
@@ -113,6 +115,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("diagnose_code_phase")
+    if not callable(fn):
+        return False, "語法錯誤代碼未能正確回傳 'COMPILE_ERROR'。"
     if callable(fn):
         try:
             r1 = fn("if True\n    print(1)")
@@ -128,6 +132,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("is_brackets_balanced")
+    if not callable(fn):
+        return False, "尚未正確實作 is_brackets_balanced 或對稱括號未能回傳 True。"
     if callable(fn):
         try:
             c1 = fn("(a + b) * [c - d]")
@@ -144,6 +150,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("is_brackets_balanced")
+    if not callable(fn):
+        return False, "不平衡或交叉錯位括號未能正確判定為 False。"
     if callable(fn):
         try:
             c1 = fn("(a + b]")
@@ -160,6 +168,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("auto_fix_colons")
+    if not callable(fn):
+        return False, "尚未正確實作 auto_fix_colons 或末端缺少冒號未能自動補齊。"
     if callable(fn):
         try:
             res_if = fn("if x > 0")
@@ -181,6 +191,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("auto_fix_colons")
+    if not callable(fn):
+        return False, "已有冒號或一般陳述式未保持原貌。"
     if callable(fn):
         try:
             res_already = fn("if x > 0:")
@@ -196,6 +208,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("safe_quote_string")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_quote_string 或包覆後字串無法正確 eval() 解碼。"
     if callable(fn):
         try:
             t1 = "Hello 'World'"
@@ -212,6 +226,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("safe_quote_string")
+    if not callable(fn):
+        return False, "同時含單雙引號時未能採用三引號安全包覆或 eval() 結果相異。"
     if callable(fn):
         try:
             t_both = 'He said "It\'s fine"'
@@ -226,6 +242,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("fill_empty_blocks_with_pass")
+    if not callable(fn):
+        return False, "尚未正確實作 fill_empty_blocks_with_pass 或修復後未插入 pass。"
     if callable(fn):
         try:
             code = "if x > 0:\nprint(x)"
@@ -241,6 +259,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("fill_empty_blocks_with_pass")
+    if not callable(fn):
+        return False, "包含既有陳述式之區塊修復後編譯失敗。"
     if callable(fn):
         try:
             code = "def foo():\n    if True:\n        pass\n    return 42"
@@ -255,6 +275,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("deep_sanitize_code")
+    if not callable(fn):
+        return False, "尚未正確實作 deep_sanitize_code 或未能完全消除全形標點。"
     if callable(fn):
         try:
             code = "for　i　in range(5)：\n　　print(i，i+1)"
@@ -270,6 +292,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("deep_sanitize_code")
+    if not callable(fn):
+        return False, "全形引號或圓括號未完全消除，或淨化後代碼無法編譯。"
     if callable(fn):
         try:
             code = "if x == 10:\n    print（“PASS”，x）"
@@ -285,6 +309,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("convert_c_increment_to_python")
+    if not callable(fn):
+        return False, "尚未正確實作 convert_c_increment_to_python 或 i++ 轉譯結果不正確。"
     if callable(fn):
         try:
             r1 = fn("i++")
@@ -299,6 +325,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("convert_c_increment_to_python")
+    if not callable(fn):
+        return False, "自減運算子未轉譯或一般語法行被異常修改。"
     if callable(fn):
         try:
             r1 = fn("idx--")
@@ -314,6 +342,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("is_safe_identifier")
+    if not callable(fn):
+        return False, "尚未正確實作 is_safe_identifier 或合規命名未能回傳 True。"
     if callable(fn):
         try:
             v1 = fn("score")
@@ -329,6 +359,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("is_safe_identifier")
+    if not callable(fn):
+        return False, "Python 關鍵字或非法識別字未能正確判定為 False。"
     if callable(fn):
         try:
             f1 = fn("class")
@@ -346,6 +378,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("fix_all_syntax_errors")
+    if not callable(fn):
+        return False, "尚未正確實作 fix_all_syntax_errors 或未能成功修復全形字元與自增。"
     if callable(fn):
         try:
             broken = "while　i < 10：\n　　i++"
@@ -360,6 +394,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("fix_all_syntax_errors")
+    if not callable(fn):
+        return False, "if 單等號未修正或綜合修復後程式碼無法通過編譯。"
     if callable(fn):
         try:
             broken = "if　val = 5：\n　　pass\ni++"

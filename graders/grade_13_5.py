@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("diagnose_wa_discrepancy")
+    if not callable(fn):
+        return False, "尚未正確實作 diagnose_wa_discrepancy 或相符輸出未回傳 AC。"
     if callable(fn):
         try:
             r1 = fn("42", "42")
@@ -113,6 +115,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("diagnose_wa_discrepancy")
+    if not callable(fn):
+        return False, "相異輸出未能回傳正確 WA 行號與資訊。"
     if callable(fn):
         try:
             r1 = fn("100", "99")
@@ -127,6 +131,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("interval_stats")
+    if not callable(fn):
+        return False, "尚未正確實作 interval_stats 或區間計算有誤。"
     if callable(fn):
         try:
             r1 = fn(1, 5)
@@ -142,6 +148,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("safe_binary_search")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_binary_search 或邊界搜尋有誤。"
     if callable(fn):
         try:
             if (fn([5], 5) is True and 
@@ -157,6 +165,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("safe_midpoint")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_midpoint。"
     if callable(fn):
         try:
             if fn(10, 20) == 15 and fn(0, 8) == 4 and fn(-10, 10) == 0:
@@ -169,6 +179,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("is_even_bitwise")
+    if not callable(fn):
+        return False, "尚未正確實作 is_even_bitwise 或正負奇偶判斷不符。"
     if callable(fn):
         try:
             if (fn(4) is True and 
@@ -185,6 +197,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("safe_float_equal")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_float_equal 或比對結果不符。"
     if callable(fn):
         try:
             if (fn(0.1 + 0.2, 0.3) is True and 
@@ -199,6 +213,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("truncate_towards_zero_divide")
+    if not callable(fn):
+        return False, "尚未正確實作 truncate_towards_zero_divide 或向零截斷偏差。"
     if callable(fn):
         try:
             if (fn(7, 2) == 3 and 
@@ -214,6 +230,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("create_independent_matrix")
+    if not callable(fn):
+        return False, "尚未正確實作 create_independent_matrix 或列與列存在共享參考。"
     if callable(fn):
         try:
             m = fn(3, 4, 0)
@@ -228,6 +246,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("safe_append_copy")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_append_copy 或原始串列被修改。"
     if callable(fn):
         try:
             src = ["a", "b"]
@@ -242,6 +262,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("matrix_diagonal_sums")
+    if not callable(fn):
+        return False, "尚未正確實作 matrix_diagonal_sums 或對角線加總不符。"
     if callable(fn):
         try:
             m1 = [[1, 2], [3, 4]]
@@ -255,6 +277,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("matrix_diagonal_sums")
+    if not callable(fn):
+        return False, "3x3 矩陣對角線總和計算錯誤。"
     if callable(fn):
         try:
             m2 = [[2, 0, 0], [0, 3, 0], [0, 0, 4]]
@@ -268,6 +292,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("process_testcases_cleanly")
+    if not callable(fn):
+        return False, "尚未正確實作 process_testcases_cleanly 或存在狀態殘留。"
     if callable(fn):
         try:
             data = [[60, 40, 70], [50, 51], [10, 20]]
@@ -281,6 +307,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("process_testcases_cleanly")
+    if not callable(fn):
+        return False, "空測資或重複測資處理不符。"
     if callable(fn):
         try:
             if fn([[], [100]]) == [0, 100] and fn([[55], [55], [55]]) == [55, 55, 55]:
@@ -293,6 +321,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("find_min_max_difference")
+    if not callable(fn):
+        return False, "尚未正確實作 find_min_max_difference 或全負數差值計算錯誤。"
     if callable(fn):
         try:
             if fn([-10, -5, -20]) == 15 and fn([-7, 8]) == 15:
@@ -305,6 +335,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("find_min_max_difference")
+    if not callable(fn):
+        return False, "單一元素或全相同串列未能回傳 0。"
     if callable(fn):
         try:
             if fn([-100]) == 0 and fn([5, 5, 5]) == 0:
@@ -317,6 +349,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("stress_test_validator")
+    if not callable(fn):
+        return False, "尚未正確實作 stress_test_validator 或全相符未回傳 AC。"
     if callable(fn):
         try:
             f_s = lambda lst: max(lst) if lst else None
@@ -332,6 +366,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("stress_test_validator")
+    if not callable(fn):
+        return False, "對拍出錯時未能回傳正確反例與答案元組。"
     if callable(fn):
         try:
             f_s = lambda lst: max(lst) if lst else None

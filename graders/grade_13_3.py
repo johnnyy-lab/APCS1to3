@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("safe_execute_and_diagnose")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_execute_and_diagnose 或正常回傳值不符。"
     if callable(fn):
         try:
             r1 = fn(lambda x: x + 10, 5)
@@ -113,6 +115,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("safe_execute_and_diagnose")
+    if not callable(fn):
+        return False, "發生崩潰時未能正確回傳 ('RE', 例外型別)。"
     if callable(fn):
         try:
             r1 = fn(lambda a, b: a / b, 10, 0)
@@ -130,6 +134,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("safe_get")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_get 或正負邊界未妥善處理。"
     if callable(fn):
         try:
             lst = [10, 20, 30]
@@ -148,6 +154,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("safe_adjacent_diffs")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_adjacent_diffs 或邊界防守不完善。"
     if callable(fn):
         try:
             r1 = fn([10, 20, 35])
@@ -163,6 +171,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("safe_parse_int")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_parse_int 或非法字串未回傳 default。"
     if callable(fn):
         try:
             c1 = fn("100") == 100
@@ -180,6 +190,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("safe_find_index")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_find_index 或查無元素時未回傳 -1。"
     if callable(fn):
         try:
             r1 = fn(["apple", "banana"], "banana")
@@ -195,6 +207,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("safe_count_frequencies")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_count_frequencies 或空清單處理有誤。"
     if callable(fn):
         try:
             r1 = fn(["a", "b", "a", "c", "b", "a"])
@@ -209,6 +223,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("safe_query_user")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_query_user 或預設值防禦未生效。"
     if callable(fn):
         try:
             db = {"alice": "manager", "bob": "staff"}
@@ -224,6 +240,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("safe_divide")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_divide 或分母為零時未回傳 default。"
     if callable(fn):
         try:
             if (fn(15, 3) == 5.0 and 
@@ -238,6 +256,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("safe_modulo")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_modulo 或模除零未回傳 default。"
     if callable(fn):
         try:
             if (fn(17, 5) == 2 and 
@@ -252,6 +272,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("safe_format_key_value")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_format_key_value 或 NoneType 格式化失敗。"
     if callable(fn):
         try:
             if (fn("age", 18) == "age = 18" and 
@@ -266,6 +288,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("safe_sort_numbers")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_sort_numbers 或污染了原始串列。"
     if callable(fn):
         try:
             orig = [9, 3, 7]
@@ -280,6 +304,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("safe_factorial")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_factorial 或面對大數引發例外。"
     if callable(fn):
         try:
             c1 = fn(0) == 1
@@ -296,6 +322,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("safe_fibonacci")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_fibonacci 或大數計算有誤。"
     if callable(fn):
         try:
             c1 = fn(0) == 0
@@ -312,6 +340,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("safe_append_or_concat")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_append_or_concat 或不支援型態未回傳 None。"
     if callable(fn):
         try:
             l = [10, 20]
@@ -329,6 +359,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("safe_accumulator")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_accumulator。"
     if callable(fn):
         try:
             r1 = fn([1, 2, 3, 4], 0)
@@ -343,6 +375,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("bulletproof_data_pipeline")
+    if not callable(fn):
+        return False, "尚未正確實作 bulletproof_data_pipeline 或清洗指標結果不符。"
     if callable(fn):
         try:
             dirty_data = [
@@ -368,6 +402,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("bulletproof_data_pipeline")
+    if not callable(fn):
+        return False, "面對空資料或全無效資料時引發例外或回傳值不符。"
     if callable(fn):
         try:
             r_empty = fn([])

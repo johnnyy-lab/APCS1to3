@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("is_operation_count_safe")
+    if not callable(fn):
+        return False, "尚未正確實作 is_operation_count_safe 或臨界值判定有誤。"
     if callable(fn):
         try:
             if fn(10**7) is True and fn(10**7 - 1) is True and fn(5_000_000) is True:
@@ -111,6 +113,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("is_operation_count_safe")
+    if not callable(fn):
+        return False, "超限運算量未能正確回傳 False。"
     if callable(fn):
         try:
             if fn(10**7 + 1) is False and fn(10**9) is False and fn(100_000_000) is False:
@@ -123,6 +127,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("is_operation_count_safe")
+    if not callable(fn):
+        return False, "極小運算量判定失敗。"
     if callable(fn):
         try:
             if fn(0) is True and fn(100) is True:
@@ -135,6 +141,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("evaluate_algorithm_feasibility")
+    if not callable(fn):
+        return False, "尚未正確實作 evaluate_algorithm_feasibility 或評估結果不符。"
     if callable(fn):
         try:
             r1 = fn(10**5, "O(N)")
@@ -149,6 +157,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("evaluate_algorithm_feasibility")
+    if not callable(fn):
+        return False, "O(N^2) 大規模輸入未能判定 TLE。"
     if callable(fn):
         try:
             if fn(10**5, "O(N^2)") == "TLE":
@@ -161,6 +171,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("evaluate_algorithm_feasibility")
+    if not callable(fn):
+        return False, "小規模 O(N^2) 未能判定 PASS。"
     if callable(fn):
         try:
             if fn(1000, "O(N^2)") == "PASS":
@@ -173,6 +185,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("safe_count_divisions")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_count_divisions 或整除次數不符。"
     if callable(fn):
         try:
             if fn(24, 2) == 3 and fn(100, 5) == 2 and fn(16, 2) == 4:
@@ -185,6 +199,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("safe_count_divisions")
+    if not callable(fn):
+        return False, "無法整除時未回傳 0 或陷入迴圈。"
     if callable(fn):
         try:
             if fn(7, 2) == 0 and fn(15, 2) == 0:
@@ -197,6 +213,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("safe_count_divisions")
+    if not callable(fn):
+        return False, "邊界輸入計算失敗。"
     if callable(fn):
         try:
             if fn(1, 2) == 0 and fn(3, 3) == 1:
@@ -209,6 +227,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("count_common_elements_fast")
+    if not callable(fn):
+        return False, "尚未正確實作 count_common_elements_fast 或交集計數不符。"
     if callable(fn):
         try:
             if fn([1, 2, 3], [2, 3, 4]) == 2 and fn([10, 20], [20, 30]) == 1:
@@ -221,6 +241,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("count_common_elements_fast")
+    if not callable(fn):
+        return False, "重複元素去重或無交集時處理有誤。"
     if callable(fn):
         try:
             if fn([1, 1, 1], [1, 1]) == 1 and fn([1, 2], [3, 4]) == 0:
@@ -233,6 +255,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("count_common_elements_fast")
+    if not callable(fn):
+        return False, "空串列未回傳 0。"
     if callable(fn):
         try:
             if fn([], [1, 2]) == 0 and fn([], []) == 0:
@@ -245,6 +269,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("build_alternating_string")
+    if not callable(fn):
+        return False, "尚未正確實作 build_alternating_string 或交替字串不符。"
     if callable(fn):
         try:
             if fn(5) == "ABABA" and fn(4) == "ABAB":
@@ -257,6 +283,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("build_alternating_string")
+    if not callable(fn):
+        return False, "長度 1 或 0 處理有誤。"
     if callable(fn):
         try:
             if fn(1) == "A" and fn(0) == "":
@@ -269,6 +297,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("build_alternating_string")
+    if not callable(fn):
+        return False, "大字串組裝超時或長度不符。"
     if callable(fn):
         try:
             # 測試大長度效能（10000 個字元）
@@ -283,6 +313,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("parse_stream_sum")
+    if not callable(fn):
+        return False, "尚未正確實作 parse_stream_sum 或總和計算不符。"
     if callable(fn):
         try:
             stream = "1\n2\n3\n4\n5\n"
@@ -296,6 +328,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("parse_stream_sum")
+    if not callable(fn):
+        return False, "負數或空串流計算錯誤。"
     if callable(fn):
         try:
             if fn("100\n-50\n25\n") == 75 and fn("") == 0:
@@ -308,6 +342,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("parse_stream_sum")
+    if not callable(fn):
+        return False, "標準輸入未復原或單行讀取失敗。"
     if callable(fn):
         try:
             old_in = sys.stdin

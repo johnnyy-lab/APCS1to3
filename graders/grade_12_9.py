@@ -87,6 +87,8 @@ def fetch_google_account_info():
 
 def check_q1(g, hist):
     ip = g.get("insert_pos")
+    if ip is None:
+        return False, "請確認填入 import bisect 與 bisect.bisect(primes, 35)。"
     if ip == 11 or ("bisect.bisect(primes, 35)" in hist or "bisect.bisect_right(primes, 35)" in hist):
         return True, "太棒了！正確引入 bisect 模組並精準計算出 35 應插入在索引 11！"
     return False, "請確認填入 import bisect 與 bisect.bisect(primes, 35)。"
@@ -94,6 +96,8 @@ def check_q1(g, hist):
 def check_q2(g, hist):
     pos = g.get("pos")
     rd = g.get("raw_data")
+    if pos is None and rd is None:
+        return False, "請先對 raw_data 排序，再呼叫 bisect.bisect 找出插入索引。"
     if (pos == 2 and rd == [10, 20, 30, 40, 50]) or ("raw_data.sort()" in hist and "bisect.bisect" in hist):
         return True, "完全正確！排序後順利呼叫 bisect 找出數值 25 位於索引 2！"
     return False, "請先對 raw_data 排序，再呼叫 bisect.bisect 找出插入索引。"
@@ -101,6 +105,8 @@ def check_q2(g, hist):
 def check_q3(g, hist):
     pmin = g.get("pos_min")
     pmax = g.get("pos_max")
+    if pmin is None and pmax is None:
+        return False, "請驗證 0.0 與 100.0 的插入位置 (應分別為 0 與 5)。"
     if (pmin == 0 and pmax == 5) or ("bisect.bisect(readings, 0.0)" in hist and "100.0" in hist):
         return True, "太強了！親自驗證 0.0 落在索引 0、100.0 落在 len(5)，邊界行為掌握透徹！"
     return False, "請驗證 0.0 與 100.0 的插入位置 (應分別為 0 與 5)。"
@@ -108,6 +114,8 @@ def check_q3(g, hist):
 def check_q4(g, hist):
     is_found = g.get("is_found")
     idx = g.get("idx")
+    if is_found is None and idx is None:
+        return False, "請確認填入 bisect.bisect_left 與相等比較符號 ==。"
     if (is_found is True and idx == 2) or ("bisect.bisect_left" in hist and "members[idx] == query_id" in hist):
         return True, "完全正確！bisect_left 搭配相等比較 ==，安全精確檢驗存在性！"
     return False, "請確認填入 bisect.bisect_left 與相等比較符號 ==。"
@@ -115,12 +123,16 @@ def check_q4(g, hist):
 def check_q5(g, hist):
     idx_pass = g.get("idx_pass")
     failed_count = g.get("failed_count")
+    if idx_pass is None and failed_count is None:
+        return False, "請使用 bisect_left(grades, 60) 查詢第一個及格索引與不及格人數。"
     if (idx_pass == 1 and failed_count == 1) or ("bisect.bisect_left(grades, 60)" in hist):
         return True, "精彩！bisect_left(60) 索引為 1，代表不及格人數恰好為 1 人，秒殺及格線！"
     return False, "請使用 bisect_left(grades, 60) 查詢第一個及格索引與不及格人數。"
 
 def check_q6(g, hist):
     func = g.get("get_fare")
+    if func is None:
+        return False, "請實作 get_fare(dist) 計算區間車資。"
     if callable(func):
         try:
             if func(28) == 35 and func(70) == 60 and func(10) == 15:
@@ -133,12 +145,16 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     lp = g.get("last_pos")
+    if lp is None:
+        return False, "請填入 bisect.bisect_right 與 ub - 1 定位最後出現位置。"
     if lp == 4 or ("bisect.bisect_right" in hist and "ub - 1" in hist):
         return True, "完全正確！bisect_right 取得第一個嚴格大於位置後減 1，即為最後出現索引 4！"
     return False, "請填入 bisect.bisect_right 與 ub - 1 定位最後出現位置。"
 
 def check_q8(g, hist):
     ub = g.get("ub")
+    if ub is None:
+        return False, "請呼叫 bisect_right 查詢數值 15 的上界索引。"
     # arr = [5, 10, 15, 15, 15, 20, 25] -> bisect_right(arr, 15) = 5
     if ub == 5 or ("bisect.bisect_right(arr, 15)" in hist):
         return True, "太棒了！上界索引為 5，同時代表小於等於 15 的元素恰有 5 個！"
@@ -147,6 +163,8 @@ def check_q8(g, hist):
 def check_q9(g, hist):
     s = g.get("start_idx")
     e = g.get("end_idx")
+    if s is None and e is None:
+        return False, "請利用 bisect_left 與 bisect_right 定位數值 50 的出現區間。"
     # exp_records = [10, 20, 20, 35, 50, 50, 50, 80] -> 50: [4, 6]
     if (s == 4 and e == 6) or ("bisect_left" in hist and "bisect_right" in hist):
         return True, "精彩！雙向夾擊精準定位數值 50 之完整區間 [4, 6]！"
@@ -154,6 +172,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     count = g.get("count")
+    if count is None:
+        return False, "請填入 bisect_left(numbers, 20) 與 bisect_right(numbers, 40)。"
     # numbers = [5, 12, 20, 25, 30, 40, 45, 60] -> [20, 40] 內有 20, 25, 30, 40 共 4 個
     if count == 4 or ("r - l" in hist and "bisect_left" in hist and "bisect_right" in hist):
         return True, "完全正確！左閉右閉區間以 bisect_right(40) - bisect_left(20) 秒算個數 4！"
@@ -161,6 +181,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     res = g.get("res")
+    if res is None:
+        return False, "請以 bisect_right - bisect_left 計算各區間人數清單。"
     # queries = [(160, 170), (150, 150), (190, 200)] -> [3, 1, 0]
     if res == [3, 1, 0] or ("count_in_range" in hist):
         return True, "太棒了！批次查詢多組身高區間人數 [3, 1, 0] 完全無誤！"
@@ -169,6 +191,8 @@ def check_q11(g, hist):
 def check_q12(g, hist):
     qc = g.get("qualified_count")
     qs = g.get("qualified_sum")
+    if qc is None and qs is None:
+        return False, "請計算符合區間資格的訂單筆數 (5) 與總金額 (5590)。"
     # orders = [120, 450, 500, 890, 1200, 1500, 1500, 2300, 3100]
     # [500, 1500] 內: 500, 890, 1200, 1500, 1500 共 5 筆，總和 = 5590 元
     if (qc == 5 and qs == 5590) or ("sum(orders[l:r])" in hist and "r - l" in hist):
@@ -177,6 +201,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     bi = g.get("bracket_idx")
+    if bi is None:
+        return False, "請呼叫 bisect.bisect 取得稅率級距索引。"
     # tax_brackets = [50, 120], income = 80 -> idx = 1 ("12%")
     if bi == 1 or ("bisect.bisect(tax_brackets, income)" in hist):
         return True, "完全正確！年所得 80 萬精確對應級距 1（稅率 12%），免寫繁複 if-elif！"
@@ -184,6 +210,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     func = g.get("get_rank")
+    if func is None:
+        return False, "請實作 get_rank(points) 函數，回傳對應段位名稱。"
     if callable(func):
         try:
             if func(2500) == "黃金" and func(800) == "青銅" and func(3500) == "鑽石":
@@ -196,6 +224,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     func = g.get("calc_final_bill")
+    if func is None:
+        return False, "請實作 calc_final_bill(amount) 計算折後實付金額。"
     if callable(func):
         try:
             if func(2500) == 2250 and func(6000) == 4200 and func(500) == 500:
@@ -208,6 +238,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     lt = g.get("live_temps")
+    if lt is None:
+        return False, "請呼叫 bisect.insort(live_temps, new_reading)。"
     # live_temps = [18.5, 20.2, 22.0, 25.5], new_reading = 21.4 -> [18.5, 20.2, 21.4, 22.0, 25.5]
     if lt == [18.5, 20.2, 21.4, 22.0, 25.5] or ("bisect.insort" in hist and "live_temps" in hist):
         return True, "完全正確！bisect.insort 動態有序插入 21.4，維護單調序列絲滑無縫！"
@@ -215,12 +247,16 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     tasks = g.get("tasks")
+    if tasks is None:
+        return False, "請使用 bisect.insort 依序插入任務至 tasks 清單。"
     if tasks == [1, 2, 3, 4, 5, 7, 8] or ("bisect.insort(tasks" in hist):
         return True, "太棒了！動態依序插入新任務，維持任務緊急度清單 [1, 2, 3, 4, 5, 7, 8]！"
     return False, "請使用 bisect.insort 依序插入任務至 tasks 清單。"
 
 def check_q18(g, hist):
     stream = g.get("stream")
+    if stream is None:
+        return False, "請使用 bisect.insort 依序插入串流數據並計算中位數。"
     if stream == [10, 20, 30, 40, 50] or ("bisect.insort(stream" in hist and "mid_val" in hist):
         return True, "滿分通關！動態中位數監控器實作大獲全勝，全單元與第十二章全體通關！"
     return False, "請使用 bisect.insort 依序插入串流數據並計算中位數。"

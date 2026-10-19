@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("verify_exact_match")
+    if not callable(fn):
+        return False, "尚未正確實作 verify_exact_match 或相符字串未回傳 True。"
     if callable(fn):
         try:
             if fn("AC\n", "AC\n") is True and fn("Hello World", "Hello World") is True:
@@ -111,6 +113,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("verify_exact_match")
+    if not callable(fn):
+        return False, "微小格式差異未正確判定為 False。"
     if callable(fn):
         try:
             if fn("AC", "AC\n") is False and fn("1 2 3", "1 2 3 ") is False:
@@ -123,6 +127,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("verify_exact_match")
+    if not callable(fn):
+        return False, "空字串比對有誤。"
     if callable(fn):
         try:
             if fn("", "") is True and fn("", " ") is False:
@@ -135,6 +141,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("clean_input_and_square")
+    if not callable(fn):
+        return False, "尚未正確實作 clean_input_and_square 或平方結果不符。"
     if callable(fn):
         try:
             old_in = sys.stdin
@@ -152,6 +160,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("clean_input_and_square")
+    if not callable(fn):
+        return False, "負整數平方計算不符。"
     if callable(fn):
         try:
             old_in = sys.stdin
@@ -169,6 +179,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("clean_input_and_square")
+    if not callable(fn):
+        return False, "邊界 0 讀取計算錯誤。"
     if callable(fn):
         try:
             old_in = sys.stdin
@@ -186,6 +198,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("format_space_separated")
+    if not callable(fn):
+        return False, "尚未正確實作 format_space_separated 或格式不符。"
     if callable(fn):
         try:
             r = fn([1, 2, 3])
@@ -199,6 +213,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("format_space_separated")
+    if not callable(fn):
+        return False, "單一元素或負數格式化不符。"
     if callable(fn):
         try:
             if fn([42]) == "42" and fn([-10, 20]) == "-10 20":
@@ -211,6 +227,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("format_space_separated")
+    if not callable(fn):
+        return False, "空串列未回傳空字串。"
     if callable(fn):
         try:
             if fn([]) == "":
@@ -223,6 +241,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("format_grade_report")
+    if not callable(fn):
+        return False, "尚未正確實作 format_grade_report 或格式字串不符。"
     if callable(fn):
         try:
             r = fn([10, 20, 25])
@@ -236,6 +256,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("format_grade_report")
+    if not callable(fn):
+        return False, "整除時未格式化為 .00。"
     if callable(fn):
         try:
             r = fn([80, 80, 80])
@@ -249,6 +271,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("format_grade_report")
+    if not callable(fn):
+        return False, "兩筆資料格式化計算錯誤。"
     if callable(fn):
         try:
             r = fn([100, 50])
@@ -262,6 +286,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("judge_prime_output")
+    if not callable(fn):
+        return False, "尚未正確實作 judge_prime_output 或 YES/NO 格式不符。"
     if callable(fn):
         try:
             if fn(7, "YES_NO") == "YES" and fn(9, "YES_NO") == "NO":
@@ -274,6 +300,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("judge_prime_output")
+    if not callable(fn):
+        return False, "全小寫格式不符或 2/1 質數判定錯誤。"
     if callable(fn):
         try:
             if fn(2, "LOWER") == "true" and fn(1, "LOWER") == "false":
@@ -286,6 +314,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("judge_prime_output")
+    if not callable(fn):
+        return False, "TITLE 規格格式不符。"
     if callable(fn):
         try:
             if fn(13, "TITLE") == "Prime" and fn(15, "TITLE") == "Not Prime":
@@ -298,6 +328,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("format_grid_output")
+    if not callable(fn):
+        return False, "尚未正確實作 format_grid_output 或網格字串不符。"
     if callable(fn):
         try:
             g_mat = [[1, 2], [3, 4]]
@@ -311,6 +343,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("format_grid_output")
+    if not callable(fn):
+        return False, "單一元素網格末尾有多餘空格或換行。"
     if callable(fn):
         try:
             if fn([[42]]) == "42":
@@ -323,6 +357,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("format_grid_output")
+    if not callable(fn):
+        return False, "空網格未回傳空字串。"
     if callable(fn):
         try:
             if fn([]) == "":

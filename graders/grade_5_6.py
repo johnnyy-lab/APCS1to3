@@ -192,7 +192,7 @@ def auto_grade_unit_5_6():
          lambda g: (
              (True, "除數防零 and 短路保護填寫正確：is_divisible=False！")
              if (g.get("is_divisible") is False) and
-                ("divisor != 0" in history_str.replace(" ", "") and "and" in history_str)
+                (("divisor!=0" in history_str.replace(" ", "") or "divisor != 0" in history_str) and "and" in history_str)
              else (False, "請在 5-6-3 填空題填入 divisor != 0 與 and！")
          )),
 

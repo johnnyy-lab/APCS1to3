@@ -87,6 +87,8 @@ def fetch_google_account_info():
 
 def check_q1(g, hist):
     mi = g.get("match_idx")
+    if mi is None:
+        return False, "請確認填入 fruits[i] == target_fruit 並以 break 中斷。"
     if mi == 2 or ("fruits[i] == target_fruit" in hist and "break" in hist):
         return True, "太棒了！精確循序比對並在命中時及時 break 中斷迴圈！"
     return False, "請確認填入 fruits[i] == target_fruit 並以 break 中斷。"
@@ -94,12 +96,16 @@ def check_q1(g, hist):
 def check_q2(g, hist):
     comp_count = g.get("comp_count")
     found_pos = g.get("found_pos")
+    if comp_count is None and found_pos is None:
+        return False, "請撰寫迴圈累加比對次數並於找到時記錄索引位置。"
     if (comp_count == 3 and found_pos == 2) or ("comp_count += 1" in hist and "break" in hist):
         return True, "完全正確！順利記錄比對 3 次並成功鎖定索引 2！"
     return False, "請撰寫迴圈累加比對次數並於找到時記錄索引位置。"
 
 def check_q3(g, hist):
     fhi = g.get("first_hot_idx")
+    if fhi is None:
+        return False, "請走訪 temps 找出第一個大於 30 度的索引 (應為 4)。"
     # temps = [24, 25, 24, 28, 31, 29, 32, 30] -> index 4 (31 度)
     if fhi == 4 or ("temps[i] > 30" in hist and "break" in hist):
         return True, "太強了！成功以線性走訪精準找出索引 4 的首次超標水溫 (31度)！"
@@ -107,35 +113,47 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     wcs = g.get("worst_case_steps")
+    if wcs is None:
+        return False, "最差情況比對次數等於資料總長度 (120 或 data_size)。"
     if wcs == 120 or "worst_case_steps = data_size" in hist:
         return True, "完全正確！掌握線性搜尋最差情況：必須完整比對 N 次 (120 次)！"
     return False, "最差情況比對次數等於資料總長度 (120 或 data_size)。"
 
 def check_q5(g, hist):
     res = g.get("results")
+    if res is None:
+        return False, "請計算 test_arr 對各目標的比對次數 (預期為 [1, 4, 5])。"
     if res == [1, 4, 5] or ("get_steps" in hist and "results" in hist):
         return True, "精彩！準確計算出 3 個目標分別花費 [1, 4, 5] 次比對！"
     return False, "請計算 test_arr 對各目標的比對次數 (預期為 [1, 4, 5])。"
 
 def check_q6(g, hist):
     avg = g.get("avg")
+    if avg is None:
+        return False, "請模擬查詢所有 ID 並計算平均比對次數 (3.5 次)。"
     # ids = 6 個元素 -> (1+2+3+4+5+6)/6 = 21/6 = 3.5
     if (avg is not None and abs(avg - 3.5) < 1e-4) or ("total_steps / len(ids)" in hist):
         return True, "太棒了！精準推導出平均比對步數為 3.5 次！"
     return False, "請模擬查詢所有 ID 並計算平均比對次數 (3.5 次)。"
 
 def check_q7(g, hist):
+    if g.get('gadgets') is None:
+        return False, "請在填空處填入 gadgets.index(query) 與 except ValueError。"
     if "gadgets.index" in hist and "except ValueError" in hist:
         return True, "完全正確！以 try-except ValueError 完美拆解 .index() 的崩潰地雷！"
     return False, "請在填空處填入 gadgets.index(query) 與 except ValueError。"
 
 def check_q8(g, hist):
+    if g.get('codes') is None:
+        return False, "請使用 try: codes.index(query) except ValueError: 進行安全查詢。"
     if "codes.index" in hist and "except ValueError" in hist:
         return True, "精湛實作！成功利用例外處理攔截未定義代碼，保護系統穩健執行！"
     return False, "請使用 try: codes.index(query) except ValueError: 進行安全查詢。"
 
 def check_q9(g, hist):
     func = g.get("check_ip_index")
+    if func is None:
+        return False, "請實作 check_ip_index 函數，在查無目標時安全回傳 'DENIED'。"
     if callable(func):
         try:
             if func(["A", "B"], "B") == 1 and func(["A", "B"], "C") == "DENIED":
@@ -148,16 +166,22 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     res_idx = g.get("result_idx")
+    if res_idx is None:
+        return False, "請填入 query_name in students 與 students.index(query_name)。"
     if res_idx == 2 or ("query_name in students" in hist and "students.index" in hist):
         return True, "完全正確！落實『先 in 檢查、後 index 取值』的最高防護準則！"
     return False, "請填入 query_name in students 與 students.index(query_name)。"
 
 def check_q11(g, hist):
+    if g.get('vip_members') is None:
+        return False, "請使用 if check_id in vip_members 搭配 vip_members.index(check_id)。"
     if "check_id in vip_members" in hist and "vip_members.index" in hist:
         return True, "太棒了！VIP 會員排位查詢安全防禦邏輯完全無誤！"
     return False, "請使用 if check_id in vip_members 搭配 vip_members.index(check_id)。"
 
 def check_q12(g, hist):
+    if g.get('symbols') is None:
+        return False, "請走訪 guesses 並以 if g in symbols 進行安全查詢。"
     if "g in symbols" in hist and "symbols.index" in hist:
         return True, "精彩！安全比對猜測符號，成功防範任何未知輸入帶來的當機崩潰！"
     return False, "請走訪 guesses 並以 if g in symbols 進行安全查詢。"
@@ -165,6 +189,8 @@ def check_q12(g, hist):
 def check_q13(g, hist):
     func = g.get("find_first_negative")
     ans = g.get("ans_idx")
+    if func is None and ans is None:
+        return False, "請實作 find_first_negative，若小於 0 回傳索引，否則回傳 -1。"
     test_list = [10, 25, -3, 8, -12, 40]
     if (ans == 2) or (callable(func) and func(test_list) == 2 and func([1, 2]) == -1):
         return True, "完全正確！手刻條件搜尋成功命中第一個負數索引 2，找不到時回傳 -1！"
@@ -174,6 +200,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     func = g.get("search_even")
+    if func is None:
+        return False, "請定義 search_even(arr)，回傳第一個偶數索引，無偶數回傳 -1。"
     if callable(func):
         try:
             if func([7, 13, 9, 14, 21, 8]) == 3 and func([1, 3, 5]) == -1:
@@ -186,6 +214,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     func = g.get("find_first_urgent")
+    if func is None:
+        return False, "請撰寫 find_first_urgent(msg_list) 搜尋包含 'URGENT' 的首則訊息索引。"
     messages = ["Hello", "Good morning", "URGENT: server down!", "How are you?"]
     if callable(func):
         try:
@@ -199,6 +229,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fi = g.get("failed_indices")
+    if fi is None:
+        return False, "請使用 [i for i, s in enumerate(class_scores) if s < 60] 收集索引。"
     # class_scores = [78, 55, 92, 48, 85, 59] -> 不及格: 55(1), 48(3), 59(5)
     if fi == [1, 3, 5] or ("[i for i, s in enumerate(class_scores) if s < 60]" in hist):
         return True, "太漂亮了！以列表生成式搭配 enumerate 極速提取不及格學生索引清單 [1, 3, 5]！"
@@ -206,6 +238,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     matches = g.get("matches")
+    if matches is None:
+        return False, "請收集 nums 中所有等於 target 的索引清單至 matches。"
     # nums = [12, 5, 8, 5, 20, 5], target = 5 -> [1, 3, 5]
     if matches == [1, 3, 5] or ("[i for i, x in enumerate(nums) if x == target]" in hist):
         return True, "精彩！全數收集所有匹配目標索引 [1, 3, 5]，完成多重搜尋！"
@@ -214,6 +248,8 @@ def check_q17(g, hist):
 def check_q18(g, hist):
     zrd = g.get("zero_rain_days")
     hrd = g.get("heavy_rain_days")
+    if zrd is None and hrd is None:
+        return False, "請分別收集降雨量為 0 與 >= 30 的天數索引清單。"
     # rainfall = [0, 15, 0, 42, 0, 0, 8]
     # zero: [0, 2, 4, 5]
     # heavy (>=30): [3] (42mm)

@@ -99,6 +99,8 @@ def extract_notebook_history():
 
 def check_q1(g, hist):
     fn = g.get("safe_sum_mixed_list")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_sum_mixed_list 或累加結果不符。"
     if callable(fn):
         try:
             if fn(["1", "2", "3"]) == 6 and fn(["10", 20, "30"]) == 60:
@@ -111,6 +113,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = g.get("safe_sum_mixed_list")
+    if not callable(fn):
+        return False, "非整數項目未被優雅跳過，或導致累加計算錯誤。"
     if callable(fn):
         try:
             r1 = fn(["10", "abc", "20"])
@@ -125,6 +129,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = g.get("safe_sum_mixed_list")
+    if not callable(fn):
+        return False, "空串列或全無效資料未能回傳 0。"
     if callable(fn):
         try:
             if fn([]) == 0 and fn(["x", "y", "z"]) == 0:
@@ -137,6 +143,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = g.get("parse_float_safely")
+    if not callable(fn):
+        return False, "尚未正確實作 parse_float_safely 或合法數值解析失敗。"
     if callable(fn):
         try:
             if fn("12.5", 0.0) == 12.5 and fn("-8.0", 0.0) == -8.0 and fn("100", 0.0) == 100.0:
@@ -149,6 +157,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = g.get("parse_float_safely")
+    if not callable(fn):
+        return False, "格式錯誤時未能正確回傳 default_val。"
     if callable(fn):
         try:
             if fn("abc", 99.9) == 99.9 and fn("hello_world", -1.0) == -1.0:
@@ -161,6 +171,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = g.get("parse_float_safely")
+    if not callable(fn):
+        return False, "空字串輸入未回傳預設值。"
     if callable(fn):
         try:
             if fn("", 0.0) == 0.0 and fn("   ", -5.5) == -5.5:
@@ -173,6 +185,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fn = g.get("safe_lookup_and_convert")
+    if not callable(fn):
+        return False, "尚未正確實作 safe_lookup_and_convert 或轉換結果不符。"
     if callable(fn):
         try:
             m = {"a": "100", "c": "0", "neg": "-42"}
@@ -186,6 +200,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fn = g.get("safe_lookup_and_convert")
+    if not callable(fn):
+        return False, "鍵值不存在時未能正確回傳 'KEY_NOT_FOUND'。"
     if callable(fn):
         try:
             m = {"a": "100"}
@@ -199,6 +215,8 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fn = g.get("safe_lookup_and_convert")
+    if not callable(fn):
+        return False, "數值轉換失敗時未能正確回傳 'INVALID_NUMBER'。"
     if callable(fn):
         try:
             m = {"bad": "invalid_num", "empty": ""}
@@ -212,6 +230,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = g.get("process_mock_stream")
+    if not callable(fn):
+        return False, "尚未正確實作 process_mock_stream 或字元累加計算不符。"
     if callable(fn):
         try:
             if fn("abc\ndef\n") == 6 and fn("12345\n") == 5:
@@ -224,6 +244,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = g.get("process_mock_stream")
+    if not callable(fn):
+        return False, "EOFError 捕捉中斷未能正常跳出迴圈。"
     if callable(fn):
         try:
             if fn("a\nb\nc\nd\n") == 4:
@@ -236,6 +258,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = g.get("process_mock_stream")
+    if not callable(fn):
+        return False, "空串流未回傳 0 或引發異常。"
     if callable(fn):
         try:
             if fn("") == 0:
@@ -248,6 +272,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = g.get("calculate_with_flag")
+    if not callable(fn):
+        return False, "尚未正確實作 calculate_with_flag 或回傳值不符。"
     if callable(fn):
         try:
             c = [False]
@@ -262,6 +288,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = g.get("calculate_with_flag")
+    if not callable(fn):
+        return False, "內部出錯時未能安全捕捉並回傳 None。"
     if callable(fn):
         try:
             c = [False]
@@ -276,6 +304,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = g.get("calculate_with_flag")
+    if not callable(fn):
+        return False, "finally 區塊未正確將 flag_container[0] 還原為 False。"
     if callable(fn):
         try:
             c1 = [False]
@@ -292,6 +322,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = g.get("robust_batch_processor")
+    if not callable(fn):
+        return False, "尚未正確實作 robust_batch_processor 或累加總和不符。"
     if callable(fn):
         try:
             if fn(["1", "2", "3"]) == 6 and fn(["10", "20", "30"]) == 60:
@@ -304,6 +336,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = g.get("robust_batch_processor")
+    if not callable(fn):
+        return False, "空字串未能妥善過濾。"
     if callable(fn):
         try:
             if fn(["", "", ""]) == 0 and fn(["10", "", "", "20"]) == 30:
@@ -316,6 +350,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = g.get("robust_batch_processor")
+    if not callable(fn):
+        return False, "包含無效格式時未正常略過或計算錯誤。"
     if callable(fn):
         try:
             if fn(["10", "abc", "", "20"]) == 30 and fn([]) == 0:

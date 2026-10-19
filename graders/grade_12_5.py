@@ -89,6 +89,8 @@ def check_q1(g, hist):
     raw_scores = [75, 90, 62, 88, 79]
     ss = g.get("sorted_scores")
     med = g.get("median")
+    if ss is None and med is None:
+        return False, "請確認 sorted_scores = sorted(raw_scores) 並以 mid_idx 取出中位數。"
     if (ss == sorted(raw_scores) and med == 79) or ("sorted(" in hist and "mid_idx" in hist):
         return True, "太棒了！先排序再取中間索引，極速精確找出數列中位數！"
     return False, "請確認 sorted_scores = sorted(raw_scores) 並以 mid_idx 取出中位數。"
@@ -96,12 +98,16 @@ def check_q1(g, hist):
 def check_q2(g, hist):
     # 連續整數判定
     is_consecutive = g.get("is_consecutive")
+    if is_consecutive is None:
+        return False, "請排序後比對相鄰元素的差值是否皆等於 1。"
     if is_consecutive is not None or "data[i + 1] - data[i]" in hist or "data[i+1]-data[i]" in hist:
         return True, "完全正確！透過相鄰元素差值是否恆為 1，漂亮完成連續整數檢驗！"
     return False, "請排序後比對相鄰元素的差值是否皆等於 1。"
 
 def check_q3(g, hist):
     dup = g.get("duplicates")
+    if dup is None:
+        return False, "請排序 levels 後，相鄰比對重複項目收集至 duplicates。"
     # levels = [15, 42, 8, 23, 99, 15, 60, 42] -> 排序後 [8, 15, 15, 23, 42, 42, 60, 99] -> dup: [15, 42]
     if dup == [15, 42] or (isinstance(dup, list) and set(dup) == {15, 42}) or ("levels[i] == levels[i + 1]" in hist):
         return True, "太強了！排序後透過一次線性走訪 O(N) 完美過濾並提取重複等級！"
@@ -111,12 +117,16 @@ def check_q4(g, hist):
     # is_overlap 與 merged_seg
     is_overlap = g.get("is_overlap")
     merged_seg = g.get("merged_seg")
+    if is_overlap is None and merged_seg is None:
+        return False, "請確認填入 segA[1] 判定重疊，以及 segB[1] 計算合併後終點。"
     if (is_overlap is True and merged_seg == [2, 9]) or ("segA[1]" in hist and "segB[1]" in hist):
         return True, "完全正確！精準判斷起點是否小於等於終點，並以 max() 完成線段合併！"
     return False, "請確認填入 segA[1] 判定重疊，以及 segB[1] 計算合併後終點。"
 
 def check_q5(g, hist):
     has_conflict = g.get("has_conflict")
+    if has_conflict is None:
+        return False, "請將 intervals 依起點排序，並比對相鄰區間是否重疊衝突。"
     if has_conflict is not None or "intervals.sort" in hist:
         if "intervals[i + 1][0] < intervals[i][1]" in hist or "intervals[i+1][0]<intervals[i][1]" in hist:
             return True, "精彩！將排程依起點排序後，以相鄰結束時間判定重疊衝突完全無誤！"
@@ -124,6 +134,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     th = g.get("total_hours")
+    if th is None:
+        return False, "請將預約時段依起點排序後，以維護當前區間法計算不重疊總時長（9小時）。"
     # bookings = [[13, 15], [9, 11], [14, 17], [10, 12], [18, 20]]
     # 排序後: [9, 11], [10, 12] -> 合併為 [9, 12] (3 hr)
     # [13, 15], [14, 17] -> 合併為 [13, 17] (4 hr)
@@ -135,6 +147,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     count = g.get("count")
+    if count is None:
+        return False, "請將演講依結束時間 x[1] 排序，並檢查 start >= last_end。"
     # lectures = [[1, 3], [2, 5], [4, 7], [1, 8], [6, 9]]
     # 結束時間排序: [1, 3], [2, 5], [4, 7], [1, 8], [6, 9]
     # 貪婪挑選: [1, 3] (end=3) -> [4, 7] (end=7) -> count = 2
@@ -144,6 +158,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     chosen = g.get("chosen")
+    if chosen is None:
+        return False, "請將 requests 依結束時間排序並貪婪選取不衝突團體。"
     # requests = [("樂團A", 10, 12), ("舞團B", 11, 13), ("劇團C", 12, 14), ("魔術D", 14, 15)]
     # 入選: ['樂團A', '劇團C', '魔術D']
     if chosen == ["樂團A", "劇團C", "魔術D"] or ("requests.sort" in hist and "chosen" in hist):
@@ -153,6 +169,8 @@ def check_q8(g, hist):
 def check_q9(g, hist):
     td = g.get("total_duration")
     chosen_shows = g.get("chosen_shows")
+    if td is None and chosen_shows is None:
+        return False, "請貪婪挑選不重疊動畫並統計其總播映時數。"
     # shows = [("動畫甲", 8, 11), ("動畫乙", 10, 12), ("動畫丙", 11, 14), ("動畫丁", 13, 15), ("動畫戊", 14, 17), ("動畫己", 16, 18)]
     # 依結束時間排序: 甲(11), 乙(12), 丙(14), 丁(15), 戊(17), 己(18)
     # 挑選: 甲[8,11] (3hr, end=11) -> 丙[11,14] (3hr, end=14) -> 戊[14,17] (3hr, end=17)
@@ -165,6 +183,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     max_gap = g.get("max_gap")
+    if max_gap is None:
+        return False, "請確認填入 milestones.sort() 與 range(len - 1) 尋找最大落差。"
     # milestones = [10, 45, 15, 80, 20] -> 排序後 [10, 15, 20, 45, 80]
     # 相鄰差: 5, 5, 25, 35 -> 最大落差 35
     if max_gap == 35 or ("milestones.sort()" in hist and "range(len(milestones) - 1)" in hist):
@@ -173,6 +193,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     min_d = g.get("min_d")
+    if min_d is None:
+        return False, "請將 nums 排序後，透過相鄰差值找出全數列最小差值。"
     # nums = [30, 5, 12, 45, 16] -> 排序 [5, 12, 16, 30, 45] -> 相鄰差 [7, 4, 14, 15] -> min=4
     if min_d == 4 or ("nums.sort()" in hist and "min_d" in hist):
         return True, "精彩！O(N log N) 排序後線性相鄰掃描，取代 O(N^2) 暴力比對！"
@@ -181,6 +203,8 @@ def check_q11(g, hist):
 def check_q12(g, hist):
     bp = g.get("best_pair")
     min_gap = g.get("min_gap")
+    if bp is None and min_gap is None:
+        return False, "請對完賽秒數排序後，找出差距最小的兩位選手秒數。"
     # times = [85.2, 79.8, 92.1, 80.5, 74.0, 85.0] -> 排序: [74.0, 79.8, 80.5, 85.0, 85.2, 92.1]
     # 相鄰差: 5.8, 0.7, 4.5, 0.2, 6.9 -> min=0.2 (85.0 vs 85.2)
     if (min_gap is not None and abs(min_gap - 0.2) < 1e-4) or (bp == (85.0, 85.2)):
@@ -190,6 +214,8 @@ def check_q12(g, hist):
     return False, "請對完賽秒數排序後，找出差距最小的兩位選手秒數。"
 
 def check_q13(g, hist):
+    if g.get('sorted_arr') is None:
+        return False, "請確認在條件判斷中填入 left += 1 與 right -= 1。"
     # left += 1, right -= 1
     if "left += 1" in hist and "right -= 1" in hist:
         return True, "完全正確！精準填入雙指標相向逼近核心位移：left += 1 與 right -= 1！"
@@ -197,6 +223,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     found = g.get("found")
+    if found is None:
+        return False, "請使用排序與雙指標夾擊法找出相加等於 target 的兩數。"
     # values = [40, 10, 25, 5, 15], target = 35 -> (10, 25)
     if found == (10, 25) or found == [10, 25] or ("l < r" in hist and "s == target" in hist):
         return True, "太棒了！以 O(N) 雙指標夾擊法極速解出經典 Two Sum (10, 25)！"
@@ -205,6 +233,8 @@ def check_q14(g, hist):
 def check_q15(g, hist):
     ml = g.get("max_load")
     bc = g.get("best_combo")
+    if ml is None and bc is None:
+        return False, "請利用雙指標夾擊法逼近不大於 100 kg 的最重裝載組合。"
     # weights = [25, 35, 80, 15, 65, 45, 90] -> 排序: [15, 25, 35, 45, 65, 80, 90]
     # 不超過 100 之最大總重: 35 + 65 = 100 kg！ (或 15+80=95, 25+65=90, 15+80=95)
     # 這裡 35 + 65 = 100 剛好滿載！
@@ -216,6 +246,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     ranked = g.get("ranked")
+    if ranked is None:
+        return False, "請使用 enumerate(scores) 打包並以 reverse=True 降序排序。"
     # scores = [65, 92, 78, 88]
     # packaged = [(s, idx) for idx, s in enumerate(scores)]
     # ranked: 降序 -> [(92, 1), (88, 3), (78, 2), (65, 0)]
@@ -226,6 +258,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     packed = g.get("packed")
+    if packed is None:
+        return False, "請打包 (數值, 原始索引) 並排序，輸出最小與最大之原始索引。"
     # measurements = [45, 12, 89, 34, 67] -> packed 排序後最小 (12, 1), 最大 (89, 2)
     if (packed and packed[0] == (12, 1) and packed[-1] == (89, 2)) or ("enumerate(measurements)" in hist):
         return True, "精彩！保留原始位置進行排序，成功精確定位最大值與最小值的原始索引！"
@@ -233,6 +267,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     order = g.get("order")
+    if order is None:
+        return False, "請依 (-分數, 原始編號) 排序並輸出錄取編號清單 [2, 1, 4, 0, 3]。"
     # scores = [72, 85, 90, 68, 85] (idx: 0, 1, 2, 3, 4)
     # 分數降序, 編號升序: 90(2), 85(1), 85(4), 72(0), 68(3)
     # order: [2, 1, 4, 0, 3]

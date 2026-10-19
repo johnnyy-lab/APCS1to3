@@ -102,6 +102,8 @@ def get_safe_division_fn(g):
 
 def check_q1(g, hist):
     fn = get_evaluate_fn(g)
+    if not callable(fn):
+        return False, "請實作 evaluate_testcase(user_output, expected_output) 進行基礎判定。"
     if callable(fn):
         try:
             if fn("100\n", "100") == "AC" and fn("100", "200") == "WA":
@@ -114,6 +116,8 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     fn = get_evaluate_fn(g)
+    if not callable(fn):
+        return False, "請使用 .strip() 消除尾端空白與換行以防範偽 WA。"
     if callable(fn):
         try:
             if fn("hello world  \n", "hello world") == "AC" and fn("42\n\n", "42") == "AC":
@@ -126,6 +130,8 @@ def check_q2(g, hist):
 
 def check_q3(g, hist):
     fn = get_evaluate_fn(g)
+    if not callable(fn):
+        return False, "當 user_output 包含 'Error:' 時請回傳 'RE'。"
     if callable(fn):
         try:
             if fn("Error: IndexError", "100") == "RE" and fn("Error: ZeroDivisionError", "0") == "RE":
@@ -138,6 +144,8 @@ def check_q3(g, hist):
 
 def check_q4(g, hist):
     fn = get_find_min_pos_fn(g)
+    if not callable(fn):
+        return False, "請實作 find_min_positive(nums) 回傳大於 0 的最小值。"
     if callable(fn):
         try:
             if fn([4, -2, 7, 1, 9]) == 1 and fn([10, 20, 5]) == 5:
@@ -150,6 +158,8 @@ def check_q4(g, hist):
 
 def check_q5(g, hist):
     fn = get_find_min_pos_fn(g)
+    if not callable(fn):
+        return False, "當數列中無任何正整數時，必須回傳 -1。"
     if callable(fn):
         try:
             if fn([-5, -10, -3]) == -1 and fn([-1]) == -1:
@@ -162,6 +172,8 @@ def check_q5(g, hist):
 
 def check_q6(g, hist):
     fn = get_find_min_pos_fn(g)
+    if not callable(fn):
+        return False, "請確保 0 不被誤認為正整數，且重複值能正確求出最小值。"
     if callable(fn):
         try:
             if fn([0, 5, 2, 2]) == 2 and fn([0, 0, 0]) == -1:
@@ -174,6 +186,8 @@ def check_q6(g, hist):
 
 def check_q7(g, hist):
     fc = g.get("fixed_code", "")
+    if not isinstance(fc, str) or not fc.strip():
+        return False, "請在 fixed_code 中修復 if len(nums) > 0: 漏冒號語法錯誤。"
     if isinstance(fc, str) and "if len(nums) > 0:" in fc:
         return True, "太棒了！成功在 if 條件句末尾補齊關鍵冒號 ':'！"
     if "len(nums) > 0:" in hist or "correct_code_sample" in g:
@@ -182,6 +196,8 @@ def check_q7(g, hist):
 
 def check_q8(g, hist):
     fc = g.get("fixed_code", "")
+    if not isinstance(fc, str) or not fc.strip():
+        return False, "請確保 fixed_code 不包含任何 SyntaxError，能順利編譯。"
     if isinstance(fc, str) and fc.strip():
         try:
             compile(fc, filename="<test>", mode="exec")
@@ -194,11 +210,15 @@ def check_q8(g, hist):
 
 def check_q9(g, hist):
     fc = g.get("fixed_code", "")
+    if not isinstance(fc, str) or not fc.strip():
+        return False, "請確保 calculate_average 正常回傳平均值，空串列回傳 0。"
     if isinstance(fc, str) and "def calculate_average" in fc:
         loc = {}
         try:
             exec(fc, loc)
             fn = loc.get("calculate_average")
+            if not callable(fn):
+                return False, "請確保 calculate_average 正常回傳平均值，空串列回傳 0。"
             if callable(fn) and fn([10, 20, 30]) == 20 and fn([]) == 0:
                 return True, "精彩！修復後 calculate_average 實測正確，空串列保護亦完全無誤！"
         except Exception:
@@ -209,6 +229,8 @@ def check_q9(g, hist):
 
 def check_q10(g, hist):
     fn = get_format_report_fn(g)
+    if not callable(fn):
+        return False, "首行請輸出 round() 四捨五入後的整數平均值。"
     if callable(fn):
         try:
             out = fn([85, 92, 78, 90])
@@ -223,6 +245,8 @@ def check_q10(g, hist):
 
 def check_q11(g, hist):
     fn = get_format_report_fn(g)
+    if not callable(fn):
+        return False, "次行請將 >= 60 的成績由大到小降序排列輸出。"
     if callable(fn):
         try:
             out = fn([85, 92, 78, 90])
@@ -237,6 +261,8 @@ def check_q11(g, hist):
 
 def check_q12(g, hist):
     fn = get_format_report_fn(g)
+    if not callable(fn):
+        return False, "請使用 ' '.join() 串接成績，確保數字間單一空格且行末無空白。"
     if callable(fn):
         try:
             out = fn([85, 92, 78, 90])
@@ -251,6 +277,8 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     fn = get_predict_tle_fn(g)
+    if not callable(fn):
+        return False, "請實作 predict_tle，當運算量小於限制時回傳 'PASS'。"
     if callable(fn):
         try:
             if fn(100000, "O(N)") == "PASS":
@@ -263,6 +291,8 @@ def check_q13(g, hist):
 
 def check_q14(g, hist):
     fn = get_predict_tle_fn(g)
+    if not callable(fn):
+        return False, "當預估運算次數超過限制時，請回傳 'TLE'。"
     if callable(fn):
         try:
             if fn(100000, "O(N^2)") == "TLE":
@@ -275,6 +305,8 @@ def check_q14(g, hist):
 
 def check_q15(g, hist):
     fn = get_predict_tle_fn(g)
+    if not callable(fn):
+        return False, "請依運算次數上限正確認定邊界 (2000 PASS, 5000 TLE)。"
     if callable(fn):
         try:
             if fn(2000, "O(N^2)") == "PASS" and fn(5000, "O(N^2)") == "TLE":
@@ -287,6 +319,8 @@ def check_q15(g, hist):
 
 def check_q16(g, hist):
     fn = get_safe_division_fn(g)
+    if not callable(fn):
+        return False, "請在輸入合法時回傳 lst[0] // lst[1]。"
     if callable(fn):
         try:
             if fn([20, 4]) == 5 and fn([-8, 2]) == -4 and fn([0, 5]) == 0:
@@ -299,6 +333,8 @@ def check_q16(g, hist):
 
 def check_q17(g, hist):
     fn = get_safe_division_fn(g)
+    if not callable(fn):
+        return False, "當 lst 長度小於 2 時，請安全回傳 'INVALID_LENGTH'。"
     if callable(fn):
         try:
             if fn([10]) == "INVALID_LENGTH" and fn([]) == "INVALID_LENGTH":
@@ -311,6 +347,8 @@ def check_q17(g, hist):
 
 def check_q18(g, hist):
     fn = get_safe_division_fn(g)
+    if not callable(fn):
+        return False, "當分母 lst[1] == 0 時，請安全回傳 'DIVISION_BY_ZERO'。"
     if callable(fn):
         try:
             if fn([10, 0]) == "DIVISION_BY_ZERO":

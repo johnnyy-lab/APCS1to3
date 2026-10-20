@@ -180,10 +180,11 @@ def auto_grade_unit_8_7(env=None):
              else (False, "請在 8-7-2 填空題空格填入 if 與不及格門檻 60！")
          )),
 
-        ("8-7-2", "練習題", "正整數平方篩選 ([x ** 2 for x in data if x > 0])", 9, (),
+        ("8-7-2", "練習題", "正整數平方篩選 ([x ** 2 for x in raw_numbers if x > 0])", 9, (),
          lambda g: (
              (True, "大於 0 正整數平方生成式過濾輸出正確！")
-             if ("[x ** 2 for x in data if x > 0]" in history_str or "[x**2forxindataifx>0]" in history_clean) or
+             if ("[x ** 2 for x in raw_numbers if x > 0]" in history_str or "[x**2forxinraw_numbersifx>0]" in history_clean or
+                 "[x ** 2 for x in data if x > 0]" in history_str or "[x**2forxindataifx>0]" in history_clean) or
                 ("[225, 64, 529]" in history_str or "[9, 16]" in history_str)
              else (False, "請使用列表生成式篩選出 x > 0 並計算平方後印出！")
          )),

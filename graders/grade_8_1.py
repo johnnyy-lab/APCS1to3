@@ -220,7 +220,8 @@ def auto_grade_unit_8_1(env=None):
         ("8-1-3", "挑戰題", "負數歸零淨化器 (numbers[i] = 0)", 5, (),
          lambda g: (
              (True, "迴圈巡檢與負數歸零淨化正確！")
-             if ("numbers[i] < 0" in history_clean and ("numbers[i] = 0" in history_clean or "numbers[i]=0" in history_clean)) or
+             if (("numbers[i]<0" in history_clean or "numbers[i] < 0" in history_str) and
+                 ("numbers[i]=0" in history_clean or "numbers[i] = 0" in history_str)) or
                 ("[5, 0, 8, 0]" in history_str)
              else (False, "請走訪 numbers 串列，若小於 0 則將該位置數值修改為 0！")
          )),
@@ -255,11 +256,11 @@ def auto_grade_unit_8_1(env=None):
         # ----------------------------------------------------------------------
         # 8-1-5 星號解包輸出 print(*a) (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-1-5", "填空題", "星號解包運算子 print(*ans)", 6, (),
+        ("8-1-5", "填空題", "星號解包運算子 print(*num_list)", 6, (),
          lambda g: (
-             (True, "星號解包 print(*ans) 填寫正確！")
-             if ("print(*ans)" in history_clean or "print( *ans )" in history_str)
-             else (False, "請在 8-1-5 填空題 ans 前方填入星號 * 進行解包！")
+             (True, "星號解包 print(*num_list) 填寫正確！")
+             if ("print(*num_list)" in history_clean or "print( *num_list )" in history_str or "print(*ans)" in history_clean)
+             else (False, "請在 8-1-5 填空題 num_list 前方填入星號 * 進行解包！")
          )),
 
         ("8-1-5", "練習題", "幸運號碼公布機 (print(*lottery) 與 sep=',' 排版)", 9, (),

@@ -200,7 +200,7 @@ def auto_grade_unit_8_5(env=None):
          lambda g: (
              (True, "偶數判定與雙軌位置顯示完全正確！")
              if ("% 2 == 0" in history_str or "%2==0" in history_clean) and
-                ("{i}" in history_str or "{data[i]}" in history_str or "索引位置" in history_str)
+                ("{i}" in history_str or "{num_list[i]}" in history_str or "{data[i]}" in history_str or "索引位置" in history_str)
              else (False, "請在 8-5-3 填空題空格填入 0 與索引變數 i！")
          )),
 

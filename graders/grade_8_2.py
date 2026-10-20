@@ -171,11 +171,11 @@ def auto_grade_unit_8_2(env=None):
         # ----------------------------------------------------------------------
         # 8-2-2 省略起訖與步進切片 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-2-2", "填空題", "省略終點之切片 data[2:] (remaining)", 6, ("remaining",),
+        ("8-2-2", "填空題", "省略終點之切片 nums_list[2:] (remaining)", 6, ("remaining",),
          lambda g: (
-             (True, "省略終點之切片 data[2:] 截取成功！")
+             (True, "省略終點之切片 nums_list[2:] 截取成功！")
              if g.get("remaining") == [300, 400, 500] or
-                ("data[2:]" in history_clean)
+                ("nums_list[2:]" in history_clean or "data[2:]" in history_clean)
              else (False, "請在 8-2-2 填空題填入起點 2 截取至尾端！")
          )),
 

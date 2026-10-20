@@ -144,11 +144,11 @@ def auto_grade_unit_8_3(env=None):
         # ----------------------------------------------------------------------
         # 8-3-1 .append() 尾端動態追加元素 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-3-1", "填空題", "呼叫 append 方法依序追加 (a 包含 [100, 200])", 6, ("a",),
+        ("8-3-1", "填空題", "呼叫 append 方法依序追加 (collected_items 包含 [100, 200])", 6, ("collected_items",),
          lambda g: (
              (True, "使用 .append(100) 與 .append(200) 動態追加成功！")
-             if g.get("a") == [100, 200] or
-                ("a.append(100)" in history_clean and "a.append(200)" in history_clean)
+             if g.get("collected_items") == [100, 200] or
+                ("collected_items.append(100)" in history_clean and "collected_items.append(200)" in history_clean)
              else (False, "請在 8-3-1 填空題空格填入方法名稱 append！")
          )),
 

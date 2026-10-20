@@ -152,12 +152,12 @@ def auto_grade_unit_8_6(env=None):
              else (False, "請在 8-6-1 填空題空格將 cart 賦值給 shared_cart！")
          )),
 
-        ("8-6-1", "練習題", "別名共用污染首尾修改印出 a (b = a 修改輸出)", 9, (),
+        ("8-6-1", "練習題", "別名共用污染首尾修改印出 orig_list (alias_list = orig_list 修改輸出)", 9, (),
          lambda g: (
-             (True, "b = a 別名共用污染驗證輸出正確！")
-             if ("b = a" in history_str or "b=a" in history_clean) and
-                ("[100, 2, 99]" in history_str or "[100, 6, 7, 99]" in history_str or ("b[0] = 100" in history_str and "b[-1] = 99" in history_str))
-             else (False, "請設定 b = a，修改 b 的首尾元素並印出受到連動影響的 a！")
+             (True, "alias_list = orig_list 別名共用污染驗證輸出正確！")
+             if (("alias_list = orig_list" in history_str or "alias_list=orig_list" in history_clean or "b = a" in history_str or "b=a" in history_clean) and
+                 ("[100, 2, 99]" in history_str or "[100, 6, 7, 99]" in history_str or ("b[0] = 100" in history_str and "b[-1] = 99" in history_str) or ("alias_list[0]" in history_clean and "alias_list[-1]" in history_clean)))
+             else (False, "請設定 alias_list = orig_list，修改 alias_list 的首尾元素並印出受到連動影響的 orig_list！")
          )),
 
         ("8-6-1", "挑戰題", "被污染的遊戲存檔情境模擬 (backup = player_stats)", 5, (),

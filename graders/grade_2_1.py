@@ -42,8 +42,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 def _disp_width(text):
     """計算終端顯示寬度（全形/CJK 字元佔 2 欄）。
 
-    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max，
-    評分器與學員程式共用同一個全域，呼叫內建會被學員變數遮蔽。"""
+    刻意不用 sum() 等內建：學員答案變數可能取名 sum、max。
+    直接執行腳本時答案與評分器在同一個全域，呼叫內建會被遮蔽。"""
     total = 0
     for ch in text:
         if unicodedata.east_asian_width(ch) in ("W", "F"):
@@ -79,19 +79,32 @@ LOG_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyXv4s0qihj03Lg3oFop3
 GRADER_VERSION = "2026-10-19"
 NOTEBOOK_FILE = "PythAPCS123_2-1_numeric_types_int_and_float.ipynb"
 
-def fetch_google_account_info():
+def _student_env(env=None):
+    """學員變數所在的命名空間。
+
+    Cell B 隔離載入時讀 __STUDENT_ENV__。直接執行腳本，或測試把答案
+    放在同一個全域時，改讀 globals()。"""
+    if isinstance(env, dict):
+        return env
+    snapshot = globals().get("__STUDENT_ENV__")
+    if isinstance(snapshot, dict):
+        return snapshot
+    return globals()
+
+
+def fetch_google_account_info(env=None):
     """讀取 Cell B 已完成的身分認證結果（Google Email 與暱稱）。
 
     鐵律：Google 認證流程只在 Cell B 執行一次，評分腳本僅讀取結果，
     絕不在此重跑 authenticate_user()，避免二次授權視窗與雙份維護飄移。"""
-    env = globals()
+    env = _student_env(env)
     google_email = str(env.get("google_email") or os.environ.get("GOOGLE_EMAIL") or "").strip() or None
     google_name = str(env.get("google_name") or os.environ.get("GOOGLE_NAME") or "").strip() or None
     return google_email, google_name
 
 
-def auto_grade_unit_2_1():
-    env = globals()
+def auto_grade_unit_2_1(env=None):
+    env = _student_env(env)
     total_score = 0
     max_score = 100
 
@@ -100,7 +113,7 @@ def auto_grade_unit_2_1():
     declared_id = str(env.get("student_id", "")).strip() or os.environ.get("STUDENT_ID", "").strip() or "無座號"
 
     # 2. 自動嘗試獲取 Google 帳號 Email 與 Google 暱稱
-    google_email, google_name = fetch_google_account_info()
+    google_email, google_name = fetch_google_account_info(env)
 
     # 3. 整合身分識別欄位（區分 Colab 雲端認證與本機免登入自評）
     is_colab = False

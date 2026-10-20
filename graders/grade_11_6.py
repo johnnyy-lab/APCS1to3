@@ -177,20 +177,20 @@ def auto_grade_unit_11_6(env=None):
              else (False, "請定義 rec_count 並在 n == 0 時終止，其餘呼叫 rec_count(n - 1)！")
          )),
 
-        ("11-6-1", "練習題", "發射倒數線性遞迴 countdown_launch(n)", 6, ("countdown_launch",),
+        ("11-6-1", "練習題", "遞迴加油打氣機 rec_cheer(times)", 6, ("rec_cheer",),
          lambda g: (
-             (True, "countdown_launch 線性遞迴實作正確！")
-             if (callable(g.get("countdown_launch"))) or
-                ("countdown_launch" in history_str and "發射" in history_str)
-             else (False, "請定義 countdown_launch 遞迴倒數至 1 並在終止時輸出發射！")
+             (True, "rec_cheer 遞迴加油打氣機實作正確！")
+             if (callable(g.get("rec_cheer"))) or
+                ("rec_cheer" in history_str)
+             else (False, "請定義 rec_cheer 遞迴印出加油訊息！")
          )),
 
-        ("11-6-1", "挑戰題", "遞迴連續區間印出 rec_print_range(start, end)", 6, ("rec_print_range",),
+        ("11-6-1", "挑戰題", "遞迴爬樓梯打卡 climb_stairs(current_step, total_steps)", 6, ("climb_stairs",),
          lambda g: (
-             (True, "rec_print_range 區間遞迴實作正確！")
-             if (callable(g.get("rec_print_range"))) or
-                ("rec_print_range" in history_str)
-             else (False, "請定義 rec_print_range 從 start 印至 end 遞迴推進！")
+             (True, "climb_stairs 遞迴爬樓梯打卡正確！")
+             if (callable(g.get("climb_stairs"))) or
+                ("climb_stairs" in history_str)
+             else (False, "請定義 climb_stairs 遞迴打卡並在登頂時結束！")
          )),
 
         # ----------------------------------------------------------------------
@@ -204,20 +204,20 @@ def auto_grade_unit_11_6(env=None):
              else (False, "請在遞迴呼叫前後分別印出標記，觀察堆疊先進後出對稱性！")
          )),
 
-        ("11-6-2", "練習題", "視覺化堆疊層級 trace visualize_stack(n)", 6, ("visualize_stack",),
+        ("11-6-2", "練習題", "遞迴括號生成器 nested_brackets(n)", 6, ("nested_brackets",),
          lambda g: (
-             (True, "visualize_stack 堆疊追蹤實作正確！")
-             if (callable(g.get("visualize_stack"))) or
-                ("visualize_stack" in history_str and "Push" in history_str or "Pop" in history_str)
-             else (False, "請定義 visualize_stack 顯示堆疊深度的進入與返回時序！")
+             (True, "nested_brackets 遞迴括號生成器正確！")
+             if (callable(g.get("nested_brackets"))) or
+                ("nested_brackets" in history_str)
+             else (False, "請定義 nested_brackets 對稱生成巢狀括號！")
          )),
 
-        ("11-6-2", "挑戰題", "遞迴巢狀方框符號包裹 nested_boxes(size)", 6, ("nested_boxes",),
+        ("11-6-2", "挑戰題", "遞迴俄羅斯套娃追蹤 doll_tracker(size)", 6, ("doll_tracker",),
          lambda g: (
-             (True, "nested_boxes 巢狀符號包裹正確！")
-             if (callable(g.get("nested_boxes"))) or
-                ("nested_boxes" in history_str and "[" in history_str)
-             else (False, "請定義 nested_boxes 遞迴產出巢狀對稱括號或符號！")
+             (True, "doll_tracker 俄羅斯套娃拆解組裝追蹤正確！")
+             if (callable(g.get("doll_tracker"))) or
+                ("doll_tracker" in history_str)
+             else (False, "請定義 doll_tracker 去程拆解外殼、回程蓋緊外殼！")
          )),
 
         # ----------------------------------------------------------------------
@@ -250,11 +250,11 @@ def auto_grade_unit_11_6(env=None):
         # ----------------------------------------------------------------------
         # 11-6-4 線性遞迴累計：次方與數列 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-6-4", "填空題", "遞迴計算 2 的次方 power_of_two(n)", 5, ("ans", "power_of_two"),
+        ("11-6-4", "填空題", "遞迴計算 2 的次方 power_of_two(n)", 5, ("power_val", "power_of_two"),
          lambda g: (
              (True, "power_of_two 填空正確！")
              if (callable(g.get("power_of_two")) and g.get("power_of_two")(5) == 32) or
-                (g.get("ans") == 32) or
+                (g.get("power_val") == 32) or
                 ("power_of_two(n - 1)" in history_str and "2 *" in history_str)
              else (False, "請實作 power_of_two：n == 0 回傳 1，其餘回傳 2 * power_of_two(n - 1)！")
          )),

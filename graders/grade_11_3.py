@@ -209,20 +209,20 @@ def auto_grade_unit_11_3(env=None):
              else (False, "請在 check_in 內呼叫 attendees.append(student_id) 就地修改！")
          )),
 
-        ("11-3-2", "練習題", "串列成績加分函數 add_bonus_points(scores_list, bonus)", 6, ("add_bonus_points",),
-         lambda g: (
-             (True, "add_bonus_points 串列原地加分正確！")
-             if (callable(g.get("add_bonus_points"))) or
-                ("add_bonus_points" in history_str and "+=" in history_str)
-             else (False, "請定義 add_bonus_points 遍歷串列索引並就地增加 bonus 分數！")
-         )),
-
-        ("11-3-2", "挑戰題", "字典庫存原地更新 update_inventory(stock_dict, item, qty)", 6, ("update_inventory",),
+        ("11-3-2", "練習題", "字典庫存原地更新 update_inventory(stock_dict, item, amount)", 6, ("update_inventory",),
          lambda g: (
              (True, "update_inventory 字典原地更新正確！")
              if (callable(g.get("update_inventory"))) or
                 ("update_inventory" in history_str and "stock_dict" in history_str)
              else (False, "請定義 update_inventory 就地累加或新增指定項目的庫存量！")
+         )),
+
+        ("11-3-2", "挑戰題", "遊戲血量原地扣減結算 apply_damage(team_hp_list, damage)", 6, ("apply_damage",),
+         lambda g: (
+             (True, "apply_damage 串列原地扣減血量正確！")
+             if (callable(g.get("apply_damage"))) or
+                ("apply_damage" in history_str and "team_hp_list" in history_str)
+             else (False, "請定義 apply_damage 就地扣減隊員血量且不低於 0！")
          )),
 
         # ----------------------------------------------------------------------
@@ -236,19 +236,20 @@ def auto_grade_unit_11_3(env=None):
              else (False, "請在 reset_scores 使用 scores.clear() 而非 scores = []！")
          )),
 
-        ("11-3-3", "練習題", "原地移除偶數元素 clear_even_numbers(nums)", 6, ("clear_even_numbers",),
+        ("11-3-3", "練習題", "重新賦值與原地翻倍 double_by_reassign 與 double_in_place", 6, ("double_by_reassign", "double_in_place"),
          lambda g: (
-             (True, "clear_even_numbers 原地過濾正確！")
-             if (callable(g.get("clear_even_numbers"))) or
-                ("clear_even_numbers" in history_str and "% 2 == 0" in history_str)
-             else (False, "請定義 clear_even_numbers 使用切片賦值或 remove 原地清空偶數！")
+             (True, "重新賦值與原地翻倍函數實作正確！")
+             if (callable(g.get("double_by_reassign")) or callable(g.get("double_in_place"))) or
+                ("double_by_reassign" in history_str and "double_in_place" in history_str)
+             else (False, "請定義 double_by_reassign 與 double_in_place 對比重新賦值與就地翻倍！")
          )),
 
-        ("11-3-3", "挑戰題", "物件參照追蹤與就地修改驗證", 6, (),
+        ("11-3-3", "挑戰題", "切片賦值原地過濾正數 filter_positive_in_place(nums)", 6, ("filter_positive_in_place",),
          lambda g: (
-             (True, "參照追蹤與就地修改驗證正確！")
-             if ("clear()" in history_str or "append(" in history_str) and ("id(" in history_str or "==" in history_str)
-             else (False, "請驗證串列在函式內原地操作前後的記憶體位址 id() 行為！")
+             (True, "filter_positive_in_place 切片賦值原地更新正確！")
+             if (callable(g.get("filter_positive_in_place"))) or
+                ("filter_positive_in_place" in history_str and "nums[:]" in history_str)
+             else (False, "請使用切片賦值 nums[:] 原處更新串列！")
          )),
 
         # ----------------------------------------------------------------------
@@ -262,20 +263,20 @@ def auto_grade_unit_11_3(env=None):
              else (False, "請在 trimmed_sum 內使用 arr.copy() 阻斷對外部串列的影響！")
          )),
 
-        ("11-3-4", "練習題", "安全極端值過濾器 remove_outliers_safe(arr)", 6, ("remove_outliers_safe",),
+        ("11-3-4", "練習題", "安全負數過濾器 remove_negatives_safe(nums)", 6, ("remove_negatives_safe",),
          lambda g: (
-             (True, "remove_outliers_safe 安全過濾實作正確！")
-             if (callable(g.get("remove_outliers_safe"))) or
-                ("remove_outliers_safe" in history_str and "copy()" in history_str)
-             else (False, "請使用 .copy() 複製串列後剔除最大與最小值並回傳新串列！")
+             (True, "remove_negatives_safe 安全過濾實作正確！")
+             if (callable(g.get("remove_negatives_safe"))) or
+                ("remove_negatives_safe" in history_str and "copy()" in history_str)
+             else (False, "請使用 .copy() 複製串列後過濾負數並回傳新串列！")
          )),
 
-        ("11-3-4", "挑戰題", "二維矩陣深層複製 deep_copy_matrix(matrix)", 6, ("deep_copy_matrix",),
+        ("11-3-4", "挑戰題", "字典防禦性特價處理 apply_store_discount(catalog, discount_rate)", 6, ("apply_store_discount",),
          lambda g: (
-             (True, "二維矩陣深層複製函數實作正確！")
-             if (callable(g.get("deep_copy_matrix"))) or
-                ("deep_copy_matrix" in history_str and "copy()" in history_str)
-             else (False, "請實作 deep_copy_matrix 逐列複製 [row.copy() for row in matrix]！")
+             (True, "apply_store_discount 字典防禦性複製特價處理正確！")
+             if (callable(g.get("apply_store_discount"))) or
+                ("apply_store_discount" in history_str and "catalog.copy()" in history_str)
+             else (False, "請使用 catalog.copy() 複製字典並回傳特價字典！")
          )),
 
         # ----------------------------------------------------------------------
@@ -289,22 +290,22 @@ def auto_grade_unit_11_3(env=None):
              else (False, "請為 banner 函數的 border 參數指定預設值 '*'！")
          )),
 
-        ("11-3-5", "練習題", "次方計算預設參數 calc_power(base, exp=2)", 6, ("calc_power",),
+        ("11-3-5", "練習題", "次方計算預設參數 power(base, exp=2)", 6, ("power",),
          lambda g: (
-             (True, "calc_power 預設參數定義正確！")
-             if (callable(g.get("calc_power")) and
-                 g.get("calc_power")(5) == 25 and
-                 g.get("calc_power")(2, 3) == 8) or
-                ("calc_power" in history_str and "exp=2" in history_str)
-             else (False, "請定義 calc_power(base, exp=2) 使未給 exp 時預設求平方！")
+             (True, "power 預設參數定義正確！")
+             if (callable(g.get("power")) and
+                 g.get("power")(5) == 25 and
+                 g.get("power")(2, 3) == 8) or
+                ("power" in history_str and "exp=2" in history_str)
+             else (False, "請定義 power(base, exp=2) 使未給 exp 時預設求平方！")
          )),
 
-        ("11-3-5", "挑戰題", "多重預設參數商品定價 calc_final_price", 5, ("calc_final_price",),
+        ("11-3-5", "挑戰題", "多重預設參數結帳計算 checkout(amount, discount=0.9, is_vip=False)", 5, ("checkout",),
          lambda g: (
-             (True, "calc_final_price 多重預設參數實作正確！")
-             if (callable(g.get("calc_final_price"))) or
-                ("calc_final_price" in history_str and "discount" in history_str)
-             else (False, "請定義 calc_final_price(price, discount=1.0, is_vip=False)！")
+             (True, "checkout 多重預設參數實作正確！")
+             if (callable(g.get("checkout"))) or
+                ("checkout" in history_str and "discount=0.9" in history_str)
+             else (False, "請定義 checkout(amount, discount=0.9, is_vip=False)！")
          )),
 
         # ----------------------------------------------------------------------
@@ -318,20 +319,20 @@ def auto_grade_unit_11_3(env=None):
              else (False, "請使用 todo_list=None 預設值並在函數內判定建立新清單 []！")
          )),
 
-        ("11-3-6", "練習題", "學生成績登記簿安全預設值 record_student_grade", 6, ("record_student_grade",),
+        ("11-3-6", "練習題", "學生成績登記簿安全預設值 register_score(name, score, score_dict=None)", 6, ("register_score",),
          lambda g: (
-             (True, "record_student_grade 安全預設字典實作正確！")
-             if (callable(g.get("record_student_grade"))) or
-                ("record_student_grade" in history_str and "grade_dict is None" in history_str)
-             else (False, "請以 grade_dict=None 作為預設參數，避免跨呼叫共享字典污染！")
+             (True, "register_score 安全預設字典實作正確！")
+             if (callable(g.get("register_score"))) or
+                ("register_score" in history_str and "score_dict is None" in history_str)
+             else (False, "請以 score_dict=None 作為預設參數，避免跨呼叫共享字典污染！")
          )),
 
-        ("11-3-6", "挑戰題", "獨立容器安全建立 safe_box(item, container=None)", 5, ("safe_box",),
+        ("11-3-6", "挑戰題", "獨立文字收集器 collect_words(word, container=None)", 5, ("collect_words",),
          lambda g: (
-             (True, "safe_box 獨立容器建立正確！")
-             if (callable(g.get("safe_box"))) or
-                ("safe_box" in history_str and "container is None" in history_str)
-             else (False, "請定義 safe_box 驗證兩次預設呼叫產出的容器互不干擾！")
+             (True, "collect_words 獨立容器建立正確！")
+             if (callable(g.get("collect_words"))) or
+                ("collect_words" in history_str and "container is None" in history_str)
+             else (False, "請定義 collect_words 驗證兩次預設呼叫產出的容器互不干擾！")
          ))
     ]
 

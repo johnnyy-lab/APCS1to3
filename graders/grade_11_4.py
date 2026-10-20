@@ -178,20 +178,23 @@ def auto_grade_unit_11_4(env=None):
              else (False, "請在 get_triangle_area 內定義區域變數計算面積並 return！")
          )),
 
-        ("11-4-1", "練習題", "圓面積區域變數計算 calc_circle_area(radius)", 6, ("calc_circle_area",),
+        ("11-4-1", "練習題", "金額格式化區域變數封裝 format_currency(amount)", 6, ("format_currency",),
          lambda g: (
-             (True, "calc_circle_area 區域計算實作正確！")
-             if (callable(g.get("calc_circle_area"))) or
-                ("calc_circle_area" in history_str and "3.14" in history_str)
-             else (False, "請定義 calc_circle_area 使用區域變數 pi 計算並回傳面積！")
+             (True, "format_currency 金額格式化實作正確！")
+             if (callable(g.get("format_currency")) and
+                 g.get("format_currency")(1000).startswith("$") and
+                 g.get("format_currency")(2500000).startswith("$")) or
+                ("format_currency" in history_str and "formatted_str" in history_str)
+             else (False, "請定義 format_currency 在區域變數中格式化金額並回傳！")
          )),
 
-        ("11-4-1", "挑戰題", "圓柱體積區域分步計算 cylinder_volume(r, h)", 6, ("cylinder_volume",),
+        ("11-4-1", "挑戰題", "多步驟密碼加密區域變數封裝 encode_pin(pin_code)", 6, ("encode_pin",),
          lambda g: (
-             (True, "cylinder_volume 圓柱體積分步計算正確！")
-             if (callable(g.get("cylinder_volume"))) or
-                ("cylinder_volume" in history_str and "base_area" in history_str)
-             else (False, "請在 cylinder_volume 內定義 base_area 等區域變數計算體積！")
+             (True, "encode_pin 多步驟密碼加密實作正確！")
+             if (callable(g.get("encode_pin")) and
+                 g.get("encode_pin")("1234") == "5432") or
+                ("encode_pin" in history_str and "temp_reversed" in history_str)
+             else (False, "請定義 encode_pin 透過區域變數反轉字串並位移數值回傳！")
          )),
 
         # ----------------------------------------------------------------------
@@ -232,12 +235,13 @@ def auto_grade_unit_11_4(env=None):
              else (False, "請在 tax_free_shop 內宣告區域 tax_rate = 0.0 遮蔽外部稅率！")
          )),
 
-        ("11-4-3", "練習題", "調分計算同名變數遮蔽 curved_score(score)", 6, ("curved_score",),
+        ("11-4-3", "練習題", "同名區域變數遮蔽計算 calc_group_score(base_score, bonus)", 6, ("calc_group_score",),
          lambda g: (
-             (True, "curved_score 變數遮蔽實作正確！")
-             if (callable(g.get("curved_score"))) or
-                ("curved_score" in history_str and "score" in history_str)
-             else (False, "請在 curved_score 內宣告區域 score 調分，並確認外部變數不受影響！")
+             (True, "calc_group_score 同名區域變數遮蔽實作正確！")
+             if (callable(g.get("calc_group_score")) and
+                 g.get("calc_group_score")(60, 25) == 85) or
+                ("calc_group_score" in history_str and "score =" in history_str)
+             else (False, "請定義 calc_group_score 宣告同名區域變數 score 並回傳！")
          )),
 
         ("11-4-3", "挑戰題", "全域、區域與參數同名遮蔽就近原則驗證", 6, (),
@@ -259,20 +263,22 @@ def auto_grade_unit_11_4(env=None):
              else (False, "請在 check_pass 內直接讀取全域常數 PASS_STANDARD 進行比較！")
          )),
 
-        ("11-4-4", "練習題", "匯率轉換唯讀全域常數 convert_currency(usd)", 6, ("convert_currency",),
+        ("11-4-4", "練習題", "匯率轉換唯讀全域常數 exchange_to_twd(usd_amount)", 6, ("exchange_to_twd",),
          lambda g: (
-             (True, "convert_currency 唯讀匯率常數正確！")
-             if (callable(g.get("convert_currency"))) or
-                ("convert_currency" in history_str and "USD_TO_TWD" in history_str)
-             else (False, "請定義 convert_currency 唯讀讀取全域常數 USD_TO_TWD 計算新台幣！")
+             (True, "exchange_to_twd 唯讀全域常數轉換正確！")
+             if (callable(g.get("exchange_to_twd")) and
+                 g.get("exchange_to_twd")(100) == 3200) or
+                ("exchange_to_twd" in history_str and "USD_TO_TWD" in history_str)
+             else (False, "請定義 exchange_to_twd 唯讀存取 USD_TO_TWD 並回傳整數金額！")
          )),
 
-        ("11-4-4", "挑戰題", "安全尋路讀取全域方向常數 safe_navigate", 6, ("safe_navigate",),
+        ("11-4-4", "挑戰題", "唯讀全域方向向量走訪 get_neighbors(r, c)", 6, ("get_neighbors",),
          lambda g: (
-             (True, "safe_navigate 讀取全域方向字典正確！")
-             if (callable(g.get("safe_navigate"))) or
-                ("safe_navigate" in history_str and "DIRS" in history_str)
-             else (False, "請定義 safe_navigate 唯讀存取全域常數 DIRS 計算移動後座標！")
+             (True, "get_neighbors 唯讀存取方向常數正確！")
+             if (callable(g.get("get_neighbors")) and
+                 len(g.get("get_neighbors")(0, 0)) == 4) or
+                ("get_neighbors" in history_str and "DIRS" in history_str)
+             else (False, "請定義 get_neighbors 走訪全域常數 DIRS 回傳相鄰座標！")
          )),
 
         # ----------------------------------------------------------------------
@@ -286,12 +292,14 @@ def auto_grade_unit_11_4(env=None):
              else (False, "請剖析 accumulate_points 內部 += 賦值為何被視為未初始化區域變數！")
          )),
 
-        ("11-4-5", "練習題", "訪客累計安全性重構 track_visitors(new_visitors)", 6, ("track_visitors",),
+        ("11-4-5", "練習題", "日誌追加純函數重構 append_log(current_log, new_msg)", 6, ("append_log",),
          lambda g: (
-             (True, "訪客累計安全重構實作正確！")
-             if (callable(g.get("track_visitors"))) or
-                ("track_visitors" in history_str)
-             else (False, "請將累計函數重構為接收目前計數與新增計數並 return 新數值！")
+             (True, "append_log 日誌追加純函數實作正確！")
+             if (callable(g.get("append_log")) and
+                 g.get("append_log")("", "Start") == "Start" and
+                 g.get("append_log")("Start", "Run") == "Start -> Run") or
+                ("append_log" in history_str and "current_log" in history_str)
+             else (False, "請定義 append_log 以參數進、return 出安全組裝日誌！")
          )),
 
         ("11-4-5", "挑戰題", "修復 UnboundLocalError 之兩種正解方案實作", 5, (),
@@ -313,12 +321,13 @@ def auto_grade_unit_11_4(env=None):
              else (False, "請在 calc_perimeter 透過傳入的 w, h 計算周長並回傳！")
          )),
 
-        ("11-4-6", "練習題", "兩點歐式距離純函數 distance_between(p1, p2)", 6, ("distance_between",),
+        ("11-4-6", "練習題", "曼哈頓距離純函數 manhattan_distance(p1, p2)", 6, ("manhattan_distance",),
          lambda g: (
-             (True, "distance_between 純函數實作正確！")
-             if (callable(g.get("distance_between"))) or
-                ("distance_between" in history_str and "0.5" in history_str or "sqrt" in history_str)
-             else (False, "請定義 distance_between 接收兩元組座標並計算歐式距離回傳！")
+             (True, "manhattan_distance 曼哈頓距離純函數正確！")
+             if (callable(g.get("manhattan_distance")) and
+                 g.get("manhattan_distance")((0, 0), (3, 4)) == 7) or
+                ("manhattan_distance" in history_str and "abs(" in history_str)
+             else (False, "請定義無副作用純函數 manhattan_distance(p1, p2) 回傳整數距離！")
          )),
 
         ("11-4-6", "挑戰題", "重構依賴全域的髒代碼為無副作用純函數", 5, (),

@@ -196,11 +196,11 @@ def auto_grade_unit_11_7(env=None):
         # ----------------------------------------------------------------------
         # 11-7-2 經典費氏數列與爬樓梯 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-7-2", "填空題", "經典費氏數列 get_fib(n) 雙遞迴呼叫", 5, ("ans", "get_fib"),
+        ("11-7-2", "填空題", "經典費氏數列 get_fib(n) 雙遞迴呼叫", 5, ("fib_val", "get_fib"),
          lambda g: (
              (True, "get_fib 費氏數列填空正確！")
              if (callable(g.get("get_fib")) and g.get("get_fib")(6) == 8) or
-                (g.get("ans") == 8) or
+                (g.get("fib_val") == 8) or
                 ("get_fib(n - 1) + get_fib(n - 2)" in history_str)
              else (False, "請在 get_fib 填入 get_fib(n - 1) + get_fib(n - 2)！")
          )),

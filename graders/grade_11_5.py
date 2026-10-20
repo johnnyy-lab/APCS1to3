@@ -177,20 +177,20 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請在 add_mileage 內加入 global fare 以便修改全域車資變數！")
          )),
 
-        ("11-5-1", "練習題", "網站點擊計數器 click_counter 與 global total_clicks", 6, ("click_counter",),
+        ("11-5-1", "練習題", "網站點擊計數器 record_clicks 與 global total_clicks", 6, ("record_clicks",),
          lambda g: (
              (True, "click_counter 全域計數實作正確！")
-             if (callable(g.get("click_counter"))) or
-                ("click_counter" in history_str and "global total_clicks" in history_str)
-             else (False, "請定義 click_counter 使用 global total_clicks 每次累加 1！")
+             if (callable(g.get("record_clicks"))) or
+                ("record_clicks" in history_str and "total_clicks" in history_str)
+             else (False, "請定義 record_clicks 使用 global total_clicks 每次累加！")
          )),
 
-        ("11-5-1", "挑戰題", "護盾能量增減 modify_shield_energy(delta)", 6, ("modify_shield_energy",),
+        ("11-5-1", "挑戰題", "護盾能量扣減 take_damage(damage)", 6, ("take_damage",),
          lambda g: (
              (True, "modify_shield_energy 全域能量更新正確！")
-             if (callable(g.get("modify_shield_energy"))) or
-                ("modify_shield_energy" in history_str and "global shield_energy" in history_str)
-             else (False, "請使用 global shield_energy 實作能量上限 100、下限 0 的安全增減！")
+             if (callable(g.get("take_damage"))) or
+                ("take_damage" in history_str and "shield_energy" in history_str)
+             else (False, "請使用 global shield_energy 實作能量安全扣減！")
          )),
 
         # ----------------------------------------------------------------------
@@ -204,19 +204,19 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請在 record_jump 內使用 global highest_jump 維護全域最高紀錄！")
          )),
 
-        ("11-5-2", "練習題", "全域最小成本更新 update_min_cost(cost)", 6, ("update_min_cost",),
+        ("11-5-2", "練習題", "最低報價評估器 submit_quote(cost)", 6, ("submit_quote",),
          lambda g: (
              (True, "update_min_cost 最小成本維護正確！")
-             if (callable(g.get("update_min_cost"))) or
-                ("update_min_cost" in history_str and "global min_cost" in history_str)
-             else (False, "請定義 update_min_cost 以 min_cost = min(min_cost, cost) 更新全域解！")
+             if (callable(g.get("submit_quote"))) or
+                ("submit_quote" in history_str and "min_cost" in history_str)
+             else (False, "請定義 submit_quote 以 min_cost = min(min_cost, cost) 更新全域解！")
          )),
 
-        ("11-5-2", "挑戰題", "氣溫極值雙指標追蹤 track_temperature_extremes", 6, ("track_temperature_extremes",),
+        ("11-5-2", "挑戰題", "全域極端氣溫監控 record_temperature(temp)", 6, ("record_temperature",),
          lambda g: (
              (True, "氣溫極值雙指標追蹤實作正確！")
-             if (callable(g.get("track_temperature_extremes"))) or
-                ("track_temperature_extremes" in history_str and "max_temp" in history_str and "min_temp" in history_str)
+             if (callable(g.get("record_temperature"))) or
+                ("record_temperature" in history_str and "max_temp" in history_str and "min_temp" in history_str)
              else (False, "請同時維護 global max_temp, min_temp 兩項全域極值指標！")
          )),
 
@@ -231,20 +231,20 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請在 count_adjacent_walls 直接唯讀存取全域二維地圖 board！")
          )),
 
-        ("11-5-3", "練習題", "全域矩陣區間和查詢 query_matrix_sum", 6, ("query_matrix_sum",),
+        ("11-5-3", "練習題", "全域路徑總分計算器 score_grid 累加", 6, (),
          lambda g: (
              (True, "query_matrix_sum 全域矩陣查詢正確！")
-             if (callable(g.get("query_matrix_sum"))) or
-                ("query_matrix_sum" in history_str and "score_grid" in history_str)
-             else (False, "請定義 query_matrix_sum 直接走訪全域矩陣指定範圍並回傳總和！")
+             if ("score_grid" in history_str and "path" in history_str) or
+                ("score_grid" in history_str and "+=" in history_str)
+             else (False, "請直接走訪全域 score_grid 矩陣並累加路徑總分！")
          )),
 
-        ("11-5-3", "挑戰題", "全域二維網格浸水著色 global_flood_fill", 6, ("global_flood_fill",),
+        ("11-5-3", "挑戰題", "全域網格高低起伏探測 find_local_peaks()", 6, ("find_local_peaks",),
          lambda g: (
              (True, "global_flood_fill 全域網格染色實作正確！")
-             if (callable(g.get("global_flood_fill"))) or
-                ("global_flood_fill" in history_str)
-             else (False, "請直接修改全域網格指定座標與相鄰格子之數值！")
+             if (callable(g.get("find_local_peaks"))) or
+                ("find_local_peaks" in history_str and "elevation_map" in history_str)
+             else (False, "請走訪全域地形矩陣 elevation_map 找出區域極值點！")
          )),
 
         # ----------------------------------------------------------------------
@@ -258,19 +258,19 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請直接在 add_job 呼叫 print_queue.append(job) 體驗可變物件免 global！")
          )),
 
-        ("11-5-4", "練習題", "購物車清單免 global 原處修改 add_to_cart", 6, ("add_to_cart",),
+        ("11-5-4", "練習題", "購物車清單免 global 原處修改 add_item", 6, ("add_item",),
          lambda g: (
              (True, "add_to_cart 免 global 串列操作正確！")
-             if (callable(g.get("add_to_cart"))) or
-                ("add_to_cart" in history_str and "cart.append" in history_str)
-             else (False, "請在 add_to_cart 直接對全域 cart 串列進行 append 操作！")
+             if (callable(g.get("add_item"))) or
+                ("add_item" in history_str and "cart.append" in history_str)
+             else (False, "請在 add_item 直接對全域 cart 串列進行 append 操作！")
          )),
 
-        ("11-5-4", "挑戰題", "全域成績字典就地登錄 update_grade_book", 6, ("update_grade_book",),
+        ("11-5-4", "挑戰題", "全域成績字典就地登錄 update_grade", 6, ("update_grade",),
          lambda g: (
              (True, "update_grade_book 免 global 字典更新正確！")
-             if (callable(g.get("update_grade_book"))) or
-                ("update_grade_book" in history_str and "grade_book" in history_str)
+             if (callable(g.get("update_grade"))) or
+                ("update_grade" in history_str and "grade_book" in history_str)
              else (False, "請直接對全域 grade_book 字典賦值，體驗字典就地修改無須 global！")
          )),
 
@@ -285,12 +285,12 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請觀察 process_daily_batch 未清空全域 visitor_log 所導致的跨日污染！")
          )),
 
-        ("11-5-5", "練習題", "字元統計前重置清空 reset_and_count_chars(s)", 6, ("reset_and_count_chars",),
+        ("11-5-5", "練習題", "字元出現次數統計與歸零重置 count_letter", 6, ("count_letter",),
          lambda g: (
              (True, "reset_and_count_chars 重置清空正確！")
-             if (callable(g.get("reset_and_count_chars"))) or
-                ("char_count.clear()" in history_str or "char_count = {}" in history_str)
-             else (False, "請在 reset_and_count_chars 開頭清空全域字典，杜絕殘留狀態！")
+             if (callable(g.get("count_letter"))) or
+                ("char_count = 0" in history_str or "char_count" in history_str)
+             else (False, "請在 count_letter 開頭重置全域 char_count，杜絕殘留狀態！")
          )),
 
         ("11-5-5", "挑戰題", "跨多筆測資偶數和安全累加模擬", 5, (),
@@ -311,12 +311,12 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請定義 reset_contest 歸零全域變數，並在 solve_case 前呼叫！")
          )),
 
-        ("11-5-6", "練習題", "氣象站每季重置與讀取記錄 reset_weather_station", 6, ("reset_weather_station",),
+        ("11-5-6", "練習題", "最大溫差分析器重置與計算 reset_day 與 analyze_day", 6, ("reset_day", "analyze_day"),
          lambda g: (
              (True, "reset_weather_station 每季重置實作正確！")
-             if (callable(g.get("reset_weather_station"))) or
-                ("reset_weather_station" in history_str and "daily_high" in history_str)
-             else (False, "請實作 reset_weather_station 歸零 daily_high 與 daily_low！")
+             if (callable(g.get("reset_day")) and callable(g.get("analyze_day"))) or
+                ("reset_day" in history_str and "analyze_day" in history_str)
+             else (False, "請實作 reset_day 與 analyze_day 歸零並分析極值！")
          )),
 
         ("11-5-6", "挑戰題", "APCS 多筆測資迴圈開頭重置除錯模擬", 5, (),

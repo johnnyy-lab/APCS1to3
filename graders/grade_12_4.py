@@ -111,25 +111,25 @@ def check_q1(g, hist):
 
 def check_q2(g, hist):
     rem_zero = g.get("rem_zero")
-    res = g.get("res")
-    if rem_zero is None and res is None:
+    sorted_rem = g.get("sorted_rem")
+    if rem_zero is None and sorted_rem is None:
         return False, "未獲得符合預期的餘數排序結果，請確認 sorted(data, key=lambda x: x % 5)。"
     # 模 5 餘數排序
     data = [14, 20, 8, 12, 5, 9]
     expected_order = [20, 5, 12, 8, 14, 9] # 20%5=0, 5%5=0, 12%5=2, 8%5=3, 14%5=4, 9%5=4 (stable sort)
-    if res == expected_order or (rem_zero == [20, 5] and "x % 5" in hist):
+    if sorted_rem == expected_order or (rem_zero == [20, 5] and "x % 5" in hist):
         return True, "完全正確！精準運用 lambda x: x % 5 完成餘數排序與零餘數篩選！"
     if "% 5" in hist and "lambda" in hist:
         return True, "檢測到模 5 排序邏輯，判定通過！"
     return False, "未獲得符合預期的餘數排序結果，請確認 sorted(data, key=lambda x: x % 5)。"
 
 def check_q3(g, hist):
-    res = g.get("res")
-    if res is None:
+    sorted_case_insensitive = g.get("sorted_case_insensitive")
+    if sorted_case_insensitive is None:
         return False, "請使用 sorted(words, key=lambda s: s.lower()) 完成大小寫不敏感排序。"
     words = ["apple", "BANANA", "Cherry", "date"]
     expected = ["apple", "BANANA", "Cherry", "date"]
-    if "s.lower()" in hist or "x.lower()" in hist or (isinstance(res, list) and len(res) == 4 and [w.lower() for w in res] == sorted([w.lower() for w in words])):
+    if "s.lower()" in hist or "x.lower()" in hist or (isinstance(res, list) and len(res) == 4 and [w.lower() for w in sorted_case_insensitive] == sorted([w.lower() for w in words])):
         return True, "太厲害了！成功運用 lambda 搭配 .lower() 達成大小寫不敏感排序！"
     return False, "請使用 sorted(words, key=lambda s: s.lower()) 完成大小寫不敏感排序。"
 
@@ -143,13 +143,13 @@ def check_q4(g, hist):
     return False, "未檢測到正確的線段長度排序結果，請填入 seg[1] - seg[0]。"
 
 def check_q5(g, hist):
-    res = g.get("res")
-    if res is None:
+    sorted_books_price = g.get("sorted_books_price")
+    if sorted_books_price is None:
         return False, "請使用 sorted(books, key=lambda b: b[2]) 依價格欄位排序。"
     # 圖書依價格 (b[2]) 排序
     books = [("Python 入門", 350, 480), ("演算法圖鑑", 280, 550), ("APCS 攻略", 400, 420)]
     expected = [("APCS 攻略", 400, 420), ("Python 入門", 350, 480), ("演算法圖鑑", 280, 550)]
-    if res == expected or ("b[2]" in hist or "x[2]" in hist):
+    if sorted_books_price == expected or ("b[2]" in hist or "x[2]" in hist):
         return True, "精彩！熟練使用索引 x[2] 依價格排序並取出最便宜書籍！"
     return False, "請使用 sorted(books, key=lambda b: b[2]) 依價格欄位排序。"
 
@@ -175,12 +175,12 @@ def check_q7(g, hist):
     return False, "請填入 (s[0], s[1]) 完成年級與班級的元組打包排序。"
 
 def check_q8(g, hist):
-    res = g.get("res")
-    if res is None:
+    sorted_athletes = g.get("sorted_athletes")
+    if sorted_athletes is None:
         return False, "請使用 sorted(athlete_data, key=lambda a: (a[0], a[1]))。"
     ad = [(2, 14.5, "Tom"), (1, 15.2, "Jerry"), (2, 12.8, "Bob"), (1, 13.9, "Alice")]
     expected = [(1, 13.9, "Alice"), (1, 15.2, "Jerry"), (2, 12.8, "Bob"), (2, 14.5, "Tom")]
-    if res == expected or ("(a[0], a[1])" in hist or "(x[0], x[1])" in hist or "(a[0],a[1])" in hist):
+    if sorted_athletes == expected or ("(a[0], a[1])" in hist or "(x[0], x[1])" in hist or "(a[0],a[1])" in hist):
         return True, "太棒了！成功實現組別升序與秒數升序之雙鍵值排序！"
     return False, "請使用 sorted(athlete_data, key=lambda a: (a[0], a[1]))。"
 
@@ -209,12 +209,12 @@ def check_q10(g, hist):
     return False, "請填入 -p[1] 對積分加上負號以達到降序效果。"
 
 def check_q11(g, hist):
-    res = g.get("res")
-    if res is None:
+    sorted_employees = g.get("sorted_employees")
+    if sorted_employees is None:
         return False, "請使用 sorted(employees, key=lambda e: (-e[1], e[2]))。"
     employees = [(1, 88, 2), (2, 95, 1), (3, 88, 0), (4, 95, 3)]
     expected = [(2, 95, 1), (4, 95, 3), (3, 88, 0), (1, 88, 2)]
-    if res == expected or ("-e[1]" in hist or "-x[1]" in hist):
+    if sorted_employees == expected or ("-e[1]" in hist or "-x[1]" in hist):
         return True, "精彩！精準使用 (-e[1], e[2]) 解決績效降序與遲到升序的經典混合排序！"
     return False, "請使用 sorted(employees, key=lambda e: (-e[1], e[2]))。"
 
@@ -271,14 +271,14 @@ def check_q16(g, hist):
     return False, "請在填空處填入 reverse=True 以達成由遠到近降序排列。"
 
 def check_q17(g, hist):
-    res = g.get("res")
+    sorted_points = g.get("sorted_points")
     closest = g.get("closest")
-    if res is None and closest is None:
+    if sorted_points is None and closest is None:
         return False, "請使用 key=lambda p: p[0]**2 + p[1]**2 排序並找出最近點。"
     points = [(4, 3), (1, 2), (0, 3), (-1, -1)]
     # 平方: 25, 5, 9, 2 -> 升序: [(-1, -1), (1, 2), (0, 3), (4, 3)]
     expected = [(-1, -1), (1, 2), (0, 3), (4, 3)]
-    if res == expected or closest == (-1, -1) or ("p[0]**2 + p[1]**2" in hist or "p[0] ** 2 + p[1] ** 2" in hist):
+    if sorted_points == expected or closest == (-1, -1) or ("p[0]**2 + p[1]**2" in hist or "p[0] ** 2 + p[1] ** 2" in hist):
         return True, "太強了！成功依離原點距離平方由小到大排序並找出最接近點！"
     return False, "請使用 key=lambda p: p[0]**2 + p[1]**2 排序並找出最近點。"
 
@@ -342,25 +342,25 @@ def auto_grade_unit_12_4(env=None):
     test_cases = [
         ('12-4-1', '填空題', 'lambda 乘以 2 長度排序', 6, ("sorted_words",),
          lambda g: check_q1(g, history_str)),
-        ('12-4-1', '練習題', '模 5 餘數排序與篩選', 6, ("rem_zero", "res"),
+        ('12-4-1', '練習題', '模 5 餘數排序與篩選', 6, ("rem_zero", "sorted_rem"),
          lambda g: check_q2(g, history_str)),
-        ('12-4-1', '挑戰題', '大小寫不敏感 lambda 排序', 5, ("res",),
+        ('12-4-1', '挑戰題', '大小寫不敏感 lambda 排序', 5, ("sorted_case_insensitive",),
          lambda g: check_q3(g, history_str)),
         ('12-4-2', '填空題', '線段長度差值排序', 6, ("sorted_segments",),
          lambda g: check_q4(g, history_str)),
-        ('12-4-2', '練習題', '圖書價格索引排序與首項', 6, ("res",),
+        ('12-4-2', '練習題', '圖書價格索引排序與首項', 6, ("sorted_books_price",),
          lambda g: check_q5(g, history_str)),
         ('12-4-2', '挑戰題', '包裹體積降序排序', 5, ("sorted_pkg",),
          lambda g: check_q6(g, history_str)),
         ('12-4-3', '填空題', '年級與班級雙準則打包排序', 6, ("sorted_roster",),
          lambda g: check_q7(g, history_str)),
-        ('12-4-3', '練習題', '選手組別與秒數雙升序排序', 6, ("res",),
+        ('12-4-3', '練習題', '選手組別與秒數雙升序排序', 6, ("sorted_athletes",),
          lambda g: check_q8(g, history_str)),
         ('12-4-3', '挑戰題', '年份與頁數雙升序排序', 5, ("sorted_books",),
          lambda g: check_q9(g, history_str)),
         ('12-4-4', '填空題', '積分負號降序與犯規升序', 6, ("sorted_players",),
          lambda g: check_q10(g, history_str)),
-        ('12-4-4', '練習題', '員工績效降序與遲到升序', 6, ("res",),
+        ('12-4-4', '練習題', '員工績效降序與遲到升序', 6, ("sorted_employees",),
          lambda g: check_q11(g, history_str)),
         ('12-4-4', '挑戰題', '公會等級戰力雙降序與名稱升序', 5, ("sorted_members",),
          lambda g: check_q12(g, history_str)),
@@ -372,7 +372,7 @@ def auto_grade_unit_12_4(env=None):
          lambda g: check_q15(g, history_str)),
         ('12-4-6', '填空題', '基地台原點距離平方降序', 6, ("farthest_stations",),
          lambda g: check_q16(g, history_str)),
-        ('12-4-6', '練習題', '二維座標距離平方排序與最近點', 5, ("res", "closest"),
+        ('12-4-6', '練習題', '二維座標距離平方排序與最近點', 5, ("sorted_points", "closest"),
          lambda g: check_q17(g, history_str)),
         ('12-4-6', '挑戰題', '寶箱相對於玩家距離平方排序', 5, ("sorted_chests",),
          lambda g: check_q18(g, history_str)),

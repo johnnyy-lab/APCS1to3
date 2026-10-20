@@ -193,11 +193,11 @@ def check_q10(g, hist):
     return False, "請填入 bisect_left(numbers, 20) 與 bisect_right(numbers, 40)。"
 
 def check_q11(g, hist):
-    res = g.get("res")
-    if res is None:
+    range_counts = g.get("range_counts")
+    if range_counts is None:
         return False, "請以 bisect_right - bisect_left 計算各區間人數清單。"
     # queries = [(160, 170), (150, 150), (190, 200)] -> [3, 1, 0]
-    if res == [3, 1, 0] or ("count_in_range" in hist):
+    if range_counts == [3, 1, 0] or ("count_in_range" in hist):
         return True, "太棒了！批次查詢多組身高區間人數 [3, 1, 0] 完全無誤！"
     return False, "請以 bisect_right - bisect_left 計算各區間人數清單。"
 
@@ -338,7 +338,7 @@ def auto_grade_unit_12_9(env=None):
          lambda g: check_q9(g, history_str)),
         ('12-9-4', '填空題', '雙界相減 r - l 秒算區間元素總數', 6, ("count",),
          lambda g: check_q10(g, history_str)),
-        ('12-9-4', '練習題', '批次多組區間範圍人數極速查詢', 6, ("res",),
+        ('12-9-4', '練習題', '批次多組區間範圍人數極速查詢', 6, ("range_counts",),
          lambda g: check_q11(g, history_str)),
         ('12-9-4', '挑戰題', '折價券資格訂單筆數與切片總金額計算', 5, ("qualified_count", "qualified_sum"),
          lambda g: check_q12(g, history_str)),

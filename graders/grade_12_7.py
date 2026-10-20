@@ -213,7 +213,7 @@ def check_q13(g, hist):
     if mc is None:
         return False, "請使用 math.ceil(math.log2(n)) 計算比對次數上限。"
     # n = 1,000,000 -> ceil(log2(1000000)) = 20
-    if mc == 20 or ("math.log2(n)" in hist or "math.log2" in hist):
+    if mc == 20 or ("math.log2(data_scale)" in hist or "math.log2" in hist):
         return True, "完全正確！一百萬筆資料二分搜尋僅需 20 次比對即可定生死！"
     return False, "請使用 math.ceil(math.log2(n)) 計算比對次數上限。"
 
@@ -314,7 +314,7 @@ def auto_grade_unit_12_7(env=None):
     test_cases = [
         ('12-7-1', '填空題', '原地升序排序滿足二分前提', 6, ("user_inputs",),
          lambda g: check_q1(g, history_str)),
-        ('12-7-1', '練習題', '檢驗單調性與自動修復排序', 6, ("is_sorted", "data"),
+        ('12-7-1', '練習題', '檢驗單調性與自動修復排序', 6, ("is_sorted", "numbers_to_check"),
          lambda g: check_q2(g, history_str)),
         ('12-7-1', '挑戰題', '單字字典序排序與正中間定位', 5, ("mid_word",),
          lambda g: check_q3(g, history_str)),

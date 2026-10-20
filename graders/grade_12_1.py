@@ -177,11 +177,11 @@ def auto_grade_unit_12_1(env=None):
              else (False, "尚未找到符合預期的 sorted_heights，請使用 sorted(heights) 並確認已點擊儲存格播放鍵執行！")
          )),
 
-        ("12-1-1", "練習題", "整數數列升序排序與全距計算", 6, ("res",),
+        ("12-1-1", "練習題", "整數數列升序排序與全距計算", 6, ("sorted_raw_data",),
          lambda g: (
              (True, "練習題 12.1.1 raw_data 升序排序與全距計算正確！")
-             if (g.get("res") == [12, 34, 45, 67, 89]) or
-                ("sorted(raw_data)" in history_str and ("- res[0]" in history_str or "77" in history_str or "res[-1]" in history_str))
+             if (g.get("sorted_raw_data") == [12, 34, 45, 67, 89]) or
+                ("sorted(raw_data)" in history_str and ("- sorted_raw_data[0]" in history_str or "77" in history_str or "sorted_raw_data[-1]" in history_str))
              else (False, "請將 raw_data 進行 sorted() 升序排序，並計算最大值與最小值之全距（最大值 - 最小值）！")
          )),
 
@@ -207,14 +207,14 @@ def auto_grade_unit_12_1(env=None):
              )
          )),
 
-        ("12-1-2", "練習題", "data.sort() 原地修改負數與正數串列", 6, ("data",),
+        ("12-1-2", "練習題", "numbers_list.sort() 原地修改負數與正數串列", 6, ("numbers_list",),
          lambda g: (
-             (False, "⚠️ 偵測到 data 變數值為 None！請勿對 .sort() 進行賦值（避免 data = data.sort()）！")
-             if g.get("data") is None
+             (False, "⚠️ 偵測到 numbers_list 變數值為 None！請勿對 .sort() 進行賦值（避免 numbers_list = numbers_list.sort()）！")
+             if g.get("numbers_list") is None
              else (
-                 (True, "練習題 12.1.2 data.sort() 原地排序與首元素取值正確！")
-                 if (g.get("data") == [-9, -3, 0, 15, 42]) or ("data.sort()" in history_str and "data = data.sort()" not in history_clean)
-                 else (False, "請使用 data.sort() 對 data 進行原地升序排序，並印出排序後內容與第一個元素！")
+                 (True, "練習題 12.1.2 numbers_list.sort() 原地排序與首元素取值正確！")
+                 if (g.get("numbers_list") == [-9, -3, 0, 15, 42]) or ("numbers_list.sort()" in history_str and "numbers_list = numbers_list.sort()" not in history_clean)
+                 else (False, "請使用 numbers_list.sort() 將 numbers_list 進行原地升序排序，並印出排序後內容與第一個元素！")
              )
          )),
 
@@ -314,16 +314,16 @@ def auto_grade_unit_12_1(env=None):
          lambda g: (
              (True, "sorted_data 穩定排序填空正確！相同鍵值項目順序完全保持原樣！")
              if (g.get("sorted_data") == [('B', 5), ('D', 5), ('A', 10), ('C', 10)]) or
-                ("sorted(data, key=get_value)" in history_str or "sorted(data,key=get_value)" in history_clean)
-             else (False, "請使用 sorted_data = sorted(data, key=get_value) 驗證穩定排序特性！")
+                ("sorted(raw_pairs, key=get_value)" in history_str or "sorted(raw_pairs,key=get_value)" in history_clean or "sorted(data" in history_str)
+             else (False, "請使用 sorted_data = sorted(raw_pairs, key=get_value) 驗證穩定排序特性！")
          )),
 
-        ("12-1-6", "練習題", "選手同分成績穩定排序保留登記順序", 6, ("res",),
+        ("12-1-6", "練習題", "選手同分成績穩定排序保留登記順序", 6, ("sorted_athletes",),
          lambda g: (
              (True, "練習題 12.1.6 選手成績穩定排序正確！同分者登記先後完全維持！")
-             if (g.get("res") == [(80, 'T2'), (80, 'T4'), (100, 'T1'), (100, 'T3')]) or
+             if (g.get("sorted_athletes") == [(80, 'T2'), (80, 'T4'), (100, 'T1'), (100, 'T3')]) or
                 ("sorted(athletes" in history_str and ("take_score" in history_str or "lambda" in history_str))
-             else (False, "請以分數為鍵值對 athletes 進行 sorted 排序，確認同分選手保持原始相對順序！")
+             else (False, "請以分數為鍵對 athletes 進行 sorted 排序，確認同分者保留原始相對順序！")
          )),
 
         ("12-1-6", "挑戰題", "商品類別穩定排序示範", 5, ("sorted_products",),

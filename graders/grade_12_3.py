@@ -177,12 +177,12 @@ def auto_grade_unit_12_3(env=None):
              else (False, "尚未找到符合預期的 sorted_slogans，請定義 word_len 回傳 len(s) 並傳入 key=word_len！")
          )),
 
-        ("12-3-1", "練習題", "定義 text_length 依長度升序排列 phrases 並標註最長字串", 6, ("res",),
+        ("12-3-1", "練習題", "定義 text_length 依長度升序排列 phrases 並標註最長字串", 6, ("sorted_phrases",),
          lambda g: (
              (True, "練習題 12.3.1 phrases 依長度排序正確！最長字串標註無誤！")
-             if (g.get("res") == ['pie', 'fig', 'apple', 'banana', 'watermelon']) or
-                ("text_length" in history_str and "phrases" in history_str and "watermelon" in history_str)
-             else (False, "請定義 text_length(text) 回傳 len(text)，將 phrases 由短到長排序並輸出最長字串！")
+             if (g.get("sorted_phrases") == ['pie', 'fig', 'apple', 'banana', 'watermelon']) or
+                ("text_length" in history_str and "sorted_phrases" in history_str)
+             else (False, "請定義 text_length(text) 回傳 len(text)，配合 sorted(phrases, key=text_length) 排序！")
          )),
 
         ("12-3-1", "挑戰題", "結合 key 函數與 reverse=True 依文章標題長度降序排列", 6, ("long_to_short",),
@@ -235,12 +235,12 @@ def auto_grade_unit_12_3(env=None):
              else (False, "請在 count_vowels 函數中 return cnt，並傳入 key=count_vowels 排序單字！")
          )),
 
-        ("12-3-3", "練習題", "定義 distance_from_50 排序離 50 距離並找出最接近數值", 6, ("res",),
+        ("12-3-3", "練習題", "定義 distance_from_50 排序離 50 距離並找出最接近數值", 6, ("sorted_near_50",),
          lambda g: (
              (True, "練習題 12.3.3 distance_from_50 距離排序與最接近數值輸出正確！")
-             if (g.get("res") == [48, 53, 42, 65, 20, 80]) or
-                ("distance_from_50" in history_str and "raw_vals" in history_str and "48" in history_str)
-             else (False, "請定義 distance_from_50(x) 回傳 abs(x - 50)，將 raw_vals 排序並輸出最接近 50 的數值！")
+             if (g.get("sorted_near_50") == [48, 53, 42, 65, 20, 80]) or
+                ("distance_from_50" in history_str and "raw_vals" in history_str)
+             else (False, "請定義 distance_from_50(x) 回傳 abs(x - 50)，對 raw_vals 進行排序！")
          )),
 
         ("12-3-3", "挑戰題", "定義 calc_digit_sum 依數字各位數之和升序排序", 6, ("sorted_by_digit_sum",),
@@ -289,12 +289,12 @@ def auto_grade_unit_12_3(env=None):
              else (False, "請在 get_price 中回傳 item_pair[1]，並使用 sorted(cart.items(), key=get_price)！")
          )),
 
-        ("12-3-5", "練習題", "定義 get_frequency 依詞頻降序排序 freq.items() 並印出最高頻單字", 6, ("res",),
+        ("12-3-5", "練習題", "定義 get_frequency 依詞頻降序排序 freq.items() 並印出最高頻單字", 6, ("sorted_freq",),
          lambda g: (
              (True, "練習題 12.3.5 詞頻字典降序排行與最高頻單字輸出正確！")
-             if (g.get("res") == [('the', 42), ('is', 30), ('python', 15), ('code', 8)]) or
-                ("get_frequency" in history_str and "freq.items()" in history_clean and "the" in history_str)
-             else (False, "請定義 get_frequency(pair) 回傳 pair[1]，將 freq.items() 依出現次數降序排列！")
+             if (g.get("sorted_freq") == [('the', 42), ('is', 30), ('python', 15), ('code', 8)]) or
+                ("get_frequency" in history_str and "freq.items()" in history_clean)
+             else (False, "請定義 get_frequency 並以 reverse=True 對 freq.items() 降序排序！")
          )),
 
         ("12-3-5", "挑戰題", "線上商店 VIP 顧客前兩大消費金額合計與營業額佔比分析", 5, ("top2_sum",),
@@ -316,12 +316,12 @@ def auto_grade_unit_12_3(env=None):
              else (False, "當長度不足 2 時請 return \"\" 空字串，並傳入 key=safe_second_char 進行安全排序！")
          )),
 
-        ("12-3-6", "練習題", "定義 get_month 提取月份整數、單獨印出驗證並排序 dates", 6, ("res",),
+        ("12-3-6", "練習題", "定義 get_month 提取月份整數、單獨印出驗證並排序 dates", 6, ("sorted_dates",),
          lambda g: (
              (True, "練習題 12.3.6 get_month 月份提取、單獨除錯驗證與 dates 排序正確！")
-             if (g.get("res") == ['2026-01-30', '2026-03-21', '2026-08-14', '2026-11-05']) or
-                ("get_month" in history_str and "dates" in history_str and "2026-09-15" in history_str)
-             else (False, "請定義 get_month(date_str) 提取月份整數，先單獨測試 '2026-09-15' 再排序 dates！")
+             if (g.get("sorted_dates") == ['2026-01-30', '2026-03-21', '2026-08-14', '2026-11-05']) or
+                ("get_month" in history_str and "dates" in history_str)
+             else (False, "請實作 get_month(date_str) 取出月份整數，單獨印出驗證後將 dates 依月份排序！")
          )),
 
         ("12-3-6", "挑戰題", "time_to_seconds 時間轉秒數、單獨測試驗證並評選賽車冠軍", 5, ("ranked_racers",),

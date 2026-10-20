@@ -204,12 +204,12 @@ def auto_grade_unit_12_2(env=None):
              else (False, "請使用 alpha_order = sorted(languages) 依字母字典序排列程式語言名稱！")
          )),
 
-        ("12-2-2", "練習題", "raw_words 字典序排序與末位單字首字元及長度", 6, ("res",),
+        ("12-2-2", "練習題", "raw_words 字典序排序與末位單字首字元及長度", 6, ("sorted_animals",),
          lambda g: (
              (True, "練習題 12.2.2 單字字典序排序與末位單字特徵擷取正確！")
-             if (g.get("res") == ['ant', 'bear', 'dog', 'monkey', 'zebra']) or
-                ("sorted(raw_words)" in history_str and "zebra" in history_str)
-             else (False, "請使用 sorted(raw_words) 進行字典序排序，並輸出最後一個單字的首字母與長度！")
+             if (g.get("sorted_animals") == ['ant', 'bear', 'dog', 'monkey', 'zebra']) or
+                ("sorted(raw_words)" in history_str and ("len(" in history_str or "zebra" in history_str))
+             else (False, "請將 raw_words 進行字典序升序排序，並輸出排序結果與最後一個單字的首字與長度！")
          )),
 
         ("12-2-2", "挑戰題", "逐字元 ASCII 比對驗證器找出勝負索引", 6, ("diff_found",),
@@ -258,12 +258,12 @@ def auto_grade_unit_12_2(env=None):
         # ----------------------------------------------------------------------
         # 12-2-4 大小寫混合字串排序規則：大寫字母永遠排在小寫前面 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-2-4", "填空題", "標準 ASCII 排序大寫字母優先 result = sorted(tags)", 5, ("result",),
+        ("12-2-4", "填空題", "標準 ASCII 排序大寫字母優先 sorted_tags = sorted(tags)", 5, ("sorted_tags",),
          lambda g: (
-             (True, "result 標準 ASCII 排序正確！大寫字母開頭者成功排在最前方！")
-             if (g.get("result") == ['AI', 'Data', 'algorithm', 'python']) or
-                ("sorted(tags)" in history_str and "result" in history_str)
-             else (False, "請使用 result = sorted(tags) 進行標準 ASCII 排序，並觀察排在第 0 位的單字！")
+             (True, "sorted_tags 標準 ASCII 排序正確！大寫字母開頭者成功排在最前方！")
+             if (g.get("sorted_tags") == ['AI', 'Data', 'algorithm', 'python']) or
+                ("sorted(tags)" in history_str and "sorted_tags" in history_str)
+             else (False, "請以 sorted(tags) 進行標準 ASCII 排序，觀察大寫字母優先排序的特性！")
          )),
 
         ("12-2-4", "練習題", "code_names 排序並統計大寫開頭國家名稱個數", 6, ("upper_count", "sorted_names"),
@@ -293,13 +293,12 @@ def auto_grade_unit_12_2(env=None):
              else (False, "請定義 invert_sign(t) 回傳 -t，並傳入 key=invert_sign 將氣溫由高到低排序！")
          )),
 
-        ("12-2-5", "練習題", "negative_key 高度降序排序與最高次高差距", 6, ("res",),
+        ("12-2-5", "練習題", "negative_key 高度降序排序與最高次高差距", 6, ("sorted_altitudes",),
          lambda g: (
              (True, "練習題 12.2.5 negative_key 高度降序排序與最高次高差距計算正確！")
-             if (g.get("res") == [4200, 3500, 2100, 1200, 800]) or
-                ("negative_key" in history_str and "altitudes" in history_str) or
-                ("return -x" in history_str and "altitudes" in history_str)
-             else (False, "請定義 negative_key(x) 回傳 -x，排序 altitudes 並計算最高與次高差距（700）！")
+             if (g.get("sorted_altitudes") == [4200, 3500, 2100, 1200, 800]) or
+                ("negative_key" in history_str and "altitudes" in history_str)
+             else (False, "請定義負號函式 negative_key 並配合 sorted() 將 altitudes 降序排序，計算前兩名差距！")
          )),
 
         ("12-2-5", "挑戰題", "利用負號取反函數排序利潤並找出最大虧損金額", 5, ("desc_profits",),
@@ -325,12 +324,12 @@ def auto_grade_unit_12_2(env=None):
              )
          )),
 
-        ("12-2-6", "練習題", "城市名單大小寫不敏感升序排序與首個城市輸出", 6, ("res",),
+        ("12-2-6", "練習題", "城市名單大小寫不敏感升序排序與首個城市輸出", 6, ("sorted_cities",),
          lambda g: (
              (True, "練習題 12.2.6 城市名單大小寫不敏感排序正確！首個城市為 amsterdam！")
-             if (g.get("res") == ['amsterdam', 'Berlin', 'London', 'paris', 'tokyo']) or
-                ("cities" in history_str and "key=str.lower" in history_clean)
-             else (False, "請使用 sorted(cities, key=str.lower) 對城市名單進行大小寫不敏感排序！")
+             if (g.get("sorted_cities") == ['amsterdam', 'Berlin', 'London', 'paris', 'tokyo']) or
+                ("cities" in history_str and "str.lower" in history_str)
+             else (False, "請使用 key=str.lower 對 cities 進行大小寫不敏感排序，並輸出首個城市！")
          )),
 
         ("12-2-6", "挑戰題", "結合 key=str.lower 與 reverse=True 實現反向降序不分大小寫排序", 5, ("desc_words",),

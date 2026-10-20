@@ -144,10 +144,10 @@ def auto_grade_unit_7_4(env=None):
         # ----------------------------------------------------------------------
         # 7-4-1 字串長度函數 len() 與邊界守護 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-4-1", "填空題", "字串長度函數 len() 安全長度檢驗 (result)", 6, ("result",),
+        ("7-4-1", "填空題", "字串長度函數 len() 安全長度檢驗 (pwd_status)", 6, ("pwd_status",),
          lambda g: (
              (True, "len(password) >= 8 長度判斷完全正確！")
-             if g.get("result") == "Password is strong" or
+             if g.get("pwd_status") == "Password is strong" or
                 ("len(password)" in history_clean and ">= 8" in history_str)
              else (False, "請在 7-4-1 填空題空格填入函數名稱 len！")
          )),

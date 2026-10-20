@@ -231,12 +231,12 @@ def auto_grade_unit_7_3(env=None):
              else (False, "請在 7-3-4 填空題冒號後填入 4d！")
          )),
 
-        ("7-3-4", "練習題", "變數 n 之 {:4d} 排版輸出", 9, ("n",),
+        ("7-3-4", "練習題", "變數 num_val 之 {:4d} 排版輸出", 9, ("num_val",),
          lambda g: (
-             (True, "變數 n 以 {:4d} 寬度靠右對齊輸出正確！")
-             if (":4d" in history_str and ("n" in history_str or "print" in history_str)) or
-                ("n" in g and ":4d" in history_str)
-             else (False, "請使用 f-string 配合 {:4d} 格式印出變數 n！")
+             (True, "變數 num_val 以 {:4d} 寬度靠右對齊輸出正確！")
+             if (":4d" in history_str and ("num_val" in history_str or "print" in history_str)) or
+                ("num_val" in g and ":4d" in history_str)
+             else (False, "請使用 f-string 配合 {:4d} 格式印出變數 num_val！")
          )),
 
         ("7-3-4", "挑戰題", "三行數字 {:5d} 個位數直排對齊", 5, (),

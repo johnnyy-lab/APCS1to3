@@ -272,16 +272,16 @@ def auto_grade_unit_5_5(env=None):
              if (("diff < 0" in history_str.replace(" ", "") or "diff<0" in history_str.replace(" ", "")) and
                  ("diff = 0" in history_str.replace(" ", "") or "diff=0" in history_str.replace(" ", ""))) or
                 ("diff" in g)
-             else (False, "請讀入 a 與 b，計算 diff = a - b，若 diff < 0 則更新 diff = 0！")
+             else (False, "請讀入 val1 與 val2，計算 diff = val1 - val2，若 diff < 0 則更新 diff = 0！")
          )),
 
-        ("5-5-5", "挑戰題", "最小值單行連續更新 (min_val 連續更新)", 6, ("a", "b", "c"),
+        ("5-5-5", "挑戰題", "最小值單行連續更新 (min_val 連續更新)", 6, ("min_val",),
          lambda g: (
              (True, "三數最小值單行 if 連續更新成功！")
              if (("min_val" in history_str and "if" in history_str) or
                  ("min(" in history_str)) or
-                (all(k in g for k in ["a", "b", "c"]))
-             else (False, "請讀入 a, b, c，利用單行 if 逐步比較更新 min_val 並輸出！")
+                ("min_val" in g)
+             else (False, "請讀入 num1, num2, num3，利用單行 if 逐步比較更新 min_val 並輸出！")
          )),
     ]
 

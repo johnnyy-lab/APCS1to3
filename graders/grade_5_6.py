@@ -160,13 +160,13 @@ def auto_grade_unit_5_6(env=None):
              else (False, "請依題意以巢狀 if 判斷帳號 'admin' 與密碼 1234 並印出結果！")
          )),
 
-        ("5-6-1", "挑戰題", "座標象限分類巢狀版 (Q1, Q2, Q3, Q4)", 6, ("x", "y"),
+        ("5-6-1", "挑戰題", "座標象限分類巢狀版 (Q1, Q2, Q3, Q4)", 6, ("pt_x", "pt_y"),
          lambda g: (
              (True, "四象限巢狀判斷輸出成功！")
              if (("Q1" in history_str and "Q2" in history_str and "Q3" in history_str and "Q4" in history_str) or
-                 ("x > 0" in history_str and "y > 0" in history_str and "if" in history_str)) or
-                ("x" in g and "y" in g)
-             else (False, "請讀入 x 與 y，以巢狀 if-else 區分 Q1, Q2, Q3, Q4 象限！")
+                 ("pt_x > 0" in history_str and "pt_y > 0" in history_str and "if" in history_str)) or
+                ("pt_x" in g and "pt_y" in g)
+             else (False, "請讀入 pt_x 與 pt_y，以巢狀 if-else 區分 Q1, Q2, Q3, Q4 象限！")
          )),
 
         # ----------------------------------------------------------------------
@@ -189,13 +189,14 @@ def auto_grade_unit_5_6(env=None):
              else (False, "請讀入 day 與 amount，以複合條件判斷是否符合週末特惠資格！")
          )),
 
-        ("5-6-2", "挑戰題", "三角形三邊全正且任兩邊和大於第三邊 (VALID / INVALID)", 6, ("a", "b", "c"),
+        ("5-6-2", "挑戰題", "三角形三邊全正且任兩邊和大於第三邊 (VALID / INVALID)", 6, ("side_a", "side_b", "side_c"),
          lambda g: (
              (True, "三角形邊長全正與兩邊和複合判定成功！")
              if (("VALID" in history_str and "INVALID" in history_str) or
-                 ("a + b > c" in history_str and "b + c > a" in history_str and "c + a > b" in history_str)) or
-                (all(k in g for k in ["a", "b", "c"]))
-             else (False, "請讀入 a, b, c，判斷三邊均大於 0 且兩邊和大於第三邊！")
+                 ("side_a + side_b > side_c" in history_str and "side_b + side_c > side_a" in history_str and "side_c + side_a > side_b" in history_str) or
+                 ("side_a" in history_str and "side_b" in history_str and "side_c" in history_str and "VALID" in history_str)) or
+                (all(k in g for k in ["side_a", "side_b", "side_c"]))
+             else (False, "請讀入 side_a, side_b, side_c，判斷三邊均大於 0 且兩邊和大於第三邊！")
          )),
 
         # ----------------------------------------------------------------------
@@ -209,13 +210,13 @@ def auto_grade_unit_5_6(env=None):
              else (False, "請在 5-6-3 填空題填入 divisor != 0 與 and！")
          )),
 
-        ("5-6-3", "練習題", "安全除法比值檢驗 (b != 0 and a // b >= 5)", 8, ("a", "b"),
+        ("5-6-3", "練習題", "安全除法比值檢驗 (divisor != 0 and num // divisor >= 5)", 8, ("num", "divisor"),
          lambda g: (
              (True, "安全除法比值 and 短路檢驗正確！")
-             if (("b != 0 and a // b >= 5" in history_str.replace(" ", "") or "b!=0 and a//b>=5" in history_str.replace(" ", "")) or
+             if (("divisor != 0 and num // divisor >= 5" in history_str.replace(" ", "") or "divisor!=0 and num//divisor>=5" in history_str.replace(" ", "")) or
                  ("PASS" in history_str and "FAIL" in history_str)) or
-                ("a" in g and "b" in g)
-             else (False, "請讀入 a 與 b，使用 (b != 0 and a // b >= 5) 判斷 PASS 或 FAIL！")
+                ("num" in g and "divisor" in g)
+             else (False, "請讀入 num 與 divisor，使用 (divisor != 0 and num // divisor >= 5) 判斷 PASS 或 FAIL！")
          )),
 
         ("5-6-3", "挑戰題", "班級平均分防零安全網 (students > 0 and total // students >= 60)", 6, ("total_score", "students"),
@@ -267,13 +268,13 @@ def auto_grade_unit_5_6(env=None):
              else (False, "請在 5-6-5 填空題空格填入 if 與 else:！")
          )),
 
-        ("5-6-5", "練習題", "兩數整除性除數防零雙重防線 (DIVISION BY ZERO)", 8, ("a", "b"),
+        ("5-6-5", "練習題", "兩數整除性除數防零雙重防線 (DIVISION BY ZERO)", 8, ("num_a", "num_b"),
          lambda g: (
              (True, "除數為 0 邊界防禦與整除性判定正確！")
              if (("DIVISION BY ZERO" in history_str and "DIVISIBLE" in history_str and "NOT DIVISIBLE" in history_str) or
-                 ("b == 0" in history_str and "a % b == 0" in history_str)) or
-                ("a" in g and "b" in g)
-             else (False, "請讀入 a 與 b，先防線 b == 0，再判定 a % b == 0！")
+                 ("num_b == 0" in history_str and ("num_a % num_b == 0" in history_str.replace(" ", "") or "num_a % num_b" in history_str))) or
+                ("num_a" in g and "num_b" in g)
+             else (False, "請讀入 num_a 與 num_b，先防線 num_b == 0，再判定 num_a % num_b == 0！")
          )),
 
         ("5-6-5", "挑戰題", "梯形面積計算防呆安全審查 (INVALID SHAPE)", 6, ("upper", "lower", "height"),

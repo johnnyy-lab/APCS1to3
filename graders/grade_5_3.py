@@ -231,16 +231,16 @@ def auto_grade_unit_5_3(env=None):
          lambda g: (
              (True, "字串轉整數再轉布林正確：signal_status=False！")
              if (g.get("signal_status") is False) and
-                ("bool(int(s))" in history_str.replace(" ", "") or "bool" in history_str)
-             else (False, "請在 5-3-4 填空題空格填入 bool 函數完成 bool(int(s)) 轉換！")
+                ("bool(int(raw_str))" in history_str.replace(" ", "") or "bool(int(s))" in history_str.replace(" ", "") or "bool" in history_str)
+             else (False, "請在 5-3-4 填空題空格填入 bool 函數完成 bool(int(raw_str)) 轉換！")
          )),
 
-        ("5-3-4", "練習題", "數值絕對活性檢驗 (bool(x))", 8, ("x",),
+        ("5-3-4", "練習題", "數值絕對活性檢驗 (bool(num))", 8, ("num",),
          lambda g: (
-             (True, "純量活性 bool(x) 輸出檢驗正確！")
-             if ("bool(x)" in history_str.replace(" ", "") or "x != 0" in history_str) or
-                ("x" in g)
-             else (False, "請讀入整數 x，並輸出 bool(x) 判斷其數值活性！")
+             (True, "純量活性 bool(num) 輸出檢驗正確！")
+             if ("bool(num)" in history_str.replace(" ", "") or "bool(x)" in history_str.replace(" ", "") or "num != 0" in history_str) or
+                ("num" in g)
+             else (False, "請讀入整數 num，並輸出 bool(num) 判斷其數值活性！")
          )),
 
         ("5-3-4", "挑戰題", "雙文字欄位非空數量統計 (bool(w1) + bool(w2))", 6, ("w1", "w2"),
@@ -262,21 +262,21 @@ def auto_grade_unit_5_3(env=None):
              else (False, "請在 5-3-5 填空題空格填入加號 + 直接相加布林比較式！")
          )),
 
-        ("5-3-5", "練習題", "三數正數計數器 ((x>0) + (y>0) + (z>0))", 8, ("x", "y", "z"),
+        ("5-3-5", "練習題", "三數正數計數器 ((num1>0) + (num2>0) + (num3>0))", 8, ("num1", "num2", "num3"),
          lambda g: (
              (True, "三數正數個數布林相加統計正確！")
              if (("> 0" in history_str or ">0" in history_str) and "+" in history_str) or
-                (all(k in g for k in ["x", "y", "z"]))
-             else (False, "請讀入三個數字，使用 (x > 0) + (y > 0) + (z > 0) 計算正數個數！")
+                (all(k in g for k in ["num1", "num2", "num3"]))
+             else (False, "請讀入三個數字，使用 (num1 > 0) + (num2 > 0) + (num3 > 0) 計算正數個數！")
          )),
 
-        ("5-3-5", "挑戰題", "三角形三邊合法性指標驗證 (三項全合 == 3)", 6, ("a", "b", "c"),
+        ("5-3-5", "挑戰題", "三角形三邊合法性指標驗證 (三項全合 == 3)", 6, ("side_a", "side_b", "side_c"),
          lambda g: (
              (True, "三角形兩邊和大於第三邊三項布林加總檢驗成功！")
              if (("==" in history_str and "3" in history_str) or
-                 ("a + b > c" in history_str or "a+b>c" in history_str) or
-                 (all(k in g for k in ["a", "b", "c"])))
-             else (False, "請單行讀入 a, b, c，計算 (a+b>c)+(b+c>a)+(c+a>b) == 3 輸出判定！")
+                 ("side_a + side_b > side_c" in history_str or "side_a+side_b>side_c" in history_str) or
+                 (all(k in g for k in ["side_a", "side_b", "side_c"])))
+             else (False, "請單行讀入 side_a, side_b, side_c，計算 (side_a+side_b>side_c)+(side_b+side_c>side_a)+(side_c+side_a>side_b) == 3 輸出判定！")
          )),
     ]
 

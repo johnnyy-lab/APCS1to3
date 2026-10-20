@@ -162,14 +162,14 @@ def auto_grade_unit_5_2(env=None):
              else (False, "請讀入 level 與 mana，並使用 and 判斷 level >= 50 and mana >= 200！")
          )),
 
-        ("5-2-1", "挑戰題", "二維平面第一象限內部點檢驗 (x > 0 and y > 0)", 6, ("x", "y"),
+        ("5-2-1", "挑戰題", "二維平面第一象限內部點檢驗 (pt_x > 0 and pt_y > 0)", 6, ("pt_x", "pt_y"),
          lambda g: (
              (True, "第一象限內部點交集邏輯判定成功！")
-             if (("x > 0" in history_str or "x>0" in history_str) and
-                 ("y > 0" in history_str or "y>0" in history_str) and
+             if (("pt_x > 0" in history_str or "pt_x>0" in history_str) and
+                 ("pt_y > 0" in history_str or "pt_y>0" in history_str) and
                  "and" in history_str) or
-                ("x" in g and "y" in g and "and" in history_str)
-             else (False, "請單行讀入 x 與 y，並使用 and 判斷 x > 0 and y > 0 是否成立！")
+                ("pt_x" in g and "pt_y" in g and "and" in history_str)
+             else (False, "請單行讀入 pt_x 與 pt_y，並使用 and 判斷 pt_x > 0 and pt_y > 0 是否成立！")
          )),
 
         # ----------------------------------------------------------------------
@@ -269,13 +269,13 @@ def auto_grade_unit_5_2(env=None):
              else (False, "請依序填入 not、or 與 not 完成經典 XOR 互斥或公式！")
          )),
 
-        ("5-2-5", "練習題", "數值奇偶互斥判定 (恰好一奇一偶)", 8, ("a", "b"),
+        ("5-2-5", "練習題", "數值奇偶互斥判定 (恰好一奇一偶)", 8, ("num1", "num2"),
          lambda g: (
              (True, "兩數恰好一奇一偶 XOR 互斥檢驗正確！")
-             if (("is_a_odd" in history_str or "a % 2" in history_str or "a%2" in history_str) and
+             if (("is_num1_odd" in history_str or "is_a_odd" in history_str or "num1 % 2" in history_str or "num1%2" in history_str or "a % 2" in history_str) and
                  ("or" in history_str or "!=" in history_str or "^" in history_str)) or
-                ("a" in g and "b" in g and ("or" in history_str or "!=" in history_str or "^" in history_str))
-             else (False, "請讀入 a 與 b，並使用 XOR 邏輯判斷兩數是否恰好一奇一偶！")
+                ("num1" in g and "num2" in g and ("or" in history_str or "!=" in history_str or "^" in history_str))
+             else (False, "請讀入 num1 與 num2，並使用 XOR 邏輯判斷兩數是否恰好一奇一偶！")
          )),
 
         ("5-2-5", "挑戰題", "APCS c461 前哨戰——XOR 單元驗證", 6, ("in1", "in2"),

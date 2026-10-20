@@ -230,14 +230,14 @@ def auto_grade_unit_5_1(env=None):
              else (False, "請計算方案 A（9折）與方案 B（買三送一）金額，並比較方案 A 是否更便宜（<）！")
          )),
 
-        ("5-1-3", "挑戰題", "畢氏定理直角三角形驗證 (a**2 + b**2 == c**2)", 6, ("a", "b", "c"),
+        ("5-1-3", "挑戰題", "畢氏定理直角三角形驗證 (side_a**2 + side_b**2 == side_c**2)", 6, ("side_a", "side_b", "side_c"),
          lambda g: (
              (True, "畢氏定理直角三角形平方和比對成功！")
-             if ("a**2 + b**2 == c**2" in history_str.replace(" ", "") or
-                 "a*a + b*b == c*c" in history_str.replace(" ", "") or
-                 ("a" in g and "b" in g and "c" in g and "**2" in history_str and "==" in history_str)) or
+             if ("side_a**2 + side_b**2 == side_c**2" in history_str.replace(" ", "") or
+                 "side_a*side_a + side_b*side_b == side_c*side_c" in history_str.replace(" ", "") or
+                 ("side_a" in g and "side_b" in g and "side_c" in g and "**2" in history_str and "==" in history_str)) or
                 ("**" in history_str and "==" in history_str and "split" in history_str)
-             else (False, "請單行讀入三個整數 a, b, c，並驗證畢氏定理 a**2 + b**2 == c**2！")
+             else (False, "請單行讀入三個整數 side_a, side_b, side_c，並驗證畢氏定理 side_a**2 + side_b**2 == side_c**2！")
          )),
 
         # ----------------------------------------------------------------------
@@ -281,20 +281,20 @@ def auto_grade_unit_5_1(env=None):
              else (False, "請在空格填入 <= 完成 20 <= current_temp <= 28 雙向閉區間檢驗！")
          )),
 
-        ("5-1-5", "練習題", "數值落在開區間內檢驗 (10 < n < 50)", 8, ("n",),
+        ("5-1-5", "練習題", "數值落在開區間內檢驗 (10 < num < 50)", 8, ("num",),
          lambda g: (
-             (True, "連續比較式開區間 10 < n < 50 判斷正確！")
-             if ("10 < n < 50" in history_str.replace(" ", "") or "10<n<50" in history_str.replace(" ", "")) or
-                ("n" in g and ("10 < n" in history_str or "n < 50" in history_str or "10<n" in history_str.replace(" ", "")))
-             else (False, "請讀入整數 n，並使用 Python 連續比較式 10 < n < 50 輸出檢驗結果！")
+             (True, "連續比較式開區間 10 < num < 50 判斷正確！")
+             if ("10 < num < 50" in history_str.replace(" ", "") or "10<num<50" in history_str.replace(" ", "")) or
+                ("num" in g and ("10 < num" in history_str or "num < 50" in history_str or "10<num" in history_str.replace(" ", "")))
+             else (False, "請讀入整數 num，並使用 Python 連續比較式 10 < num < 50 輸出檢驗結果！")
          )),
 
-        ("5-1-5", "挑戰題", "嚴格遞增三數序列檢定 (a < b < c)", 6, ("a", "b", "c"),
+        ("5-1-5", "挑戰題", "嚴格遞增三數序列檢定 (num1 < num2 < num3)", 6, ("num1", "num2", "num3"),
          lambda g: (
-             (True, "嚴格遞增三數連續比較式 a < b < c 判斷成功！")
-             if ("a < b < c" in history_str.replace(" ", "") or "a<b<c" in history_str.replace(" ", "")) or
-                (all(k in g for k in ["a", "b", "c"]) and ("a < b < c" in history_str.replace(" ", "") or ("a < b" in history_str and "b < c" in history_str)))
-             else (False, "請單行讀入三個整數 a, b, c，並使用連續比較式 a < b < c 輸出判斷結果！")
+             (True, "嚴格遞增三數連續比較式 num1 < num2 < num3 判斷成功！")
+             if ("num1 < num2 < num3" in history_str.replace(" ", "") or "num1<num2<num3" in history_str.replace(" ", "")) or
+                (all(k in g for k in ["num1", "num2", "num3"]) and ("num1 < num2 < num3" in history_str.replace(" ", "") or ("num1 < num2" in history_str and "num2 < num3" in history_str)))
+             else (False, "請單行讀入三個整數 num1, num2, num3，並使用連續比較式 num1 < num2 < num3 輸出判斷結果！")
          )),
     ]
 

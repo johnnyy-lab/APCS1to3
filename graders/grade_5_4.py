@@ -151,22 +151,22 @@ def auto_grade_unit_5_4(env=None):
              else (False, "請在 5-4-1 填空題空格填入 not 與 and 運算子！")
          )),
 
-        ("5-4-1", "練習題", "機械雙重超標警示器 (not (temp >= 100 and press >= 50))", 8, ("temp", "press"),
+        ("5-4-1", "練習題", "機械雙重超標警示器 (not (temperature >= 100 and press >= 50))", 8, ("temperature", "press"),
          lambda g: (
              (True, "機械雙重超標否定防呆邏輯判定正確！")
              if (("not" in history_str and "100" in history_str and "50" in history_str and "and" in history_str) or
-                 ("temp < 100 or press < 50" in history_str.replace(" ", ""))) or
-                ("temp" in g and "press" in g)
-             else (False, "請讀入 temp 與 press，並判定 not (temp >= 100 and press >= 50)！")
+                 ("temperature < 100 or press < 50" in history_str.replace(" ", ""))) or
+                ("temperature" in g and "press" in g)
+             else (False, "請讀入 temperature 與 press，並判定 not (temperature >= 100 and press >= 50)！")
          )),
 
-        ("5-4-1", "挑戰題", "雙重未滿額門檻防護 (not (score < 3 and amount < 500))", 6, ("score", "amount"),
+        ("5-4-1", "挑戰題", "雙重未滿額門檻防護 (not (satisfaction < 3 and amount < 500))", 6, ("satisfaction", "amount"),
          lambda g: (
              (True, "雙重未滿額門檻否定邏輯判定成功！")
              if (("not" in history_str and "3" in history_str and "500" in history_str and "and" in history_str) or
-                 ("score >= 3 or amount >= 500" in history_str.replace(" ", ""))) or
-                ("score" in g and "amount" in g)
-             else (False, "請單行讀入 score 與 amount，並判斷 not (score < 3 and amount < 500)！")
+                 ("satisfaction >= 3 or amount >= 500" in history_str.replace(" ", ""))) or
+                ("satisfaction" in g and "amount" in g)
+             else (False, "請單行讀入 satisfaction 與 amount，並判斷 not (satisfaction < 3 and amount < 500)！")
          )),
 
         # ----------------------------------------------------------------------
@@ -180,22 +180,22 @@ def auto_grade_unit_5_4(env=None):
              else (False, "請在 5-4-2 填空題填入 not、or、not 完成等價改寫！")
          )),
 
-        ("5-4-2", "練習題", "笛摩根第一定律雙式驗證 (左式 not (A and B) 與 右式 (not A) or (not B))", 8, ("a", "b"),
+        ("5-4-2", "練習題", "笛摩根第一定律雙式驗證 (左式 not (A and B) 與 右式 (not A) or (not B))", 8, ("num1", "num2"),
          lambda g: (
              (True, "笛摩根第一定律雙式計算輸出正確！")
              if (("and" in history_str and "or" in history_str and "not" in history_str) or
-                 ("a >= 0" in history_str or "b >= 0" in history_str)) or
-                ("a" in g and "b" in g)
-             else (False, "請讀入 a 與 b，分別輸出左式 not (A and B) 與右式 (not A) or (not B)！")
+                 ("num1 >= 0" in history_str or "num2 >= 0" in history_str)) or
+                ("num1" in g and "num2" in g)
+             else (False, "請讀入 num1 與 num2，分別輸出左式 not (A and B) 與右式 (not A) or (not B)！")
          )),
 
-        ("5-4-2", "挑戰題", "笛摩根定律化簡實戰 (x % 2 != 0 or x % 3 != 0)", 6, ("x",),
+        ("5-4-2", "挑戰題", "笛摩根定律化簡實戰 (num % 2 != 0 or num % 3 != 0)", 6, ("num",),
          lambda g: (
              (True, "笛摩根第一定律倍數檢定化簡成功！")
              if (("!=" in history_str and "or" in history_str and "2" in history_str and "3" in history_str) or
                  ("not" in history_str and "==" in history_str and "and" in history_str)) or
-                ("x" in g)
-             else (False, "請讀入整數 x，並使用 (x % 2 != 0 or x % 3 != 0) 輸出判斷結果！")
+                ("num" in g)
+             else (False, "請讀入整數 num，並使用 (num % 2 != 0 or num % 3 != 0) 輸出判斷結果！")
          )),
 
         # ----------------------------------------------------------------------
@@ -209,22 +209,22 @@ def auto_grade_unit_5_4(env=None):
              else (False, "請在 5-4-3 填空題填入 not、and、not 完成等價改寫！")
          )),
 
-        ("5-4-3", "練習題", "笛摩根第二定律雙式比對 (左式 not (A or B) 與 右式 (not A) and (not B))", 8, ("x", "y"),
+        ("5-4-3", "練習題", "笛摩根第二定律雙式比對 (左式 not (A or B) 與 右式 (not A) and (not B))", 8, ("val_x", "val_y"),
          lambda g: (
              (True, "笛摩根第二定律雙式比對輸出正確！")
              if (("or" in history_str and "and" in history_str and "not" in history_str) or
-                 ("x == 0" in history_str or "y == 0" in history_str)) or
-                ("x" in g and "y" in g)
-             else (False, "請讀入 x 與 y，分別輸出左式 not (A or B) 與右式 (not A) and (not B)！")
+                 ("val_x == 0" in history_str or "val_y == 0" in history_str)) or
+                ("val_x" in g and "val_y" in g)
+             else (False, "請讀入 val_x 與 val_y，分別輸出左式 not (A or B) 與右式 (not A) and (not B)！")
          )),
 
-        ("5-4-3", "挑戰題", "排除兩端極值區間檢驗 (val <= 100 and val >= 0)", 6, ("val",),
+        ("5-4-3", "挑戰題", "排除兩端極值區間檢驗 (sensor_val <= 100 and sensor_val >= 0)", 6, ("sensor_val",),
          lambda g: (
              (True, "排除兩端極值區間化簡檢驗成功！")
              if (("100" in history_str and "0" in history_str and "and" in history_str) or
-                 ("val <= 100" in history_str or "val >= 0" in history_str or "0 <= val <= 100" in history_str.replace(" ", ""))) or
-                ("val" in g)
-             else (False, "請讀入 val，並使用 (val <= 100 and val >= 0) 輸出判定結果！")
+                 ("sensor_val <= 100" in history_str or "sensor_val >= 0" in history_str or "0 <= sensor_val <= 100" in history_str.replace(" ", ""))) or
+                ("sensor_val" in g)
+             else (False, "請讀入 sensor_val，並使用 (sensor_val <= 100 and sensor_val >= 0) 輸出判定結果！")
          )),
 
         # ----------------------------------------------------------------------
@@ -246,12 +246,12 @@ def auto_grade_unit_5_4(env=None):
              else (False, "請讀入 age，並使用 (age < 18) 輸出未成年布林結果！")
          )),
 
-        ("5-4-4", "挑戰題", "雙運算子對偶反轉消去 not (x == y)", 6, ("x", "y"),
+        ("5-4-4", "挑戰題", "雙運算子對偶反轉消去 not (item_a == item_b)", 6, ("item_a", "item_b"),
          lambda g: (
-             (True, "雙運算子對偶反轉 (x == y) 判定成功！")
+             (True, "雙運算子對偶反轉 (item_a == item_b) 判定成功！")
              if ("==" in history_str) or
-                ("x" in g and "y" in g)
-             else (False, "請單行讀入 x 與 y，並使用 (x == y) 輸出判定結果！")
+                ("item_a" in g and "item_b" in g)
+             else (False, "請單行讀入 item_a 與 item_b，並使用 (item_a == item_b) 輸出判定結果！")
          )),
 
         # ----------------------------------------------------------------------
@@ -265,23 +265,23 @@ def auto_grade_unit_5_4(env=None):
              else (False, "請在 5-4-5 填空題空格依序填入 <=、or、>= 完成化簡！")
          )),
 
-        ("5-4-5", "練習題", "體溫異常警示化簡判別 (temp < 36.0 or temp > 37.4)", 8, ("temp",),
+        ("5-4-5", "練習題", "體溫異常警示化簡判別 (body_temp < 36.0 or body_temp > 37.4)", 8, ("body_temp",),
          lambda g: (
              (True, "體溫異常警示化簡表示式判斷正確！")
              if (("36.0" in history_str or "36" in history_str) and
                  ("37.4" in history_str) and
                  "or" in history_str) or
-                ("temp" in g and "or" in history_str)
-             else (False, "請讀入 temp，並使用 (temp < 36.0 or temp > 37.4) 判斷異常！")
+                ("body_temp" in g and "or" in history_str)
+             else (False, "請讀入 body_temp，並使用 (body_temp < 36.0 or body_temp > 37.4) 判斷異常！")
          )),
 
-        ("5-4-5", "挑戰題", "笛卡兒平面非第四象限判定 (x <= 0 or y >= 0)", 6, ("x", "y"),
+        ("5-4-5", "挑戰題", "笛卡兒平面非第四象限判定 (pt_x <= 0 or pt_y >= 0)", 6, ("pt_x", "pt_y"),
          lambda g: (
              (True, "非第四象限內部化簡判定成功！")
              if (("<=" in history_str and ">=" in history_str and "or" in history_str) or
                  ("not" in history_str and "> 0" in history_str and "< 0" in history_str)) or
-                ("x" in g and "y" in g)
-             else (False, "請單行讀入 x 與 y，並使用 (x <= 0 or y >= 0) 輸出判斷結果！")
+                ("pt_x" in g and "pt_y" in g)
+             else (False, "請單行讀入 pt_x 與 pt_y，並使用 (pt_x <= 0 or pt_y >= 0) 輸出判斷結果！")
          )),
     ]
 

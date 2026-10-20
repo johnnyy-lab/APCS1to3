@@ -172,11 +172,10 @@ def auto_grade_unit_5_7(env=None):
         # ----------------------------------------------------------------------
         # 5-7-2 旗標的生命週期——歸零初始化、條件觸發與狀態鎖定 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-7-2", "填空題", "旗標單向鎖定破除覆蓋 (has_top_score 鎖定)", 6, ("has_top_score",),
+        ("5-7-2", "填空題", "旗標單向鎖定破除覆蓋 (has_factor 鎖定)", 6, ("has_factor",),
          lambda g: (
              (True, "旗標單向鎖定正確，未添加錯誤的 else 重置！")
-             if ("has_top_score" in history_str and ">= 90" in history_str) or
-                ("has_top_score" in g)
+             if (g.get("has_factor") is True) and ("True" in history_str)
              else (False, "請在 5-7-2 填空題空格填入 True 鎖定旗標！")
          )),
 
@@ -276,13 +275,13 @@ def auto_grade_unit_5_7(env=None):
              else (False, "請讀入 n，依因數立旗印出 LUCKY TWO / THREE，無解印出 IMPOSSIBLE！")
          )),
 
-        ("5-7-5", "挑戰題", "區間命中與無解防禦大挑戰 (RANGE A / B / C / IMPOSSIBLE)", 6, ("has_hit", "x"),
+        ("5-7-5", "挑戰題", "區間命中與無解防禦大挑戰 (RANGE A / B / C / IMPOSSIBLE)", 6, ("has_hit", "num"),
          lambda g: (
              (True, "三區間命中與 IMPOSSIBLE 無解防禦輸出成功！")
              if (("RANGE A" in history_str and "RANGE B" in history_str and "RANGE C" in history_str and "IMPOSSIBLE" in history_str) or
                  ("has_hit" in history_str and "IMPOSSIBLE" in history_str)) or
-                ("has_hit" in g or "x" in g)
-             else (False, "請讀入 x，依區間立旗輸出 RANGE A/B/C，未命中印出 IMPOSSIBLE！")
+                ("has_hit" in g or "num" in g)
+             else (False, "請讀入 num，依區間立旗輸出 RANGE A/B/C，未命中印出 IMPOSSIBLE！")
          )),
     ]
 

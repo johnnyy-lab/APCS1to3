@@ -243,7 +243,7 @@ def auto_grade_unit_6_6(env=None):
              (True, "倒直角數字排版與數字 1 計數輸出正確！")
              if (g.get("one_count") == 1 or
                  (("one_count" in g or "one_count" in history_str) and
-                  ("val == 1" in history_str or "val==1" in history_clean)))
+                  ("num_val == 1" in history_str or "num_val==1" in history_clean or "val == 1" in history_str or "val==1" in history_clean)))
              else (False, "請排版倒數字圖形並統計數字 1 出現次數為 1！")
          )),
 
@@ -296,7 +296,7 @@ def auto_grade_unit_6_6(env=None):
              else (False, "請在 6-6-6 填空題填入空格 N - i 與奇數星號 2 * i - 1！")
          )),
 
-        ("6-6-6", "練習題", "倒金字塔星號總數統計 (total_stars_pyramid)", 4, ("total_stars_pyramid", "total_stars"),
+        ("6-6-6", "練習題", "倒金字塔星號總數統計 (total_pyramid_stars)", 4, ("total_pyramid_stars",),
          lambda g: (
              (True, "倒金字塔排版與星號總數統計輸出正確！")
              if (("total_stars_pyramid" in g or "total_stars_pyramid" in history_str or "total_stars" in g) and

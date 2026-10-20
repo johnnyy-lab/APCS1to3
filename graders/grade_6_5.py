@@ -287,17 +287,17 @@ def auto_grade_unit_6_5(env=None):
         ("6-5-6", "填空題", "和為 10 且 a < b 防重複枚舉 (range(a + 1, 10))", 4, (),
          lambda g: (
              (True, "防止重複枚舉之 b 起點 a + 1 填寫正確！")
-             if ("a+1" in history_clean or "a + 1" in history_str)
+             if ("num_a+1" in history_clean or "num_a + 1" in history_str or "a+1" in history_clean or "a + 1" in history_str)
              else (False, "請在 6-5-6 填空題填入內層起點 a + 1！")
          )),
 
-        ("6-5-6", "練習題", "雞兔同籠雙變數窮舉 (chickens = 23, rabbits = 12)", 4, ("chickens", "rabbits"),
+        ("6-5-6", "練習題", "目標和數對配對枚舉 (match_count)", 4, ("match_count",),
          lambda g: (
-             (True, "雞兔同籠窮舉命中解 (23 雞 12 兔) 正確！")
-             if (("chickens" in g or "chickens" in history_str) and
-                 ("rabbits" in g or "rabbits" in history_str) and
-                 ("23" in history_str and "12" in history_str))
-             else (False, "請以雙重迴圈窮舉雞兔數量，求出 23 雞與 12 兔！")
+             (True, "雙重迴圈枚舉數對求和命中目標統計正確！")
+             if (("match_count" in g or "match_count" in history_str) and
+                 ("range(i + 1" in history_str or "range(i+1" in history_clean) and
+                 ("== target" in history_str or "==target" in history_clean or g.get("match_count") in (4, 2)))
+             else (False, "請以雙重迴圈走訪 1 <= i < j <= 10，統計 i + j == target 的 match_count！")
          )),
 
         ("6-5-6", "挑戰題", "邊長 20 內畢氏三元組枚舉 (pythagorean_count = 6)", 4, ("pythagorean_count",),
@@ -351,7 +351,7 @@ def auto_grade_unit_6_5(env=None):
          lambda g: (
              (True, "周長 P 之三角形不等式三重枚舉輸出正確！")
              if (("valid_triangles" in g or "valid_triangles" in history_str) and
-                 ("a + b > c" in history_str or "a+b>c" in history_clean))
+                 ("side_a + side_b > side_c" in history_str or "side_a+side_b>side_c" in history_clean or "a + b > c" in history_str or "a+b>c" in history_clean))
              else (False, "請三重枚舉 a, b, c，統計滿足 a + b + c == P 且 a + b > c 的個數！")
          )),
 

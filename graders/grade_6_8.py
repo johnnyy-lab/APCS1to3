@@ -335,7 +335,7 @@ def auto_grade_unit_6_8(env=None):
          lambda g: (
              (True, "最小值初值與即時比對更新填寫正確！")
              if g.get("min_val") == 7 or
-                ("min_val" in history_clean and ("data < min_val" in history_str or "data<min_val" in history_clean))
+                ("min_val" in history_clean and ("item_val < min_val" in history_str or "item_val<min_val" in history_clean or "data < min_val" in history_str or "data<min_val" in history_clean))
              else (False, "請在 6-8-7 填空題完成 min_val 初值與條件更新！")
          )),
 

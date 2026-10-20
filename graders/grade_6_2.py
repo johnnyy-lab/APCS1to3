@@ -185,7 +185,7 @@ def auto_grade_unit_6_2(env=None):
              else (False, "請設定 target，走訪檢查 target % i == 0 並統計因數個數！")
          )),
 
-        ("6-2-2", "挑戰題", "字母出現頻率統計 (ABRACADABRA 中 A 出現 5 次)", 5, ("text", "count_a", "count"),
+        ("6-2-2", "挑戰題", "字母出現頻率統計 (ABRACADABRA 中 A 出現 5 次)", 5, ("text", "count_a"),
          lambda g: (
              (True, "字串中字母 'A' 出現次數統計精準無誤！")
              if (("ABRACADABRA" in history_str or "text" in g) and
@@ -287,13 +287,13 @@ def auto_grade_unit_6_2(env=None):
              else (False, "請在 6-2-6 填空題填入 float('-inf') 與 max_val = current！")
          )),
 
-        ("6-2-6", "練習題", "函數極值探測器 (Max value of y is: max_y)", 4, ("n",),
+        ("6-2-6", "練習題", "函數極值探測器 (Max value of y is: max_y)", 4, ("upper_n",),
          lambda g: (
-             (True, "二次函數 y = x * (10 - x) 擂台極值探測成功！")
-             if (("n" in g or "n" in history_str) and
-                 ("10 - x" in history_str or "10-x" in history_clean) and
+             (True, "二次函數極值探測成功！")
+             if (("upper_n" in g or "upper_n" in history_str) and
+                 ("10 - num" in history_str or "10-num" in history_clean or "10 - x" in history_str or "10-x" in history_clean) and
                  ("Max value of y is" in history_str or "max_y" in history_str))
-             else (False, "請走訪 x 計算 y = x * (10 - x)，以盟主法探測最大值！")
+             else (False, "請走訪 num 計算 y = num * (10 - num)，以盟主法探測最大值！")
          )),
 
         ("6-2-6", "挑戰題", "餘數極值雙向探測 (max_r 與 min_r)", 4, ("base",),

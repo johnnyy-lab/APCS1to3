@@ -180,12 +180,12 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請在 6-3-2 填空題填入初始值 3、條件 <= 15 與步進 += 3！")
          )),
 
-        ("6-3-2", "練習題", "連續整數累加 (while cur <= n)", 4, ("cur", "sum_val"),
+        ("6-3-2", "練習題", "連續整數累加 (while cur <= limit_n)", 4, ("cur", "sum_val"),
          lambda g: (
              (True, "while 累加 1 到 n 運算正確！")
              if (("cur" in g or "cur" in history_str) and
                  ("sum_val" in g or "sum_val" in history_str) and
-                 ("cur <= n" in history_str or "cur<=n" in history_clean))
+                 ("cur <= limit_n" in history_str or "cur<=limit_n" in history_clean or "cur <= n" in history_str or "cur<=n" in history_clean))
              else (False, "請使用 while cur <= n 累加 sum_val 並更新 cur += 1！")
          )),
 
@@ -201,10 +201,10 @@ def auto_grade_unit_6_3(env=None):
         # ----------------------------------------------------------------------
         # 6-3-3 for 與 while 迴圈的本質區別與選型判斷 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-3-3", "填空題", "for 改寫 while 等價結構 (x = 10, < 50, += 10)", 4, (),
+        ("6-3-3", "填空題", "for 改寫 while 等價結構 (num = 10, < 50, += 10)", 4, (),
          lambda g: (
              (True, "for 改寫 while 之起點、終止界限與步進填寫正確！")
-             if ("x<50" in history_clean and ("+=10" in history_clean or "+= 10" in history_str))
+             if (("num<50" in history_clean or "num < 50" in history_str or "x<50" in history_clean or "x < 50" in history_str) and ("+=10" in history_clean or "+= 10" in history_str))
              else (False, "請在 6-3-3 填空題填入起點 10、條件 < 50 與步進 += 10！")
          )),
 
@@ -299,7 +299,7 @@ def auto_grade_unit_6_3(env=None):
          lambda g: (
              (True, "考拉茲 3n+1 演變軌跡最高峰值探測正確！")
              if (("max_val" in g or "max_val" in history_str) and
-                 ("3 * n + 1" in history_str or "3*n+1" in history_clean) and
+                 ("3 * cur_num + 1" in history_str or "3*cur_num+1" in history_clean or "3 * n + 1" in history_str or "3*n+1" in history_clean) and
                  ("// 2" in history_str or "//= 2" in history_str or "//2" in history_clean))
              else (False, "請模擬考拉茲猜想軌跡，並找出過程中的最高峰值 max_val！")
          )),
@@ -319,8 +319,8 @@ def auto_grade_unit_6_3(env=None):
         ("6-3-7", "填空題", "輾轉相除法與最小公倍數 (while y != 0, x % y, // gcd)", 4, (),
          lambda g: (
              (True, "輾轉相除不等於 0、模除更替與最小公倍數公式填寫正確！")
-             if ("y!=0" in history_clean or "y != 0" in history_str) and
-                ("%y" in history_clean or "% y" in history_str)
+             if ("y!=0" in history_clean or "y != 0" in history_str or "num_b!=0" in history_clean or "num_b != 0" in history_str) and
+                ("%y" in history_clean or "% y" in history_str or "%num_b" in history_clean or "% num_b" in history_str)
              else (False, "請在 6-3-7 填空題填入 0、x % y 以及除以 gcd_ans！")
          )),
 

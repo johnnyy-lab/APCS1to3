@@ -176,7 +176,7 @@ def auto_grade_unit_6_4(env=None):
         ("6-4-2", "填空題", "指定數值跳步換輪 (val == 4 or val == 7, continue)", 4, (),
          lambda g: (
              (True, "條件過濾跳步關鍵字 continue 填寫正確！")
-             if ("val==4orval==7" in history_clean or "4" in history_str and "7" in history_str) and
+             if ("val==4orval==7" in history_clean or "num==4ornum==7" in history_clean or "4" in history_str and "7" in history_str) and
                 ("continue" in history_str)
              else (False, "請在 6-4-2 填空題填入跳步關鍵字 continue！")
          )),
@@ -210,11 +210,11 @@ def auto_grade_unit_6_4(env=None):
              else (False, "請在 6-4-3 填空題分別填入 break 與 continue！")
          )),
 
-        ("6-4-3", "練習題", "特殊符號過濾與終止 (result = 'APCSPYTHON')", 4, ("result",),
+        ("6-4-3", "練習題", "特殊符號過濾與終止 (filtered_text = 'APCSPYTHON')", 4, ("filtered_text",),
          lambda g: (
              (True, "字串掃描跳過 '#' 並於 '*' 終止之串接結果正確！")
-             if (("result" in g or "result" in history_str) and
-                 ("APCSPYTHON" in history_str or g.get("result") == "APCSPYTHON") and
+             if (("filtered_text" in g or "result" in g or "filtered_text" in history_str or "result" in history_str) and
+                 ("APCSPYTHON" in history_str or g.get("filtered_text") == "APCSPYTHON") and
                  ("continue" in history_str and "break" in history_str))
              else (False, "請遇 '#' continue、遇 '*' break，其餘串接為 APCSPYTHON！")
          )),
@@ -323,12 +323,12 @@ def auto_grade_unit_6_4(env=None):
              else (False, "請在 6-4-7 填空題填入 while True 與 break！")
          )),
 
-        ("6-4-7", "練習題", "倍數逼近突破門檻 (val = 1024, steps = 10)", 4, ("val", "steps"),
+        ("6-4-7", "練習題", "倍數逼近突破門檻 (cur_val = 1024, steps = 10)", 4, ("cur_val", "steps"),
          lambda g: (
              (True, "while True 乘 2 逼近 1000 門檻終止輸出正確！")
-             if (("val" in g or "val" in history_str) and
+             if (("cur_val" in g or "val" in g or "cur_val" in history_str or "val" in history_str) and
                  ("steps" in g or "steps" in history_str) and
-                 ("1024" in history_str or g.get("val") == 1024) and
+                 ("1024" in history_str or g.get("cur_val") == 1024) and
                  ("break" in history_str))
              else (False, "請在 while True 中每輪 val *= 2，>= 1000 時 break！")
          )),

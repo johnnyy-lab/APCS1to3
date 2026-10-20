@@ -147,8 +147,8 @@ def auto_grade_unit_10_2(env=None):
         ("10-2-1", "填空題", "使用 id() 驗證元組重賦值產生新位址", 5, (),
          lambda g: (
              (True, "id() 記憶體探測填空正確！")
-             if ("id(a)" in history_clean)
-             else (False, "請在 10-2-1 填空題填入 id(a) 觀察位址變化！")
+             if ("id(base_t)" in history_clean or "id(a)" in history_clean)
+             else (False, "請在 10-2-1 填空題填入 id(base_t) 觀察位址變化！")
          )),
 
         ("10-2-1", "練習題", "不可變字串與元組位址驗證儀 (id1 != id2)", 6, (),

@@ -169,12 +169,12 @@ def auto_grade_unit_10_1(env=None):
         # ----------------------------------------------------------------------
         # 10-1-2 單元素逗號陷阱 (x,) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-1-2", "填空題", "修復單元素元組宣告 (val,)", 5, ("single_t",),
+        ("10-1-2", "填空題", "修復單元素元組宣告 (num_val,)", 5, ("single_t",),
          lambda g: (
              (True, "單元素元組逗號修復正確！")
              if (isinstance(g.get("single_t"), tuple) and len(g.get("single_t")) == 1) or
-                ("(val,)" in history_clean or "(88,)" in history_clean)
-             else (False, "請在 10-1-2 填空題小括號內補上逗號 `(val,)`！")
+                ("(num_val,)" in history_clean or "(val,)" in history_clean or "(88,)" in history_clean)
+             else (False, "請在 10-1-2 填空題小括號內補上逗號 `(num_val,)`！")
          )),
 
         ("10-1-2", "練習題", "純括號整數 vs 單元素元組型態與長度檢驗", 6, (),
@@ -244,12 +244,13 @@ def auto_grade_unit_10_1(env=None):
         # ----------------------------------------------------------------------
         # 10-1-5 元組解包賦值 (Tuple Unpacking) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-1-5", "填空題", "三維座標解包 x, y, z = coord_3d", 5, ("manhattan_dist",),
+        ("10-1-5", "填空題", "三維座標解包與曼哈頓距離計算", 5, ("manhattan_dist",),
          lambda g: (
              (True, "三維曼哈頓座標解包填空正確！")
              if (g.get("manhattan_dist") == 22) or
-                ("x, y, z = coord_3d" in history_str or "x,y,z=coord_3d" in history_clean)
-             else (False, "請在 10-1-5 填空題完成 x, y, z = coord_3d 解包！")
+                ("px, py, pz = coord_3d" in history_str or "px,py,pz=coord_3d" in history_clean or
+                 "x, y, z = coord_3d" in history_str or "x,y,z=coord_3d" in history_clean)
+             else (False, "請在 10-1-5 填空題完成座標解包！")
          )),
 
         ("10-1-5", "練習題", "選手四項成績解包與總分計算", 6, (),

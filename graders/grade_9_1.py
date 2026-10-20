@@ -239,8 +239,9 @@ def auto_grade_unit_9_1(env=None):
          lambda g: (
              (True, "四角落元素加總計算正確！")
              if (g.get("corner_sum") == 20 or "四角總和: 20" in history_str or
+                 ("matrix_data[0][0]" in history_clean and "matrix_data[2][2]" in history_clean) or
                  ("data[0][0]" in history_clean and "data[2][2]" in history_clean))
-             else (False, "請計算 data 四個角落元素的總和（預期為 20）！")
+             else (False, "請計算 matrix_data 四個角落元素的總和（預期為 20）！")
          )),
 
         ("9-1-4", "挑戰題", "十字中心五格數值總和", 6, (),
@@ -286,8 +287,9 @@ def auto_grade_unit_9_1(env=None):
          lambda g: (
              (True, "負向索引定位取值正確！")
              if (g.get("last_item") == 20 and g.get("second_last_first") == 11) or
+                ("grid_data[-1][-1]" in history_clean and "grid_data[-2][0]" in history_clean) or
                 ("data[-1][-1]" in history_clean and "data[-2][0]" in history_clean)
-             else (False, "請在 9-1-6 填空題填入 data[-1][-1] 與 data[-2][0]！")
+             else (False, "請在 9-1-6 填空題填入 grid_data[-1][-1] 與 grid_data[-2][0]！")
          )),
 
         ("9-1-6", "練習題", "末列首項與末項相加總和", 6, (),

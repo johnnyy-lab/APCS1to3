@@ -177,11 +177,13 @@ def auto_grade_unit_9_4(env=None):
              else (False, "請在 9-4-2 填空題填入 for row in sales 與 sum(row)！")
          )),
 
-        ("9-4-2", "練習題", "走訪每一列印出總和與平均值 (sum/len)", 6, (),
+        ("9-4-2", "練習題", "走訪每一列印出全距 (max-min) 或列統計", 6, (),
          lambda g: (
-             (True, "列總和與列平均計算輸出正確！")
-             if ("sum(row)" in history_clean and ("len(row)" in history_clean or "/ 3" in history_str or "/3" in history_clean))
-             else (False, "請直接走訪每一列並印出 sum(row) 與 sum(row)/len(row) 平均值！")
+             (True, "列差值或統計計算輸出正確！")
+             if (("max(row)" in history_clean and "min(row)" in history_clean) or
+                 ("max(" in history_str and "min(" in history_str) or
+                 ("sum(row)" in history_clean and ("len(row)" in history_clean or "/ 3" in history_str or "/3" in history_clean)))
+             else (False, "請直接走訪每一列並印出 max(row) - min(row) 全距！")
          )),
 
         ("9-4-2", "挑戰題", "找出哪一橫列的總和最大 (max_row_sum)", 6, (),

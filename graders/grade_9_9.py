@@ -243,11 +243,12 @@ def auto_grade_unit_9_9(env=None):
         # ----------------------------------------------------------------------
         # 9-9-5 單回合相鄰擴散與增減量結算 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-9-5", "填空題", "擴散份量整數除法 give = val // k", 5, (),
+        ("9-9-5", "填空題", "擴散份量整數除法 give = pop_val // k", 5, (),
          lambda g: (
-             (True, "擴散除法 give = val // k 填空正確！")
-             if ("val // k" in history_str or "val//k" in history_clean)
-             else (False, "請在 9-9-5 填空題填入 val // k！")
+             (True, "擴散除法 give = pop_val // k 填空正確！")
+             if ("pop_val // k" in history_str or "pop_val//k" in history_clean or
+                 "val // k" in history_str or "val//k" in history_clean)
+             else (False, "請在 9-9-5 填空題填入 pop_val // k！")
          )),
 
         ("9-9-5", "練習題", "單回合相鄰擴散與 grid[r][c] += delta[r][c] 結算", 6, (),

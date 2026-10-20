@@ -147,11 +147,11 @@ def auto_grade_unit_2_6(env=None):
              else (False, "找不到 binary_val 或數值不為 6，請填入二進位前綴 0b 並執行！")
          )),
 
-        ("2-6-1", "練習題", "二進位字面常數宣告解析 (val in [9, 32])", 10, ("val",),
+        ("2-6-1", "練習題", "二進位字面常數宣告解析 (bin_val in [9, 32])", 10, ("bin_val",),
          lambda g: (
-             (True, f"二進位宣告解析正確：val = {g.get('val')}！")
-             if ("val" in g and type(g.get("val")) is int and g.get("val") in [9, 32])
-             else (False, "找不到變數 val，請宣告 val = 0b1001（9）或 val = 0b100000（32）！")
+             (True, f"二進位宣告解析正確：bin_val = {g.get('bin_val')}！")
+             if ("bin_val" in g and type(g.get("bin_val")) is int and g.get("bin_val") in [9, 32])
+             else (False, "找不到變數 bin_val，請宣告 bin_val = 0b1001（9）或 bin_val = 0b100000（32）！")
          )),
 
         ("2-6-1", "挑戰題", "智慧家庭四開關二進位狀態碼 (switch_status = 11)", 8, ("switch_status",),
@@ -171,11 +171,11 @@ def auto_grade_unit_2_6(env=None):
              else (False, "找不到 hex_val 或數值不為 10，請填入前綴 0x 並執行！")
          )),
 
-        ("2-6-2", "練習題", "十六進位字面常數宣告解析 (val in [26, 256])", 10, ("val",),
+        ("2-6-2", "練習題", "十六進位字面常數宣告解析 (hex_code in [26, 256])", 10, ("hex_code",),
          lambda g: (
-             (True, f"十六進位宣告解析正確：val = {g.get('val')}！")
-             if ("val" in g and type(g.get("val")) is int and (g.get("val") in [26, 256] or "hex" in str(g.keys())))
-             else (False, "請宣告十六進位 val = 0x1a（26）或 val = 0x100（256）！")
+             (True, f"十六進位宣告解析正確：hex_code = {g.get('hex_code')}！")
+             if ("hex_code" in g and type(g.get("hex_code")) is int and (g.get("hex_code") in [26, 256] or "hex" in str(g.keys())))
+             else (False, "請宣告十六進位 hex_code = 0x1a（26）或 hex_code = 0x100（256）！")
          )),
 
         ("2-6-2", "挑戰題", "紫色調通道亮度強度宣告 (red_ch = 138, blue_ch = 205)", 8, ("red_ch", "blue_ch"),

@@ -138,13 +138,13 @@ def auto_grade_unit_1_3(env=None):
 
     test_cases = [
         # 1-3-1 多變數同時賦值——雙手齊發的打包與解包 (共 19 分)
-        ("1-3-1", "填空題", "雙變數同時賦值 x, y = 10, 20", 6, ("x", "y"),
-         lambda g: (True, "雙變數同時賦值成功：x=10, y=20") if g.get("x") in [10, 20] and g.get("y") in [20, 30]
-         else (False, "找不到變數 x, y 或數值不正確，請在 1-3-1 填空題設定 x, y = 10, 20")),
+        ("1-3-1", "填空題", "雙變數同時賦值 num_x, num_y = 10, 20", 6, ("num_x", "num_y"),
+         lambda g: (True, "雙變數同時賦值成功：num_x=10, num_y=20") if g.get("num_x") in [10, 20] and g.get("num_y") in [20, 30]
+         else (False, "找不到變數 num_x, num_y 或數值不正確，請在 1-3-1 填空題設定 num_x, num_y = 10, 20")),
 
         ("1-3-1", "練習題", "一行宣告寬高 width, height", 8, ("width", "height"),
          lambda g: (True, f"寬高設定正確：width={g.get('width')}, height={g.get('height')}")
-         if (g.get("width") in [40, 15] and g.get("height") in [30, 25])
+         if (g.get("width") in [40, 15, 100] and g.get("height") in [30, 25, 80])
          else (False, "找不到變數 width 或 height，請依練習題說明使用一行多重賦值設定數值")),
 
         ("1-3-1", "挑戰題", "RGB三原色同時賦值 (red, green, blue)", 5, ("red", "green", "blue"),
@@ -163,20 +163,21 @@ def auto_grade_unit_1_3(env=None):
          if (g.get("x1") in [5, 1] and g.get("x2") in [10, 2] and g.get("x3") in [15, 3])
          else (False, "請修正 x1, x2, x3 的賦值，確認等號兩側均為 3 個元素")),
 
-        ("1-3-2", "挑戰題", "四季代號一行四變數 (a, b, c, d)", 5, ("a", "b", "c", "d"),
-         lambda g: (True, f"四變數對稱宣告成功：a={g.get('a')}, b={g.get('b')}, c={g.get('c')}, d={g.get('d')}")
-         if (g.get("a") in [1, 4] and g.get("b") in [2, 1] and g.get("c") in [3, 2] and g.get("d") in [4, 3])
-         else (False, "請在一行中宣告 a, b, c, d 分別對應 1, 2, 3, 4")),
+        ("1-3-2", "挑戰題", "四季代號一行四變數 (season1..4)", 5, ("season1", "season2", "season3", "season4"),
+         lambda g: (True, f"四變數對稱宣告成功：season1={g.get('season1')}, season2={g.get('season2')}, season3={g.get('season3')}, season4={g.get('season4')}")
+         if (g.get("season1") in [1, 4] and g.get("season2") in [2, 1] and g.get("season3") in [3, 2] and g.get("season4") in [4, 3])
+         else (False, "請在一行中宣告 season1, season2, season3, season4 分別對應 1, 2, 3, 4")),
 
         # 1-3-3 傳統變數交換的慘痛悲劇——為什麼需要第三個空杯子 temp？ (共 19 分)
-        ("1-3-3", "填空題", "第三空杯備份交換 m 與 n", 6, ("m", "n", "temp"),
-         lambda g: (True, "傳統暫存變數交換正確：m=99, n=88, temp=88")
-         if (g.get("m") == 99 and g.get("n") == 88 and g.get("temp") == 88)
-         else (False, "請在 ___ 填入 n，完成 m=n 與 n=temp 的三步驟交換")),
+        ("1-3-3", "填空題", "第三空杯備份交換 first_num 與 second_num", 6, ("first_num", "second_num", "backup"),
+         lambda g: (True, "傳統暫存變數交換正確：first_num=99, second_num=88, backup=88")
+         if (g.get("first_num") == 99 and g.get("second_num") == 88 and g.get("backup") == 88)
+         else (False, "請在 ___ 填入 second_num，完成 first_num=second_num 與 second_num=backup 的三步驟交換")),
 
         ("1-3-3", "練習題", "卡牌交換 card1 與 card2 (透過 t)", 8, ("card1", "card2"),
          lambda g: (True, f"卡牌交換完成：card1={g.get('card1')}, card2={g.get('card2')}")
-         if ((g.get("card1") == 2 and g.get("card2") == 7) or (g.get("card1") == 4 and g.get("card2") == 9))
+         if ((g.get("card1") == 2 and g.get("card2") == 7) or (g.get("card1") == 4 and g.get("card2") == 9)
+             or (g.get("card1") == 500 and g.get("card2") == 100))
          else (False, "卡牌數值未成功對調，請透過暫存變數 t 將 card1 與 card2 數值互換")),
 
         ("1-3-3", "挑戰題", "金銀蘋果守衛交換 guard_temp", 5, ("gold_apple", "silver_apple", "guard_temp"),
@@ -185,14 +186,15 @@ def auto_grade_unit_1_3(env=None):
          else (False, "請宣告 guard_temp 備份，將 gold_apple (1->2) 與 silver_apple (2->1) 成功交換")),
 
         # 1-3-4 Python 專屬的瞬間乾坤大挪移——`a, b = b, a` 變數交換 (共 20 分)
-        ("1-3-4", "填空題", "乾坤大挪移 u, v = v, u", 6, ("u", "v"),
-         lambda g: (True, "單行交換成功：u=555, v=111")
-         if (g.get("u") == 555 and g.get("v") == 111)
-         else (False, "請填入 u, v = v, u 實現一行變數乾坤大挪移")),
+        ("1-3-4", "填空題", "乾坤大挪移 pair_x, pair_y = pair_y, pair_x", 6, ("pair_x", "pair_y"),
+         lambda g: (True, "單行交換成功：pair_x=99, pair_y=12")
+         if (g.get("pair_x") == 99 and g.get("pair_y") == 12)
+         else (False, "請填入 pair_x, pair_y = pair_y, pair_x 實現一行變數乾坤大挪移")),
 
         ("1-3-4", "練習題", "左右數值對調 left, right", 8, ("left", "right"),
          lambda g: (True, f"左右交換正確：left={g.get('left')}, right={g.get('right')}")
-         if ((g.get("left") == 200 and g.get("right") == 100) or (g.get("left") == 50 and g.get("right") == 10))
+         if ((g.get("left") == 200 and g.get("right") == 100) or (g.get("left") == 50 and g.get("right") == 10)
+             or (g.get("left") == 999 and g.get("right") == 0))
          else (False, "請使用 left, right = right, left 將左右變數數值對調")),
 
         ("1-3-4", "挑戰題", "大小號碼牌對調 small, big", 6, ("small", "big"),
@@ -201,21 +203,22 @@ def auto_grade_unit_1_3(env=None):
          else (False, "請使用一行交換語法，讓原本 50 與 10 的 small 與 big 數值對調")),
 
         # 1-3-5 三人傳球大輪替——多變數循環交換（Cyclic Swap） (共 23 分)
-        ("1-3-5", "填空題", "三變數循環輪替 x, y, z = y, z, x", 7, ("x", "y", "z"),
-         lambda g: (True, "三變數輪替完成：x=20, y=30, z=10")
-         if (g.get("x") == 20 and g.get("y") == 30 and g.get("z") == 10)
-         else (False, "請填入 x, y, z = y, z, x 完成循環輪替")),
+        ("1-3-5", "填空題", "三變數循環輪替 trio_x, trio_y, trio_z", 7, ("trio_x", "trio_y", "trio_z"),
+         lambda g: (True, "三變數輪替完成：trio_x=20, trio_y=30, trio_z=10")
+         if (g.get("trio_x") == 20 and g.get("trio_y") == 30 and g.get("trio_z") == 10)
+         else (False, "請填入 trio_x, trio_y, trio_z = trio_y, trio_z, trio_x 完成循環輪替")),
 
         ("1-3-5", "練習題", "隊員分數循環傳球 p1, p2, p3", 9, ("p1", "p2", "p3"),
          lambda g: (True, f"隊員分數輪替正確：({g.get('p1')}, {g.get('p2')}, {g.get('p3')})")
          if ((g.get("p1") == 200 and g.get("p2") == 300 and g.get("p3") == 100) or
-             (g.get("p1") == 60 and g.get("p2") == 70 and g.get("p3") == 50))
+             (g.get("p1") == 60 and g.get("p2") == 70 and g.get("p3") == 50) or
+             (g.get("p1") == 8 and g.get("p2") == 9 and g.get("p3") == 7))
          else (False, "請透過一行語法將 p1, p2, p3 循環輪替（p1拿p2, p2拿p3, p3拿p1）")),
 
-        ("1-3-5", "挑戰題", "四變數逆向大輪替 a, b, c, d", 7, ("a", "b", "c", "d"),
-         lambda g: (True, f"四變數逆向輪替成功：({g.get('a')}, {g.get('b')}, {g.get('c')}, {g.get('d')})")
-         if (g.get("a") == 4 and g.get("b") == 1 and g.get("c") == 2 and g.get("d") == 3)
-         else (False, "請以 a, b, c, d = d, a, b, c 完成逆向輪替（a=4, b=1, c=2, d=3）")),
+        ("1-3-5", "挑戰題", "四變數逆向大輪替 rev1..rev4", 7, ("rev1", "rev2", "rev3", "rev4"),
+         lambda g: (True, f"四變數逆向輪替成功：({g.get('rev1')}, {g.get('rev2')}, {g.get('rev3')}, {g.get('rev4')})")
+         if (g.get("rev1") == 4 and g.get("rev2") == 1 and g.get("rev3") == 2 and g.get("rev4") == 3)
+         else (False, "請以 rev1, rev2, rev3, rev4 = rev4, rev1, rev2, rev3 完成逆向輪替（rev1=4, rev2=1, rev3=2, rev4=3）")),
     ]
 
     pass_count = 0

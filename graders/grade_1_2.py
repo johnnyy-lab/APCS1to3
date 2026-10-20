@@ -157,26 +157,26 @@ def auto_grade_unit_1_2(env=None):
          lambda g: (True, "右側先算 3*20+5 完成：total_cost = 65") if g.get("total_cost") == 65
          else (False, "找不到 total_cost 或數值不為 65，請將底線替換為單價 20 並執行")),
 
-        ("1-2-2", "練習題", "長寬高複合運算式 ans", 8, ("ans",),
-         lambda g: (True, f"右側複合算式運算正確：ans = {g.get('ans')}") if g.get("ans") in [26, 32]
-         else (False, "找不到變數 ans 或數值不符合測資（預期長*寬 + 高*2 算出 26 或 32）")),
+        ("1-2-2", "練習題", "長寬高複合運算式 area_total", 8, ("area_total",),
+         lambda g: (True, f"右側複合算式運算正確：area_total = {g.get('area_total')}") if g.get("area_total") in [26, 32]
+         else (False, "找不到變數 area_total 或數值不符合測資（預期長*寬 + 高*2 算出 26 或 32）")),
 
         ("1-2-2", "挑戰題", "冒險者金幣計算 final_gold", 5, ("final_gold",),
          lambda g: (True, f"總金幣數計算正確：final_gold = {g.get('final_gold')}") if g.get("final_gold") == 145
          else (False, "找不到變數 final_gold 或數值不為 145（3*50 + 15 - 20 = 145）")),
 
         # 1-2-3 等號左側的嚴格鐵律——左邊只能是「單一變數箱子」！ (共 19 分)
-        ("1-2-3", "填空題", "移項修正變數 a = 35 - 10", 6, ("a",),
-         lambda g: (True, "成功將變數 a 置於等號左側：a = 25") if g.get("a") == 25
-         else (False, "找不到變數 a 或數值不為 25，請將 ___ 填入變數 a 並執行")),
+        ("1-2-3", "填空題", "移項修正變數 magic_num = 35 - 10", 6, ("magic_num",),
+         lambda g: (True, "成功將變數 magic_num 置於等號左側：magic_num = 25") if g.get("magic_num") == 25
+         else (False, "找不到變數 magic_num 或數值不為 25，請將 ___ 填入變數 magic_num 並執行")),
 
         ("1-2-3", "練習題", "常數在左錯誤修正 speed 變數", 8, ("speed",),
          lambda g: (True, f"左側單一變數修正正確：speed = {g.get('speed')}") if g.get("speed") in [60, 120]
          else (False, "找不到變數 speed，請將 60 = speed 修正為 speed = 60（或 120）")),
 
-        ("1-2-3", "挑戰題", "移項解方程式變數 x = 100 // 2", 5, ("x",),
-         lambda g: (True, f"方程式移項求解成功：x = {g.get('x')}") if g.get("x") in [50, 50.0]
-         else (False, "找不到變數 x 或數值不為 50，請以 x 為左側變數計算 100 // 2 或 100 / 2")),
+        ("1-2-3", "挑戰題", "移項解方程式變數 mystery_x = 100 // 2", 5, ("mystery_x",),
+         lambda g: (True, f"方程式移項求解成功：mystery_x = {g.get('mystery_x')}") if g.get("mystery_x") in [50, 50.0]
+         else (False, "找不到變數 mystery_x 或數值不為 50，請以 mystery_x 為左側變數計算 100 // 2 或 100 / 2")),
 
         # 1-2-4 舊的不去新的不來——變數賦值的覆蓋（Overwrite）特性 (共 20 分)
         ("1-2-4", "填空題", "等級覆蓋更新 level = 50", 6, ("level",),

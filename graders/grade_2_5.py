@@ -151,19 +151,19 @@ def auto_grade_unit_2_5(env=None):
              )
          )),
 
-        ("2-5-1", "練習題", "汽車平均時速浮點除法 (distance / hours)", 10, ("distance", "hours", "speed", "avg_speed", "ans"),
+        ("2-5-1", "練習題", "汽車平均時速浮點除法 (distance / hours)", 10, ("distance", "hours", "speed", "avg_speed"),
          lambda g: (
              (True, f"平均時速計算正確：{g.get('distance')} / {g.get('hours')} = {g.get('distance') / g.get('hours')}")
              if ("distance" in g and "hours" in g and
                  (g.get("distance") / g.get("hours") in [75.0, 22.5] or
-                  any(g.get(k) == g.get('distance') / g.get('hours') for k in ["speed", "avg_speed", "ans"] if k in g)))
+                  any(g.get(k) == g.get('distance') / g.get('hours') for k in ["speed", "avg_speed"] if k in g)))
              else (False, "找不到 distance 或 hours，請使用單斜線除法計算平均時速並印出！")
          )),
 
-        ("2-5-1", "挑戰題", "三科成績加總平均浮點除法 ((c+e+m) / 3)", 8, ("avg", "average", "ans", "mean_score", "chinese", "english", "math"),
+        ("2-5-1", "挑戰題", "三科成績加總平均浮點除法 ((c+e+m) / 3)", 8, ("avg", "average", "mean_score", "chinese", "english", "math"),
          lambda g: (
              (True, "三科平均成績計算完成（精確浮點數輸出）！")
-             if any(abs(g.get(k) - (85 + 92 + 88) / 3) < 1e-6 for k in ["avg", "average", "ans", "mean_score"] if k in g) or
+             if any(abs(g.get(k) - (85 + 92 + 88) / 3) < 1e-6 for k in ["avg", "average", "mean_score"] if k in g) or
                 (g.get("chinese") == 85 and g.get("english") == 92 and g.get("math") == 88 and
                  any(isinstance(v, float) and abs(v - 88.33333333333333) < 1e-4 for v in g.values()))
              else (False, "請宣告三科成績，並用 (chinese + english + math) / 3 計算精確平均值！")
@@ -179,23 +179,23 @@ def auto_grade_unit_2_5(env=None):
              else (False, "找不到 sum_ab 或數值不正確，請在空格填入 + 運算子完成相加！")
          )),
 
-        ("2-5-2", "練習題", "小數兩次累加精度觀察 (start_val + step_val*2)", 10, ("start_val", "step_val", "res", "ans", "total"),
+        ("2-5-2", "練習題", "小數兩次累加精度觀察 (start_val + step_val*2)", 10, ("start_val", "step_val", "total"),
          lambda g: (
              (True, "小數累加運算正確！")
              if ("start_val" in g and "step_val" in g and
                  type(g.get("start_val")) in [int, float] and type(g.get("step_val")) in [int, float] and
                  (abs(g.get("start_val") + g.get("step_val") * 2 - 0.4) < 1e-9 or
                   abs(g.get("start_val") + g.get("step_val") * 2 - 0.5) < 1e-9 or
-                  any(isinstance(g.get(k), float) for k in ["res", "ans", "total"] if k in g)))
+                  any(isinstance(g.get(k), float) for k in ["total"] if k in g)))
              else (False, "找不到 start_val 或 step_val，請進行兩次連續累加並印出！")
          )),
 
-        ("2-5-2", "挑戰題", "0.3 - 0.2 浮點數精度真相探究 (val)", 8, ("val",),
+        ("2-5-2", "挑戰題", "0.3 - 0.2 浮點數精度真相探究 (sub_val)", 8, ("sub_val",),
          lambda g: (
              (True, "0.3 - 0.2 精度現象觀察完成！")
-             if ("val" in g and type(g.get("val")) is float and abs(g.get("val") - 0.1) < 1e-9) or
+             if ("sub_val" in g and type(g.get("sub_val")) is float and abs(g.get("sub_val") - 0.1) < 1e-9) or
                 any(isinstance(v, float) and abs(v - 0.1) < 1e-9 for v in g.values())
-             else (False, "請宣告 val = 0.3 - 0.2，並分兩行印出真實數值與 val == 0.1 比對結果！")
+             else (False, "請宣告 sub_val = 0.3 - 0.2，並分兩行印出真實數值與 sub_val == 0.1 比對結果！")
          )),
 
         # ----------------------------------------------------------------------
@@ -208,12 +208,12 @@ def auto_grade_unit_2_5(env=None):
              else (False, "safe_check 必須為 True，請填入 abs 與 < 符號完成安全比對！")
          )),
 
-        ("2-5-3", "練習題", "兩浮點數容差安全比對 (abs(num_a - num_b) < 1e-6)", 10, ("num_a", "num_b", "is_equal", "check", "ans", "same"),
+        ("2-5-3", "練習題", "兩浮點數容差安全比對 (abs(num_a - num_b) < 1e-6)", 10, ("num_a", "num_b", "is_equal", "check", "same"),
          lambda g: (
              (True, "浮點數容差安全檢查正確！")
              if ("num_a" in g and "num_b" in g and
                  type(g.get("num_a")) in [int, float] and type(g.get("num_b")) in [int, float] and
-                 any(type(g.get(k)) is bool for k in ["is_equal", "check", "ans", "same"] if k in g) or
+                 any(type(g.get(k)) is bool for k in ["is_equal", "check", "same"] if k in g) or
                  any(type(v) is bool for v in g.values()))
              else (False, "找不到 num_a 或 num_b，請利用 abs(num_a - num_b) < 1e-6 進行安全比對！")
          )),

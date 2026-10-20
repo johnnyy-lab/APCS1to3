@@ -160,10 +160,10 @@ def auto_grade_unit_2_3(env=None):
              else (False, "找不到變數 students 或 bus_capacity，請依練習題說明使用 // 計算滿載車數！")
          )),
 
-        ("2-3-1", "挑戰題", "雞蛋連續整除換算大箱 (total_eggs // 12 // 30)", 6, ("total_eggs", "crates", "total_crates", "crate_count", "ans"),
+        ("2-3-1", "挑戰題", "雞蛋連續整除換算大箱 (total_eggs // 12 // 30)", 6, ("total_eggs", "crates", "total_crates", "crate_count"),
          lambda g: (
              (True, "大箱數量計算完成（連續兩次 // 換算）！")
-             if any(k in g and type(g.get(k)) is int and g.get(k) >= 0 for k in ["crates", "total_crates", "crate_count", "ans"]) or
+             if any(k in g and type(g.get(k)) is int and g.get(k) >= 0 for k in ["crates", "total_crates", "crate_count"]) or
                 (g.get("total_eggs") and type(g.get("total_eggs")) is int and any(type(v) is int for v in g.values()))
              else (False, "請宣告 total_eggs 變數，並連續使用 // 12 與 // 30 計算能裝成的大箱數量！")
          )),
@@ -178,13 +178,13 @@ def auto_grade_unit_2_3(env=None):
              else (False, "找不到 remaining_stickers 或數值不為 2，請填入 % 並點擊播放鍵執行！")
          )),
 
-        ("2-3-2", "練習題", "萬聖節糖果平分落單數量 (total_candies % students)", 8, ("total_candies", "students"),
+        ("2-3-2", "練習題", "萬聖節糖果平分落單數量 (total_candies % child_num)", 8, ("total_candies", "child_num"),
          lambda g: (
-             (True, f"剩餘糖果計算正確：{g.get('total_candies')} % {g.get('students')} = {g.get('total_candies') % g.get('students')}")
-             if ("total_candies" in g and "students" in g and
-                 type(g.get("total_candies")) is int and type(g.get("students")) is int and
-                 (g.get("total_candies") % g.get("students") in [3, 2] or g.get("total_candies") % g.get("students") >= 0))
-             else (False, "找不到 total_candies 或 students，請依練習題計算 total_candies % students！")
+             (True, f"剩餘糖果計算正確：{g.get('total_candies')} % {g.get('child_num')} = {g.get('total_candies') % g.get('child_num')}")
+             if ("total_candies" in g and "child_num" in g and
+                 type(g.get("total_candies")) is int and type(g.get("child_num")) is int and
+                 (g.get("total_candies") % g.get("child_num") in [3, 2] or g.get("total_candies") % g.get("child_num") >= 0))
+             else (False, "找不到 total_candies 或 child_num，請依練習題計算 total_candies % child_num！")
          )),
 
         ("2-3-2", "挑戰題", "彈珠盒數與落單顆數雙重計算 (total_marbles)", 6, ("total_marbles", "boxes", "box_count", "remains", "remain_marbles", "leftover"),
@@ -213,10 +213,10 @@ def auto_grade_unit_2_3(env=None):
              else (False, "找不到變數 ticket_num，請計算 ticket_num % 4 分配職業公會編號！")
          )),
 
-        ("2-3-3", "挑戰題", "每週值日生排別循環計算 ((week - 1) % 3)", 6, ("current_week", "duty_row", "row", "ans"),
+        ("2-3-3", "挑戰題", "每週值日生排別循環計算 ((week - 1) % 3)", 6, ("current_week", "duty_row", "row"),
          lambda g: (
              (True, "週次值日生分組週期計算成功！")
-             if any(k in g and type(g.get(k)) is int and 0 <= g.get(k) <= 2 for k in ["duty_row", "row", "ans"]) or
+             if any(k in g and type(g.get(k)) is int and 0 <= g.get(k) <= 2 for k in ["duty_row", "row"]) or
                 ("current_week" in g and type(g.get("current_week")) is int and (g.get("current_week") - 1) % 3 in [0, 1, 2])
              else (False, "請宣告 current_week 並利用 (current_week - 1) % 3 計算當週值日生排別！")
          )),
@@ -232,19 +232,19 @@ def auto_grade_unit_2_3(env=None):
              else (False, "變數 tens 或 units 數值不正確，請在 tens 填入 // 在 units 填入 %！")
          )),
 
-        ("2-3-4", "練習題", "兩位數各位數字相加總和 (num // 10 + num % 10)", 8, ("num", "total", "sum_digits", "ans"),
+        ("2-3-4", "練習題", "兩位數各位數字相加總和 (num // 10 + num % 10)", 8, ("num", "total", "sum_digits"),
          lambda g: (
              (True, f"位數總和計算正確：{g.get('num')} ➔ {g.get('num') // 10 + g.get('num') % 10}")
              if ("num" in g and type(g.get("num")) is int and
                  (g.get("num") // 10 + g.get("num") % 10 in [11, 13] or
-                  any(g.get(k) in [11, 13] for k in ["total", "sum_digits", "ans"] if k in g)))
+                  any(g.get(k) in [11, 13] for k in ["total", "sum_digits"] if k in g)))
              else (False, "找不到變數 num，請拆解十位與個位並計算加總（如 47 ➔ 11，85 ➔ 13）！")
          )),
 
-        ("2-3-4", "挑戰題", "三位數密碼鎖各位數字乘積 (secret = 642 ➔ 48)", 6, ("secret", "password", "ans", "product", "secret_code"),
+        ("2-3-4", "挑戰題", "三位數密碼鎖各位數字乘積 (secret = 642 ➔ 48)", 6, ("secret", "password", "product", "secret_code"),
          lambda g: (
              (True, "三位數位數乘積計算正確（6 * 4 * 2 = 48）！")
-             if any(g.get(k) == 48 for k in ["password", "ans", "product", "secret_code"] if k in g) or
+             if any(g.get(k) == 48 for k in ["password", "product", "secret_code"] if k in g) or
                 (g.get("secret") == 642 and any(v == 48 for v in g.values()))
              else (False, "請設定 secret = 642 並利用 // 10 與 % 10 算出 6*4*2 = 48 解鎖密碼！")
          )),

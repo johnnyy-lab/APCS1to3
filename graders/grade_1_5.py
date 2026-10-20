@@ -24,6 +24,7 @@
 
 import sys
 import os
+import re
 import json
 import urllib.request
 import urllib.parse
@@ -99,6 +100,48 @@ def fetch_google_account_info(env=None):
     return google_email, google_name
 
 
+def _looks_like_sealed_code(body):
+    """判斷 # 後面的文字是否為「被封死的程式碼」而非分隔線或說明註解。
+
+    只認三類程式開頭：賦值（name = ...）、呼叫（name(...)）、
+    運算式（10 / 0）。# ==== 分隔線與中文說明都不算。"""
+    if re.match(r"^[A-Za-z_]\w*\s*=[^=]", body):
+        return True
+    if re.match(r"^[A-Za-z_]\w*\s*\(", body):
+        return True
+    if re.match(r"^[\w\.]+\s*[-+*/%]\s*[\w\.]+", body):
+        return True
+    return False
+
+
+def _seal_challenge_ok(env):
+    """1-5-4 挑戰題：執行歷史裡的挑戰題格必須同時有封印說明註解與被 # 封死的程式碼行。
+
+    刻意限定挑戰題那一格：1-5-4 的範例區與練習題格也有封印註解與被封死的
+    算式（例如示範格的 # error_calc = demo_val / 0），不限定就會變成照抄範例也
+    通過。歷史取學生存放格的 In／_ih（Cell B 快照於 IPython 內含這兩者）。"""
+    hist = env.get("In")
+    if not isinstance(hist, list):
+        hist = env.get("_ih")
+    if not isinstance(hist, list):
+        return False
+    for cell_src in hist:
+        if not isinstance(cell_src, str) or "封印" not in cell_src:
+            continue
+        if "挑戰題" not in cell_src and "暫時封印" not in cell_src:
+            continue
+        for line in cell_src.splitlines():
+            code = line.strip()
+            if not code.startswith("#"):
+                continue
+            body = code[1:].strip()
+            if not body or body.startswith("#"):
+                continue
+            if _looks_like_sealed_code(body):
+                return True
+    return False
+
+
 def auto_grade_unit_1_5(env=None):
     env = _student_env(env)
     total_score = 0
@@ -153,10 +196,10 @@ def auto_grade_unit_1_5(env=None):
          else (False, "請宣告草藥 herb 與聖水 water 並計算總重量")),
 
         # 1-5-2 分號串接單行多指令——省行數的利器 (共 20 分)
-        ("1-5-2", "填空題", "分號串接 x=100; y=200", 6, ("x", "y"),
-         lambda g: (True, "分號串接賦值成功：x=100, y=200")
-         if (g.get("x") in [100, 0] and g.get("y") in [200, 0])
-         else (False, "請在同一行使用分號 ; 連接 x = 100 與 y = 200")),
+        ("1-5-2", "填空題", "分號串接 num_x=100; num_y=200", 6, ("num_x", "num_y"),
+         lambda g: (True, "分號串接賦值成功：num_x=100, num_y=200")
+         if (g.get("num_x") in [100, 0] and g.get("num_y") in [200, 0])
+         else (False, "請在同一行使用分號 ; 連接 num_x = 100 與 num_y = 200")),
 
         ("1-5-2", "練習題", "一行分號設定 p 與 q 乘積", 8, ("p", "q"),
          lambda g: (True, f"乘積變數設定成功：p={g.get('p')}, q={g.get('q')}")
@@ -177,12 +220,12 @@ def auto_grade_unit_1_5(env=None):
         ("1-5-3", "練習題", "座標與位移兩組關聯變數", 8, ("dx", "dy"),
          lambda g: (True, f"座標位移設定正確：dx={g.get('dx')}, dy={g.get('dy')}")
          if ((g.get("dx") == 3 and g.get("dy") == 4) or (g.get("dx") == 10 and g.get("dy") == 20))
-         else (False, "請設定座標 x=0; y=0 與位移 dx=3; dy=4")),
+         else (False, "請設定座標 pos_x=0; pos_y=0 與位移 dx=3; dy=4")),
 
-        ("1-5-3", "挑戰題", "重構過度擁擠的分號代碼", 6, ("a", "b", "c", "d"),
+        ("1-5-3", "挑戰題", "重構過度擁擠的分號代碼", 6, ("part1", "part2", "part3", "part4"),
          lambda g: (True, "重構變數與計算成功！")
-         if (g.get("a") == 1 and g.get("b") == 2 and g.get("c") == 3 and g.get("d") == 3)
-         else (False, "請重構程式碼，只保留關聯變數在同一行，並算出 d = a + b")),
+         if (g.get("part1") == 1 and g.get("part2") == 2 and g.get("part3") == 3 and g.get("part4") == 3)
+         else (False, "請重構程式碼，只保留關聯變數在同一行，並算出 part4 = part1 + part2")),
 
         # 1-5-4 註解封印術——除錯測試的隱形斗篷 (共 20 分)
         ("1-5-4", "填空題", "封印報錯亂碼代碼", 6, ("score",),
@@ -195,8 +238,9 @@ def auto_grade_unit_1_5(env=None):
          else (False, "請封印舊版公式，採用新版公式 bonus = points * 3（測資 10 應得 30）")),
 
         ("1-5-4", "挑戰題", "封印自訂異常代碼測試", 6, (),
-         lambda g: (True, "自訂除錯封印挑戰成功！") if True
-         else (False, "請完成挑戰題之註解封印測試")),
+         lambda g: (True, "自訂除錯封印挑戰成功：無效代碼已用 # 封印，並留下說明註解！")
+         if _seal_challenge_ok(g)
+         else (False, "請在挑戰題格寫下一行會報錯的無效代碼，用 # 把它封印，並在旁邊留下「# 這行因為某原因暫時封印」的說明註解")),
 
         # 1-5-5 長算式安全換行——小括號隱式折行 (共 20 分)
         ("1-5-5", "填空題", "四科段考總分括號折行 total_score", 6, ("total_score",),

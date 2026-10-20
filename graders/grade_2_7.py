@@ -147,18 +147,18 @@ def auto_grade_unit_2_7(env=None):
              else (False, "找不到 is_odd 或數值不為 1，請在空格填入 & 1 並執行！")
          )),
 
-        ("2-7-1", "練習題", "任意整數最末位元計算 (num_check & 1)", 10, ("num_check", "last_bit", "ans", "bit"),
+        ("2-7-1", "練習題", "任意整數最末位元計算 (num_check & 1)", 10, ("num_check", "last_bit", "bit"),
          lambda g: (
              (True, "最末位元 AND 計算正確！")
              if ("num_check" in g and type(g.get("num_check")) is int and
-                 (g.get("num_check") & 1 in [0, 1] or any(g.get(k) in [0, 1] for k in ["last_bit", "ans", "bit"] if k in g)))
+                 (g.get("num_check") & 1 in [0, 1] or any(g.get(k) in [0, 1] for k in ["last_bit", "bit"] if k in g)))
              else (False, "找不到 num_check，請計算 num_check & 1 並印出最末位元！")
          )),
 
-        ("2-7-1", "挑戰題", "位元偶數等級判斷與雙倍獎勵結算 (level=16 ➔ 32)", 8, ("reward", "points", "ans", "final_reward", "level"),
+        ("2-7-1", "挑戰題", "位元偶數等級判斷與雙倍獎勵結算 (level=16 ➔ 32)", 8, ("reward", "points", "final_reward", "level"),
          lambda g: (
              (True, "等級位元獎勵點數計算成功（32 點）！")
-             if any(g.get(k) == 32 for k in ["reward", "points", "ans", "final_reward"] if k in g) or
+             if any(g.get(k) == 32 for k in ["reward", "points", "final_reward"] if k in g) or
                 (g.get("level") == 16 and any(v == 32 for v in g.values()))
              else (False, "請設定 level = 16，利用 (level & 1) 判斷並印出雙倍獎勵 32！")
          )),
@@ -182,10 +182,10 @@ def auto_grade_unit_2_7(env=None):
              else (False, "找不到 base_val 或 mask_val，請以 base_val | mask_val 計算合併值！")
          )),
 
-        ("2-7-2", "挑戰題", "智慧教室三設備連續位元 OR 啟動 (state = 13)", 8, ("state", "total_state", "ans", "room_state"),
+        ("2-7-2", "挑戰題", "智慧教室三設備連續位元 OR 啟動 (state = 13)", 8, ("state", "total_state", "room_state"),
          lambda g: (
              (True, "三設備連續位元 OR 啟動成功（0b0001 | 0b0100 | 0b1000 = 13）！")
-             if any(g.get(k) == 13 for k in ["state", "total_state", "ans", "room_state"] if k in g) or
+             if any(g.get(k) == 13 for k in ["state", "total_state", "room_state"] if k in g) or
                 any(v == 13 for v in g.values() if type(v) is int)
              else (False, "請以 mask_proj | mask_audio | mask_ac 連續 OR 計算並印出 13！")
          )),
@@ -209,10 +209,10 @@ def auto_grade_unit_2_7(env=None):
              else (False, "找不到 x_val 或 y_val，請以 x_val ^ y_val 計算並印出結果！")
          )),
 
-        ("2-7-3", "挑戰題", "連續 XOR 自消過濾唯一關鍵金鑰 (99)", 8, ("key", "ans", "unique_key", "secret"),
+        ("2-7-3", "挑戰題", "連續 XOR 自消過濾唯一關鍵金鑰 (99)", 8, ("key", "unique_key", "secret"),
          lambda g: (
              (True, "連續 XOR 自動抵銷成功：精準過濾出唯一金鑰 99！")
-             if any(g.get(k) == 99 for k in ["key", "ans", "unique_key", "secret"] if k in g) or
+             if any(g.get(k) == 99 for k in ["key", "unique_key", "secret"] if k in g) or
                 any(v == 99 for v in g.values() if type(v) is int)
              else (False, "請以 24 ^ 55 ^ 99 ^ 55 ^ 24 計算並印出唯一未成對金鑰 99！")
          )),
@@ -237,11 +237,11 @@ def auto_grade_unit_2_7(env=None):
              else (False, "找不到 sample_n，請依練習題印出 sample_n << 1 與 sample_n >> 1！")
          )),
 
-        ("2-7-4", "挑戰題", "二分搜尋位元右移求中點 ((left + right) >> 1 ➔ 17)", 8, ("mid_point", "ans", "center", "mid"),
+        ("2-7-4", "挑戰題", "二分搜尋位元右移求中點 ((left + right) >> 1 ➔ 17)", 8, ("mid_point", "center", "mid"),
          lambda g: (
              (True, "二分搜尋區間中點右移計算正確：mid = (10 + 25) >> 1 = 17！")
              if (g.get("mid") == 17 and type(g.get("mid")) is int) or
-                any(g.get(k) == 17 for k in ["mid_point", "ans", "center"] if k in g)
+                any(g.get(k) == 17 for k in ["mid_point", "center"] if k in g)
              else (False, "請設定 left = 10, right = 25，利用 (left + right) >> 1 計算中點 17！")
          )),
     ]

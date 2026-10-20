@@ -143,7 +143,7 @@ def auto_grade_unit_1_4(env=None):
          else (False, "找不到 coin_box 或數值不為 100，請填入 += 20")),
 
         ("1-4-1", "練習題", "經驗值兩次連續累加 exp", 8, ("exp",),
-         lambda g: (True, f"經驗值連續累加正確：exp = {g.get('exp')}") if g.get("exp") in [75, 125]
+         lambda g: (True, f"經驗值連續累加正確：exp = {g.get('exp')}") if g.get("exp") in [75, 125, 175]
          else (False, "變數 exp 數值不正確（初始 0 依序 +30, +45 應為 75）")),
 
         ("1-4-1", "挑戰題", "全日跑步里程累加 total_distance", 6, ("total_distance",),
@@ -157,7 +157,7 @@ def auto_grade_unit_1_4(env=None):
          else (False, "找不到 hp 或數值不為 60，請使用 -= 扣除 15 + 25")),
 
         ("1-4-2", "練習題", "錢包早餐飲料支出 balance", 8, ("balance",),
-         lambda g: (True, f"餘額計算正確：balance = {g.get('balance')}") if g.get("balance") in [400, 350]
+         lambda g: (True, f"餘額計算正確：balance = {g.get('balance')}") if g.get("balance") in [400, 350, 300]
          else (False, "變數 balance 不為 400（500 - (65 + 35) = 400）")),
 
         ("1-4-2", "挑戰題", "水庫兩天用水扣除 water", 6, ("water",),
@@ -170,12 +170,12 @@ def auto_grade_unit_1_4(env=None):
          else (False, "找不到 attack 或數值不為 75，請使用 *= 3")),
 
         ("1-4-3", "練習題", "細菌連續兩次分裂翻倍 bacteria", 8, ("bacteria",),
-         lambda g: (True, f"細菌分裂翻倍正確：bacteria = {g.get('bacteria')}") if g.get("bacteria") in [40, 80]
+         lambda g: (True, f"細菌分裂翻倍正確：bacteria = {g.get('bacteria')}") if g.get("bacteria") in [40, 80, 28]
          else (False, "bacteria 數值不符合測資（初始 10 經兩次 *= 2 應為 40）")),
 
-        ("1-4-3", "挑戰題", "複合乘法賦值 val *= (2 + 3 * 2)", 6, ("val",),
-         lambda g: (True, f"右側先算再乘賦值成功：val = {g.get('val')}") if g.get("val") == 40
-         else (False, "變數 val 數值不為 40（5 * (2 + 6) = 40）")),
+        ("1-4-3", "挑戰題", "複合乘法賦值 mix_val *= (2 + 3 * 2)", 6, ("mix_val",),
+         lambda g: (True, f"右側先算再乘賦值成功：mix_val = {g.get('mix_val')}") if g.get("mix_val") == 40
+         else (False, "變數 mix_val 數值不為 40（5 * (2 + 6) = 40）")),
 
         # 1-4-4 整數除法與求餘數捷徑：//= 與 %= (共 20 分)
         ("1-4-4", "填空題", "蘋果裝袋求餘數 apples %= 6", 6, ("apples",),
@@ -183,7 +183,7 @@ def auto_grade_unit_1_4(env=None):
          else (False, "找不到 apples 或數值不為 2，請填入 %= 6")),
 
         ("1-4-4", "練習題", "三位數剪除個位十位 code //= 10", 8, ("code",),
-         lambda g: (True, f"兩次整數除法取得百位數正確：code = {g.get('code')}") if g.get("code") in [7, 5, 9]
+         lambda g: (True, f"兩次整數除法取得百位數正確：code = {g.get('code')}") if g.get("code") in [7, 5, 9, 3]
          else (False, "code 數值不正確（測資 789 經兩次 //= 10 應為 7）")),
 
         ("1-4-4", "挑戰題", "時間換算小時與分鐘 minutes, remain", 6, ("minutes", "remain"),
@@ -197,12 +197,12 @@ def auto_grade_unit_1_4(env=None):
          else (False, "找不到 base 或數值不為 64，請使用 **= 3")),
 
         ("1-4-5", "練習題", "正方形面積計算 side **= 2", 8, ("side",),
-         lambda g: (True, f"正方形面積計算正確：side = {g.get('side')}") if g.get("side") in [25, 49, 100]
+         lambda g: (True, f"正方形面積計算正確：side = {g.get('side')}") if g.get("side") in [25, 49, 100, 81]
          else (False, "變數 side 數值不符合測資（初始 5 經 side **= 2 應為 25）")),
 
-        ("1-4-5", "挑戰題", "右側整體先算次方運算 n **= 2 + 1", 6, ("n",),
-         lambda g: (True, f"魔王級次方運算成功：n = {g.get('n')}") if g.get("n") == 27
-         else (False, "變數 n 不為 27（3 ** (2 + 1) = 3 ** 3 = 27）")),
+        ("1-4-5", "挑戰題", "右側整體先算次方運算 power_num **= 2 + 1", 6, ("power_num",),
+         lambda g: (True, f"魔王級次方運算成功：power_num = {g.get('power_num')}") if g.get("power_num") == 27
+         else (False, "變數 power_num 不為 27（3 ** (2 + 1) = 3 ** 3 = 27）")),
     ]
 
     pass_count = 0

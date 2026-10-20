@@ -160,10 +160,10 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到變數 base 或 exp，請依練習題說明使用 ** 計算次方並印出！")
          )),
 
-        ("2-4-1", "挑戰題", "益生菌週期暴增次方運算 (initial * 3**cycles)", 8, ("total_bacteria", "bacteria", "ans", "final_count", "cycles"),
+        ("2-4-1", "挑戰題", "益生菌週期暴增次方運算 (initial * 3**cycles)", 8, ("total_bacteria", "bacteria", "final_count", "cycles"),
          lambda g: (
              (True, "益生菌繁殖暴增計算完成！")
-             if any(k in g and type(g.get(k)) is int and g.get(k) >= 5 for k in ["total_bacteria", "bacteria", "ans", "final_count"]) or
+             if any(k in g and type(g.get(k)) is int and g.get(k) >= 5 for k in ["total_bacteria", "bacteria", "final_count"]) or
                 ("cycles" in g and type(g.get("cycles")) is int and any(type(v) is int and v >= 15 for v in g.values()))
              else (False, "請宣告 cycles 變數並利用 initial_count * (3 ** cycles) 計算益生菌總數！")
          )),
@@ -192,12 +192,11 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到 neg_base（負數）或 even_exp（偶數），請以小括號計算次方並印出！")
          )),
 
-        ("2-4-2", "挑戰題", "二次多項式數值計算 (y = a*x**2 + b*x + c ➔ 25)", 8, ("poly_val", "ans", "res", "y"),
+        ("2-4-2", "挑戰題", "二次多項式數值計算 (poly_y = coef_a*in_x**2 + coef_b*in_x + const_c ➔ 25)", 8, ("poly_y",),
          lambda g: (
-             (True, "二次多項式計算成功：當 x = -2 時 y = 25！")
-             if (g.get("y") == 25 and type(g.get("y")) is int) or
-                any(g.get(k) == 25 for k in ["poly_val", "ans", "res"] if k in g)
-             else (False, "請設定 a=3, b=-4, c=5, x=-2，計算 a*(x**2) + b*x + c 的值（預期 y = 25）！")
+             (True, "二次多項式計算成功：當 in_x = -2 時 poly_y = 25！")
+             if (g.get("poly_y") == 25 and type(g.get("poly_y")) is int)
+             else (False, "請設定 coef_a=3, coef_b=-4, const_c=5, in_x=-2，計算 coef_a*(in_x**2) + coef_b*in_x + const_c 的值（預期 poly_y = 25）！")
          )),
 
         # ----------------------------------------------------------------------
@@ -210,22 +209,22 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到 hypotenuse 或數值不為 5.0，請在空格填入 0.5 並點擊播放鍵執行！")
          )),
 
-        ("2-4-3", "練習題", "正方形面積開根號求邊長 (area_val ** 0.5)", 10, ("area_val", "side", "length", "ans"),
+        ("2-4-3", "練習題", "正方形面積開根號求邊長 (area_val ** 0.5)", 10, ("area_val", "side", "length"),
          lambda g: (
              (True, f"開根號求邊長正確：{g.get('area_val')} ** 0.5 = {g.get('area_val') ** 0.5}")
              if ("area_val" in g and
                  type(g.get("area_val")) in [int, float] and
                  (abs(g.get("area_val") ** 0.5 - 8.0) < 1e-9 or abs(g.get("area_val") ** 0.5 - 12.0) < 1e-9 or
-                  any(abs(g.get(k) - (g.get('area_val') ** 0.5)) < 1e-9 for k in ["side", "length", "ans"] if k in g)))
+                  any(abs(g.get(k) - (g.get('area_val') ** 0.5)) < 1e-9 for k in ["side", "length"] if k in g)))
              else (False, "找不到變數 area_val，請宣告面積並使用 ** 0.5 計算邊長！")
          )),
 
-        ("2-4-3", "挑戰題", "畢氏定理斜邊長度計算 ((6**2 + 8**2)**0.5 ➔ 10.0)", 8, ("c", "hypotenuse", "ans", "a", "b"),
+        ("2-4-3", "挑戰題", "畢氏定理斜邊長度計算 ((6**2 + 8**2)**0.5 ➔ 10.0)", 8, ("hyp", "hypotenuse"),
          lambda g: (
-             (True, "畢氏定理計算正確：斜邊 c = 10.0！")
-             if any(abs(g.get(k) - 10.0) < 1e-9 for k in ["c", "hypotenuse", "ans"] if k in g) or
-                (g.get("a") == 6 and g.get("b") == 8 and any(abs(v - 10.0) < 1e-9 for v in g.values() if isinstance(v, (int, float))))
-             else (False, "請宣告兩股 a = 6, b = 8，並用 (a**2 + b**2)**0.5 計算斜邊 c = 10.0！")
+             (True, "畢氏定理計算正確：斜邊 hyp = 10.0！")
+             if any(abs(g.get(k) - 10.0) < 1e-9 for k in ["hyp", "hypotenuse"] if k in g) or
+                (g.get("leg_a") == 6 and g.get("leg_b") == 8 and any(abs(v - 10.0) < 1e-9 for v in g.values() if isinstance(v, (int, float))))
+             else (False, "請宣告兩股 leg_a = 6, leg_b = 8，並用 (leg_a**2 + leg_b**2)**0.5 計算斜邊 hyp = 10.0！")
          )),
 
         # ----------------------------------------------------------------------
@@ -238,12 +237,12 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到 check_limit 或數值不為 8，請填入 int 與 ** 0.5 並執行！")
          )),
 
-        ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10, ("target_n", "res", "ans", "limit", "root"),
+        ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10, ("target_n", "limit", "root"),
          lambda g: (
              (True, f"開根號取整正確：int({g.get('target_n')} ** 0.5) = {int(g.get('target_n') ** 0.5)}")
              if ("target_n" in g and type(g.get("target_n")) is int and
                  (int(g.get("target_n") ** 0.5) in [7, 14] or
-                  any(g.get(k) == int(g.get("target_n") ** 0.5) for k in ["res", "ans", "limit", "root"] if k in g)))
+                  any(g.get(k) == int(g.get("target_n") ** 0.5) for k in ["limit", "root"] if k in g)))
              else (False, "找不到變數 target_n，請依練習題使用 int(target_n ** 0.5) 取整數並印出！")
          )),
 

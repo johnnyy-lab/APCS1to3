@@ -153,8 +153,8 @@ def auto_grade_unit_1_6(env=None):
          else (False, "找不到變數 bonus，請宣告 base, rate 計算 bonus = base * rate // 100")),
 
         # 1-6-2 縮排界定程式區塊——「母雞帶小鴨」的層級從屬概念 (共 25 分)
-        ("1-6-2", "填空題", "if 區塊內補齊 4 個空格縮排", 7, ("score",),
-         lambda g: (True, "條件判斷與縮排語法完全正確！") if g.get("score") == 100
+        ("1-6-2", "填空題", "if 區塊內補齊 4 個空格縮排", 7, ("exam_score",),
+         lambda g: (True, "條件判斷與縮排語法完全正確！") if g.get("exam_score") == 100
          else (False, "請在 if 條件下的 print 指令前補上 4 個空格完成縮排")),
 
         ("1-6-2", "練習題", "補給藥水 if 縮排雙行 print (potion)", 10, ("potion",),
@@ -183,14 +183,14 @@ def auto_grade_unit_1_6(env=None):
          else (False, "請宣告 has_ticket 與 is_vip 並以 4 格與 8 格進行巢狀縮排")),
 
         # 1-6-4 優雅的呼吸留白——中間與後方的美化空白規範 (共 25 分)
-        ("1-6-4", "填空題", "運算子兩側優雅呼吸留白 ans", 7, ("ans",),
-         lambda g: (True, "運算子呼吸留白正確：ans = 120") if g.get("ans") == 120
-         else (False, "找不到變數 ans 或數值不為 120，請填入帶空格的 = 與 +")),
+        ("1-6-4", "填空題", "運算子兩側優雅呼吸留白 sum_result", 7, ("sum_result",),
+         lambda g: (True, "運算子呼吸留白正確：sum_result = 120") if g.get("sum_result") == 120
+         else (False, "找不到變數 sum_result 或數值不為 120，請填入帶空格的 = 與 +")),
 
-        ("1-6-4", "練習題", "擁擠算式美化重排 result", 10, ("result",),
-         lambda g: (True, f"算式美化重排計算成功：result = {g.get('result')}")
-         if g.get("result") in [17, 46]
-         else (False, "變數 result 數值不符合測資（預期 17 或 46）")),
+        ("1-6-4", "練習題", "擁擠算式美化重排 calc_result", 10, ("calc_result",),
+         lambda g: (True, f"算式美化重排計算成功：calc_result = {g.get('calc_result')}")
+         if g.get("calc_result") in [17, 46]
+         else (False, "變數 calc_result 數值不符合測資（預期 17 或 46）")),
 
         ("1-6-4", "挑戰題", "文具店結帳清單頂尖工程師排版", 8, ("pen", "notebook", "ruler"),
          lambda g: (True, "文具店結帳變數設定與總價計算正確！")

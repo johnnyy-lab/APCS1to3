@@ -205,10 +205,11 @@ def auto_grade_unit_1_1(env=None):
          if (g.get("apple") in [3, 7] and g.get("Apple") in [10, 20])
          else (False, "請建立小寫 apple (3或7) 與大寫 Apple (10或20)")),
 
-        ("1-1-5", "挑戰題", "三重大小寫 data, Data, DATA", 4, ("data", "Data", "DATA"),
+        ("1-1-5", "挑戰題", "三重大小寫 demo_data, demo_Data, demo_DATA", 4,
+         ("demo_data", "demo_Data", "demo_DATA"),
          lambda g: (True, "三重大小寫箱子共存成功！(1, 2, 3)")
-         if (g.get("data") == 1 and g.get("Data") == 2 and g.get("DATA") == 3)
-         else (False, "請分別宣告 data=1, Data=2, DATA=3")),
+         if (g.get("demo_data") == 1 and g.get("demo_Data") == 2 and g.get("demo_DATA") == 3)
+         else (False, "請分別宣告 demo_data=1, demo_Data=2, demo_DATA=3")),
 
         # 1-1-6 變數命名規則四：避開保留字
         ("1-1-6", "填空題", "避開保留字改為 pass_code", 5, ("pass_code",),

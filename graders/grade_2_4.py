@@ -160,11 +160,10 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到變數 base 或 exp，請依練習題說明使用 ** 計算次方並印出！")
          )),
 
-        ("2-4-1", "挑戰題", "益生菌週期暴增次方運算 (initial * 3**cycles)", 8, ("total_bacteria", "bacteria", "final_count", "cycles"),
+        ("2-4-1", "挑戰題", "益生菌週期暴增次方運算 (initial * 3**cycles)", 8, ("cycles",),
          lambda g: (
              (True, "益生菌繁殖暴增計算完成！")
-             if any(k in g and type(g.get(k)) is int and g.get(k) >= 5 for k in ["total_bacteria", "bacteria", "final_count"]) or
-                ("cycles" in g and type(g.get("cycles")) is int and any(type(v) is int and v >= 15 for v in g.values()))
+             if ("cycles" in g and type(g.get("cycles")) is int and any(type(v) is int and v >= 15 for v in g.values()))
              else (False, "請宣告 cycles 變數並利用 initial_count * (3 ** cycles) 計算益生菌總數！")
          )),
 
@@ -209,13 +208,13 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到 hypotenuse 或數值不為 5.0，請在空格填入 0.5 並點擊播放鍵執行！")
          )),
 
-        ("2-4-3", "練習題", "正方形面積開根號求邊長 (area_val ** 0.5)", 10, ("area_val", "side", "length"),
+        ("2-4-3", "練習題", "正方形面積開根號求邊長 (area_val ** 0.5)", 10, ("area_val", "side"),
          lambda g: (
              (True, f"開根號求邊長正確：{g.get('area_val')} ** 0.5 = {g.get('area_val') ** 0.5}")
              if ("area_val" in g and
                  type(g.get("area_val")) in [int, float] and
                  (abs(g.get("area_val") ** 0.5 - 8.0) < 1e-9 or abs(g.get("area_val") ** 0.5 - 12.0) < 1e-9 or
-                  any(abs(g.get(k) - (g.get('area_val') ** 0.5)) < 1e-9 for k in ["side", "length"] if k in g)))
+                  any(abs(g.get(k) - (g.get('area_val') ** 0.5)) < 1e-9 for k in ["side"] if k in g)))
              else (False, "找不到變數 area_val，請宣告面積並使用 ** 0.5 計算邊長！")
          )),
 
@@ -237,20 +236,20 @@ def auto_grade_unit_2_4(env=None):
              else (False, "找不到 check_limit 或數值不為 8，請填入 int 與 ** 0.5 並執行！")
          )),
 
-        ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10, ("target_n", "limit", "root"),
+        ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10, ("target_n", "limit"),
          lambda g: (
              (True, f"開根號取整正確：int({g.get('target_n')} ** 0.5) = {int(g.get('target_n') ** 0.5)}")
              if ("target_n" in g and type(g.get("target_n")) is int and
                  (int(g.get("target_n") ** 0.5) in [7, 14] or
-                  any(g.get(k) == int(g.get("target_n") ** 0.5) for k in ["limit", "root"] if k in g)))
+                  any(g.get(k) == int(g.get("target_n") ** 0.5) for k in ["limit"] if k in g)))
              else (False, "找不到變數 target_n，請依練習題使用 int(target_n ** 0.5) 取整數並印出！")
          )),
 
-        ("2-4-4", "挑戰題", "整數平方根檢測器 (r 與 r**2 精準還原)", 8, ("test_val", "r", "root", "sq", "r_squared", "restore"),
+        ("2-4-4", "挑戰題", "整數平方根檢測器 (r 與 r**2 精準還原)", 8, ("test_val", "r"),
          lambda g: (
              (True, "整數平方根檢測器運作正確！")
-             if any(k in g for k in ["r", "root"]) and any(k in g for k in ["sq", "r_squared", "restore"]) or
-                ("test_val" in g and type(g.get("test_val")) is int)
+             if ("r" in g and "test_val" in g and type(g.get("test_val")) is int) or
+                ("test_val" in g and type(g.get("test_val")) is int and any(type(v) is int for v in g.values()))
              else (False, "請宣告 test_val，並分別計算整數平方根 r 與還原平方值 r ** 2！")
          )),
     ]

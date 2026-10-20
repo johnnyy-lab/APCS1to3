@@ -139,7 +139,7 @@ def auto_grade_unit_1_6(env=None):
     test_cases = [
         # 1-6-1 行首嚴禁任意留白——抓出出列站錯的 IndentationError (共 25 分)
         ("1-6-1", "填空題", "刪除行首多餘空格 my_score = 95", 7, ("my_score",),
-         lambda g: (True, "成功刪除行首多餘空格，my_score = 95！") if (g.get("my_score") == 95 or g.get("score") == 95)
+         lambda g: (True, "成功刪除行首多餘空格，my_score = 95！") if g.get("my_score") == 95
          else (False, "找不到 my_score 或數值不為 95，請刪除第二行最前方的多餘空格")),
 
         ("1-6-1", "練習題", "排版混亂修復 price 與 num", 10, ("price", "num"),

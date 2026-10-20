@@ -258,18 +258,14 @@ def auto_grade_unit_2_1(env=None):
              )
          )),
 
-        ("2-1-3", "挑戰題", "三數混合連加染紅 (ans_float = 10.0)", 8, ("ans_float", "ans"),
+        ("2-1-3", "挑戰題", "三數混合連加染紅 (ans_float = 10.0)", 8, ("ans_float",),
          lambda g: (
              (True, "三數連加染紅成功：ans_float = 10.0（整數 5 與 3 被 2.0 染紅為 float）！")
              if ("ans_float" in g and g.get("ans_float") == 10.0 and type(g.get("ans_float")) is float)
              else (
-                 (False, "偵測到變數 ans = 10.0！本題已鎖定專屬變數 ans_float，請改用 ans_float = 5 + 3 + 2.0 並重新點擊播放鍵，避免變數撞名被覆蓋！")
-                 if ("ans" in g and g.get("ans") == 10.0 and type(g.get("ans")) is float)
-                 else (
-                     (False, "計算結果目前是純整數 10，算式中請包含 2.0 浮點數讓結果自動晉升為 10.0！")
-                     if (g.get("ans_float") == 10)
-                     else (False, "找不到變數 ans_float，請寫出 5 + 3 + 2.0 計算並存入 ans_float！")
-                 )
+                 (False, "計算結果目前是純整數 10，算式中請包含 2.0 浮點數讓結果自動晉升為 10.0！")
+                 if (g.get("ans_float") == 10)
+                 else (False, "找不到變數 ans_float，請寫出 5 + 3 + 2.0 計算並存入 ans_float！")
              )
          )),
 

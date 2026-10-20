@@ -192,15 +192,11 @@ def auto_grade_unit_2_2(env=None):
              else (False, "找不到變數 unit_price 或 quantity，請依練習題說明計算單價乘以數量！")
          )),
 
-        ("2-2-2", "挑戰題", "開學特賣文具結帳總金額計算", 6, ("stationery_total", "pencil_count", "notebook_count", "eraser_count"),
+        ("2-2-2", "挑戰題", "開學特賣文具結帳總金額計算", 6, ("stationery_total",),
          lambda g: (
              (True, f"文具結帳金額計算成功：stationery_total = {g.get('stationery_total')}")
              if ("stationery_total" in g and type(g.get("stationery_total")) is int and g.get("stationery_total") > 0)
-             else (
-                 (False, "請把鉛筆、筆記本、橡皮擦的總金額存入專屬變數 stationery_total，不要用 ans 這類通用名！")
-                 if any(k in g for k in ["pencil_count", "notebook_count", "eraser_count"])
-                 else (False, "請依挑戰題宣告鉛筆、筆記本、橡皮擦數量，用乘法與加法計算總金額並存入 stationery_total！")
-             )
+             else (False, "請依挑戰題宣告鉛筆、筆記本、橡皮擦數量，用乘法與加法計算總金額並存入專屬變數 stationery_total！")
          )),
 
         # ----------------------------------------------------------------------

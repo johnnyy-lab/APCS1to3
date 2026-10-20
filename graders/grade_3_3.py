@@ -190,22 +190,23 @@ def auto_grade_unit_3_3(env=None):
              else (False, "找不到 p, q, r，請計算 max(p + 2, min(q * 3, r - 4)) 並印出！")
          )),
 
-        ("3-3-2", "挑戰題", "Clamp 數值安全限幅閥演算法 (clamped = 100)", 10, ("val",),
+        ("3-3-2", "挑戰題", "Clamp 數值安全限幅閥演算法 (clamped = 100)", 10, ("raw_speed",),
          lambda g: (
              (True, "Clamp 數值限幅成功：角色速度被安全限制在上限 100！")
-             if any(isinstance(v, (int, float)) and v == 100 for k, v in g.items() if "clamp" in k or "speed" in k or "ans" in k or "val" in k) or
-                (g.get("val") == 120 and any(isinstance(v, (int, float)) and v == 100 for v in g.values()))
-             else (False, "請以 min(max_limit, max(min_limit, val)) 限制速度在 [0, 100] 內並印出 100！")
+             if any(isinstance(v, (int, float)) and v == 100 for k, v in g.items() if "clamp" in k or "speed" in k) or
+                (g.get("raw_speed") == 120 and any(isinstance(v, (int, float)) and v == 100 for v in g.values()))
+             else (False, "請以 min(max_limit, max(min_limit, raw_speed)) 限制速度在 [0, 100] 內並印出 100！")
          )),
 
         # ----------------------------------------------------------------------
         # 3-3-3 三數排序中間值技巧——總和扣除極值的數學巧思 (共 33 分)
         # ----------------------------------------------------------------------
-        ("3-3-3", "填空題", "三數扣除極值求中間值 (low=7, mid=19, high=24)", 11, ("low", "mid", "high"),
+        ("3-3-3", "填空題", "三數扣除極值求中間值 (low=78, mid=85, high=92)", 11, ("low", "mid", "high"),
          lambda g: (
-             (True, "總和扣除極值法成功：low=7, mid=19, high=24！")
-             if (g.get("low") == 7 and g.get("mid") == 19 and g.get("high") == 24)
-             else (False, "找不到 low, mid, high（預期 7, 19, 24），請在空格填入 min, max 與 low, high！")
+             (True, "總和扣除極值法成功：low=78, mid=85, high=92！")
+             if ((g.get("low") == 78 and g.get("mid") == 85 and g.get("high") == 92) or
+                 (g.get("low") == 7 and g.get("mid") == 19 and g.get("high") == 24))
+             else (False, "找不到 low, mid, high（預期 78, 85, 92），請在空格填入 min, max 與 low, high！")
          )),
 
         ("3-3-3", "練習題", "三商品價格由小到大三數排序 (price1, price2, price3)", 12, ("price1", "price2", "price3"),
@@ -215,7 +216,10 @@ def auto_grade_unit_3_3(env=None):
                  isinstance(g.get("price1"), (int, float)) and
                  isinstance(g.get("price2"), (int, float)) and
                  isinstance(g.get("price3"), (int, float)) and
-                 (any(v == 80 for v in g.values() if isinstance(v, (int, float))) or
+                 (any(isinstance(v, (int, float)) and v == (g["price1"] + g["price2"] + g["price3"] - min(g["price1"], g["price2"], g["price3"]) - max(g["price1"], g["price2"], g["price3"])) for v in g.values()) or
+                  any(v in [280, 60, 80] for v in g.values() if isinstance(v, (int, float))) or
+                  any(all(s in str(v) for s in ["120", "280", "350"]) for v in g.values()) or
+                  any(all(s in str(v) for s in ["50", "60", "90"]) for v in g.values()) or
                   any("45" in str(v) and "80" in str(v) and "120" in str(v) for v in g.values())))
              else (False, "找不到 price1, price2, price3，請以總和扣除極值法計算中間值並依序印出！")
          )),

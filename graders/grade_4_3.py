@@ -262,13 +262,13 @@ def auto_grade_unit_4_3(env=None):
              else (False, "請在 4-3-5 填空題空格依序填入 sep 與 end 關鍵字名稱並執行！")
          )),
 
-        ("4-3-5", "練習題", "機器人三軸座標精密排版 (x, y, z, sep=', ', end=']\\n')", 8, ("x", "y", "z"),
+        ("4-3-5", "練習題", "機器人三軸座標精密排版 (pos_x, pos_y, pos_z, sep=', ', end=']\\n')", 8, ("pos_x", "pos_y", "pos_z"),
          lambda g: (
-             (True, f"機器人三軸座標排版完成：[{g.get('x')}, {g.get('y')}, {g.get('z')}]！")
-             if (("x" in g and "y" in g and "z" in g) and
+             (True, f"機器人三軸座標排版完成：[{g.get('pos_x')}, {g.get('pos_y')}, {g.get('pos_z')}]！")
+             if (("pos_x" in g and "pos_y" in g and "pos_z" in g) and
                  ("Robot Pos" in history_str) and
                  ("sep=" in history_str and "end=" in history_str))
-             else (False, "請宣告 x, y, z 並使用 end='' 前導字串搭配 sep=', ', end=']\\n' 輸出！")
+             else (False, "請宣告 pos_x, pos_y, pos_z 並使用 end='' 前導字串搭配 sep=', ', end=']\\n' 輸出！")
          )),
 
         ("4-3-5", "挑戰題", "戰艦雷達目標掃描儀表板 (target1, target2, target3)", 6, ("target1", "target2", "target3"),

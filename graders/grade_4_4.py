@@ -225,11 +225,11 @@ def auto_grade_unit_4_4(env=None):
         # ----------------------------------------------------------------------
         # 4-4-4 連續跨行與接續排版——結合 end 參數建構連貫算式與計算歷程 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-4-4", "填空題", "連乘算式不換行留空格 (end=' ')", 6, ("x",),
+        ("4-4-4", "填空題", "連乘算式不換行留空格 (end=' ')", 6, ("num1",),
          lambda g: (
              (True, "算式接續設定正確：end=' '！")
              if (("end=' '" in history_str or 'end=" "' in history_str) and
-                 ("算式" in history_str or g.get("x") == 3))
+                 ("算式" in history_str or g.get("num1") == 3))
              else (False, "請在 4-4-4 填空題空格填入 end=' ' 並執行儲存格！")
          )),
 
@@ -260,13 +260,13 @@ def auto_grade_unit_4_4(env=None):
              else (False, "請在 4-4-5 填空題空格填入 round 與 max 函數名稱並執行！")
          )),
 
-        ("4-4-5", "練習題", "直角三角形幾何分析儀全能排版 (a, b, c, sep='')", 8, ("a", "b"),
+        ("4-4-5", "練習題", "直角三角形幾何分析儀全能排版 (side_a, side_b, sep='')", 8, ("side_a", "side_b"),
          lambda g: (
-             (True, f"幾何工程分析儀輸出成功：兩股={g.get('a')}, {g.get('b')}！")
-             if (("a" in g and "b" in g) and
+             (True, f"幾何工程分析儀輸出成功：兩股={g.get('side_a')}, {g.get('side_b')}！")
+             if (("side_a" in g and "side_b" in g) and
                  ("直角三角形兩股" in history_str) and
                  ("sep=''" in history_str or 'sep=""' in history_str))
-             else (False, "請宣告 a, b 變數，並結合即時運算與 sep='' 輸出直角三角形幾何報告！")
+             else (False, "請宣告 side_a, side_b 變數，並結合即時運算與 sep='' 輸出直角三角形幾何報告！")
          )),
 
         ("4-4-5", "挑戰題", "智慧家庭夏月用電計費儀表板 (billing_month, kwh_used, rate_per_kwh, base_fee)", 6, ("billing_month", "kwh_used", "rate_per_kwh", "base_fee"),

@@ -160,7 +160,7 @@ def auto_grade_unit_3_1(env=None):
              (True, f"圓面積無條件捨去整數計算正確！(radius={g.get('radius')})")
              if ("radius" in g and
                  (any(isinstance(v, int) and v in [78, 314] for v in g.values()) or
-                  any(isinstance(v, (int, float)) and int(v) in [78, 314] for k, v in g.items() if "area" in k or "ans" in k)))
+                  any(isinstance(v, (int, float)) and int(v) in [78, 314] for k, v in g.items() if "area" in k)))
              else (
                  (False, "題目要求無條件捨去小數點輸出純整數，請使用 int(area) 轉為 int 型態！")
                  if ("area" in g and type(g.get("area")) is float and not any(isinstance(v, int) and v in [78, 314] for v in g.values()))
@@ -207,7 +207,7 @@ def auto_grade_unit_3_1(env=None):
         ("3-1-2", "挑戰題", "出生年份字串轉整數計算實歲年齡 (age = 14)", 6, ("birth_year_str",),
          lambda g: (
              (True, "實歲年齡計算成功：2026 - int('2012') = 14 歲！")
-             if any(v == 14 and type(v) is int for k, v in g.items() if "age" in k or "ans" in k) or
+             if any(v == 14 and type(v) is int for k, v in g.items() if "age" in k) or
                 (g.get("birth_year_str") == "2012" and any(v == 14 and type(v) is int for v in g.values()))
              else (False, "請宣告 birth_year_str = '2012'，以 int() 轉型後用 current_year 減去算出年齡 14！")
          )),
@@ -232,7 +232,7 @@ def auto_grade_unit_3_1(env=None):
              if ("str_x" in g and "str_y" in g and
                  (any(isinstance(v, (int, float)) and abs(v - 7.7) < 1e-4 for v in g.values()) or
                   any(isinstance(v, (int, float)) and abs(v - 11.0) < 1e-4 for v in g.values()) or
-                  any(isinstance(v, float) for k, v in g.items() if "ans" in k or "sum" in k or "total" in k)))
+                  any(isinstance(v, float) for k, v in g.items() if "sum" in k or "total" in k)))
              else (
                  (True, "浮點數字串轉型相加正確！")
                  if any(isinstance(v, (int, float)) and (abs(v - 7.7) < 1e-4 or abs(v - 11.0) < 1e-4) for v in g.values())

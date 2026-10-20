@@ -256,7 +256,7 @@ def auto_grade_unit_4_6(env=None):
          lambda g: (
              (True, "map(int, ...) 除錯修復完成！")
              if (("map(int" in history_str.replace(" ", "") or "n1" in g) and
-                 ("乘積結果" in history_str or "result" in history_str))
+                 ("乘積結果" in history_str or "total_product" in history_str or "result" in history_str))
              else (False, "請在 4-6-5 填空題空格填入 map 與 int 修復型態錯誤！")
          )),
 

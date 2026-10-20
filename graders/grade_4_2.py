@@ -180,12 +180,12 @@ def auto_grade_unit_4_2(env=None):
              else (False, "請在 4-2-2 填空題空格填入 sep='/' 並執行儲存格！")
          )),
 
-        ("4-2-2", "練習題", "衝線成績冒號分隔 (h, m, s, sep=':')", 8, ("h", "m", "s"),
+        ("4-2-2", "練習題", "衝線成績冒號分隔 (h, m, sec, sep=':')", 8, ("h", "m", "sec"),
          lambda g: (
-             (True, f"計時成績格式化完成：{g.get('h')}:{g.get('m')}:{g.get('s')}！")
-             if (("h" in g and "m" in g and "s" in g) and
+             (True, f"計時成績格式化完成：{g.get('h')}:{g.get('m')}:{g.get('sec')}！")
+             if (("h" in g and "m" in g and "sec" in g) and
                  ("sep=':'" in history_str or 'sep=":"' in history_str))
-             else (False, "請宣告 h, m, s 變數，並使用 print(h, m, s, sep=':') 輸出！")
+             else (False, "請宣告 h, m, sec 變數，並使用 print(h, m, sec, sep=':') 輸出！")
          )),
 
         ("4-2-2", "挑戰題", "零件識別標籤連字號分隔 (factory_code, machine_id, batch_no)", 6, ("factory_code", "machine_id", "batch_no"),

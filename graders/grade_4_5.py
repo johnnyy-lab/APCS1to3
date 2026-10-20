@@ -259,20 +259,20 @@ def auto_grade_unit_4_5(env=None):
              else (False, "請在 4-5-5 填空題使用純淨 int(input()) 讀入兩數並輸出較大者！")
          )),
 
-        ("4-5-5", "練習題", "APCS 規格模擬題：兩數之差的絕對值 (abs(x - y))", 8, ("x", "y"),
+        ("4-5-5", "練習題", "APCS 規格模擬題：兩數之差的絕對值 (abs(diff_a - diff_b))", 8, ("diff_a", "diff_b"),
          lambda g: (
-             (True, f"絕對值純淨計算完成：x={g.get('x')}, y={g.get('y')}！")
-             if (("x" in g and "y" in g) and
-                 ("abs(x - y)" in history_str.replace(" ", "") or "abs(x-y)" in history_str.replace(" ", "") or "abs" in history_str))
-             else (False, "請純淨讀入 x, y 並輸出 abs(x - y)，不印出任何多餘文字！")
+             (True, f"絕對值純淨計算完成：diff_a={g.get('diff_a')}, diff_b={g.get('diff_b')}！")
+             if (("diff_a" in g and "diff_b" in g) and
+                 ("abs(diff_a - diff_b)" in history_str.replace(" ", "") or "abs(diff_a-diff_b)" in history_str.replace(" ", "") or "abs" in history_str))
+             else (False, "請純淨讀入 diff_a, diff_b 並輸出 abs(diff_a - diff_b)，不印出任何多餘文字！")
          )),
 
-        ("4-5-5", "挑戰題", "APCS 規格模擬題：三數極端全距純淨輸出 (max - min)", 6, ("a", "b", "c"),
+        ("4-5-5", "挑戰題", "APCS 規格模擬題：三數極端全距純淨輸出 (max - min)", 6, ("range_a", "range_b", "range_c"),
          lambda g: (
              (True, "三數全距純淨輸出成功！")
              if (("max(" in history_str and "min(" in history_str) or
-                 ("a" in g and "b" in g and "c" in g and ("max" in history_str or "-" in history_str)))
-             else (False, "請連續三行純淨讀入 a, b, c，並直接輸出 max(a, b, c) - min(a, b, c)！")
+                 ("range_a" in g and "range_b" in g and "range_c" in g and ("max" in history_str or "-" in history_str)))
+             else (False, "請連續三行純淨讀入 range_a, range_b, range_c，並直接輸出 max(range_a, range_b, range_c) - min(range_a, range_b, range_c)！")
          )),
     ]
 

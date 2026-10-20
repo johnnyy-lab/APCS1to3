@@ -190,7 +190,7 @@ def auto_grade_unit_3_4(env=None):
         ("3-4-2", "挑戰題", "水庫蓄水量絕對偏離值 (deviation = 15)", 8, ("current_water", "baseline_water"),
          lambda g: (
              (True, "蓄水偏離值計算成功：abs(85 - 100) = 15 萬噸！")
-             if any(isinstance(v, (int, float)) and v == 15 for k, v in g.items() if "dev" in k or "ans" in k or "diff" in k) or
+             if any(isinstance(v, (int, float)) and v == 15 for k, v in g.items() if "dev" in k or "diff" in k) or
                 (all(k in g for k in ["current_water", "baseline_water"]) and
                  any(isinstance(v, (int, float)) and v == abs(g['current_water'] - g['baseline_water']) for v in g.values()))
              else (False, "請以 abs(current_water - baseline_water) 計算蓄水偏離值 15 並印出！")
@@ -222,7 +222,7 @@ def auto_grade_unit_3_4(env=None):
         ("3-4-3", "挑戰題", "餐廳送餐機器人出發基地到顧客桌號步數 (8)", 8, (),
          lambda g: (
              (True, "送餐機器人導航步數計算成功：|2-8| + |3-1| = 8 步！")
-             if any(isinstance(v, (int, float)) and v == 8 for k, v in g.items() if "dist" in k or "step" in k or "ans" in k or "walk" in k) or
+             if any(isinstance(v, (int, float)) and v == 8 for k, v in g.items() if "dist" in k or "step" in k or "walk" in k) or
                 any(isinstance(v, (int, float)) and v == 8 for v in g.values())
              else (False, "請以 abs(2 - 8) + abs(3 - 1) 計算機器人從基地 (2, 3) 到顧客 (8, 1) 的曼哈頓步數 8！")
          )),
@@ -251,7 +251,7 @@ def auto_grade_unit_3_4(env=None):
         ("3-4-4", "挑戰題", "比賽紅藍隊勝負分差 (7)", 8, ("red_pts", "blue_pts"),
          lambda g: (
              (True, "比賽分差計算成功：abs(82 - 89) = 7 分！")
-             if any(isinstance(v, (int, float)) and v == 7 for k, v in g.items() if "diff" in k or "ans" in k or "score" in k or "pts" in k) or
+             if any(isinstance(v, (int, float)) and v == 7 for k, v in g.items() if "diff" in k or "score" in k or "pts" in k) or
                 any(isinstance(v, str) and "7" in v for v in g.values()) or
                 (all(k in g for k in ["red_pts", "blue_pts"]) and
                  any(isinstance(v, (int, float)) and v == abs(g['red_pts'] - g['blue_pts']) for v in g.values()))

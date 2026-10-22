@@ -198,13 +198,13 @@ def check_q11(g, hist):
     return False, "請使用 while lft2 <= rght2: 在質數串列中搜尋 tg15。"
 
 def check_q12(g, hist):
-    l = g.get("l")
-    r127 = g.get("r127")
-    if l is None and r127 is None:
+    lft1274 = g.get("lft1274")
+    rght1274 = g.get("rght1274")
+    if lft1274 is None and rght1274 is None:
         return False, "請驗證搜尋 25 退出時的 left 與 right 狀態。"
     # data = [10, 20, 30, 40], tg16 = 25
     # 25 介於 20(idx127 1) 與 30(idx127 2) 之間 -> 最終 left=2, right=1 (left == right + 1)
-    if (l == 2 and r127 == 1) or ("l == r127 + 1" in hist):
+    if (lft1274 == 2 and rght1274 == 1) or ("lft1274 == rght1274 + 1" in hist):
         return True, "太精闢了！親身驗證退出時兩面盾牌交叉錯位（left == right + 1）的物理定律！"
     return False, "請驗證搜尋 25 退出時的 left 與 right 狀態。"
 
@@ -334,7 +334,7 @@ def auto_grade_unit_12_7(env=None):
          lambda g: check_q10(g, history_str)),
         ('12-7-4', '練習題', '質數清單二分搜尋實作', 6, ("fnd_idx",),
          lambda g: check_q11(g, history_str)),
-        ('12-7-4', '挑戰題', '驗證退出瞬間 left == right + 1 交叉', 5, ("l", "r127"),
+        ('12-7-4', '挑戰題', '驗證退出瞬間 left == right + 1 交叉', 5, ("lft1274", "rght1274"),
          lambda g: check_q12(g, history_str)),
         ('12-7-5', '填空題', '以 math.log2 推算百萬資料比對次數', 6, ("max_cmp",),
          lambda g: check_q13(g, history_str)),

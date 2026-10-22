@@ -356,7 +356,7 @@ def auto_grade_unit_6_6(env=None):
              (True, "非邊框內部元素擂台極值查找輸出正確！")
              if (g.get("inner_max") in [9, 16] or
                  (("inner_max" in g or "inner_max" in history_str) and
-                  ("1 < r < N" in history_str or "inner_max = val" in history_str)))
+                  ("1 < r < N" in history_str or "inner_max = cell_prod" in history_str or "inner_max = val" in history_str)))
              else (False, "請排版乘法方陣並找出非邊框內部元素最大值！")
          )),
 

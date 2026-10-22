@@ -354,7 +354,7 @@ def auto_grade_unit_11_2(env=None):
              else (False, "請定義 is_multiple_of_six 回傳 n % 2 == 0 and n % 3 == 0！")
          )),
 
-        ("11-2-6", "挑戰題", "迴文字串與數值全能判定器 is_palindrome(val)", 5, ("is_palindrome",),
+        ("11-2-6", "挑戰題", "迴文字串與數值全能判定器 is_palindrome", 5, ("is_palindrome",),
          lambda g: (
              (True, "全能迴文判定函數實作正確！")
              if (callable(g.get("is_palindrome")) and
@@ -362,7 +362,7 @@ def auto_grade_unit_11_2(env=None):
                  g.get("is_palindrome")("radar") is True and
                  g.get("is_palindrome")(12345) is False) or
                 ("is_palindrome" in history_str and "[::-1]" in history_str)
-             else (False, "請定義 is_palindrome 將輸入轉為字串並比較 s == s[::-1]！")
+             else (False, "請定義 is_palindrome 將輸入轉為字串並比較是否等於反轉字串！")
          ))
     ]
 

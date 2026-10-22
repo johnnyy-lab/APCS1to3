@@ -247,8 +247,8 @@ def auto_grade_unit_11_4(env=None):
         ("11-4-3", "挑戰題", "全域、區域與參數同名遮蔽就近原則驗證", 6, (),
          lambda g: (
              (True, "就近原則遮蔽驗證正確！")
-             if ("val" in history_str and "shadow" in history_str) or
-                ("shadow" in history_str or "val = 10" in history_str)
+             if (("scope_tag" in history_str or "val" in history_str) and "shadow" in history_str) or
+                ("shadow" in history_str or "scope_tag = " in history_str or "val = 10" in history_str)
              else (False, "請設計範例驗證同名變數依據就近原則優先採用區域變數！")
          )),
 

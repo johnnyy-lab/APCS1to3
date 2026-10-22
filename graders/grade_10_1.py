@@ -173,7 +173,7 @@ def auto_grade_unit_10_1(env=None):
          lambda g: (
              (True, "單元素元組逗號修復正確！")
              if (isinstance(g.get("single_t"), tuple) and len(g.get("single_t")) == 1) or
-                ("(num_val,)" in history_clean or "(val,)" in history_clean or "(88,)" in history_clean)
+                ("(num_val,)" in history_clean or "(88,)" in history_clean)
              else (False, "請在 10-1-2 填空題小括號內補上逗號 `(num_val,)`！")
          )),
 

@@ -315,11 +315,11 @@ def auto_grade_unit_6_7(env=None):
         # ----------------------------------------------------------------------
         # 6-7-7 while 條件邏輯反轉與變數未同步（Desynchronization） (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-7-7", "填空題", "因數連續除盡條件與縮小 (n % 2 == 0, n // 2)", 4, (),
+        ("6-7-7", "填空題", "因數連續除盡條件與縮小 (num_val % 2 == 0, num_val // 2)", 4, (),
          lambda g: (
-             (True, "因數連續整除條件 n % 2 == 0 與縮半填寫正確！")
+             (True, "因數連續整除條件 num_val % 2 == 0 與縮半填寫正確！")
              if (("num_val%2" in history_clean or "n%2" in history_clean) and ("num_val//2" in history_clean or "num_val //= 2" in history_str or "n//2" in history_clean or "n //= 2" in history_str))
-             else (False, "請在 6-7-7 填空題填入 n % 2 以及縮小 n // 2！")
+             else (False, "請在 6-7-7 填空題填入 num_val % 2 以及縮小 num_val // 2！")
          )),
 
         ("6-7-7", "練習題", "高度序列高峰點計數 (peak_count = 5/3)", 4, ("peak_count",),

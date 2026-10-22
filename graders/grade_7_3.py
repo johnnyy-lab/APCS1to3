@@ -172,11 +172,11 @@ def auto_grade_unit_7_3(env=None):
         # ----------------------------------------------------------------------
         # 7-3-2 大括號內直接嵌入表達式運算 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-3-2", "填空題", "大括號嵌入相減算式 (f\"差是 {a - b}\")", 6, (),
+        ("7-3-2", "填空題", "大括號嵌入相減算式 (f\"差是 {num_1 - num_2}\")", 6, (),
          lambda g: (
              (True, "大括號內嵌入減法運算子 a - b 正確！")
-             if ("{a - b}" in history_str or "{a-b}" in history_clean) and "差是" in history_str
-             else (False, "請在 7-3-2 填空題大括號內填入 a - b！")
+             if (("{num_1 - num_2}" in history_str or "{num_1-num_2}" in history_clean or "{a - b}" in history_str or "{a-b}" in history_clean) and "差是" in history_str)
+             else (False, "請在 7-3-2 填空題大括號內填入 num_1 - num_2！")
          )),
 
         ("7-3-2", "練習題", "計算總價並以 round 留一位 (總價是 結果 元)", 9, (),

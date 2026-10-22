@@ -323,13 +323,13 @@ def auto_grade_unit_6_1(env=None):
              else (False, "請依 steps 走訪並印出每一輪 Step i: status (status = i * 3 + 2)！")
          )),
 
-        ("6-1-7", "挑戰題", "二元二次運算追蹤模擬 (val = k * k - k)", 4, (),
+        ("6-1-7", "挑戰題", "二元二次運算追蹤模擬 (poly_num = k * k - k)", 4, (),
          lambda g: (
-             (True, "二次多項式運算追蹤 (val = k * k - k) 走訪成功！")
+             (True, "二次多項式運算追蹤 (poly_num = k * k - k) 走訪成功！")
              if (("k*k-k" in history_clean or "k**2-k" in history_clean or "k * k - k" in history_str) and
                  ("range(1,5)" in history_clean or "range(1, 5)" in history_str)) or
-                ("k=4, val=12" in history_str or "k=1, val=0" in history_str)
-             else (False, "請走訪 range(1, 5) 計算 val = k * k - k 並輸出每一步結果！")
+                ("k=4, poly_num=12" in history_str or "k=1, poly_num=0" in history_str or "k=4, val=12" in history_str or "k=1, val=0" in history_str)
+             else (False, "請走訪 range(1, 5) 計算 poly_num = k * k - k 並輸出每一步結果！")
          )),
 
         # ----------------------------------------------------------------------

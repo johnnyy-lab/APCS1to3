@@ -219,7 +219,7 @@ def check_q8(g, hist):
     if callable(fn):
         try:
             _, logs = fn([1, 3, 5, 7, 9], 7)
-            if len(logs) >= 1 and logs[0].startswith("[DEBUG]") and "val=" in logs[0]:
+            if len(logs) >= 1 and logs[0].startswith("[DEBUG]") and ("num=" in logs[0] or "val=" in logs[0]):
                 return True, "太棒了！搜尋歷程正確記錄 [DEBUG] 標籤且包含變數細節！"
         except Exception as e:
             return False, f"執行 binary_search_with_logs 時發生例外: {e}"

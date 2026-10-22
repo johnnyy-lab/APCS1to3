@@ -260,10 +260,10 @@ def auto_grade_unit_5_6(env=None):
         # ----------------------------------------------------------------------
         # 5-6-5 APCS 邊界條件防崩潰雙重防線 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-6-5", "填空題", "開根號前之非負防禦 (val >= 0)", 6, (),
+        ("5-6-5", "填空題", "開根號前之非負防禦 (root_num >= 0)", 6, (),
          lambda g: (
              (True, "實數開根號非負防線填寫正確！")
-             if (("if val >= 0" in history_str or "if val>=0" in history_str) and
+             if (("if root_num >= 0" in history_str or "if root_num>=0" in history_str or "if val >= 0" in history_str or "if val>=0" in history_str) and
                  ("else:" in history_str.replace(" ", "")))
              else (False, "請在 5-6-5 填空題空格填入 if 與 else:！")
          )),

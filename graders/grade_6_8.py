@@ -209,9 +209,9 @@ def auto_grade_unit_6_8(env=None):
          lambda g: (
              (True, "while True 永動迴圈與哨兵 -1 煞車語法填寫正確！")
              if ("while True" in history_str or "whileTrue" in history_clean) and
-                ("val == -1" in history_str or "val==-1" in history_clean) and
+                ("chk_num == -1" in history_str or "chk_num==-1" in history_clean or "val == -1" in history_str or "val==-1" in history_clean) and
                 "break" in history_str
-             else (False, "請在 6-8-3 填空題補齊 while True 與 val == -1: break！")
+             else (False, "請在 6-8-3 填空題補齊 while True 與 chk_num == -1: break！")
          )),
 
         ("6-8-3", "練習題", "哨兵 0 終止體重累加與平均 (count = 3, avg_weight = 70)", 4, ("avg_weight", "total_weight", "count"),

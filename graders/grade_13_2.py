@@ -411,10 +411,10 @@ def check_q18(g, hist):
         return False, "if 單等號未修正或綜合修復後程式碼無法通過編譯。"
     if callable(fn):
         try:
-            broken = "if　val = 5：\n　　pass\ni++"
+            broken = "if　item_num = 5：\n　　pass\ni++"
             fixed = fn(broken)
             if "==" in fixed and "pass" in fixed:
-                compile("val = 5\ni = 0\n" + fixed, "<test_q18>", "exec")
+                compile("item_num = 5\ni = 0\n" + fixed, "<test_q18>", "exec")
                 return True, "太棒了！if 條件單等號成功修復為雙等號，並通過 compile() 實機驗證！"
         except Exception as e:
             return False, f"執行 fix_all_syntax_errors 時發生例外: {e}"

@@ -259,7 +259,7 @@ def auto_grade_unit_8_1(env=None):
         ("8-1-5", "填空題", "星號解包運算子 print(*num_list)", 6, (),
          lambda g: (
              (True, "星號解包 print(*num_list) 填寫正確！")
-             if ("print(*num_list)" in history_clean or "print( *num_list )" in history_str or "print(*ans)" in history_clean)
+             if ("print(*num_list)" in history_clean or "print( *num_list )" in history_str)
              else (False, "請在 8-1-5 填空題 num_list 前方填入星號 * 進行解包！")
          )),
 

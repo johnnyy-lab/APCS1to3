@@ -173,7 +173,7 @@ def auto_grade_unit_6_4(env=None):
         # ----------------------------------------------------------------------
         # 6-4-2 continue：跨步換輪與跳過當前 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-4-2", "填空題", "指定數值跳步換輪 (val == 4 or val == 7, continue)", 4, (),
+        ("6-4-2", "填空題", "指定數值跳步換輪 (num == 4 or num == 7, continue)", 4, (),
          lambda g: (
              (True, "條件過濾跳步關鍵字 continue 填寫正確！")
              if ("val==4orval==7" in history_clean or "num==4ornum==7" in history_clean or "4" in history_str and "7" in history_str) and
@@ -330,7 +330,7 @@ def auto_grade_unit_6_4(env=None):
                  ("steps" in g or "steps" in history_str) and
                  ("1024" in history_str or g.get("cur_val") == 1024) and
                  ("break" in history_str))
-             else (False, "請在 while True 中每輪 val *= 2，>= 1000 時 break！")
+             else (False, "請在 while True 中每輪 cur_val *= 2，>= 1000 時 break！")
          )),
 
         ("6-4-7", "挑戰題", "烏龜追兔子動態追逐遊戲 (rounds = 5, turtle = 25)", 4, ("rounds", "turtle"),

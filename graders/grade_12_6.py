@@ -201,11 +201,11 @@ def check_q12(g, hist):
 
 def check_q13(g, hist):
     func = g.get("find_first_negative")
-    ans = g.get("ans_idx")
-    if func is None and ans is None:
+    user_idx = g.get("ans_idx")
+    if func is None and user_idx is None:
         return False, "請實作 find_first_negative，若小於 0 回傳索引，否則回傳 -1。"
     test_list = [10, 25, -3, 8, -12, 40]
-    if (ans == 2) or (callable(func) and func(test_list) == 2 and func([1, 2]) == -1):
+    if (user_idx == 2) or (callable(func) and func(test_list) == 2 and func([1, 2]) == -1):
         return True, "完全正確！手刻條件搜尋成功命中第一個負數索引 2，找不到時回傳 -1！"
     if "num < 0" in hist and "return -1" in hist:
         return True, "邏輯比對通過！"

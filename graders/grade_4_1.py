@@ -170,13 +170,13 @@ def auto_grade_unit_4_1(env=None):
         # ----------------------------------------------------------------------
         # 4-1-2 print() 輸出數值與即時算術——讓喇叭播報運算結果 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-1-2", "填空題", "即時算術計算剩餘金額 (245)", 6, ("pocket_money", "book_price", "books_count"),
+        ("4-1-2", "填空題", "即時算術計算剩餘金額 (245)", 6, ("pckt_mny", "book_price", "bks_cnt"),
          lambda g: (
              (True, "即時算術正確：500 - 85 * 3 = 245 元！")
-             if ("pocket_money" in g and "book_price" in g and "books_count" in g and
-                 g.get("pocket_money") - g.get("book_price") * g.get("books_count") == 245) or
+             if ("pckt_mny" in g and "book_price" in g and "bks_cnt" in g and
+                 g.get("pckt_mny") - g.get("book_price") * g.get("bks_cnt") == 245) or
                 (any(v == 245 for v in g.values() if isinstance(v, (int, float)))) or
-                ("pocket_money - book_price * books_count" in history_str)
+                ("pckt_mny - book_price * bks_cnt" in history_str)
              else (False, "請在 4-1-2 填空題空格處依序填入減號 - 與乘號 * 並執行！")
          )),
 
@@ -205,7 +205,7 @@ def auto_grade_unit_4_1(env=None):
         # ----------------------------------------------------------------------
         # 4-1-3 逗號 `,` 串聯多個項目——預設單一空格隔開的神奇魔術 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-1-3", "填空題", "逗號串聯模範生資料 (seat_num, student_name, award)", 6, ("seat_num", "award"),
+        ("4-1-3", "填空題", "逗號串聯模範生資料 (seat_num, stdn_nm, award)", 6, ("seat_num", "award"),
          lambda g: (
              (True, "逗號串聯成功：'座號', 12, '小美', '榮獲', '熱心服務獎'！")
              if (g.get("seat_num") == 12 and g.get("award") == "熱心服務獎") or

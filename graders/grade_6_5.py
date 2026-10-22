@@ -144,29 +144,29 @@ def auto_grade_unit_6_5(env=None):
         # ----------------------------------------------------------------------
         # 6-5-1 雙重迴圈心智模型：時鐘的分針與時針 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-5-1", "填空題", "雙重集訓週數與天數走訪 (for week, for day)", 4, ("total_training_days",),
+        ("6-5-1", "填空題", "雙重集訓週數與天數走訪 (for week, for day)", 4, ("tottrnndys",),
          lambda g: (
              (True, "雙重迴圈外層週數與內層天數填寫正確！")
-             if (g.get("total_training_days") == 6 or
+             if (g.get("tottrnndys") == 6 or
                  ("forweekinrange" in history_clean and "fordayinrange" in history_clean))
              else (False, "請在 6-5-1 填空題填入外層 for week 與內層 for day 迴圈！")
          )),
 
-        ("6-5-1", "練習題", "巡邏大樓房間二維走訪 (F{floor}-R{room})", 4, ("inspected_count",),
+        ("6-5-1", "練習題", "巡邏大樓房間二維走訪 (F{floor}-R{room})", 4, ("insp_cnt",),
          lambda g: (
              (True, "大樓樓層與房間雙層巡查累加輸出正確！")
-             if (("inspected_count" in g or "inspected_count" in history_str) and
+             if (("insp_cnt" in g or "insp_cnt" in history_str) and
                  ("F{floor}-R{room}" in history_str or "floor" in history_str and "room" in history_str))
-             else (False, "請走訪 total_floors 與 rooms_per_floor，累加 inspected_count！")
+             else (False, "請走訪 tot_flrs 與 rms_flr，累加 insp_cnt！")
          )),
 
-        ("6-5-1", "挑戰題", "投籃訓練條件得分結算 (total_shots = 15, score = 16)", 5, ("total_shots", "score"),
+        ("6-5-1", "挑戰題", "投籃訓練條件得分結算 (tot_shts = 15, sc065 = 16)", 5, ("tot_shts", "sc065"),
          lambda g: (
              (True, "雙重迴圈模擬投籃條件判定與得分累加成功！")
-             if (("total_shots" in g or "total_shots" in history_str) and
-                 ("score" in g or "score" in history_str) and
-                 ("(set_idx + shot_idx) % 2 == 0" in history_str or "16" in history_str or g.get("score") == 16))
-             else (False, "請模擬 3 組各 5 球投籃，偶數得分累加，驗證 score = 16！")
+             if (("tot_shts" in g or "tot_shts" in history_str) and
+                 ("sc065" in g or "sc065" in history_str) and
+                 ("(set_idx + shot_idx) % 2 == 0" in history_str or "16" in history_str or g.get("sc065") == 16))
+             else (False, "請模擬 3 組各 5 球投籃，偶數得分累加，驗證 sc065 = 16！")
          )),
 
         # ----------------------------------------------------------------------
@@ -179,19 +179,19 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請在 6-5-2 填空題將內層變數更正為 j！")
          )),
 
-        ("6-5-2", "練習題", "二維座標乘積合格篩選 (qualified_cells)", 4, ("qualified_cells",),
+        ("6-5-2", "練習題", "二維座標乘積合格篩選 (qlfd_clls)", 4, ("qlfd_clls",),
          lambda g: (
              (True, "二維網格座標乘積門檻篩選統計正確！")
-             if (("qualified_cells" in g or "qualified_cells" in history_str) and
-                 ("product >= threshold" in history_str or "qualified_cells +=" in history_str))
+             if (("qlfd_clls" in g or "qlfd_clls" in history_str) and
+                 ("product >= threshold" in history_str or "qlfd_clls +=" in history_str))
              else (False, "請走訪 r 與 c，統計 product >= threshold 的合格格子數！")
          )),
 
-        ("6-5-2", "挑戰題", "西洋棋盤黑白染色統計 (white_count = 10, black_count = 10)", 5, ("white_count", "black_count"),
+        ("6-5-2", "挑戰題", "西洋棋盤黑白染色統計 (wht_cnt = 10, blck_cnt = 10)", 5, ("wht_cnt", "blck_cnt"),
          lambda g: (
              (True, "棋盤黑白染色雙重走訪與總格數驗證成功！")
-             if (("white_count" in g or "white_count" in history_str) and
-                 ("black_count" in g or "black_count" in history_str) and
+             if (("wht_cnt" in g or "wht_cnt" in history_str) and
+                 ("blck_cnt" in g or "blck_cnt" in history_str) and
                  ("(r + c) % 2 == 0" in history_str or "(r+c)%2==0" in history_clean))
              else (False, "請以 (r + c) % 2 == 0 分類統計 4x5 棋盤之白格與黑格！")
          )),
@@ -207,12 +207,12 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請在 6-5-3 填空題填入 end=' ' 以及列尾換行 print()！")
          )),
 
-        ("6-5-3", "練習題", "乘積矩陣排版與總和累加 (sum_val = 18)", 4, ("sum_val",),
+        ("6-5-3", "練習題", "乘積矩陣排版與總和累加 (sum_val065 = 18)", 4, ("sum_val065",),
          lambda g: (
              (True, "乘積矩陣排版與數值總和累加輸出正確！")
-             if (("sum_val" in g or "sum_val" in history_str) and
-                 ("18" in history_str or g.get("sum_val") == 18))
-             else (False, "請排版 r * c 矩陣並累加數值總和至 sum_val！")
+             if (("sum_val065" in g or "sum_val065" in history_str) and
+                 ("18" in history_str or g.get("sum_val065") == 18))
+             else (False, "請排版 r * c 矩陣並累加數值總和至 sum_val065！")
          )),
 
         ("6-5-3", "挑戰題", "斑馬線條紋矩陣排版 (hash_count = 12)", 5, ("hash_count",),
@@ -244,11 +244,11 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請排版 a % b 矩陣並統計餘數為 0 的整除次數！")
          )),
 
-        ("6-5-4", "挑戰題", "加法方陣與主對角線和 (total = 80, diag_sum = 20)", 5, ("total_matrix_sum", "diag_sum"),
+        ("6-5-4", "挑戰題", "加法方陣與主對角線和 (total = 80, diag_sum = 20)", 5, ("totmatsum", "diag_sum"),
          lambda g: (
              (True, "方陣全元素總和 (80) 與主對角線和 (20) 計算成功！")
-             if ((g.get("total_matrix_sum") == 80 and g.get("diag_sum") == 20) or
-                 (("total_matrix_sum" in g or "total_matrix_sum" in history_str) and
+             if ((g.get("totmatsum") == 80 and g.get("diag_sum") == 20) or
+                 (("totmatsum" in g or "totmatsum" in history_str) and
                   ("diag_sum" in g or "diag_sum" in history_str) and
                   ("80" in history_str or "20" in history_str or "i == j" in history_str)))
              else (False, "請計算 4x4 加法方陣全元素總和與 i == j 對角線和！")
@@ -265,12 +265,12 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請在 6-5-5 填空題填入 row + 1 與換行 print()！")
          )),
 
-        ("6-5-5", "練習題", "階梯數列總和計算 (grand_total = 10)", 4, ("grand_total",),
+        ("6-5-5", "練習題", "階梯數列總和計算 (grnd_tot = 10)", 4, ("grnd_tot",),
          lambda g: (
              (True, "階梯數列雙重走訪累加總和 (10) 輸出正確！")
-             if (("grand_total" in g or "grand_total" in history_str) and
-                 ("10" in history_str or g.get("grand_total") == 10))
-             else (False, "請使用階梯雙重迴圈累加出現的所有數字至 grand_total！")
+             if (("grnd_tot" in g or "grnd_tot" in history_str) and
+                 ("10" in history_str or g.get("grnd_tot") == 10))
+             else (False, "請使用階梯雙重迴圈累加出現的所有數字至 grnd_tot！")
          )),
 
         ("6-5-5", "挑戰題", "倒階梯遞減走訪與奇數統計 (odd_count = 9)", 4, ("odd_count",),
@@ -291,20 +291,20 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請在 6-5-6 填空題填入內層起點 a + 1！")
          )),
 
-        ("6-5-6", "練習題", "目標和數對配對枚舉 (match_count)", 4, ("match_count",),
+        ("6-5-6", "練習題", "目標和數對配對枚舉 (mtch_cnt)", 4, ("mtch_cnt",),
          lambda g: (
              (True, "雙重迴圈枚舉數對求和命中目標統計正確！")
-             if (("match_count" in g or "match_count" in history_str) and
+             if (("mtch_cnt" in g or "mtch_cnt" in history_str) and
                  ("range(i + 1" in history_str or "range(i+1" in history_clean) and
-                 ("== target" in history_str or "==target" in history_clean or g.get("match_count") in (4, 2)))
-             else (False, "請以雙重迴圈走訪 1 <= i < j <= 10，統計 i + j == target 的 match_count！")
+                 ("== tg065" in history_str or "==tg065" in history_clean or g.get("mtch_cnt") in (4, 2)))
+             else (False, "請以雙重迴圈走訪 1 <= i < j <= 10，統計 i + j == tg065 的 mtch_cnt！")
          )),
 
-        ("6-5-6", "挑戰題", "邊長 20 內畢氏三元組枚舉 (pythagorean_count = 6)", 4, ("pythagorean_count",),
+        ("6-5-6", "挑戰題", "邊長 20 內畢氏三元組枚舉 (pyth_cnt = 6)", 4, ("pyth_cnt",),
          lambda g: (
              (True, "畢氏三元整數組枚舉統計 (6 組) 成功！")
-             if (("pythagorean_count" in g or "pythagorean_count" in history_str) and
-                 ("6" in history_str or g.get("pythagorean_count") == 6))
+             if (("pyth_cnt" in g or "pyth_cnt" in history_str) and
+                 ("6" in history_str or g.get("pyth_cnt") == 6))
              else (False, "請枚舉 a < b <= 20 找出滿足 a^2 + b^2 = c^2 的 6 組畢氏三元組！")
          )),
 
@@ -319,13 +319,13 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請在 6-5-7 填空題填入 found = True、break 以及外層 if found: break！")
          )),
 
-        ("6-5-7", "練習題", "二維搜尋目標和與步數統計 (found 連鎖跳出)", 4, ("steps", "found"),
+        ("6-5-7", "練習題", "二維搜尋目標和與步數統計 (found 連鎖跳出)", 4, ("stps065", "found"),
          lambda g: (
              (True, "二維搜尋目標和連鎖中斷與步數統計正確！")
-             if (("steps" in g or "steps" in history_str) and
+             if (("stps065" in g or "stps065" in history_str) and
                  ("found" in g or "found" in history_str) and
                  ("break" in history_str))
-             else (False, "請搜尋 a + b == target_sum，記錄 steps 並以旗標連鎖 break！")
+             else (False, "請搜尋 a + b == target_sum，記錄 stps065 並以旗標連鎖 break！")
          )),
 
         ("6-5-7", "挑戰題", "半質數拆解密碼鎖 (77 = 7 * 11 旗標連鎖中斷)", 4, ("ans_p", "ans_q"),
@@ -347,10 +347,10 @@ def auto_grade_unit_6_5(env=None):
              else (False, "請在 6-5-8 填空題填入中層 1 到 4 與內層 1 到 5 範圍！")
          )),
 
-        ("6-5-8", "練習題", "三角形三邊長整數解枚舉 (valid_triangles)", 4, ("valid_triangles",),
+        ("6-5-8", "練習題", "三角形三邊長整數解枚舉 (vld_trng)", 4, ("vld_trng",),
          lambda g: (
              (True, "周長 P 之三角形不等式三重枚舉輸出正確！")
-             if (("valid_triangles" in g or "valid_triangles" in history_str) and
+             if (("vld_trng" in g or "vld_trng" in history_str) and
                  ("side_a + side_b > side_c" in history_str or "side_a+side_b>side_c" in history_clean or "a + b > c" in history_str or "a+b>c" in history_clean))
              else (False, "請三重枚舉 a, b, c，統計滿足 a + b + c == P 且 a + b > c 的個數！")
          )),

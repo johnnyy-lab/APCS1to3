@@ -169,26 +169,26 @@ def auto_grade_unit_12_3(env=None):
         # ----------------------------------------------------------------------
         # 12-3-1 什麼是 key= 參數？投射轉換比喻 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-3-1", "填空題", "定義 word_len 回傳長度並以 key=word_len 排序口號", 5, ("sorted_slogans",),
+        ("12-3-1", "填空題", "定義 word_len 回傳長度並以 key=word_len 排序口號", 5, ("srt_slgn",),
          lambda g: (
-             (True, "sorted_slogans 依長度排序正確！特徵投射模型理解深刻！")
-             if (g.get("sorted_slogans") == ['Hi', 'Go!', 'Never give up', 'Keep learning python']) or
+             (True, "srt_slgn 依長度排序正確！特徵投射模型理解深刻！")
+             if (g.get("srt_slgn") == ['Hi', 'Go!', 'Never give up', 'Keep learning python']) or
                 ("key=word_len" in history_clean and "return len(s)" in history_str)
-             else (False, "尚未找到符合預期的 sorted_slogans，請定義 word_len 回傳 len(s) 並傳入 key=word_len！")
+             else (False, "尚未找到符合預期的 srt_slgn，請定義 word_len 回傳 len(s) 並傳入 key=word_len！")
          )),
 
-        ("12-3-1", "練習題", "定義 text_length 依長度升序排列 phrases 並標註最長字串", 6, ("sorted_phrases",),
+        ("12-3-1", "練習題", "定義 text_length 依長度升序排列 phrases 並標註最長字串", 6, ("srt_phrs",),
          lambda g: (
              (True, "練習題 12.3.1 phrases 依長度排序正確！最長字串標註無誤！")
-             if (g.get("sorted_phrases") == ['pie', 'fig', 'apple', 'banana', 'watermelon']) or
-                ("text_length" in history_str and "sorted_phrases" in history_str)
+             if (g.get("srt_phrs") == ['pie', 'fig', 'apple', 'banana', 'watermelon']) or
+                ("text_length" in history_str and "srt_phrs" in history_str)
              else (False, "請定義 text_length(text) 回傳 len(text)，配合 sorted(phrases, key=text_length) 排序！")
          )),
 
-        ("12-3-1", "挑戰題", "結合 key 函數與 reverse=True 依文章標題長度降序排列", 6, ("long_to_short",),
+        ("12-3-1", "挑戰題", "結合 key 函數與 reverse=True 依文章標題長度降序排列", 6, ("lng_shrt",),
          lambda g: (
              (True, "挑戰題 12.3.1 文章標題依長度降序排列正確！")
-             if (isinstance(g.get("long_to_short"), list) and g.get("long_to_short") and g.get("long_to_short")[0] == "AI Revolution in Modern World") or
+             if (isinstance(g.get("lng_shrt"), list) and g.get("lng_shrt") and g.get("lng_shrt")[0] == "AI Revolution in Modern World") or
                 ("titles" in history_str and "reverse=True" in history_str and ("len" in history_str or "get_len" in history_str))
              else (False, "請定義長度特徵函數並搭配 reverse=True，將文章標題 titles 依長度由長到短排序！")
          )),
@@ -196,13 +196,13 @@ def auto_grade_unit_12_3(env=None):
         # ----------------------------------------------------------------------
         # 12-3-2 內建函數作為鍵值：key=abs 與 key=len (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-3-2", "填空題", "內建 key=abs 絕對值排序與 key=len 標籤降序排序", 5, ("sorted_deviations", "sorted_tags"),
+        ("12-3-2", "填空題", "內建 key=abs 絕對值排序與 key=len 標籤降序排序", 5, ("srt_dvtn", "srt_tgs123"),
          lambda g: (
              (False, "⚠️ 偵測到 key=abs() 或 key=len() 帶有括號！內建函數作為鍵值只傳名牌，千萬不要加小括號呼叫！")
              if ("key=abs()" in history_clean or "key=len()" in history_clean)
              else (
-                 (True, "sorted_deviations (key=abs) 與 sorted_tags (key=len) 填空皆完全正確！")
-                 if (g.get("sorted_deviations") == [-1, 3, -4, 12, 18, -25] and g.get("sorted_tags") == ['programming', 'algorithm', 'python', 'ai', 'it']) or
+                 (True, "srt_dvtn (key=abs) 與 srt_tgs123 (key=len) 填空皆完全正確！")
+                 if (g.get("srt_dvtn") == [-1, 3, -4, 12, 18, -25] and g.get("srt_tgs123") == ['programming', 'algorithm', 'python', 'ai', 'it']) or
                     ("key=abs" in history_clean and "key=len" in history_clean)
                  else (False, "請分別填入 key=abs 進行離原點距離排序，與 key=len, reverse=True 進行標籤降序排序！")
              )
@@ -227,80 +227,80 @@ def auto_grade_unit_12_3(env=None):
         # ----------------------------------------------------------------------
         # 12-3-3 自訂具名函數作為鍵值：def get_feature(x) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-3-3", "填空題", "count_vowels 回傳母音總次數並依母音數量排序單字", 5, ("vowel_order",),
+        ("12-3-3", "填空題", "count_vowels 回傳母音總次數並依母音數量排序單字", 5, ("vwl_ordr",),
          lambda g: (
-             (True, "count_vowels 函數與 vowel_order 母音數量排序完全正確！")
-             if (g.get("vowel_order") == ['sky', 'python', 'tea', 'queue', 'beautiful']) or
+             (True, "count_vowels 函數與 vwl_ordr 母音數量排序完全正確！")
+             if (g.get("vwl_ordr") == ['sky', 'python', 'tea', 'queue', 'beautiful']) or
                 ("count_vowels" in history_str and "key=count_vowels" in history_clean)
              else (False, "請在 count_vowels 函數中 return cnt，並傳入 key=count_vowels 排序單字！")
          )),
 
-        ("12-3-3", "練習題", "定義 distance_from_50 排序離 50 距離並找出最接近數值", 6, ("sorted_near_50",),
+        ("12-3-3", "練習題", "定義 distance_from_50 排序離 50 距離並找出最接近數值", 6, ("srt_nr_50",),
          lambda g: (
              (True, "練習題 12.3.3 distance_from_50 距離排序與最接近數值輸出正確！")
-             if (g.get("sorted_near_50") == [48, 53, 42, 65, 20, 80]) or
-                ("distance_from_50" in history_str and "raw_vals" in history_str)
-             else (False, "請定義 distance_from_50(x) 回傳 abs(x - 50)，對 raw_vals 進行排序！")
+             if (g.get("srt_nr_50") == [48, 53, 42, 65, 20, 80]) or
+                ("distance_from_50" in history_str and "raw_vls" in history_str)
+             else (False, "請定義 distance_from_50(x) 回傳 abs(x - 50)，對 raw_vls 進行排序！")
          )),
 
-        ("12-3-3", "挑戰題", "定義 calc_digit_sum 依數字各位數之和升序排序", 6, ("sorted_by_digit_sum",),
+        ("12-3-3", "挑戰題", "定義 calc_digit_sum 依數字各位數之和升序排序", 6, ("digsum_srt",),
          lambda g: (
              (True, "挑戰題 12.3.3 calc_digit_sum 各位數和計算與升序排序正確！")
-             if (g.get("sorted_by_digit_sum") == [11, 123, 204, 45, 90]) or
-                ("calc_digit_sum" in history_str and "numbers" in history_str and "sorted(" in history_str)
-             else (False, "請定義 calc_digit_sum(num) 計算各位數和，將 numbers 依數位和由小到大排序！")
+             if (g.get("digsum_srt") == [11, 123, 204, 45, 90]) or
+                ("calc_digit_sum" in history_str and "ns123" in history_str and "sorted(" in history_str)
+             else (False, "請定義 calc_digit_sum(num) 計算各位數和，將 ns123 依數位和由小到大排序！")
          )),
 
         # ----------------------------------------------------------------------
         # 12-3-4 元組第二欄位排序：def get_second(item): return item[1] (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-3-4", "填空題", "定義 get_y 回傳 pt[1] 依 Y 軸座標升序排序 points", 5, ("sorted_by_y",),
+        ("12-3-4", "填空題", "定義 get_y 回傳 pt[1] 依 Y 軸座標升序排序 pt123", 5, ("srt_y",),
          lambda g: (
-             (True, "sorted_by_y 依 Y 軸高度排序正確！第二欄位索引 item[1] 運用精準！")
-             if (g.get("sorted_by_y") == [(3, 1), (2, 4), (10, 5), (8, 9)]) or
+             (True, "srt_y 依 Y 軸高度排序正確！第二欄位索引 item[1] 運用精準！")
+             if (g.get("srt_y") == [(3, 1), (2, 4), (10, 5), (8, 9)]) or
                 ("pt[1]" in history_clean and "key=get_y" in history_clean)
              else (False, "請在 get_y(pt) 中回傳 pt[1]，並傳入 key=get_y 依 Y 軸排序點座標！")
          )),
 
-        ("12-3-4", "練習題", "定義 get_seniority 依年資降序排序 records 並輸出最資深代號", 6, ("sorted_emp",),
+        ("12-3-4", "練習題", "定義 get_seniority 依年資降序排序 rcrd 並輸出最資深代號", 6, ("sorted_emp",),
          lambda g: (
              (True, "練習題 12.3.4 get_seniority 員工年資降序排序與資深代號輸出正確！")
              if (g.get("sorted_emp") == [('E02', 12), ('E03', 7), ('E01', 3), ('E04', 1)]) or
-                ("get_seniority" in history_str and "records" in history_str and "E02" in history_str)
-             else (False, "請定義 get_seniority(rec) 回傳 rec[1]，將 records 依年資由高到低降序排序！")
+                ("get_seniority" in history_str and "rcrd" in history_str and "E02" in history_str)
+             else (False, "請定義 get_seniority(rec) 回傳 rec[1]，將 rcrd 依年資由高到低降序排序！")
          )),
 
         ("12-3-4", "挑戰題", "定義 get_total_value 計算水果庫存總價值並降序排序", 6, ("sorted_inv",),
          lambda g: (
              (True, "挑戰題 12.3.4 水果庫存總資產計算與降序排序正確！")
              if (isinstance(g.get("sorted_inv"), list) and g.get("sorted_inv") and g.get("sorted_inv")[0][0] in ["香蕉", "櫻桃"]) or
-                ("get_total_value" in history_str and "inventory" in history_str and ("price * qty" in history_str or "item[1] * item[2]" in history_clean))
-             else (False, "請定義 get_total_value(item) 回傳單價乘數量，將 inventory 依總價值由大到小排序！")
+                ("get_total_value" in history_str and "invn123" in history_str and ("price * qty" in history_str or "item[1] * item[2]" in history_clean))
+             else (False, "請定義 get_total_value(item) 回傳單價乘數量，將 invn123 依總價值由大到小排序！")
          )),
 
         # ----------------------------------------------------------------------
         # 12-3-5 字典走訪排序：以 sorted(d.items(), key=...) 依 Value 排序 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("12-3-5", "填空題", "定義 get_price 提取 item_pair[1] 將 cart.items() 依價格排序", 5, ("sorted_items",),
+        ("12-3-5", "填空題", "定義 get_price 提取 item_pair[1] 將 crt123.items() 依價格排序", 5, ("srtitms123",),
          lambda g: (
-             (True, "sorted_items 成功將購物車品項依價格由便宜到貴排序！")
-             if (g.get("sorted_items") == [('Eraser', 20), ('Pen', 45), ('Book', 350), ('Headphones', 1200)]) or
-                ("cart.items()" in history_clean and "key=get_price" in history_clean)
-             else (False, "請在 get_price 中回傳 item_pair[1]，並使用 sorted(cart.items(), key=get_price)！")
+             (True, "srtitms123 成功將購物車品項依價格由便宜到貴排序！")
+             if (g.get("srtitms123") == [('Eraser', 20), ('Pen', 45), ('Book', 350), ('Headphones', 1200)]) or
+                ("crt123.items()" in history_clean and "key=get_price" in history_clean)
+             else (False, "請在 get_price 中回傳 item_pair[1]，並使用 sorted(crt123.items(), key=get_price)！")
          )),
 
-        ("12-3-5", "練習題", "定義 get_frequency 依詞頻降序排序 freq.items() 並印出最高頻單字", 6, ("sorted_freq",),
+        ("12-3-5", "練習題", "定義 get_frequency 依詞頻降序排序 frq.items() 並印出最高頻單字", 6, ("srt_frq",),
          lambda g: (
              (True, "練習題 12.3.5 詞頻字典降序排行與最高頻單字輸出正確！")
-             if (g.get("sorted_freq") == [('the', 42), ('is', 30), ('python', 15), ('code', 8)]) or
-                ("get_frequency" in history_str and "freq.items()" in history_clean)
-             else (False, "請定義 get_frequency 並以 reverse=True 對 freq.items() 降序排序！")
+             if (g.get("srt_frq") == [('the', 42), ('is', 30), ('python', 15), ('code', 8)]) or
+                ("get_frequency" in history_str and "frq.items()" in history_clean)
+             else (False, "請定義 get_frequency 並以 reverse=True 對 frq.items() 降序排序！")
          )),
 
         ("12-3-5", "挑戰題", "線上商店 VIP 顧客前兩大消費金額合計與營業額佔比分析", 5, ("top2_sum",),
          lambda g: (
              (True, "挑戰題 12.3.5 VIP 顧客消費排序與營業額佔比計算正確！")
-             if ("customers.items()" in history_clean and ("sorted_customers" in history_str or "top2_sum" in history_str or "ratio" in history_str)) or
+             if ("customers.items()" in history_clean and ("srt_cstm" in history_str or "top2_sum" in history_str or "ratio" in history_str)) or
                 (g.get("top2_sum") == 13800)
              else (False, "請將 customers.items() 依消費金額由高到低排序，並計算前兩大 VIP 消費總和之全體佔比！")
          )),
@@ -308,26 +308,26 @@ def auto_grade_unit_12_3(env=None):
         # ----------------------------------------------------------------------
         # 12-3-6 排序除錯心法：如何單獨測試 key 函數確認特徵值抽取無誤 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("12-3-6", "填空題", "修復 safe_second_char 長度不足 2 防禦並安全排序", 5, ("safe_sorted",),
+        ("12-3-6", "填空題", "修復 safe_second_char 長度不足 2 防禦並安全排序", 5, ("sf_srt",),
          lambda g: (
              (True, "safe_second_char 防禦修復正確！邊界極端測資單獨檢驗與排序成功！")
-             if (g.get("safe_sorted") == ['a', '', 'banana', 'cat', 'dog'] or (isinstance(g.get("safe_sorted"), list) and len(g.get("safe_sorted")) == 5)) or
+             if (g.get("sf_srt") == ['a', '', 'banana', 'cat', 'dog'] or (isinstance(g.get("sf_srt"), list) and len(g.get("sf_srt")) == 5)) or
                 ("len(s) < 2" in history_str and "key=safe_second_char" in history_clean)
              else (False, "當長度不足 2 時請 return \"\" 空字串，並傳入 key=safe_second_char 進行安全排序！")
          )),
 
-        ("12-3-6", "練習題", "定義 get_month 提取月份整數、單獨印出驗證並排序 dates", 6, ("sorted_dates",),
+        ("12-3-6", "練習題", "定義 get_month 提取月份整數、單獨印出驗證並排序 dates", 6, ("srt_dts",),
          lambda g: (
              (True, "練習題 12.3.6 get_month 月份提取、單獨除錯驗證與 dates 排序正確！")
-             if (g.get("sorted_dates") == ['2026-01-30', '2026-03-21', '2026-08-14', '2026-11-05']) or
+             if (g.get("srt_dts") == ['2026-01-30', '2026-03-21', '2026-08-14', '2026-11-05']) or
                 ("get_month" in history_str and "dates" in history_str)
              else (False, "請實作 get_month(date_str) 取出月份整數，單獨印出驗證後將 dates 依月份排序！")
          )),
 
-        ("12-3-6", "挑戰題", "time_to_seconds 時間轉秒數、單獨測試驗證並評選賽車冠軍", 5, ("ranked_racers",),
+        ("12-3-6", "挑戰題", "time_to_seconds 時間轉秒數、單獨測試驗證並評選賽車冠軍", 5, ("rnkd_rcrs",),
          lambda g: (
              (True, "挑戰題 12.3.6 賽車時間轉秒數、單獨樣本驗證與冠軍定位正確！")
-             if (isinstance(g.get("ranked_racers"), list) and g.get("ranked_racers") and g.get("ranked_racers")[0][0] == "Mario") or
+             if (isinstance(g.get("rnkd_rcrs"), list) and g.get("rnkd_rcrs") and g.get("rnkd_rcrs")[0][0] == "Mario") or
                 ("time_to_seconds" in history_str and "racer_data" in history_str and "125" in history_str)
              else (False, "請定義 time_to_seconds 轉換總秒數，單獨驗證 ('Luigi', '2:05') 為 125 秒後排序找出冠軍！")
          ))

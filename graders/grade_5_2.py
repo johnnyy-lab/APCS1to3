@@ -143,12 +143,12 @@ def auto_grade_unit_5_2(env=None):
         # ----------------------------------------------------------------------
         # 5-2-1 邏輯交集運算子：and（且） (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-2-1", "填空題", "實驗室安全門禁雙重檢驗 (is_safe_to_enter)", 6, ("is_safe_to_enter",),
+        ("5-2-1", "填空題", "實驗室安全門禁雙重檢驗 (sf_entr)", 6, ("sf_entr",),
          lambda g: (
-             (True, "雙重安全門禁檢驗正確：is_safe_to_enter=True！")
-             if (g.get("is_safe_to_enter") is True) and
-                (("temperature < 37.5" in history_str or "37.5" in history_str) and
-                 ("badge_level >= 2" in history_str or "badge_level>=2" in history_str or "and" in history_str))
+             (True, "雙重安全門禁檢驗正確：sf_entr=True！")
+             if (g.get("sf_entr") is True) and
+                (("temp052 < 37.5" in history_str or "37.5" in history_str) and
+                 ("bdg_lvl >= 2" in history_str or "bdg_lvl>=2" in history_str or "and" in history_str))
              else (False, "請在 5-2-1 填空題空格依序填入 < 37.5、and 與 >= 2 完成雙重檢驗！")
          )),
 
@@ -175,10 +175,10 @@ def auto_grade_unit_5_2(env=None):
         # ----------------------------------------------------------------------
         # 5-2-2 邏輯聯集運算子：or（或） (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-2-2", "填空題", "氣象防颱警戒通報標準 (is_alert_triggered)", 6, ("is_alert_triggered",),
+        ("5-2-2", "填空題", "氣象防颱警戒通報標準 (alrt_trgg)", 6, ("alrt_trgg",),
          lambda g: (
-             (True, "防颱警戒指標判定正確：is_alert_triggered=True！")
-             if (g.get("is_alert_triggered") is True) and
+             (True, "防颱警戒指標判定正確：alrt_trgg=True！")
+             if (g.get("alrt_trgg") is True) and
                 (("wind_scale >= 10" in history_str or "10" in history_str) and
                  ("rainfall >= 350" in history_str or "350" in history_str) and
                  "or" in history_str)
@@ -206,10 +206,10 @@ def auto_grade_unit_5_2(env=None):
         # ----------------------------------------------------------------------
         # 5-2-3 邏輯否定運算子：not（非） (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-2-3", "填空題", "防盜電子鎖警報開關 (should_alarm)", 6, ("should_alarm",),
+        ("5-2-3", "填空題", "防盜電子鎖警報開關 (shld_alrm)", 6, ("shld_alrm",),
          lambda g: (
-             (True, "邏輯反相否定填寫正確：should_alarm=True！")
-             if (g.get("should_alarm") is True) and
+             (True, "邏輯反相否定填寫正確：shld_alrm=True！")
+             if (g.get("shld_alrm") is True) and
                 ("not" in history_str)
              else (False, "請在 5-2-3 填空題空格填入 not 運算子反轉授權狀態！")
          )),
@@ -234,10 +234,10 @@ def auto_grade_unit_5_2(env=None):
         # ----------------------------------------------------------------------
         # 5-2-4 複合邏輯與優先級鐵律：not > and > or (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-2-4", "填空題", "電商 VIP 免運資格判定 (is_free_shipping)", 6, ("is_free_shipping",),
+        ("5-2-4", "填空題", "電商 VIP 免運資格判定 (fr_shpp)", 6, ("fr_shpp",),
          lambda g: (
-             (True, "複合條件免運資格判定正確：is_free_shipping=True！")
-             if (g.get("is_free_shipping") is True) and
+             (True, "複合條件免運資格判定正確：fr_shpp=True！")
+             if (g.get("fr_shpp") is True) and
                 ("and" in history_str and "or" in history_str)
              else (False, "請在 5-2-4 填空題填入 and 與 or 完成複合免運資格判定！")
          )),
@@ -261,10 +261,10 @@ def auto_grade_unit_5_2(env=None):
         # ----------------------------------------------------------------------
         # 5-2-5 邏輯代數實戰：互斥或 XOR (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-2-5", "填空題", "雙感應器 XOR 互斥檢驗 (is_xor_active)", 6, ("is_xor_active",),
+        ("5-2-5", "填空題", "雙感應器 XOR 互斥檢驗 (xor_actv)", 6, ("xor_actv",),
          lambda g: (
-             (True, "經典手刻 XOR 邏輯填寫正確：is_xor_active=True！")
-             if (g.get("is_xor_active") is True) and
+             (True, "經典手刻 XOR 邏輯填寫正確：xor_actv=True！")
+             if (g.get("xor_actv") is True) and
                 ("not" in history_str and "or" in history_str)
              else (False, "請依序填入 not、or 與 not 完成經典 XOR 互斥或公式！")
          )),

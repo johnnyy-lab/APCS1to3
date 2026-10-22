@@ -196,12 +196,12 @@ def auto_grade_unit_11_5(env=None):
         # ----------------------------------------------------------------------
         # 11-5-2 APCS 場景一：全域最佳解累計計數器 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-5-2", "填空題", "跳高冠軍紀錄 record_jump 與 global highest_jump", 5, ("record_jump",),
+        ("11-5-2", "填空題", "跳高冠軍紀錄 record_jump 與 global hghs_jmp", 5, ("record_jump",),
          lambda g: (
              (True, "record_jump 最佳解填空正確！")
              if (callable(g.get("record_jump"))) or
-                ("global highest_jump" in history_str and "max(" in history_str)
-             else (False, "請在 record_jump 內使用 global highest_jump 維護全域最高紀錄！")
+                ("global hghs_jmp" in history_str and "max(" in history_str)
+             else (False, "請在 record_jump 內使用 global hghs_jmp 維護全域最高紀錄！")
          )),
 
         ("11-5-2", "練習題", "最低報價評估器 submit_quote(cost)", 6, ("submit_quote",),
@@ -212,7 +212,7 @@ def auto_grade_unit_11_5(env=None):
              else (False, "請定義 submit_quote 以 min_cost = min(min_cost, cost) 更新全域解！")
          )),
 
-        ("11-5-2", "挑戰題", "全域極端氣溫監控 record_temperature(temp)", 6, ("record_temperature",),
+        ("11-5-2", "挑戰題", "全域極端氣溫監控 record_temperature(celsius)", 6, ("record_temperature",),
          lambda g: (
              (True, "氣溫極值雙指標追蹤實作正確！")
              if (callable(g.get("record_temperature"))) or
@@ -223,12 +223,12 @@ def auto_grade_unit_11_5(env=None):
         # ----------------------------------------------------------------------
         # 11-5-3 APCS 場景二：大型地圖全域共享存取 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-5-3", "填空題", "網格障礙物計數 count_adjacent_walls 與全域 board", 5, ("count_adjacent_walls",),
+        ("11-5-3", "填空題", "網格障礙物計數 count_adjacent_walls 與全域 brd115", 5, ("count_adjacent_walls",),
          lambda g: (
              (True, "count_adjacent_walls 全域網格讀取填空正確！")
              if (callable(g.get("count_adjacent_walls"))) or
-                ("board[nr][nc]" in history_str or "count_adjacent_walls" in history_str)
-             else (False, "請在 count_adjacent_walls 直接唯讀存取全域二維地圖 board！")
+                ("brd115[nr][nc]" in history_str or "count_adjacent_walls" in history_str)
+             else (False, "請在 count_adjacent_walls 直接唯讀存取全域二維地圖 brd115！")
          )),
 
         ("11-5-3", "練習題", "全域路徑總分計算器 score_grid 累加", 6, (),
@@ -254,8 +254,8 @@ def auto_grade_unit_11_5(env=None):
          lambda g: (
              (True, "add_job 免 global 原地修改填空正確！")
              if (callable(g.get("add_job"))) or
-                ("print_queue.append" in history_str)
-             else (False, "請直接在 add_job 呼叫 print_queue.append(job) 體驗可變物件免 global！")
+                ("prnt_q.append" in history_str)
+             else (False, "請直接在 add_job 呼叫 prnt_q.append(job) 體驗可變物件免 global！")
          )),
 
         ("11-5-4", "練習題", "購物車清單免 global 原處修改 add_item", 6, ("add_item",),
@@ -280,9 +280,9 @@ def auto_grade_unit_11_5(env=None):
         ("11-5-5", "填空題", "跨測資未清空慘劇剖析 process_daily_batch", 5, (),
          lambda g: (
              (True, "狀態污染剖析填空正確！")
-             if ("process_daily_batch" in history_str and "visitor_log" in history_str) or
-                ("visitor_log" in history_str)
-             else (False, "請觀察 process_daily_batch 未清空全域 visitor_log 所導致的跨日污染！")
+             if ("process_daily_batch" in history_str and "vis_log" in history_str) or
+                ("vis_log" in history_str)
+             else (False, "請觀察 process_daily_batch 未清空全域 vis_log 所導致的跨日污染！")
          )),
 
         ("11-5-5", "練習題", "字元出現次數統計與歸零重置 count_letter", 6, ("count_letter",),

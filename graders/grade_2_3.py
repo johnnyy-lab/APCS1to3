@@ -144,11 +144,11 @@ def auto_grade_unit_2_3(env=None):
         # ----------------------------------------------------------------------
         # 2-3-1 整數除法雙斜線（//）——只留整數商數的無情去尾刀 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-3-1", "填空題", "蛋撻裝盒整數除法 (total_boxes = 6)", 6, ("total_boxes",),
+        ("2-3-1", "填空題", "蛋撻裝盒整數除法 (tot_bxs = 6)", 6, ("tot_bxs",),
          lambda g: (
-             (True, "整數除法成功：total_boxes = 38 // 6 = 6！")
-             if (g.get("total_boxes") == 6 and type(g.get("total_boxes")) is int)
-             else (False, "找不到變數 total_boxes 或數值不為 6，請在空格填入 // 並執行！")
+             (True, "整數除法成功：tot_bxs = 38 // 6 = 6！")
+             if (g.get("tot_bxs") == 6 and type(g.get("tot_bxs")) is int)
+             else (False, "找不到變數 tot_bxs 或數值不為 6，請在空格填入 // 並執行！")
          )),
 
         ("2-3-1", "練習題", "遊覽車所需車輛數計算 (students // bus_capacity)", 8, ("students", "bus_capacity"),
@@ -170,11 +170,11 @@ def auto_grade_unit_2_3(env=None):
         # ----------------------------------------------------------------------
         # 2-3-2 模除取餘數百分比（%）——撿回落單零頭的餘數探測器 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-3-2", "填空題", "獎勵貼紙模除取餘數 (remaining_stickers = 2)", 6, ("remaining_stickers",),
+        ("2-3-2", "填空題", "獎勵貼紙模除取餘數 (rmnn_stck = 2)", 6, ("rmnn_stck",),
          lambda g: (
-             (True, "模除運算成功：remaining_stickers = 50 % 6 = 2！")
-             if (g.get("remaining_stickers") == 2 and type(g.get("remaining_stickers")) is int)
-             else (False, "找不到 remaining_stickers 或數值不為 2，請填入 % 並點擊播放鍵執行！")
+             (True, "模除運算成功：rmnn_stck = 50 % 6 = 2！")
+             if (g.get("rmnn_stck") == 2 and type(g.get("rmnn_stck")) is int)
+             else (False, "找不到 rmnn_stck 或數值不為 2，請填入 % 並點擊播放鍵執行！")
          )),
 
         ("2-3-2", "練習題", "萬聖節糖果平分落單數量 (total_candies % child_num)", 8, ("total_candies", "child_num"),

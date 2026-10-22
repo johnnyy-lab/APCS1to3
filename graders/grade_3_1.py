@@ -140,17 +140,17 @@ def auto_grade_unit_3_1(env=None):
         # ----------------------------------------------------------------------
         # 3-1-1 int() 浮點數轉整數——無條件向零截斷（Truncation） (共 20 分)
         # ----------------------------------------------------------------------
-        ("3-1-1", "填空題", "int() 浮點數向零截斷 (time_record = 13)", 6, ("time_record",),
+        ("3-1-1", "填空題", "int() 浮點數向零截斷 (tm_rcrd = 13)", 6, ("tm_rcrd",),
          lambda g: (
-             (True, "截斷成功：time_record = int(13.85) = 13（純整數 int）！")
-             if (g.get("time_record") == 13 and type(g.get("time_record")) is int)
+             (True, "截斷成功：tm_rcrd = int(13.85) = 13（純整數 int）！")
+             if (g.get("tm_rcrd") == 13 and type(g.get("tm_rcrd")) is int)
              else (
                  (False, "注意：請使用 int() 無條件向零截斷，勿使用 round() 四捨五入成 14 喔！")
-                 if (g.get("time_record") == 14)
+                 if (g.get("tm_rcrd") == 14)
                  else (
-                     (False, "time_record 目前仍為浮點數 13.85，請使用 int() 轉型！")
-                     if (g.get("time_record") == 13.85)
-                     else (False, "找不到變數 time_record 或數值不為 13，請在空格填入 int 並執行！")
+                     (False, "tm_rcrd 目前仍為浮點數 13.85，請使用 int() 轉型！")
+                     if (g.get("tm_rcrd") == 13.85)
+                     else (False, "找不到變數 tm_rcrd 或數值不為 13，請在空格填入 int 並執行！")
                  )
              )
          )),
@@ -183,14 +183,14 @@ def auto_grade_unit_3_1(env=None):
         # ----------------------------------------------------------------------
         # 3-1-2 int() 純整數字串轉整數——打破型態隔閡與致命的 ValueError 陷阱 (共 20 分)
         # ----------------------------------------------------------------------
-        ("3-1-2", "填空題", "字串轉整數相加避免拼接 (total_points = 190)", 6, ("total_points",),
+        ("3-1-2", "填空題", "字串轉整數相加避免拼接 (tot_pt = 190)", 6, ("tot_pt",),
          lambda g: (
-             (True, "字串轉型成功：total_points = int('150') + int('40') = 190！")
-             if (g.get("total_points") == 190 and type(g.get("total_points")) is int)
+             (True, "字串轉型成功：tot_pt = int('150') + int('40') = 190！")
+             if (g.get("tot_pt") == 190 and type(g.get("tot_pt")) is int)
              else (
                  (False, "注意：直接相加會得到字串 '15040'，請使用 int() 轉為整數再相加！")
-                 if (g.get("total_points") == "15040")
-                 else (False, "找不到 total_points 或數值不為 190，請在兩處空格填入 int 並執行！")
+                 if (g.get("tot_pt") == "15040")
+                 else (False, "找不到 tot_pt 或數值不為 190，請在兩處空格填入 int 並執行！")
              )
          )),
 
@@ -215,14 +215,14 @@ def auto_grade_unit_3_1(env=None):
         # ----------------------------------------------------------------------
         # 3-1-3 float() 轉型為浮點數——打造小數刻度與兩段式字串小數轉整數法 (共 20 分)
         # ----------------------------------------------------------------------
-        ("3-1-3", "填空題", "特價商品兩段式轉型 int(float(str)) (final_price = 49)", 6, ("final_price",),
+        ("3-1-3", "填空題", "特價商品兩段式轉型 int(float(str)) (fnl_prc = 49)", 6, ("fnl_prc",),
          lambda g: (
              (True, "兩段式轉型成功：int(float('49.9')) = 49！")
-             if (g.get("final_price") == 49 and type(g.get("final_price")) is int)
+             if (g.get("fnl_prc") == 49 and type(g.get("fnl_prc")) is int)
              else (
-                 (False, "final_price 目前為浮點數 49.9，請外層加上 int() 截斷小數點！")
-                 if (g.get("final_price") == 49.9)
-                 else (False, "找不到 final_price 或數值不為 49，請在空格依序填入 int 與 float！")
+                 (False, "fnl_prc 目前為浮點數 49.9，請外層加上 int() 截斷小數點！")
+                 if (g.get("fnl_prc") == 49.9)
+                 else (False, "找不到 fnl_prc 或數值不為 49，請在空格依序填入 int 與 float！")
              )
          )),
 

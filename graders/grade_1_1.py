@@ -156,10 +156,10 @@ def auto_grade_unit_1_1(env=None):
          lambda g: (True, "成功提前宣告變數，hp = 100") if g.get("hp") == 100
          else (False, "找不到變數 hp 或數值不為 100，請先建立 hp 再印出")),
 
-        ("1-1-2", "練習題", "拼字修復 player_level", 8, ("player_level", "player_leval"),
-         lambda g: (True, f"拼字修正正確，player_level = {g.get('player_level')}") if g.get("player_level") in [1, 99]
+        ("1-1-2", "練習題", "拼字修復 plr_lvl", 8, ("plr_lvl", "player_leval"),
+         lambda g: (True, f"拼字修正正確，plr_lvl = {g.get('plr_lvl')}") if g.get("plr_lvl") in [1, 99]
          else ((False, "仍殘留拼錯的 player_leval，請在 1-1-2 練習題更正為 level！") if "player_leval" in g
-               else (False, "找不到變數 player_level，請將其設為 1 或 99"))),
+               else (False, "找不到變數 plr_lvl，請將其設為 1 或 99"))),
 
         ("1-1-2", "挑戰題", "雙變數宣告 (Alex 與 500 金幣)", 4, ("player_name", "player_gold"),
          lambda g: (True, f"冒險者名牌就緒：{g.get('player_name')}（金幣：{g.get('player_gold')}）")

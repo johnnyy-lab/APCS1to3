@@ -99,21 +99,21 @@ def fetch_google_account_info(env=None):
     return google_email, google_name
 
 def check_q1(g, hist):
-    raw_scores = [75, 90, 62, 88, 79]
-    ss = g.get("sorted_scores")
+    raw_sc125 = [75, 90, 62, 88, 79]
+    ss = g.get("srt_sc")
     med = g.get("median")
     if ss is None and med is None:
-        return False, "請確認 sorted_scores = sorted(raw_scores) 並以 mid_idx 取出中位數。"
-    if (ss == sorted(raw_scores) and med == 79) or ("sorted(" in hist and "mid_idx" in hist):
+        return False, "請確認 srt_sc = sorted(raw_sc125) 並以 mid_idx 取出中位數。"
+    if (ss == sorted(raw_sc125) and med == 79) or ("sorted(" in hist and "mid_idx" in hist):
         return True, "太棒了！先排序再取中間索引，極速精確找出數列中位數！"
-    return False, "請確認 sorted_scores = sorted(raw_scores) 並以 mid_idx 取出中位數。"
+    return False, "請確認 srt_sc = sorted(raw_sc125) 並以 mid_idx 取出中位數。"
 
 def check_q2(g, hist):
     # 連續整數判定
-    is_consecutive = g.get("is_consecutive")
-    if is_consecutive is None:
+    cnsc = g.get("cnsc")
+    if cnsc is None:
         return False, "請排序後比對相鄰元素的差值是否皆等於 1。"
-    if is_consecutive is not None or "data[i + 1] - data[i]" in hist or "data[i+1]-data[i]" in hist:
+    if cnsc is not None or "data[i + 1] - data[i]" in hist or "data[i+1]-data[i]" in hist:
         return True, "完全正確！透過相鄰元素差值是否恆為 1，漂亮完成連續整數檢驗！"
     return False, "請排序後比對相鄰元素的差值是否皆等於 1。"
 
@@ -137,16 +137,16 @@ def check_q4(g, hist):
     return False, "請確認填入 segA[1] 判定重疊，以及 segB[1] 計算合併後終點。"
 
 def check_q5(g, hist):
-    has_conflict = g.get("has_conflict")
-    if has_conflict is None:
+    has_cnfl = g.get("has_cnfl")
+    if has_cnfl is None:
         return False, "請將 intervals 依起點排序，並比對相鄰區間是否重疊衝突。"
-    if has_conflict is not None or "intervals.sort" in hist:
+    if has_cnfl is not None or "intervals.sort" in hist:
         if "intervals[i + 1][0] < intervals[i][1]" in hist or "intervals[i+1][0]<intervals[i][1]" in hist:
             return True, "精彩！將排程依起點排序後，以相鄰結束時間判定重疊衝突完全無誤！"
     return False, "請將 intervals 依起點排序，並比對相鄰區間是否重疊衝突。"
 
 def check_q6(g, hist):
-    th = g.get("total_hours")
+    th = g.get("tot_hrs")
     if th is None:
         return False, "請將預約時段依起點排序後，以維護當前區間法計算不重疊總時長（9小時）。"
     # bookings = [[13, 15], [9, 11], [14, 17], [10, 12], [18, 20]]
@@ -154,18 +154,18 @@ def check_q6(g, hist):
     # [13, 15], [14, 17] -> 合併為 [13, 17] (4 hr)
     # [18, 20] -> [18, 20] (2 hr)
     # 總長度 = 3 + 4 + 2 = 9 hr
-    if th == 9 or ("cur_end = max(cur_end, e)" in hist and "total_hours" in hist):
+    if th == 9 or ("cur_end = max(cur_end, e)" in hist and "tot_hrs" in hist):
         return True, "太厲害了！精準實現經典線段覆蓋合併演算法，算出正確佔用 9 小時！"
     return False, "請將預約時段依起點排序後，以維護當前區間法計算不重疊總時長（9小時）。"
 
 def check_q7(g, hist):
-    count = g.get("count")
-    if count is None:
+    cnt125 = g.get("cnt125")
+    if cnt125 is None:
         return False, "請將演講依結束時間 x[1] 排序，並檢查 start >= last_end。"
     # lectures = [[1, 3], [2, 5], [4, 7], [1, 8], [6, 9]]
     # 結束時間排序: [1, 3], [2, 5], [4, 7], [1, 8], [6, 9]
-    # 貪婪挑選: [1, 3] (end=3) -> [4, 7] (end=7) -> count = 2
-    if count == 2 or ("key=lambda x: x[1]" in hist and "start >= last_end" in hist):
+    # 貪婪挑選: [1, 3] (end=3) -> [4, 7] (end=7) -> cnt125 = 2
+    if cnt125 == 2 or ("key=lambda x: x[1]" in hist and "start >= last_end" in hist):
         return True, "太棒了！掌握活動安排貪婪本質，依結束時間排序挑選最多場次！"
     return False, "請將演講依結束時間 x[1] 排序，並檢查 start >= last_end。"
 
@@ -180,17 +180,17 @@ def check_q8(g, hist):
     return False, "請將 requests 依結束時間排序並貪婪選取不衝突團體。"
 
 def check_q9(g, hist):
-    td = g.get("total_duration")
-    chosen_shows = g.get("chosen_shows")
-    if td is None and chosen_shows is None:
+    td = g.get("tot_drtn")
+    chsn_shws = g.get("chsn_shws")
+    if td is None and chsn_shws is None:
         return False, "請貪婪挑選不重疊動畫並統計其總播映時數。"
     # shows = [("動畫甲", 8, 11), ("動畫乙", 10, 12), ("動畫丙", 11, 14), ("動畫丁", 13, 15), ("動畫戊", 14, 17), ("動畫己", 16, 18)]
     # 依結束時間排序: 甲(11), 乙(12), 丙(14), 丁(15), 戊(17), 己(18)
     # 挑選: 甲[8,11] (3hr, end=11) -> 丙[11,14] (3hr, end=14) -> 戊[14,17] (3hr, end=17)
     # 總時數 = 3 + 3 + 3 = 9 小時
-    if td == 9 or (isinstance(chosen_shows, list) and len(chosen_shows) == 3):
+    if td == 9 or (isinstance(chsn_shws, list) and len(chsn_shws) == 3):
         return True, "太強大了！精準挑選最多部動畫並計算出總播映 9 小時！"
-    if "total_duration" in hist and "shows.sort" in hist:
+    if "tot_drtn" in hist and "shows.sort" in hist:
         return True, "排程邏輯正確，通過！"
     return False, "請貪婪挑選不重疊動畫並統計其總播映時數。"
 
@@ -207,27 +207,27 @@ def check_q10(g, hist):
 def check_q11(g, hist):
     min_d = g.get("min_d")
     if min_d is None:
-        return False, "請將 nums 排序後，透過相鄰差值找出全數列最小差值。"
-    # nums = [30, 5, 12, 45, 16] -> 排序 [5, 12, 16, 30, 45] -> 相鄰差 [7, 4, 14, 15] -> min=4
-    if min_d == 4 or ("nums.sort()" in hist and "min_d" in hist):
+        return False, "請將 ns125 排序後，透過相鄰差值找出全數列最小差值。"
+    # ns125 = [30, 5, 12, 45, 16] -> 排序 [5, 12, 16, 30, 45] -> 相鄰差 [7, 4, 14, 15] -> min=4
+    if min_d == 4 or ("ns125.sort()" in hist and "min_d" in hist):
         return True, "精彩！O(N log N) 排序後線性相鄰掃描，取代 O(N^2) 暴力比對！"
-    return False, "請將 nums 排序後，透過相鄰差值找出全數列最小差值。"
+    return False, "請將 ns125 排序後，透過相鄰差值找出全數列最小差值。"
 
 def check_q12(g, hist):
     bp = g.get("best_pair")
     min_gap = g.get("min_gap")
     if bp is None and min_gap is None:
         return False, "請對完賽秒數排序後，找出差距最小的兩位選手秒數。"
-    # times = [85.2, 79.8, 92.1, 80.5, 74.0, 85.0] -> 排序: [74.0, 79.8, 80.5, 85.0, 85.2, 92.1]
+    # tms125 = [85.2, 79.8, 92.1, 80.5, 74.0, 85.0] -> 排序: [74.0, 79.8, 80.5, 85.0, 85.2, 92.1]
     # 相鄰差: 5.8, 0.7, 4.5, 0.2, 6.9 -> min=0.2 (85.0 vs 85.2)
     if (min_gap is not None and abs(min_gap - 0.2) < 1e-4) or (bp == (85.0, 85.2)):
         return True, "太精采了！秒數排序後精準鎖定 85.0 秒與 85.2 秒的激戰雙雄（差距 0.2 秒）！"
-    if "times.sort()" in hist and "min_gap" in hist:
+    if "tms125.sort()" in hist and "min_gap" in hist:
         return True, "相鄰比對邏輯正確，通過！"
     return False, "請對完賽秒數排序後，找出差距最小的兩位選手秒數。"
 
 def check_q13(g, hist):
-    if g.get('sorted_arr') is None:
+    if g.get('srt_arr') is None:
         return False, "請確認在條件判斷中填入 left += 1 與 right -= 1。"
     # left += 1, right -= 1
     if "left += 1" in hist and "right -= 1" in hist:
@@ -235,13 +235,13 @@ def check_q13(g, hist):
     return False, "請確認在條件判斷中填入 left += 1 與 right -= 1。"
 
 def check_q14(g, hist):
-    found = g.get("found")
-    if found is None:
-        return False, "請使用排序與雙指標夾擊法找出相加等於 target 的兩數。"
-    # values = [40, 10, 25, 5, 15], target = 35 -> (10, 25)
-    if found == (10, 25) or found == [10, 25] or ("l < r" in hist and "s == target" in hist):
+    fnd125 = g.get("fnd125")
+    if fnd125 is None:
+        return False, "請使用排序與雙指標夾擊法找出相加等於 tg9 的兩數。"
+    # vs = [40, 10, 25, 5, 15], tg9 = 35 -> (10, 25)
+    if fnd125 == (10, 25) or fnd125 == [10, 25] or ("l < r" in hist and "s == tg9" in hist):
         return True, "太棒了！以 O(N) 雙指標夾擊法極速解出經典 Two Sum (10, 25)！"
-    return False, "請使用排序與雙指標夾擊法找出相加等於 target 的兩數。"
+    return False, "請使用排序與雙指標夾擊法找出相加等於 tg9 的兩數。"
 
 def check_q15(g, hist):
     ml = g.get("max_load")
@@ -258,23 +258,23 @@ def check_q15(g, hist):
     return False, "請利用雙指標夾擊法逼近不大於 100 kg 的最重裝載組合。"
 
 def check_q16(g, hist):
-    ranked = g.get("ranked")
-    if ranked is None:
-        return False, "請使用 enumerate(scores) 打包並以 reverse=True 降序排序。"
-    # scores = [65, 92, 78, 88]
-    # packaged = [(s, idx) for idx, s in enumerate(scores)]
-    # ranked: 降序 -> [(92, 1), (88, 3), (78, 2), (65, 0)]
+    rnkd = g.get("rnkd")
+    if rnkd is None:
+        return False, "請使用 enumerate(sc125) 打包並以 reverse=True 降序排序。"
+    # sc125 = [65, 92, 78, 88]
+    # packaged = [(s, idx) for idx, s in enumerate(sc125)]
+    # rnkd: 降序 -> [(92, 1), (88, 3), (78, 2), (65, 0)]
     expected = [(92, 1), (88, 3), (78, 2), (65, 0)]
-    if ranked == expected or ("enumerate(scores)" in hist and "reverse=True" in hist):
+    if rnkd == expected or ("enumerate(sc125)" in hist and "reverse=True" in hist):
         return True, "太棒了！成功運用 enumerate 打包原始學號並由高到低降序排列！"
-    return False, "請使用 enumerate(scores) 打包並以 reverse=True 降序排序。"
+    return False, "請使用 enumerate(sc125) 打包並以 reverse=True 降序排序。"
 
 def check_q17(g, hist):
-    packed = g.get("packed")
-    if packed is None:
+    pckd125 = g.get("pckd125")
+    if pckd125 is None:
         return False, "請打包 (數值, 原始索引) 並排序，輸出最小與最大之原始索引。"
-    # measurements = [45, 12, 89, 34, 67] -> packed 排序後最小 (12, 1), 最大 (89, 2)
-    if (packed and packed[0] == (12, 1) and packed[-1] == (89, 2)) or ("enumerate(measurements)" in hist):
+    # msrm = [45, 12, 89, 34, 67] -> pckd125 排序後最小 (12, 1), 最大 (89, 2)
+    if (pckd125 and pckd125[0] == (12, 1) and pckd125[-1] == (89, 2)) or ("enumerate(msrm)" in hist):
         return True, "精彩！保留原始位置進行排序，成功精確定位最大值與最小值的原始索引！"
     return False, "請打包 (數值, 原始索引) 並排序，輸出最小與最大之原始索引。"
 
@@ -282,7 +282,7 @@ def check_q18(g, hist):
     order = g.get("order")
     if order is None:
         return False, "請依 (-分數, 原始編號) 排序並輸出錄取編號清單 [2, 1, 4, 0, 3]。"
-    # scores = [72, 85, 90, 68, 85] (idx: 0, 1, 2, 3, 4)
+    # sc10 = [72, 85, 90, 68, 85] (idx: 0, 1, 2, 3, 4)
     # 分數降序, 編號升序: 90(2), 85(1), 85(4), 72(0), 68(3)
     # order: [2, 1, 4, 0, 3]
     if order == [2, 1, 4, 0, 3] or ("-c[0], c[1]" in hist or "-x[0], x[1]" in hist):
@@ -333,23 +333,23 @@ def auto_grade_unit_12_5(env=None):
     history_clean = history_str.replace(" ", "")
 
     test_cases = [
-        ('12-5-1', '填空題', '排序取出中位數', 6, ("sorted_scores", "median"),
+        ('12-5-1', '填空題', '排序取出中位數', 6, ("srt_sc", "median"),
          lambda g: check_q1(g, history_str)),
-        ('12-5-1', '練習題', '連續整數列相鄰判定', 6, ("is_consecutive",),
+        ('12-5-1', '練習題', '連續整數列相鄰判定', 6, ("cnsc",),
          lambda g: check_q2(g, history_str)),
         ('12-5-1', '挑戰題', '排序後線性收集重複等級', 5, ("duplicates",),
          lambda g: check_q3(g, history_str)),
         ('12-5-2', '填空題', '區間重疊與合併終點計算', 6, ("is_overlap", "merged_seg"),
          lambda g: check_q4(g, history_str)),
-        ('12-5-2', '練習題', '起點排序與排程衝突檢查', 6, ("has_conflict",),
+        ('12-5-2', '練習題', '起點排序與排程衝突檢查', 6, ("has_cnfl",),
          lambda g: check_q5(g, history_str)),
-        ('12-5-2', '挑戰題', '線段合併計算不重複佔用總時長', 5, ("total_hours",),
+        ('12-5-2', '挑戰題', '線段合併計算不重複佔用總時長', 5, ("tot_hrs",),
          lambda g: check_q6(g, history_str)),
-        ('12-5-3', '填空題', '結束時間排序與貪婪活動挑選', 6, ("count",),
+        ('12-5-3', '填空題', '結束時間排序與貪婪活動挑選', 6, ("cnt125",),
          lambda g: check_q7(g, history_str)),
         ('12-5-3', '練習題', '表演團體結束時間排程貪婪入選', 6, ("chosen",),
          lambda g: check_q8(g, history_str)),
-        ('12-5-3', '挑戰題', '動畫不重疊挑選與總時數計算', 5, ("total_duration", "chosen_shows"),
+        ('12-5-3', '挑戰題', '動畫不重疊挑選與總時數計算', 5, ("tot_drtn", "chsn_shws"),
          lambda g: check_q9(g, history_str)),
         ('12-5-4', '填空題', '數列排序與相鄰最大跨度', 6, ("max_gap",),
          lambda g: check_q10(g, history_str)),
@@ -359,13 +359,13 @@ def auto_grade_unit_12_5(env=None):
          lambda g: check_q12(g, history_str)),
         ('12-5-5', '填空題', '已排序序列雙指標相向夾擊移動', 6, (),
          lambda g: check_q13(g, history_str)),
-        ('12-5-5', '練習題', '雙指標 O(N) 極速求解 Two Sum', 5, ("found",),
+        ('12-5-5', '練習題', '雙指標 O(N) 極速求解 Two Sum', 5, ("fnd125",),
          lambda g: check_q14(g, history_str)),
         ('12-5-5', '挑戰題', '雙指標逼近不超過限重之最佳載重組合', 5, ("max_load", "best_combo"),
          lambda g: check_q15(g, history_str)),
-        ('12-5-6', '填空題', 'enumerate 打包原始索引與降序排列', 6, ("ranked",),
+        ('12-5-6', '填空題', 'enumerate 打包原始索引與降序排列', 6, ("rnkd",),
          lambda g: check_q16(g, history_str)),
-        ('12-5-6', '練習題', '帶原始索引排序定位極值位置', 5, ("packed",),
+        ('12-5-6', '練習題', '帶原始索引排序定位極值位置', 5, ("pckd125",),
          lambda g: check_q17(g, history_str)),
         ('12-5-6', '挑戰題', '成績降序且編號升序之錄取順序', 5, ("order",),
          lambda g: check_q18(g, history_str)),

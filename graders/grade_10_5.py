@@ -169,36 +169,36 @@ def auto_grade_unit_10_5(env=None):
         # ----------------------------------------------------------------------
         # 10-5-2 查表法（Lookup Table） (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-5-2", "填空題", "月份縮寫轉數字查表 month_map.get(target_month, -1)", 5, (),
+        ("10-5-2", "填空題", "月份縮寫轉數字查表 month_map.get(tg_mnth, -1)", 5, (),
          lambda g: (
              (True, "月份查表法填空正確！")
              if ("month_map.get" in history_str and "-1" in history_str)
-             else (False, "請在 10-5-2 填空題填入 month_map.get(target_month, -1)！")
+             else (False, "請在 10-5-2 填空題填入 month_map.get(tg_mnth, -1)！")
          )),
 
         ("10-5-2", "練習題", "外幣匯率試算器 (幣別查表換算台幣)", 6, (),
          lambda g: (
              (True, "外幣匯率查表換算正確！")
-             if ("exchange_rates" in history_str and "*" in history_str) or ("sum" in history_str)
+             if ("exch_rts" in history_str and "*" in history_str) or ("sum" in history_str)
              else (False, "請透過匯率字典查表並計算兌換後的新台幣總額！")
          )),
 
         ("10-5-2", "挑戰題", "英文星期天數差計算 (星期縮寫查表差距)", 6, (),
          lambda g: (
              (True, "星期天數差距查表計算正確！")
-             if ("weekday_map" in history_str and ("abs(" in history_str or "-" in history_str))
+             if ("wkdy_map" in history_str and ("abs(" in history_str or "-" in history_str))
              else (False, "請透過星期查表計算兩天數之間的絕對差距！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-5-3 離散化 / 座標壓縮（Coordinate Compression） (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-5-3", "填空題", "建立座標壓縮字典 rank_map[val] = idx", 5, (),
+        ("10-5-3", "填空題", "建立座標壓縮字典 crd_rnk[pos] = rank", 5, (),
          lambda g: (
              (True, "座標壓縮字典建立填空正確！")
-             if ("rank_map[val] = idx" in history_str or "rank_map[val]=idx" in history_clean or
+             if ("crd_rnk[pos] = rank" in history_str or "crd_rnk[pos]=rank" in history_clean or
                  "enumerate" in history_str)
-             else (False, "請在 10-5-3 填空題填入 rank_map[val] = idx！")
+             else (False, "請在 10-5-3 填空題填入 crd_rnk[pos] = rank！")
          )),
 
         ("10-5-3", "練習題", "選手背號稠密排名轉換器 (排序去重離散化)", 6, (),
@@ -211,31 +211,31 @@ def auto_grade_unit_10_5(env=None):
         ("10-5-3", "挑戰題", "離散化反向解碼器 (依排名還原原始數值)", 6, (),
          lambda g: (
              (True, "反向字典查表解碼正確！")
-             if ("rank_to_val" in history_str and "[" in history_str) or ("compressed" in history_str)
+             if ("rnk_val" in history_str and "[" in history_str) or ("compressed" in history_str)
              else (False, "請透過反向字典將壓縮排名還原為原本的大數值！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-5-4 雙向映射表（Two-way Mapping） (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-5-4", "填空題", "摩斯密碼反向字典建置 morse_decode[code] = letter", 5, (),
+        ("10-5-4", "填空題", "摩斯密碼反向字典建置 mrs_dcd[code] = letter", 5, (),
          lambda g: (
              (True, "雙向映射字典反轉填空正確！")
-             if ("morse_decode[code] = letter" in history_str or "morse_decode[code]=letter" in history_clean)
-             else (False, "請在 10-5-4 填空題填入 morse_decode[code] = letter！")
+             if ("mrs_dcd[code] = letter" in history_str or "mrs_dcd[code]=letter" in history_clean)
+             else (False, "請在 10-5-4 填空題填入 mrs_dcd[code] = letter！")
          )),
 
         ("10-5-4", "練習題", "情報員暗號雙向翻譯機 (代號與真名互查)", 6, (),
          lambda g: (
              (True, "特務雙向翻譯字典建置正確！")
-             if ("agent_codes" in history_str and ("items()" in history_str or "reverse" in history_str))
+             if ("agnt_cds" in history_str and ("items()" in history_str or "reverse" in history_str))
              else (False, "請建置好雙向字典，支援代號與真名相互查詢！")
          )),
 
         ("10-5-4", "挑戰題", "一對多反向分組索引 (分數 -> 姓名串列)", 6, (),
          lambda g: (
              (True, "一對多反向分組索引正確！")
-             if ("score_dict" in history_str and "append" in history_str) or ("score_to_names" in history_str)
+             if ("score_dict" in history_str and "append" in history_str) or ("sc_nms" in history_str)
              else (False, "請將學生姓名依成績反向歸入以分數為鍵的串列字典中！")
          )),
 
@@ -252,25 +252,25 @@ def auto_grade_unit_10_5(env=None):
         ("10-5-5", "練習題", "單字首字母分組歸檔器 (w[0].upper() 分桶)", 6, (),
          lambda g: (
              (True, "單字首字母分組歸檔正確！")
-             if ("upper()" in history_str and "append(" in history_str) and ("words" in history_str)
+             if ("upper()" in history_str and "append(" in history_str) and ("wrds105" in history_str)
              else (False, "請將單字按首字母大寫分組歸檔進字典中！")
          )),
 
-        ("10-5-5", "挑戰題", "餘數分桶總和統計 (num % k 分組加總)", 6, (),
+        ("10-5-5", "挑戰題", "餘數分桶總和統計 (num % k105 分組加總)", 6, (),
          lambda g: (
              (True, "餘數分桶統計與加總正確！")
-             if ("% k" in history_str or "%k" in history_clean or "% 3" in history_str) and "sum(" in history_str
+             if ("% k105" in history_str or "%k105" in history_clean or "% 3" in history_str) and "sum(" in history_str
              else (False, "請將整數依餘數分組，並輸出各餘數組的總和！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-5-6 字典與串列效能實測對比 O(1) vs O(N) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-5-6", "填空題", "以字典建立白名單查詢 query_user in whitelist_dict", 5, (),
+        ("10-5-6", "填空題", "以字典建立白名單查詢 query_user in whtl_dct", 5, (),
          lambda g: (
              (True, "字典 O(1) 白名單查詢填空正確！")
-             if ("in whitelist_dict" in history_str or "in whitelist" in history_str)
-             else (False, "請在 10-5-6 填空題填入 query_user in whitelist_dict！")
+             if ("in whtl_dct" in history_str or "in whitelist" in history_str)
+             else (False, "請在 10-5-6 填空題填入 query_user in whtl_dct！")
          )),
 
         ("10-5-6", "練習題", "極速資料去重過濾保留順序 (O(N) 雜湊查表)", 6, (),

@@ -144,21 +144,21 @@ def auto_grade_unit_6_4(env=None):
         # ----------------------------------------------------------------------
         # 6-4-1 break：緊急煞車與提前終止 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-4-1", "填空題", "電梯超重煞車中斷 (total_weight > 300, break)", 4, (),
+        ("6-4-1", "填空題", "電梯超重煞車中斷 (tot_wt > 300, break)", 4, (),
          lambda g: (
              (True, "電梯超重 break 緊急煞車關鍵字填寫正確！")
-             if ("total_weight>300" in history_clean or "total_weight > 300" in history_str) and
+             if ("tot_wt>300" in history_clean or "tot_wt > 300" in history_str) and
                 ("break" in history_str)
              else (False, "請在 6-4-1 填空題空格填入緊急煞車關鍵字 break！")
          )),
 
-        ("6-4-1", "練習題", "目標幸運數字搜尋 (target = 37, found = True, steps)", 4, ("found", "steps"),
+        ("6-4-1", "練習題", "目標幸運數字搜尋 (tg064 = 37, found = True, stps064)", 4, ("found", "stps064"),
          lambda g: (
              (True, "幸運數字搜尋旗標與終止步數記錄正確！")
              if (("found" in g or "found" in history_str) and
-                 ("steps" in g or "steps" in history_str) and
+                 ("stps064" in g or "stps064" in history_str) and
                  ("break" in history_str))
-             else (False, "請在搜尋到 target 時將 found 設為 True，記錄 steps 並 break！")
+             else (False, "請在搜尋到 tg064 時將 found 設為 True，記錄 stps064 並 break！")
          )),
 
         ("6-4-1", "挑戰題", "最小公倍數走訪搜尋 (lcm = 36)", 5, ("lcm",),
@@ -176,18 +176,18 @@ def auto_grade_unit_6_4(env=None):
         ("6-4-2", "填空題", "指定數值跳步換輪 (num == 4 or num == 7, continue)", 4, (),
          lambda g: (
              (True, "條件過濾跳步關鍵字 continue 填寫正確！")
-             if ("val==4orval==7" in history_clean or "num==4ornum==7" in history_clean or "4" in history_str and "7" in history_str) and
+             if ("num==4ornum==7" in history_clean or "4" in history_str and "7" in history_str) and
                 ("continue" in history_str)
              else (False, "請在 6-4-2 填空題填入跳步關鍵字 continue！")
          )),
 
-        ("6-4-2", "練習題", "跳過 5 的倍數累加總和 (sum_filtered = 160)", 4, ("sum_filtered",),
+        ("6-4-2", "練習題", "跳過 5 的倍數累加總和 (sum_fltr = 160)", 4, ("sum_fltr",),
          lambda g: (
              (True, "排除 5 的倍數之 continue 累加 (160) 輸出正確！")
-             if (("sum_filtered" in g or "sum_filtered" in history_str) and
+             if (("sum_fltr" in g or "sum_fltr" in history_str) and
                  ("% 5 == 0" in history_str or "%5==0" in history_clean) and
                  ("continue" in history_str))
-             else (False, "請走訪 1 到 20，若為 5 的倍數則 continue，其餘累加到 sum_filtered！")
+             else (False, "請走訪 1 到 20，若為 5 的倍數則 continue，其餘累加到 sum_fltr！")
          )),
 
         ("6-4-2", "挑戰題", "while 迴圈安全 continue 奇數和 (total_odd = 25)", 5, ("total_odd",),
@@ -202,84 +202,84 @@ def auto_grade_unit_6_4(env=None):
         # ----------------------------------------------------------------------
         # 6-4-3 break vs continue 深度對比與執行軌跡追蹤 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-4-3", "填空題", "煞車 vs 跳步次數追蹤 (count_break, count_continue)", 4, (),
+        ("6-4-3", "填空題", "煞車 vs 跳步次數追蹤 (cnt_brk, cnt_cntn)", 4, (),
          lambda g: (
              (True, "break 與 continue 兩段式對比填寫正確！")
-             if ("count_break" in history_str and "count_continue" in history_str and
+             if ("cnt_brk" in history_str and "cnt_cntn" in history_str and
                  "break" in history_str and "continue" in history_str)
              else (False, "請在 6-4-3 填空題分別填入 break 與 continue！")
          )),
 
-        ("6-4-3", "練習題", "特殊符號過濾與終止 (filtered_text = 'APCSPYTHON')", 4, ("filtered_text",),
+        ("6-4-3", "練習題", "特殊符號過濾與終止 (fltr_txt = 'APCSPYTHON')", 4, ("fltr_txt",),
          lambda g: (
              (True, "字串掃描跳過 '#' 並於 '*' 終止之串接結果正確！")
-             if (("filtered_text" in g or "result" in g or "filtered_text" in history_str or "result" in history_str) and
-                 ("APCSPYTHON" in history_str or g.get("filtered_text") == "APCSPYTHON") and
+             if (("fltr_txt" in g or "fltr_txt" in history_str) and
+                 ("APCSPYTHON" in history_str or g.get("fltr_txt") == "APCSPYTHON") and
                  ("continue" in history_str and "break" in history_str))
              else (False, "請遇 '#' continue、遇 '*' break，其餘串接為 APCSPYTHON！")
          )),
 
-        ("6-4-3", "挑戰題", "雙指標篩選跳步與上限終止 (total = 106, last_add = 15)", 5, ("total", "last_add"),
+        ("6-4-3", "挑戰題", "雙指標篩選跳步與上限終止 (tot064 = 106, last_add = 15)", 5, ("tot064", "last_add"),
          lambda g: (
              (True, "排除 4 的倍數且突破 100 終止雙指標運算成功！")
-             if (("total" in g or "total" in history_str) and
+             if (("tot064" in g or "tot064" in history_str) and
                  ("last_add" in g or "last_add" in history_str) and
-                 ("106" in history_str or g.get("total") == 106))
-             else (False, "請逢 4 的倍數 continue，total > 100 時 break，求出 106 與 15！")
+                 ("106" in history_str or g.get("tot064") == 106))
+             else (False, "請逢 4 的倍數 continue，tot064 > 100 時 break，求出 106 與 15！")
          )),
 
         # ----------------------------------------------------------------------
         # 6-4-4 旗標搜尋與質數檢驗：break 的經典應用模式 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-4-4", "填空題", "質數檢驗整除判定與煞車 (test_val % factor == 0, break)", 4, (),
+        ("6-4-4", "填空題", "質數檢驗整除判定與煞車 (tst_val % factor == 0, break)", 4, (),
          lambda g: (
              (True, "質數檢驗整除 == 0 與 break 煞車填寫精確！")
-             if ("test_val%factor==0" in history_clean or "== 0" in history_str) and
+             if ("tst_val%factor==0" in history_clean or "== 0" in history_str) and
                 ("break" in history_str)
              else (False, "請在 6-4-4 填空題填入整除 0 與煞車關鍵字 break！")
          )),
 
-        ("6-4-4", "練習題", "質數判定旗標 (result_prime = True / False)", 4, ("result_prime",),
+        ("6-4-4", "練習題", "質數判定旗標 (out_prm = True / False)", 4, ("out_prm",),
          lambda g: (
              (True, "任意數質數檢驗與布林旗標正確！")
-             if (("result_prime" in g or "result_prime" in history_str) and
+             if (("out_prm" in g or "out_prm" in history_str) and
                  ("break" in history_str))
-             else (False, "請走訪因數檢驗 candidate_num，若整除則立旗並 break！")
+             else (False, "請走訪因數檢驗 cndd_num，若整除則立旗並 break！")
          )),
 
-        ("6-4-4", "挑戰題", "區間質數計數器 (10 到 50 之間共有 11 個質數)", 5, ("prime_count",),
+        ("6-4-4", "挑戰題", "區間質數計數器 (10 到 50 之間共有 11 個質數)", 5, ("prm_cnt",),
          lambda g: (
              (True, "巢狀質數走訪與區間計數 (11 個質數) 成功！")
-             if (("prime_count" in g or "prime_count" in history_str) and
-                 ("11" in history_str or g.get("prime_count") == 11))
+             if (("prm_cnt" in g or "prm_cnt" in history_str) and
+                 ("11" in history_str or g.get("prm_cnt") == 11))
              else (False, "請統計 10 到 50 之間的質數個數（共 11 個）！")
          )),
 
         # ----------------------------------------------------------------------
         # 6-4-5 衛語句（Guard Clauses）心法：用 continue 消除多層巢狀 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-4-5", "填空題", "偶數過濾衛語句 (if num % 2 == 0: continue)", 4, (),
+        ("6-4-5", "填空題", "偶數過濾衛語句 (if num6 % 2 == 0: continue)", 4, (),
          lambda g: (
              (True, "偶數衛語句 continue 填寫正確！")
-             if ("num%2==0" in history_clean or "num % 2 == 0" in history_str) and
+             if ("num6%2==0" in history_clean or "num6 % 2 == 0" in history_str) and
                 ("continue" in history_str)
              else (False, "請在 6-4-5 填空題填入跳步關鍵字 continue！")
          )),
 
-        ("6-4-5", "練習題", "水庫進水量雜訊清洗 (effective_water = 150, valid_readings = 3)", 4, ("effective_water", "valid_readings"),
+        ("6-4-5", "練習題", "水庫進水量雜訊清洗 (effc_wtr = 150, vld_rdng = 3)", 4, ("effc_wtr", "vld_rdng"),
          lambda g: (
              (True, "感測器負數與零雜訊過濾清洗輸出正確！")
-             if (("effective_water" in g or "effective_water" in history_str) and
-                 ("valid_readings" in g or "valid_readings" in history_str) and
+             if (("effc_wtr" in g or "effc_wtr" in history_str) and
+                 ("vld_rdng" in g or "vld_rdng" in history_str) and
                  ("continue" in history_str))
              else (False, "請過濾非正數（continue），統計有效水量 150 與筆數 3！")
          )),
 
-        ("6-4-5", "挑戰題", "字串數字過濾器 (letters_only = 'ABCDE')", 4, ("letters_only",),
+        ("6-4-5", "挑戰題", "字串數字過濾器 (ltr_only = 'ABCDE')", 4, ("ltr_only",),
          lambda g: (
              (True, "字元數字衛語句過濾為純字母 (ABCDE) 成功！")
-             if (("letters_only" in g or "letters_only" in history_str) and
-                 ("ABCDE" in history_str or g.get("letters_only") == "ABCDE") and
+             if (("ltr_only" in g or "ltr_only" in history_str) and
+                 ("ABCDE" in history_str or g.get("ltr_only") == "ABCDE") and
                  ("continue" in history_str))
              else (False, "請使用 continue 跳過數字字元，串接純字母 ABCDE！")
          )),
@@ -304,11 +304,11 @@ def auto_grade_unit_6_4(env=None):
              else (False, "請遇 '!' break 設 INVALID，未中斷進入 else 設 ALL_VALID！")
          )),
 
-        ("6-4-6", "挑戰題", "while...else 倒數正常停機驗證", 4, ("else_executed", "count"),
+        ("6-4-6", "挑戰題", "while...else 倒數正常停機驗證", 4, ("els_exct", "cnt064"),
          lambda g: (
              (True, "while...else 倒數停機進入 else 區塊成功！")
-             if (("else_executed" in g or "else_executed" in history_str) and
-                 ("火箭發射" in history_str or g.get("else_executed") is True or g.get("count") == 0))
+             if (("els_exct" in g or "els_exct" in history_str) and
+                 ("火箭發射" in history_str or g.get("els_exct") is True or g.get("cnt064") == 0))
              else (False, "請撰寫 while...else 倒數，正常停機進入 else 輸出發射！")
          )),
 
@@ -323,22 +323,22 @@ def auto_grade_unit_6_4(env=None):
              else (False, "請在 6-4-7 填空題填入 while True 與 break！")
          )),
 
-        ("6-4-7", "練習題", "倍數逼近突破門檻 (cur_val = 1024, steps = 10)", 4, ("cur_val", "steps"),
+        ("6-4-7", "練習題", "倍數逼近突破門檻 (cur_val064 = 1024, stps2 = 10)", 4, ("cur_val064", "stps2"),
          lambda g: (
              (True, "while True 乘 2 逼近 1000 門檻終止輸出正確！")
-             if (("cur_val" in g or "val" in g or "cur_val" in history_str or "val" in history_str) and
-                 ("steps" in g or "steps" in history_str) and
-                 ("1024" in history_str or g.get("cur_val") == 1024) and
+             if (("cur_val064" in g or "cur_val064" in history_str) and
+                 ("stps2" in g or "stps2" in history_str) and
+                 ("1024" in history_str or g.get("cur_val064") == 1024) and
                  ("break" in history_str))
-             else (False, "請在 while True 中每輪 cur_val *= 2，>= 1000 時 break！")
+             else (False, "請在 while True 中每輪 cur_val064 *= 2，>= 1000 時 break！")
          )),
 
-        ("6-4-7", "挑戰題", "烏龜追兔子動態追逐遊戲 (rounds = 5, turtle = 25)", 4, ("rounds", "turtle"),
+        ("6-4-7", "挑戰題", "烏龜追兔子動態追逐遊戲 (rnds = 5, turtle = 25)", 4, ("rnds", "turtle"),
          lambda g: (
              (True, "動態追逐追上中斷 (5 輪，位置 25) 成功！")
-             if (("rounds" in g or "rounds" in history_str) and
+             if (("rnds" in g or "rnds" in history_str) and
                  ("turtle" in g or "turtle" in history_str) and
-                 ("25" in history_str or (g.get("rounds") == 5 and g.get("turtle") == 25)))
+                 ("25" in history_str or (g.get("rnds") == 5 and g.get("turtle") == 25)))
              else (False, "請以 while True 模擬烏龜追兔子，turtle >= rabbit 時 break！")
          )),
 

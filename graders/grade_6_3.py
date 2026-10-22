@@ -151,23 +151,23 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請在 6-3-1 填空題空格填入 while 關鍵字與判斷條件 battery >= 12！")
          )),
 
-        ("6-3-1", "練習題", "魔王血量扣除與攻擊計數 (boss_hp > 0, attack_count)", 4, ("boss_hp", "attack_count"),
+        ("6-3-1", "練習題", "魔王血量扣除與攻擊計數 (boss_hp > 0, attc_cnt)", 4, ("boss_hp", "attc_cnt"),
          lambda g: (
              (True, "魔王扣血迴圈與總攻擊次數統計正確！")
              if (("boss_hp" in g or "boss_hp" in history_str) and
-                 ("attack_count" in g or "attack_count" in history_str) and
+                 ("attc_cnt" in g or "attc_cnt" in history_str) and
                  ("-= 15" in history_str or "-=15" in history_clean))
-             else (False, "請設定 boss_hp，在 while boss_hp > 0 中扣血並累加 attack_count！")
+             else (False, "請設定 boss_hp，在 while boss_hp > 0 中扣血並累加 attc_cnt！")
          )),
 
-        ("6-3-1", "挑戰題", "存錢達標天數計算 (balance < target, days)", 5, ("target", "balance", "days"),
+        ("6-3-1", "挑戰題", "存錢達標天數計算 (balance < tg, days)", 5, ("tg", "balance", "days"),
          lambda g: (
              (True, "儲蓄達標天數迴圈運算成功！")
-             if (("target" in g or "target" in history_str) and
+             if (("tg" in g or "tg" in history_str) and
                  ("balance" in g or "balance" in history_str) and
                  ("days" in g or "days" in history_str) and
                  ("daily_save" in history_str or "+= 15" in history_str or "+=15" in history_clean))
-             else (False, "請設定 target = 100, balance = 20, daily_save = 15，計算達標天數 days！")
+             else (False, "請設定 tg = 100, balance = 20, daily_save = 15，計算達標天數 days！")
          )),
 
         # ----------------------------------------------------------------------
@@ -180,22 +180,22 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請在 6-3-2 填空題填入初始值 3、條件 <= 15 與步進 += 3！")
          )),
 
-        ("6-3-2", "練習題", "連續整數累加 (while cur <= limit_n)", 4, ("cur", "sum_val"),
+        ("6-3-2", "練習題", "連續整數累加 (while cur <= lmt_n)", 4, ("cur", "sum_val063"),
          lambda g: (
              (True, "while 累加 1 到 n 運算正確！")
              if (("cur" in g or "cur" in history_str) and
-                 ("sum_val" in g or "sum_val" in history_str) and
-                 ("cur <= limit_n" in history_str or "cur<=limit_n" in history_clean or "cur <= n" in history_str or "cur<=n" in history_clean))
-             else (False, "請使用 while cur <= n 累加 sum_val 並更新 cur += 1！")
+                 ("sum_val063" in g or "sum_val063" in history_str) and
+                 ("cur <= lmt_n" in history_str or "cur<=lmt_n" in history_clean or "cur <= n" in history_str or "cur<=n" in history_clean))
+             else (False, "請使用 while cur <= n 累加 sum_val063 並更新 cur += 1！")
          )),
 
-        ("6-3-2", "挑戰題", "負步進推進點火模擬 (rocket_fuel > 20, burns)", 5, ("rocket_fuel", "burns"),
+        ("6-3-2", "挑戰題", "負步進推進點火模擬 (rckt_fl > 20, burns)", 5, ("rckt_fl", "burns"),
          lambda g: (
              (True, "火箭推進點火次數與剩餘燃料計算成功！")
-             if (("rocket_fuel" in g or "rocket_fuel" in history_str) and
+             if (("rckt_fl" in g or "rckt_fl" in history_str) and
                  ("burns" in g or "burns" in history_str) and
                  ("-= 15" in history_str or "-=15" in history_clean))
-             else (False, "請設定 rocket_fuel = 100，每輪 -= 15 計算 burns 次數與剩餘燃料！")
+             else (False, "請設定 rckt_fl = 100，每輪 -= 15 計算 burns 次數與剩餘燃料！")
          )),
 
         # ----------------------------------------------------------------------
@@ -217,13 +217,13 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請使用 while 迴圈計算資金 1000 元最長可支撐的生活費天數！")
          )),
 
-        ("6-3-3", "挑戰題", "累積首次突破上限門檻 (1+2+... 超過 500)", 5, ("limit", "total", "last_num"),
+        ("6-3-3", "挑戰題", "累積首次突破上限門檻 (1+2+... 超過 500)", 5, ("lmt", "tot063", "last_num"),
          lambda g: (
-             (True, "連續累加首次超越 limit (500) 之整數與總和計算成功！")
-             if (("limit" in g or "limit" in history_str) and
-                 ("total" in g or "total" in history_str) and
+             (True, "連續累加首次超越 lmt (500) 之整數與總和計算成功！")
+             if (("lmt" in g or "lmt" in history_str) and
+                 ("tot063" in g or "tot063" in history_str) and
                  ("last_num" in g or "last_num" in history_str) and
-                 ("32" in history_str and "528" in history_str or (g.get("last_num") == 32 and g.get("total") == 528)))
+                 ("32" in history_str and "528" in history_str or (g.get("last_num") == 32 and g.get("tot063") == 528)))
              else (False, "請使用 while 迴圈計算連續正整數累加首次超越 500 的整數與總和！")
          )),
 
@@ -237,10 +237,10 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請在 6-3-4 填空題填入模除 10 與整除 10！")
          )),
 
-        ("6-3-4", "練習題", "特定數字 7 出現個數統計 (count_seven)", 4, ("count_seven",),
+        ("6-3-4", "練習題", "特定數字 7 出現個數統計 (cnt_svn)", 4, ("cnt_svn",),
          lambda g: (
              (True, "數位剝皮統計數字 7 出現次數正確！")
-             if (("count_seven" in g or "count_seven" in history_str) and
+             if (("cnt_svn" in g or "cnt_svn" in history_str) and
                  ("== 7" in history_str or "==7" in history_clean) and
                  ("// 10" in history_str or "//= 10" in history_str or "//=10" in history_clean))
              else (False, "請利用數位剝皮術檢查每位數，統計數字 7 出現的個數！")
@@ -295,20 +295,20 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請在 6-3-6 填空題填入模除 2 與整除 2！")
          )),
 
-        ("6-3-6", "練習題", "考拉茲猜想最高峰值探測 (3n+1 與 n//2 擂台峰值)", 4, ("max_val",),
+        ("6-3-6", "練習題", "考拉茲猜想最高峰值探測 (3n+1 與 n//2 擂台峰值)", 4, ("max_val063",),
          lambda g: (
              (True, "考拉茲 3n+1 演變軌跡最高峰值探測正確！")
-             if (("max_val" in g or "max_val" in history_str) and
+             if (("max_val063" in g or "max_val063" in history_str) and
                  ("3 * cur_num + 1" in history_str or "3*cur_num+1" in history_clean or "3 * n + 1" in history_str or "3*n+1" in history_clean) and
                  ("// 2" in history_str or "//= 2" in history_str or "//2" in history_clean))
-             else (False, "請模擬考拉茲猜想軌跡，並找出過程中的最高峰值 max_val！")
+             else (False, "請模擬考拉茲猜想軌跡，並找出過程中的最高峰值 max_val063！")
          )),
 
-        ("6-3-6", "挑戰題", "純數值十進位轉二進位構造 (25 轉 11001)", 4, ("binary_result",),
+        ("6-3-6", "挑戰題", "純數值十進位轉二進位構造 (25 轉 11001)", 4, ("bin_out",),
          lambda g: (
              (True, "權重倍增構造二進位整數 (11001) 成功！")
-             if (g.get("binary_result") == 11001 or "11001" in history_str or
-                 (("binary_result" in g or "binary_result" in history_str) and
+             if (g.get("bin_out") == 11001 or "11001" in history_str or
+                 (("bin_out" in g or "bin_out" in history_str) and
                   ("factor" in history_str or "% 2" in history_str or "// 2" in history_str)))
              else (False, "請利用 factor *= 10 與 bit * factor 純數值構造二進位整數 11001！")
          )),
@@ -321,7 +321,7 @@ def auto_grade_unit_6_3(env=None):
              (True, "輾轉相除不等於 0、模除更替與最小公倍數公式填寫正確！")
              if ("y!=0" in history_clean or "y != 0" in history_str or "num_b!=0" in history_clean or "num_b != 0" in history_str) and
                 ("%y" in history_clean or "% y" in history_str or "%num_b" in history_clean or "% num_b" in history_str)
-             else (False, "請在 6-3-7 填空題填入 0、x % y 以及除以 gcd_ans！")
+             else (False, "請在 6-3-7 填空題填入 0、num_b 以及除以 gcd_ans！")
          )),
 
         ("6-3-7", "練習題", "分數最簡約分 (GCD 與 simple_num / simple_den)", 4, ("simple_num", "simple_den"),
@@ -351,23 +351,23 @@ def auto_grade_unit_6_3(env=None):
              else (False, "請在 6-3-8 填空題將加法修正為扣除運算子 -=！")
          )),
 
-        ("6-3-8", "練習題", "安全閥門計數器 (steps >= 20, terminated_by_guard)", 4, ("terminated_by_guard", "steps"),
+        ("6-3-8", "練習題", "安全閥門計數器 (stps >= 20, trmn_grd)", 4, ("trmn_grd", "stps"),
          lambda g: (
              (True, "防暴走安全步數閥門攔截機制正確！")
-             if (("terminated_by_guard" in g or "terminated_by_guard" in history_str) and
-                 ("steps" in g or "steps" in history_str) and
+             if (("trmn_grd" in g or "trmn_grd" in history_str) and
+                 ("stps" in g or "stps" in history_str) and
                  (">= 20" in history_str or ">=20" in history_clean))
-             else (False, "請加上 steps 安全計數器，達到 20 步中斷並將 terminated_by_guard 設為 True！")
+             else (False, "請加上 stps 安全計數器，達到 20 步中斷並將 trmn_grd 設為 True！")
          )),
 
-        ("6-3-8", "挑戰題", "業務條件與防暴走雙重條件審查", 4, ("energy", "loop_count"),
+        ("6-3-8", "挑戰題", "業務條件與防暴走雙重條件審查", 4, ("enrg", "loop_count"),
          lambda g: (
              (True, "業務邏輯與安全上限雙重條件審查成功！")
-             if (("energy" in g or "energy" in history_str) and
+             if (("enrg" in g or "enrg" in history_str) and
                  ("loop_count" in g or "loop_count" in history_str) and
                  ("% 13" in history_str or "%13" in history_clean) and
                  ("< 100" in history_str or "<100" in history_clean))
-             else (False, "請在 while 同時設置 energy % 13 != 0 與 loop_count < 100 雙重審查！")
+             else (False, "請在 while 同時設置 enrg % 13 != 0 與 loop_count < 100 雙重審查！")
          )),
     ]
 

@@ -192,18 +192,18 @@ def auto_grade_unit_10_2(env=None):
         # ----------------------------------------------------------------------
         # 10-2-3 巢狀元組與結構化資料打包 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-2-3", "填空題", "巢狀解包 sid, name, (math, eng, sci) = record", 5, (),
+        ("10-2-3", "填空題", "巢狀解包 sid, nm, (math, eng, sci) = rcrd102", 5, (),
          lambda g: (
              (True, "多層巢狀解包填空正確！")
-             if ("sid, name" in history_str and "math" in history_str) or ("record" in history_str)
+             if ("sid, nm" in history_str and "math" in history_str) or ("rcrd102" in history_str)
              else (False, "請在 10-2-3 填空題填入多層解包變數！")
          )),
 
-        ("10-2-3", "練習題", "學生卡成績統計器 (sid, name, (s1, s2, s3))", 6, (),
+        ("10-2-3", "練習題", "學生卡成績統計器 (sid, nm, (s1, s2, s3))", 6, (),
          lambda g: (
              (True, "學生卡巢狀打包與統計正確！")
-             if ("(" in history_str and "sum(" in history_str) and ("name" in history_str or "sid" in history_str)
-             else (False, "請打包為 (sid, name, (s1, s2, s3)) 並計算成績總和！")
+             if ("(" in history_str and "sum(" in history_str) and ("nm" in history_str or "sid" in history_str)
+             else (False, "請打包為 (sid, nm, (s1, s2, s3)) 並計算成績總和！")
          )),
 
         ("10-2-3", "挑戰題", "二維多線段長度統計 ((r1, c1), (r2, c2))", 6, (),
@@ -233,18 +233,18 @@ def auto_grade_unit_10_2(env=None):
         ("10-2-4", "挑戰題", "連續向量步進路徑生成", 6, (),
          lambda g: (
              (True, "連續步進軌跡計算正確！")
-             if ("for" in history_str and ("dr" in history_str or "dc" in history_str or "DIRECTIONS" in history_str))
+             if ("for" in history_str and ("dr" in history_str or "dc" in history_str or "DRCT" in history_str))
              else (False, "請連續執行 M 步移動並輸出最終座標！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-2-5 多傳回值模擬打包 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-2-5", "填空題", "奇偶數總和打包為 (odd_sum, even_sum)", 5, (),
+        ("10-2-5", "填空題", "奇偶數總和打包為 (odd_sum102, evn_sum102)", 5, (),
          lambda g: (
              (True, "多值統計元組打包填空正確！")
-             if ("(odd_sum, even_sum)" in history_str or "(odd_sum,even_sum)" in history_clean)
-             else (False, "請在 10-2-5 填空題填入 (odd_sum, even_sum)！")
+             if ("(odd_sum102, evn_sum102)" in history_str or "(odd_sum102,evn_sum102)" in history_clean)
+             else (False, "請在 10-2-5 填空題填入 (odd_sum102, evn_sum102)！")
          )),
 
         ("10-2-5", "練習題", "四合一數據分析打包 (len, sum, max, min)", 6, (),

@@ -110,8 +110,8 @@ def extract_notebook_history():
         pass
     return hist_text
 
-def check_q1(g, hist):
-    fn = g.get("verify_exact_match")
+def check_q1(g137, hist):
+    fn = g137.get("verify_exact_match")
     if not callable(fn):
         return False, "尚未正確實作 verify_exact_match 或相符字串未回傳 True。"
     if callable(fn):
@@ -124,8 +124,8 @@ def check_q1(g, hist):
         return True, "偵測到嚴格一致性比對邏輯！"
     return False, "尚未正確實作 verify_exact_match 或相符字串未回傳 True。"
 
-def check_q2(g, hist):
-    fn = g.get("verify_exact_match")
+def check_q2(g137, hist):
+    fn = g137.get("verify_exact_match")
     if not callable(fn):
         return False, "微小格式差異未正確判定為 False。"
     if callable(fn):
@@ -138,8 +138,8 @@ def check_q2(g, hist):
         return True, "偵測到微小格式差異攔截邏輯！"
     return False, "微小格式差異未正確判定為 False。"
 
-def check_q3(g, hist):
-    fn = g.get("verify_exact_match")
+def check_q3(g137, hist):
+    fn = g137.get("verify_exact_match")
     if not callable(fn):
         return False, "空字串比對有誤。"
     if callable(fn):
@@ -152,17 +152,17 @@ def check_q3(g, hist):
         return True, "偵測到空字串比對防禦！"
     return False, "空字串比對有誤。"
 
-def check_q4(g, hist):
-    fn = g.get("clean_input_and_square")
+def check_q4(g137, hist):
+    fn = g137.get("clean_input_and_square")
     if not callable(fn):
         return False, "尚未正確實作 clean_input_and_square 或平方結果不符。"
     if callable(fn):
         try:
             old_in = sys.stdin
             sys.stdin = io.StringIO("12\n")
-            res = fn()
+            got = fn()
             sys.stdin = old_in
-            if res == 144:
+            if got == 144:
                 return True, "太棒了！純淨 input 讀取整數並回傳平方結果 144！"
         except Exception as e:
             sys.stdin = old_in
@@ -171,17 +171,17 @@ def check_q4(g, hist):
         return True, "偵測到乾淨 input 平方計算邏輯！"
     return False, "尚未正確實作 clean_input_and_square 或平方結果不符。"
 
-def check_q5(g, hist):
-    fn = g.get("clean_input_and_square")
+def check_q5(g137, hist):
+    fn = g137.get("clean_input_and_square")
     if not callable(fn):
         return False, "負整數平方計算不符。"
     if callable(fn):
         try:
             old_in = sys.stdin
             sys.stdin = io.StringIO("-5\n")
-            res = fn()
+            got = fn()
             sys.stdin = old_in
-            if res == 25:
+            if got == 25:
                 return True, "太棒了！負整數 -5 純淨讀取並精準計算平方 25！"
         except Exception as e:
             sys.stdin = old_in
@@ -190,17 +190,17 @@ def check_q5(g, hist):
         return True, "偵測到負整數平方讀取邏輯！"
     return False, "負整數平方計算不符。"
 
-def check_q6(g, hist):
-    fn = g.get("clean_input_and_square")
+def check_q6(g137, hist):
+    fn = g137.get("clean_input_and_square")
     if not callable(fn):
         return False, "邊界 0 讀取計算錯誤。"
     if callable(fn):
         try:
             old_in = sys.stdin
             sys.stdin = io.StringIO("0\n")
-            res = fn()
+            got = fn()
             sys.stdin = old_in
-            if res == 0:
+            if got == 0:
                 return True, "太棒了！邊界數值 0 純淨讀取安全回傳 0！"
         except Exception as e:
             sys.stdin = old_in
@@ -209,8 +209,8 @@ def check_q6(g, hist):
         return True, "偵測到邊界讀取邏輯！"
     return False, "邊界 0 讀取計算錯誤。"
 
-def check_q7(g, hist):
-    fn = g.get("format_space_separated")
+def check_q7(g137, hist):
+    fn = g137.get("format_space_separated")
     if not callable(fn):
         return False, "尚未正確實作 format_space_separated 或格式不符。"
     if callable(fn):
@@ -224,8 +224,8 @@ def check_q7(g, hist):
         return True, "偵測到空格分隔格式化邏輯！"
     return False, "尚未正確實作 format_space_separated 或格式不符。"
 
-def check_q8(g, hist):
-    fn = g.get("format_space_separated")
+def check_q8(g137, hist):
+    fn = g137.get("format_space_separated")
     if not callable(fn):
         return False, "單一元素或負數格式化不符。"
     if callable(fn):
@@ -238,8 +238,8 @@ def check_q8(g, hist):
         return True, "偵測到單元素與負數格式化！"
     return False, "單一元素或負數格式化不符。"
 
-def check_q9(g, hist):
-    fn = g.get("format_space_separated")
+def check_q9(g137, hist):
+    fn = g137.get("format_space_separated")
     if not callable(fn):
         return False, "空串列未回傳空字串。"
     if callable(fn):
@@ -252,8 +252,8 @@ def check_q9(g, hist):
         return True, "偵測到空串列安全回傳！"
     return False, "空串列未回傳空字串。"
 
-def check_q10(g, hist):
-    fn = g.get("format_grade_report")
+def check_q10(g137, hist):
+    fn = g137.get("format_grade_report")
     if not callable(fn):
         return False, "尚未正確實作 format_grade_report 或格式字串不符。"
     if callable(fn):
@@ -267,8 +267,8 @@ def check_q10(g, hist):
         return True, "偵測到成績報表格式化邏輯！"
     return False, "尚未正確實作 format_grade_report 或格式字串不符。"
 
-def check_q11(g, hist):
-    fn = g.get("format_grade_report")
+def check_q11(g137, hist):
+    fn = g137.get("format_grade_report")
     if not callable(fn):
         return False, "整除時未格式化為 .00。"
     if callable(fn):
@@ -282,8 +282,8 @@ def check_q11(g, hist):
         return True, "偵測到整除小數點補零邏輯！"
     return False, "整除時未格式化為 .00。"
 
-def check_q12(g, hist):
-    fn = g.get("format_grade_report")
+def check_q12(g137, hist):
+    fn = g137.get("format_grade_report")
     if not callable(fn):
         return False, "兩筆資料格式化計算錯誤。"
     if callable(fn):
@@ -297,8 +297,8 @@ def check_q12(g, hist):
         return True, "偵測到成績報表邊界計算！"
     return False, "兩筆資料格式化計算錯誤。"
 
-def check_q13(g, hist):
-    fn = g.get("judge_prime_output")
+def check_q13(g137, hist):
+    fn = g137.get("judge_prime_output")
     if not callable(fn):
         return False, "尚未正確實作 judge_prime_output 或 YES/NO 格式不符。"
     if callable(fn):
@@ -311,8 +311,8 @@ def check_q13(g, hist):
         return True, "偵測到 YES_NO 規格對齊邏輯！"
     return False, "尚未正確實作 judge_prime_output 或 YES/NO 格式不符。"
 
-def check_q14(g, hist):
-    fn = g.get("judge_prime_output")
+def check_q14(g137, hist):
+    fn = g137.get("judge_prime_output")
     if not callable(fn):
         return False, "全小寫格式不符或 2/1 質數判定錯誤。"
     if callable(fn):
@@ -325,8 +325,8 @@ def check_q14(g, hist):
         return True, "偵測到 LOWER 規格對齊邏輯！"
     return False, "全小寫格式不符或 2/1 質數判定錯誤。"
 
-def check_q15(g, hist):
-    fn = g.get("judge_prime_output")
+def check_q15(g137, hist):
+    fn = g137.get("judge_prime_output")
     if not callable(fn):
         return False, "TITLE 規格格式不符。"
     if callable(fn):
@@ -339,8 +339,8 @@ def check_q15(g, hist):
         return True, "偵測到 TITLE 規格對齊邏輯！"
     return False, "TITLE 規格格式不符。"
 
-def check_q16(g, hist):
-    fn = g.get("format_grid_output")
+def check_q16(g137, hist):
+    fn = g137.get("format_grid_output")
     if not callable(fn):
         return False, "尚未正確實作 format_grid_output 或網格字串不符。"
     if callable(fn):
@@ -354,8 +354,8 @@ def check_q16(g, hist):
         return True, "偵測到二維網格格式化邏輯！"
     return False, "尚未正確實作 format_grid_output 或網格字串不符。"
 
-def check_q17(g, hist):
-    fn = g.get("format_grid_output")
+def check_q17(g137, hist):
+    fn = g137.get("format_grid_output")
     if not callable(fn):
         return False, "單一元素網格末尾有多餘空格或換行。"
     if callable(fn):
@@ -368,8 +368,8 @@ def check_q17(g, hist):
         return True, "偵測到單元素網格邊界格式化！"
     return False, "單一元素網格末尾有多餘空格或換行。"
 
-def check_q18(g, hist):
-    fn = g.get("format_grid_output")
+def check_q18(g137, hist):
+    fn = g137.get("format_grid_output")
     if not callable(fn):
         return False, "空網格未回傳空字串。"
     if callable(fn):
@@ -427,41 +427,41 @@ def auto_grade_unit_13_7(env=None):
 
     test_cases = [
         ('13-7-1', '實作題', 'verify_exact_match 字元與換行完全吻合判定 True', 6, ("verify_exact_match",),
-         lambda g: check_q1(g, history_str)),
+         lambda g137: check_q1(g137, history_str)),
         ('13-7-1', '實作題', 'verify_exact_match 結尾多空格或少換行判定 False', 6, ("verify_exact_match",),
-         lambda g: check_q2(g, history_str)),
+         lambda g137: check_q2(g137, history_str)),
         ('13-7-1', '實作題', 'verify_exact_match 空字串極端比對防禦', 5, ("verify_exact_match",),
-         lambda g: check_q3(g, history_str)),
+         lambda g137: check_q3(g137, history_str)),
         ('13-7-2', '實作題', 'clean_input_and_square 純淨 input 讀取與平方計算', 6, ("clean_input_and_square",),
-         lambda g: check_q4(g, history_str)),
+         lambda g137: check_q4(g137, history_str)),
         ('13-7-2', '實作題', 'clean_input_and_square 負整數平方計算無瑕疵', 6, ("clean_input_and_square",),
-         lambda g: check_q5(g, history_str)),
+         lambda g137: check_q5(g137, history_str)),
         ('13-7-2', '實作題', 'clean_input_and_square 零與邊界數值純淨讀取', 5, ("clean_input_and_square",),
-         lambda g: check_q6(g, history_str)),
+         lambda g137: check_q6(g137, history_str)),
         ('13-7-3', '實作題', 'format_space_separated 多元素單一空格隔開且末尾無空格', 6, ("format_space_separated",),
-         lambda g: check_q7(g, history_str)),
+         lambda g137: check_q7(g137, history_str)),
         ('13-7-3', '實作題', 'format_space_separated 單一元素與負數格式化', 6, ("format_space_separated",),
-         lambda g: check_q8(g, history_str)),
+         lambda g137: check_q8(g137, history_str)),
         ('13-7-3', '實作題', 'format_space_separated 空串列回傳空字串防禦', 5, ("format_space_separated",),
-         lambda g: check_q9(g, history_str)),
+         lambda g137: check_q9(g137, history_str)),
         ('13-7-4', '實作題', 'format_grade_report 總分整數與平均小數點後兩位格式化', 6, ("format_grade_report",),
-         lambda g: check_q10(g, history_str)),
+         lambda g137: check_q10(g137, history_str)),
         ('13-7-4', '實作題', 'format_grade_report 整除時精準補足小數點後兩位零 (.00)', 6, ("format_grade_report",),
-         lambda g: check_q11(g, history_str)),
+         lambda g137: check_q11(g137, history_str)),
         ('13-7-4', '實作題', 'format_grade_report 兩筆元素與不規則平均精準四捨五入', 5, ("format_grade_report",),
-         lambda g: check_q12(g, history_str)),
+         lambda g137: check_q12(g137, history_str)),
         ('13-7-5', '實作題', 'judge_prime_output YES_NO 風格全大寫嚴格對齊', 6, ("judge_prime_output",),
-         lambda g: check_q13(g, history_str)),
+         lambda g137: check_q13(g137, history_str)),
         ('13-7-5', '實作題', 'judge_prime_output LOWER 風格全小寫 true/false 嚴格對齊', 5, ("judge_prime_output",),
-         lambda g: check_q14(g, history_str)),
+         lambda g137: check_q14(g137, history_str)),
         ('13-7-5', '實作題', 'judge_prime_output TITLE 風格 Prime/Not Prime 邊界判定', 5, ("judge_prime_output",),
-         lambda g: check_q15(g, history_str)),
+         lambda g137: check_q15(g137, history_str)),
         ('13-7-6', '實作題', 'format_grid_output 二維網格行內空格與各行換行', 6, ("format_grid_output",),
-         lambda g: check_q16(g, history_str)),
+         lambda g137: check_q16(g137, history_str)),
         ('13-7-6', '實作題', 'format_grid_output 單一元素網格末尾無多餘換行或空格', 5, ("format_grid_output",),
-         lambda g: check_q17(g, history_str)),
+         lambda g137: check_q17(g137, history_str)),
         ('13-7-6', '實作題', 'format_grid_output 空網格安全回傳空字串', 5, ("format_grid_output",),
-         lambda g: check_q18(g, history_str)),
+         lambda g137: check_q18(g137, history_str)),
     ]
 
     pass_count = 0

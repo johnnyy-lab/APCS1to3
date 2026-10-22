@@ -169,27 +169,27 @@ def auto_grade_unit_12_1(env=None):
         # ----------------------------------------------------------------------
         # 12-1-1 排序核心概念：升序預設行為 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-1-1", "填空題", "sorted() 升序排序與最高身高索引用法", 5, ("sorted_heights",),
+        ("12-1-1", "填空題", "sorted() 升序排序與最高身高索引用法", 5, ("srt_hght",),
          lambda g: (
-             (True, "sorted_heights 升序排序正確，且最高身高取值無誤！")
-             if (g.get("sorted_heights") == [158, 165, 169, 172, 175, 180]) or
-                ("sorted(heights)" in history_str and "sorted_heights" in history_str)
-             else (False, "尚未找到符合預期的 sorted_heights，請使用 sorted(heights) 並確認已點擊儲存格播放鍵執行！")
+             (True, "srt_hght 升序排序正確，且最高身高取值無誤！")
+             if (g.get("srt_hght") == [158, 165, 169, 172, 175, 180]) or
+                ("sorted(heights)" in history_str and "srt_hght" in history_str)
+             else (False, "尚未找到符合預期的 srt_hght，請使用 sorted(heights) 並確認已點擊儲存格播放鍵執行！")
          )),
 
-        ("12-1-1", "練習題", "整數數列升序排序與全距計算", 6, ("sorted_raw_data",),
+        ("12-1-1", "練習題", "整數數列升序排序與全距計算", 6, ("srt_raw_dt",),
          lambda g: (
              (True, "練習題 12.1.1 raw_data 升序排序與全距計算正確！")
-             if (g.get("sorted_raw_data") == [12, 34, 45, 67, 89]) or
-                ("sorted(raw_data)" in history_str and ("- sorted_raw_data[0]" in history_str or "77" in history_str or "sorted_raw_data[-1]" in history_str))
+             if (g.get("srt_raw_dt") == [12, 34, 45, 67, 89]) or
+                ("sorted(raw_data)" in history_str and ("- srt_raw_dt[0]" in history_str or "77" in history_str or "srt_raw_dt[-1]" in history_str))
              else (False, "請將 raw_data 進行 sorted() 升序排序，並計算最大值與最小值之全距（最大值 - 最小值）！")
          )),
 
-        ("12-1-1", "挑戰題", "浮點數跑步成績排序與前三名切片選取", 6, ("ordered_times",),
+        ("12-1-1", "挑戰題", "浮點數跑步成績排序與前三名切片選取", 6, ("ordr_tms",),
          lambda g: (
              (True, "挑戰題 12.1.1 浮點數跑步成績排序與前三名切片成功！")
-             if (isinstance(g.get("ordered_times"), list) and len(g.get("ordered_times")) >= 5 and g.get("ordered_times") == sorted(g.get("ordered_times"))) or
-                ("sorted(" in history_str and "[:3]" in history_str and ("times" in history_str or "ordered" in history_str))
+             if (isinstance(g.get("ordr_tms"), list) and len(g.get("ordr_tms")) >= 5 and g.get("ordr_tms") == sorted(g.get("ordr_tms"))) or
+                ("sorted(" in history_str and "[:3]" in history_str and ("tms" in history_str or "ordered" in history_str))
              else (False, "請宣告至少 5 筆浮點數之跑步秒數串列，使用 sorted() 升序排序後以 [:3] 取出前三名！")
          )),
 
@@ -207,14 +207,14 @@ def auto_grade_unit_12_1(env=None):
              )
          )),
 
-        ("12-1-2", "練習題", "numbers_list.sort() 原地修改負數與正數串列", 6, ("numbers_list",),
+        ("12-1-2", "練習題", "ns_lst.sort() 原地修改負數與正數串列", 6, ("ns_lst",),
          lambda g: (
-             (False, "⚠️ 偵測到 numbers_list 變數值為 None！請勿對 .sort() 進行賦值（避免 numbers_list = numbers_list.sort()）！")
-             if g.get("numbers_list") is None
+             (False, "⚠️ 偵測到 ns_lst 變數值為 None！請勿對 .sort() 進行賦值（避免 ns_lst = ns_lst.sort()）！")
+             if g.get("ns_lst") is None
              else (
-                 (True, "練習題 12.1.2 numbers_list.sort() 原地排序與首元素取值正確！")
-                 if (g.get("numbers_list") == [-9, -3, 0, 15, 42]) or ("numbers_list.sort()" in history_str and "numbers_list = numbers_list.sort()" not in history_clean)
-                 else (False, "請使用 numbers_list.sort() 將 numbers_list 進行原地升序排序，並印出排序後內容與第一個元素！")
+                 (True, "練習題 12.1.2 ns_lst.sort() 原地排序與首元素取值正確！")
+                 if (g.get("ns_lst") == [-9, -3, 0, 15, 42]) or ("ns_lst.sort()" in history_str and "ns_lst = ns_lst.sort()" not in history_clean)
+                 else (False, "請使用 ns_lst.sort() 將 ns_lst 進行原地升序排序，並印出排序後內容與第一個元素！")
              )
          )),
 
@@ -229,55 +229,55 @@ def auto_grade_unit_12_1(env=None):
         # ----------------------------------------------------------------------
         # 12-1-3 內建函數 sorted(iterable) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-1-3", "填空題", "sorted() 生成獨立新串列且原串列完好無損", 5, ("leaderboard", "log_order"),
+        ("12-1-3", "填空題", "sorted() 生成獨立新串列且原串列完好無損", 5, ("board121", "log_order"),
          lambda g: (
-             (True, "leaderboard 成功由 sorted(log_order) 生成，且原 log_order 完整保留！")
-             if (g.get("leaderboard") == [60, 72, 88, 91, 95] and g.get("log_order") == [88, 95, 72, 60, 91]) or
-                ("sorted(log_order)" in history_str and "leaderboard" in history_str)
-             else (False, "請使用 leaderboard = sorted(log_order) 產出新排序串列，同時維持 log_order 原樣！")
+             (True, "board121 成功由 sorted(log_order) 生成，且原 log_order 完整保留！")
+             if (g.get("board121") == [60, 72, 88, 91, 95] and g.get("log_order") == [88, 95, 72, 60, 91]) or
+                ("sorted(log_order)" in history_str and "board121" in history_str)
+             else (False, "請使用 board121 = sorted(log_order) 產出新排序串列，同時維持 log_order 原樣！")
          )),
 
-        ("12-1-3", "練習題", "raw_temps 溫度計紀錄雙軌保留與排序", 6, ("sorted_temps", "raw_temps"),
+        ("12-1-3", "練習題", "raw_temps 溫度計紀錄雙軌保留與排序", 6, ("srt_tmps", "raw_temps"),
          lambda g: (
-             (True, "練習題 12.1.3 成功產生 sorted_temps 排序串列並保留原始 raw_temps！")
-             if (g.get("sorted_temps") == [19.8, 23.0, 25.4, 28.5, 31.2] and g.get("raw_temps") == [28.5, 23.0, 31.2, 19.8, 25.4]) or
-                ("sorted(raw_temps)" in history_str and "sorted_temps" in history_str)
-             else (False, "請使用 sorted_temps = sorted(raw_temps) 進行排序，並確認 raw_temps 未受竄改！")
+             (True, "練習題 12.1.3 成功產生 srt_tmps 排序串列並保留原始 raw_temps！")
+             if (g.get("srt_tmps") == [19.8, 23.0, 25.4, 28.5, 31.2] and g.get("raw_temps") == [28.5, 23.0, 31.2, 19.8, 25.4]) or
+                ("sorted(raw_temps)" in history_str and "srt_tmps" in history_str)
+             else (False, "請使用 srt_tmps = sorted(raw_temps) 進行排序，並確認 raw_temps 未受竄改！")
          )),
 
-        ("12-1-3", "挑戰題", "結合 sorted() 極值與原串列 arr.index() 原始索引定位", 6, ("min_val", "max_val", "arr"),
+        ("12-1-3", "挑戰題", "結合 sorted() 極值與原串列 arr121.index() 原始索引定位", 6, ("min_val121", "max_val121", "arr121"),
          lambda g: (
-             (True, "挑戰題 12.1.3 成功結合 sorted() 與 arr.index() 找出極值原始索引！")
-             if ("arr.index" in history_str and "sorted(" in history_str) or
-                (isinstance(g.get("arr"), list) and "min_val" in g and "max_val" in g)
-             else (False, "請宣告包含至少 5 個整數的 arr，以 sorted() 找出最大與最小值後，透過 arr.index() 找出其原始索引！")
+             (True, "挑戰題 12.1.3 成功結合 sorted() 與 arr121.index() 找出極值原始索引！")
+             if ("arr121.index" in history_str and "sorted(" in history_str) or
+                (isinstance(g.get("arr121"), list) and "min_val121" in g and "max_val121" in g)
+             else (False, "請宣告包含至少 5 個整數的 arr121，以 sorted() 找出最大與最小值後，透過 arr121.index() 找出其原始索引！")
          )),
 
         # ----------------------------------------------------------------------
         # 12-1-4 記憶體耗損與使用時機對照 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-1-4", "填空題", "依場景精準選用 nums1.sort() 與 sorted(nums2)", 5, ("nums1", "sorted_nums2", "nums2"),
+        ("12-1-4", "填空題", "依場景精準選用 nums1.sort() 與 sorted(nums2)", 5, ("nums1", "srt_nms2", "nums2"),
          lambda g: (
-             (True, "nums1 原地排序與 sorted_nums2 新串列生成填空皆完全正確！")
-             if (g.get("nums1") == [1, 3, 7, 9] and g.get("sorted_nums2") == [2, 4, 6, 8] and g.get("nums2") == [8, 4, 6, 2]) or
+             (True, "nums1 原地排序與 srt_nms2 新串列生成填空皆完全正確！")
+             if (g.get("nums1") == [1, 3, 7, 9] and g.get("srt_nms2") == [2, 4, 6, 8] and g.get("nums2") == [8, 4, 6, 2]) or
                 ("nums1.sort()" in history_str and "sorted(nums2)" in history_str)
-             else (False, "場景 1 請使用 nums1.sort() 原地修改；場景 2 請使用 sorted_nums2 = sorted(nums2)！")
+             else (False, "場景 1 請使用 nums1.sort() 原地修改；場景 2 請使用 srt_nms2 = sorted(nums2)！")
          )),
 
-        ("12-1-4", "練習題", "遊戲戰力排行榜 leaderboard 雙軌維護", 6, ("leaderboard", "power_list"),
+        ("12-1-4", "練習題", "遊戲戰力排行榜 board2 雙軌維護", 6, ("board2", "power_list"),
          lambda g: (
              (True, "練習題 12.1.4 成功以 sorted(power_list) 建立排行榜並印出首位與戰力天花板！")
-             if (g.get("leaderboard") == [1500, 1800, 2400, 2900, 3200] and g.get("power_list") == [2400, 1500, 3200, 1800, 2900]) or
-                ("sorted(power_list)" in history_str and "leaderboard" in history_str)
-             else (False, "請使用 leaderboard = sorted(power_list) 產生排行榜，並輸出原始第一位與最高戰力者！")
+             if (g.get("board2") == [1500, 1800, 2400, 2900, 3200] and g.get("power_list") == [2400, 1500, 3200, 1800, 2900]) or
+                ("sorted(power_list)" in history_str and "board2" in history_str)
+             else (False, "請使用 board2 = sorted(power_list) 產生排行榜，並輸出原始第一位與最高戰力者！")
          )),
 
         ("12-1-4", "挑戰題", "使用 id() 探測驗證原地修改 O(1) 與副本生成 O(N) 記憶體差異", 6, ("id_before", "id_after"),
          lambda g: (
              (True, "挑戰題 12.1.4 成功以 id() 探測驗證原地排序前後 id 相同與 sorted 副本 id 不同！")
-             if ("id(items)" in history_str and "items.sort()" in history_str and "sorted(" in history_str) or
+             if ("id(itms)" in history_str and "itms.sort()" in history_str and "sorted(" in history_str) or
                 (g.get("id_before") is not None and g.get("id_before") == g.get("id_after"))
-             else (False, "請使用 id() 記錄 items 於 items.sort() 前後的記憶體位址，並對比 sorted(items2) 的新位址！")
+             else (False, "請使用 id() 記錄 itms 於 itms.sort() 前後的記憶體位址，並對比 sorted(items2) 的新位址！")
          )),
 
         # ----------------------------------------------------------------------
@@ -285,52 +285,52 @@ def auto_grade_unit_12_1(env=None):
         # ----------------------------------------------------------------------
         ("12-1-5", "填空題", "字母易位字（Anagram）檢驗神器 is_anagram", 5, ("is_anagram",),
          lambda g: (
-             (True, "is_anagram 字母易位字檢驗填空正確！sorted(word1) == sorted(word2)！")
+             (True, "is_anagram 字母易位字檢驗填空正確！sorted(wrd1) == sorted(wrd2)！")
              if (g.get("is_anagram") is True) or
-                ("sorted(word1)" in history_str and "sorted(word2)" in history_str and "is_anagram" in history_str)
-             else (False, "請使用 is_anagram = sorted(word1) == sorted(word2) 進行易位字驗證！")
+                ("sorted(wrd1)" in history_str and "sorted(wrd2)" in history_str and "is_anagram" in history_str)
+             else (False, "請使用 is_anagram = sorted(wrd1) == sorted(wrd2) 進行易位字驗證！")
          )),
 
-        ("12-1-5", "練習題", "結合 set() 去重與 sorted() 升序輸出 unique_sorted", 6, ("unique_sorted",),
+        ("12-1-5", "練習題", "結合 set() 去重與 sorted() 升序輸出 uniq_srt", 6, ("uniq_srt",),
          lambda g: (
              (True, "練習題 12.1.5 集合去重與 sorted() 升序排序整合正確！")
-             if (g.get("unique_sorted") == [1, 2, 3, 7, 9]) or
-                ("sorted(set(raw_list))" in history_str or "unique_sorted" in history_str)
-             else (False, "請使用 unique_sorted = sorted(set(raw_list)) 將 raw_list 先去重後再排序！")
+             if (g.get("uniq_srt") == [1, 2, 3, 7, 9]) or
+                ("sorted(set(raw_list))" in history_str or "uniq_srt" in history_str)
+             else (False, "請使用 uniq_srt = sorted(set(raw_list)) 將 raw_list 先去重後再排序！")
          )),
 
         ("12-1-5", "挑戰題", "密碼字元 ASCII 排序後首字元數字檢驗", 5, (),
          lambda g: (
              (True, "挑戰題 12.1.5 密碼排序後首字元數字範圍檢驗正確！")
-             if ("sorted(password)" in history_str or "sorted_chars" in history_str) and
-                (("<= sorted_chars[0] <=" in history_str) or ("isdigit()" in history_str) or ("0" in history_str and "9" in history_str))
-             else (False, "請宣告密碼字串 password，以 sorted() 排序後檢查首字元是否介於 '0' 至 '9' 之間！")
+             if ("sorted(pssw)" in history_str or "srt_chrs" in history_str) and
+                (("<= srt_chrs[0] <=" in history_str) or ("isdigit()" in history_str) or ("0" in history_str and "9" in history_str))
+             else (False, "請宣告密碼字串 pssw，以 sorted() 排序後檢查首字元是否介於 '0' 至 '9' 之間！")
          )),
 
         # ----------------------------------------------------------------------
         # 12-1-6 穩定排序（Stable Sort）特性 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("12-1-6", "填空題", "穩定排序概念檢驗，相等鍵值保留相對順序", 5, ("sorted_data",),
+        ("12-1-6", "填空題", "穩定排序概念檢驗，相等鍵值保留相對順序", 5, ("srt_dt",),
          lambda g: (
-             (True, "sorted_data 穩定排序填空正確！相同鍵值項目順序完全保持原樣！")
-             if (g.get("sorted_data") == [('B', 5), ('D', 5), ('A', 10), ('C', 10)]) or
-                ("sorted(raw_pairs, key=get_value)" in history_str or "sorted(raw_pairs,key=get_value)" in history_clean or "sorted(data" in history_str)
-             else (False, "請使用 sorted_data = sorted(raw_pairs, key=get_value) 驗證穩定排序特性！")
+             (True, "srt_dt 穩定排序填空正確！相同鍵值項目順序完全保持原樣！")
+             if (g.get("srt_dt") == [('B', 5), ('D', 5), ('A', 10), ('C', 10)]) or
+                ("sorted(raw_pairs, key=get_value)" in history_str or "sorted(raw_pairs,key=get_value)" in history_clean)
+             else (False, "請使用 srt_dt = sorted(raw_pairs, key=get_value) 驗證穩定排序特性！")
          )),
 
-        ("12-1-6", "練習題", "選手同分成績穩定排序保留登記順序", 6, ("sorted_athletes",),
+        ("12-1-6", "練習題", "選手同分成績穩定排序保留登記順序", 6, ("srt_ath",),
          lambda g: (
              (True, "練習題 12.1.6 選手成績穩定排序正確！同分者登記先後完全維持！")
-             if (g.get("sorted_athletes") == [(80, 'T2'), (80, 'T4'), (100, 'T1'), (100, 'T3')]) or
+             if (g.get("srt_ath") == [(80, 'T2'), (80, 'T4'), (100, 'T1'), (100, 'T3')]) or
                 ("sorted(athletes" in history_str and ("take_score" in history_str or "lambda" in history_str))
              else (False, "請以分數為鍵對 athletes 進行 sorted 排序，確認同分者保留原始相對順序！")
          )),
 
-        ("12-1-6", "挑戰題", "商品類別穩定排序示範", 5, ("sorted_products",),
+        ("12-1-6", "挑戰題", "商品類別穩定排序示範", 5, ("srt_prdc",),
          lambda g: (
              (True, "挑戰題 12.1.6 商品類別穩定排序示範正確！")
              if ("sorted(" in history_str and "category" in history_str) or
-                (isinstance(g.get("sorted_products"), list) and len(g.get("sorted_products")) >= 4)
+                (isinstance(g.get("srt_prdc"), list) and len(g.get("srt_prdc")) >= 4)
              else (False, "請建立商品清單並依「商品類別」進行穩定排序，展示同類別商品先後順序不變！")
          ))
     ]

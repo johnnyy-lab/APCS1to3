@@ -172,10 +172,10 @@ def auto_grade_unit_8_1(env=None):
         # ----------------------------------------------------------------------
         # 8-1-2 正向與負向索引存取 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-1-2", "填空題", "索引存取金牌 champion_medal = medals[2 或 -1]", 6, ("champion_medal",),
+        ("8-1-2", "填空題", "索引存取金牌 chmp_mdl = medals[2 或 -1]", 6, ("chmp_mdl",),
          lambda g: (
              (True, "成功透過索引取出 'Gold' 獎牌！")
-             if g.get("champion_medal") == "Gold" or
+             if g.get("chmp_mdl") == "Gold" or
                 ("medals[2]" in history_clean or "medals[-1]" in history_clean)
              else (False, "請在 8-1-2 填空題中括號內填入 2 或 -1 取出 Gold！")
          )),
@@ -208,13 +208,13 @@ def auto_grade_unit_8_1(env=None):
              else (False, "請在 8-1-3 填空題填入索引 1 與新數值 60！")
          )),
 
-        ("8-1-3", "練習題", "首尾元素對調器 (a[0], a[2] = a[2], a[0])", 9, (),
+        ("8-1-3", "練習題", "首尾元素對調器 (swap_trio[0], swap_trio[2] = swap_trio[2], swap_trio[0])", 9, (),
          lambda g: (
              (True, "首尾元素單行交換賦值輸出正確！")
-             if ("a[0], a[2] = a[2], a[0]" in history_str or "a[0],a[2]=a[2],a[0]" in history_clean or
-                 ("a[0]" in history_str and "a[2]" in history_str and "=" in history_str)) or
+             if ("swap_trio[0], swap_trio[2] = swap_trio[2], swap_trio[0]" in history_str or
+                 "swap_trio[0],swap_trio[2]=swap_trio[2],swap_trio[0]" in history_clean) or
                 ("[30, 20, 10]" in history_str or "[11, 50, 99]" in history_str)
-             else (False, "請讀入 3 個整數存入 a，將 a[0] 與 a[2] 對調後印出！")
+             else (False, "請讀入 3 個整數存入 swap_trio，將 swap_trio[0] 與 swap_trio[2] 對調後印出！")
          )),
 
         ("8-1-3", "挑戰題", "負數歸零淨化器 (numbers[i] = 0)", 5, (),
@@ -271,12 +271,12 @@ def auto_grade_unit_8_1(env=None):
              else (False, "請讀入 4 個號碼，分別以 print(*lottery) 與 print(*lottery, sep=',') 輸出！")
          )),
 
-        ("8-1-5", "挑戰題", "陣列平移輪替輸出 ([a[2], a[0], a[1]] 解包印出)", 5, (),
+        ("8-1-5", "挑戰題", "陣列平移輪替輸出 ([rot_three[2], rot_three[0], rot_three[1]] 解包印出)", 5, (),
          lambda g: (
              (True, "三個元素右移輪替與星號解包輸出正確！")
-             if ("print(*" in history_str and ("a[2]" in history_str or "new_" in history_str)) or
+             if ("print(*" in history_str and ("rot_three[2]" in history_str or "new_" in history_str)) or
                 ("3 1 2" in history_str)
-             else (False, "請將三個元素向右循環平移一位，並以 print(*新串列) 一行印出！")
+             else (False, "請把三個整數存入 rot_three，向右循環平移一位後以 print(*新串列) 印出！")
          ))
     ]
 

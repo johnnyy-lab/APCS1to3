@@ -153,22 +153,22 @@ def auto_grade_unit_6_7(env=None):
              else (False, "請在 6-7-1 填空題空格填入正確煞車關鍵字 break！")
          )),
 
-        ("6-7-1", "練習題", "棋盤彈簧跳步模擬 (total_steps = 8/7)", 4, ("total_steps",),
+        ("6-7-1", "練習題", "棋盤彈簧跳步模擬 (tot_stps = 8/7)", 4, ("tot_stps",),
          lambda g: (
              (True, "while 自由步進彈簧跳躍模擬輸出正確！")
-             if (g.get("total_steps") in [8, 7] or
-                 (("total_steps" in g or "total_steps" in history_str) and
+             if (g.get("tot_stps") in [8, 7] or
+                 (("tot_stps" in g or "tot_stps" in history_str) and
                   ("pos += 3" in history_str or "pos+=3" in history_clean)))
-             else (False, "請撰寫 while 迴圈實現踩到彈簧跳步，統計 total_steps！")
+             else (False, "請撰寫 while 迴圈實現踩到彈簧跳步，統計 tot_stps！")
          )),
 
-        ("6-7-1", "挑戰題", "機器人動態能量損耗走訪 (final_x = 12, steps = 6)", 5, ("final_x", "steps", "energy"),
+        ("6-7-1", "挑戰題", "機器人動態能量損耗走訪 (final_x = 12, stps067 = 6)", 5, ("final_x", "stps067", "enrg067"),
          lambda g: (
-             (True, "能量消耗與步進前進雙重模擬 (x=12, steps=6) 成功！")
-             if (((g.get("final_x") == 12) and g.get("steps") == 6) or
-                 (("energy" in g or "energy" in history_str) and
-                  ("final_x += 2" in history_str or "x += 2" in history_str or "energy -= 2" in history_str)))
-             else (False, "請使用 while energy > 0 模擬奇偶能量消耗，得出 x=12, steps=6！")
+             (True, "能量消耗與步進前進雙重模擬 (x=12, stps067=6) 成功！")
+             if (((g.get("final_x") == 12) and g.get("stps067") == 6) or
+                 (("enrg067" in g or "enrg067" in history_str) and
+                  ("final_x += 2" in history_str or "x += 2" in history_str or "enrg067 -= 2" in history_str)))
+             else (False, "請使用 while enrg067 > 0 模擬奇偶能量消耗，得出 x=12, stps067=6！")
          )),
 
         # ----------------------------------------------------------------------
@@ -181,20 +181,20 @@ def auto_grade_unit_6_7(env=None):
              else (False, "請在 6-7-2 填空題填入起點 10、終點 0 與步進 -1！")
          )),
 
-        ("6-7-2", "練習題", "閉區間端點偶數和 (even_sum = 28/10)", 4, ("even_sum",),
+        ("6-7-2", "練習題", "閉區間端點偶數和 (evn_sum = 28/10)", 4, ("evn_sum",),
          lambda g: (
-             (True, "包含端點 high + 1 區間偶數和輸出正確！")
-             if (g.get("even_sum") in [28, 10] or
-                 (("even_sum" in g or "even_sum" in history_str) and
-                  ("high + 1" in history_str or "high+1" in history_clean)))
-             else (False, "請走訪 range(low, high + 1) 計算閉區間偶數和！")
+             (True, "包含端點 hgh + 1 區間偶數和輸出正確！")
+             if (g.get("evn_sum") in [28, 10] or
+                 (("evn_sum" in g or "evn_sum" in history_str) and
+                  ("hgh + 1" in history_str or "hgh+1" in history_clean)))
+             else (False, "請走訪 range(low067, hgh + 1) 計算閉區間偶數和！")
          )),
 
-        ("6-7-2", "挑戰題", "包含端點負步進降溫 (non_negative_count = 3)", 5, ("non_negative_count",),
+        ("6-7-2", "挑戰題", "包含端點負步進降溫 (nonngtvcnt = 3)", 5, ("nonngtvcnt",),
          lambda g: (
              (True, "包含端點 -5 降溫走訪與非負次數 (3 次) 驗證成功！")
-             if (g.get("non_negative_count") == 3 or
-                 (("non_negative_count" in g or "non_negative_count" in history_str) and
+             if (g.get("nonngtvcnt") == 3 or
+                 (("nonngtvcnt" in g or "nonngtvcnt" in history_str) and
                   ("range(5," in history_clean and "-2)" in history_clean)))
              else (False, "請走訪 5 到 -5（步進 -2），統計非負溫度次數為 3 次！")
          )),
@@ -202,12 +202,11 @@ def auto_grade_unit_6_7(env=None):
         # ----------------------------------------------------------------------
         # 6-7-3 迴圈變數外溢與作用域幽靈（Leaked Loop Variables） (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-7-3", "填空題", "外顯獨立變數承接搜尋結果 (target_found = candidate, break)", 4, ("target_found",),
+        ("6-7-3", "填空題", "外顯獨立變數承接搜尋結果 (tg_fnd = candidate, break)", 4, ("tg_fnd",),
          lambda g: (
              (True, "獨立變數承接與 break 終止填寫正確！")
-             if (g.get("target_found") == 37 or ("target_found" in history_str and "break" in history_str) or
-                 ("result" in history_str and "break" in history_str))
-             else (False, "請在 6-7-3 填空題填入 result = val 並立刻 break！")
+             if (g.get("tg_fnd") == 37 or ("tg_fnd" in history_str and "break" in history_str))
+             else (False, "請在 6-7-3 填空題填入 tg_fnd = candidate 並立刻 break！")
          )),
 
         ("6-7-3", "練習題", "空迴圈防禦與預設值守護 (answer = 51/-1)", 4, ("answer",),
@@ -219,23 +218,23 @@ def auto_grade_unit_6_7(env=None):
              else (False, "請預設 answer = -1，若找到 > 50 則更新並 break！")
          )),
 
-        ("6-7-3", "挑戰題", "質數因數安全提取 (is_prime = True, factor_found = 0)", 5, ("is_prime", "factor_found"),
+        ("6-7-3", "挑戰題", "質數因數安全提取 (is_prime = True, fctr_fnd = 0)", 5, ("is_prime", "fctr_fnd"),
          lambda g: (
              (True, "質數檢驗因數安全提取與旗標維護成功！")
-             if ((g.get("is_prime") is True and g.get("factor_found") == 0) or
-                 (("factor_found" in g or "factor_found" in history_str) and
+             if ((g.get("is_prime") is True and g.get("fctr_fnd") == 0) or
+                 (("fctr_fnd" in g or "fctr_fnd" in history_str) and
                   ("is_prime" in g or "is_prime" in history_str)))
-             else (False, "請以迴圈檢查 n = 29，質數維持 factor_found = 0！")
+             else (False, "請以迴圈檢查 n = 29，質數維持 fctr_fnd = 0！")
          )),
 
         # ----------------------------------------------------------------------
         # 6-7-4 while 忘記步進或步進邏輯死結（Infinite Loop） (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-7-4", "填空題", "補齊電量扣除步進 (battery -= 2)", 4, (),
+        ("6-7-4", "填空題", "補齊電量扣除步進 (bttr -= 2)", 4, (),
          lambda g: (
-             (True, "while 步進更新指令 battery -= 2 填寫正確！")
-             if ("battery-=2" in history_clean or "battery -= 2" in history_str)
-             else (False, "請在 6-7-4 填空題填入電量扣除指令 battery -= 2！")
+             (True, "while 步進更新指令 bttr -= 2 填寫正確！")
+             if ("bttr-=2" in history_clean or "bttr -= 2" in history_str)
+             else (False, "請在 6-7-4 填空題填入電量扣除指令 bttr -= 2！")
          )),
 
         ("6-7-4", "練習題", "對數折半縮小安全計數 (halves = 4)", 4, ("halves",),
@@ -243,8 +242,8 @@ def auto_grade_unit_6_7(env=None):
              (True, "數值必定折半縮小安全計數輸出正確！")
              if (g.get("halves") == 4 or
                  (("halves" in g or "halves" in history_str) and
-                  ("N //= 2" in history_str or "N//=2" in history_clean)))
-             else (False, "請在 while N > 1 中 N //= 2 並累加 halves 次數！")
+                  ("N067 //= 2" in history_str or "N067//=2" in history_clean)))
+             else (False, "請在 while N067 > 1 中 N067 //= 2 並累加 halves 次數！")
          )),
 
         ("6-7-4", "挑戰題", "考拉茲猜想抵達 1 的步數 (n=12 時 step_count = 9)", 5, ("step_count",),
@@ -259,10 +258,10 @@ def auto_grade_unit_6_7(env=None):
         # ----------------------------------------------------------------------
         # 6-7-5 巢狀迴圈變數同名遮蔽（Variable Shadowing） (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-7-5", "填空題", "內層變數修正為獨立 col (for col in range(4))", 4, ("total_stars",),
+        ("6-7-5", "填空題", "內層變數修正為獨立 col (for col in range(4))", 4, ("totstar067",),
          lambda g: (
              (True, "內層計數器獨立命名 col 填寫正確，12 顆星無誤！")
-             if (g.get("total_stars") == 12 or "forcolinrange" in history_clean)
+             if (g.get("totstar067") == 12 or "forcolinrange" in history_clean)
              else (False, "請在 6-7-5 填空題將內層變數修正為 col！")
          )),
 
@@ -275,13 +274,13 @@ def auto_grade_unit_6_7(env=None):
              else (False, "請使用獨立變數 r 與 c，統計 (r + c) % 2 == 0 的格子數！")
          )),
 
-        ("6-7-5", "挑戰題", "三重獨立變數立體座標點 (match_points = 8)", 4, ("match_points",),
+        ("6-7-5", "挑戰題", "三重獨立變數立體座標點 (mtch_pt = 8)", 4, ("mtch_pt",),
          lambda g: (
-             (True, "三重獨立變數 x, y, z 體積走訪 (8 點) 成功！")
-             if (g.get("match_points") == 8 or
-                 (("match_points" in g or "match_points" in history_str) and
-                  ("(x_pos + y_pos + z_pos) % 3 == 0" in history_str or "(x_pos+y_pos+z_pos)%3==0" in history_clean or "(x + y + z) % 3 == 0" in history_str or "(x+y+z)%3==0" in history_clean)))
-             else (False, "請使用 x, y, z 三重迴圈，統計 (x + y + z) % 3 == 0 為 8 點！")
+             (True, "三重獨立變數 x_pos, y_pos, z_pos 體積走訪 (8 點) 成功！")
+             if (g.get("mtch_pt") == 8 or
+                 (("mtch_pt" in g or "mtch_pt" in history_str) and
+                  ("(x_pos + y_pos + z_pos) % 3 == 0" in history_str or "(x_pos+y_pos+z_pos)%3==0" in history_clean)))
+             else (False, "請使用 x_pos, y_pos, z_pos 三重迴圈，統計 (x_pos + y_pos + z_pos) % 3 == 0 為 8 點！")
          )),
 
         # ----------------------------------------------------------------------
@@ -294,20 +293,20 @@ def auto_grade_unit_6_7(env=None):
              else (False, "請在 6-7-6 填空題空格填入歸零指令 total = 0！")
          )),
 
-        ("6-7-6", "練習題", "每列偶數獨立歸零統計 (last_row_even)", 4, ("last_row_even",),
+        ("6-7-6", "練習題", "每列偶數獨立歸零統計 (lstrowevn)", 4, ("lstrowevn",),
          lambda g: (
              (True, "雙重迴圈每列獨立歸零與末列偶數統計正確！")
-             if (("last_row_even" in g or "last_row_even" in history_str) and
+             if (("lstrowevn" in g or "lstrowevn" in history_str) and
                  ("row_even_count = 0" in history_str or "row_even_count=0" in history_clean) and
-                 (g.get("last_row_even") in (1, 3) or "last_row_even" in g))
-             else (False, "請在每列外層迴圈開頭將 row_even_count 歸零，並記錄末列偶數個數 last_row_even！")
+                 (g.get("lstrowevn") in (1, 3) or "lstrowevn" in g))
+             else (False, "請在每列外層迴圈開頭將 row_even_count 歸零，並記錄末列偶數個數 lstrowevn！")
          )),
 
-        ("6-7-6", "挑戰題", "多回合質數檢驗旗標獨立歸零 (prime_total = 1)", 4, ("prime_total",),
+        ("6-7-6", "挑戰題", "多回合質數檢驗旗標獨立歸零 (prm_tot = 1)", 4, ("prm_tot",),
          lambda g: (
              (True, "多回合獨立重設 is_prime 旗標 (質數個數 1) 成功！")
-             if (g.get("prime_total") == 1 or
-                 (("prime_total" in g or "prime_total" in history_str) and
+             if (g.get("prm_tot") == 1 or
+                 (("prm_tot" in g or "prm_tot" in history_str) and
                   ("is_prime = True" in history_str or "is_prime=True" in history_clean)))
              else (False, "請每回合將 is_prime 重設為 True，統計質數總數為 1！")
          )),
@@ -331,12 +330,12 @@ def auto_grade_unit_6_7(env=None):
              else (False, "請走訪 i 檢查 height = (i * 7) % 11 > 5 的高峰點！")
          )),
 
-        ("6-7-7", "挑戰題", "連續減法模擬取餘數 (sub_times = 5, remainder = 3)", 4, ("sub_times", "remainder"),
+        ("6-7-7", "挑戰題", "連續減法模擬取餘數 (sub_times = 5, rmnd = 3)", 4, ("sub_times", "rmnd"),
          lambda g: (
              (True, "連續減法模擬商數 (5) 與餘數 (3) 成功！")
-             if ((g.get("sub_times") == 5 and (g.get("remainder") == 3 or g.get("dividend") == 3)) or
+             if ((g.get("sub_times") == 5 and (g.get("rmnd") == 3 or g.get("dividend") == 3)) or
                  (("sub_times" in g or "sub_times" in history_str) and
-                  ("dividend -= divisor" in history_str or "dividend-=divisor" in history_clean or "a -= b" in history_str or "a-=b" in history_clean)))
+                  ("dividend -= dvsr" in history_str or "dividend-=dvsr" in history_clean or "a -= b" in history_str or "a-=b" in history_clean)))
              else (False, "請以 while a >= b 模擬 38 除以 7，求得商 5 餘 3！")
          )),
 

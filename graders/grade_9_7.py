@@ -155,8 +155,8 @@ def auto_grade_unit_9_7(env=None):
         ("9-7-1", "練習題", "提取中心點相鄰四格數值並輸出", 6, (),
          lambda g: (
              (True, "中心點四相鄰取值正確！")
-             if ("grid[r-1][c]" in history_clean or "grid[r+1][c]" in history_clean or
-                 "matrix[r-1][c]" in history_clean or "matrix[r+1][c]" in history_clean)
+             if ("gd097[r-1][c]" in history_clean or "gd097[r+1][c]" in history_clean or
+                 "mat097[r-1][c]" in history_clean or "mat097[r+1][c]" in history_clean)
              else (False, "請取出上下左右四個相鄰點的數值並印出！")
          )),
 
@@ -181,32 +181,32 @@ def auto_grade_unit_9_7(env=None):
         ("9-7-2", "練習題", "迴圈遍歷方向向量探測四相鄰點", 6, (),
          lambda g: (
              (True, "方向向量迴圈探測正確！")
-             if ("for d in range(4)" in history_str or "for i in range(4)" in history_str or "zip(dr, dc)" in history_str)
-             else (False, "請使用 for 迴圈配合 dr, dc 探測四相鄰點！")
+             if ("for d in range(4)" in history_str or "for i in range(4)" in history_str or "zip(dr097, dc097)" in history_str)
+             else (False, "請使用 for 迴圈配合 dr097, dc097 探測四相鄰點！")
          )),
 
-        ("9-7-2", "挑戰題", "自訂八方向向量 (dr, dc 長度為 8)", 6, (),
+        ("9-7-2", "挑戰題", "自訂八方向向量 (dr1, dc1 長度為 8)", 6, (),
          lambda g: (
              (True, "八方向差值陣列定義正確！")
-             if ("len(dr) == 8" in history_str or "8" in history_str) and ("dr" in history_str and "dc" in history_str)
+             if ("len(dr1) == 8" in history_str or "8" in history_str) and ("dr1" in history_str and "dc1" in history_str)
              else (False, "請定義長度為 8 的八方向向量陣列！")
          )),
 
         # ----------------------------------------------------------------------
         # 9-7-3 合法邊界防護條件 (Boundary Guard) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-7-3", "填空題", "邊界守護判斷式 0 <= nr < R and 0 <= nc < C", 5, (),
+        ("9-7-3", "填空題", "邊界守護判斷式 0 <= nr < R097 and 0 <= nc < C097", 5, (),
          lambda g: (
              (True, "邊界守護判斷式填空正確！")
-             if ("0 <= nr < R and 0 <= nc < C" in history_str or "0<=nr<Rand0<=nc<C" in history_clean or
-                 "0 <= nr < R" in history_str)
-             else (False, "請在 9-7-3 填空題填入 0 <= nr < R and 0 <= nc < C！")
+             if ("0 <= nr < R097 and 0 <= nc < C097" in history_str or "0<=nr<Rand0<=nc<C097" in history_clean or
+                 "0 <= nr < R097" in history_str)
+             else (False, "請在 9-7-3 填空題填入 0 <= nr < R097 and 0 <= nc < C097！")
          )),
 
         ("9-7-3", "練習題", "帶邊界防護之相鄰格子安全讀取", 6, (),
          lambda g: (
              (True, "安全邊界相鄰走訪正確！")
-             if ("0 <= nr < R" in history_str or "0 <= nr" in history_str) and "grid[nr][nc]" in history_clean
+             if ("0 <= nr < R" in history_str or "0 <= nr" in history_str) and "gd44[nr][nc]" in history_clean
              else (False, "請加入邊界守護條件，避免 IndexError 讀取相鄰元素！")
          )),
 
@@ -238,32 +238,32 @@ def auto_grade_unit_9_7(env=None):
         ("9-7-4", "挑戰題", "生成完整踩地雷數字提示地圖", 6, (),
          lambda g: (
              (True, "踩地雷數字地圖生成正確！")
-             if ("range(8)" in history_str or "dr" in history_str) and ("print" in history_str)
+             if ("range(8)" in history_str or "dr6" in history_str) and ("print" in history_str)
              else (False, "請為全地圖每一格計算周圍地雷數並印出！")
          )),
 
         # ----------------------------------------------------------------------
         # 9-7-5 拜訪標記矩陣 (Visited Grid) 與貪婪前進 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-7-5", "填空題", "拜訪標記設定 visited[nr][nc] = True", 5, (),
+        ("9-7-5", "填空題", "拜訪標記設定 vstd[nr][nc] = True", 5, (),
          lambda g: (
              (True, "拜訪標記語法填空正確！")
-             if ("visited[nr][nc] = True" in history_str or "visited[nr][nc]=True" in history_clean or
-                 "visited[r][c] = True" in history_str)
-             else (False, "請在 9-7-5 填空題填入 visited 標記語法！")
+             if ("vstd[nr][nc] = True" in history_str or "vstd[nr][nc]=True" in history_clean or
+                 "vstd[r][c] = True" in history_str)
+             else (False, "請在 9-7-5 填空題填入 vstd 標記語法！")
          )),
 
         ("9-7-5", "練習題", "防止重複走訪之貪婪前進模擬", 6, (),
          lambda g: (
              (True, "防止重複走訪實作正確！")
-             if ("not visited[nr][nc]" in history_str or "not visited" in history_str) and "visited" in history_str
-             else (False, "請加入 not visited 判斷，確保路徑不重複踏足！")
+             if ("not vstd097[nr][nc]" in history_str or "not vstd097" in history_str) and "vstd097" in history_str
+             else (False, "請加入 not vstd097 判斷，確保路徑不重複踏足！")
          )),
 
         ("9-7-5", "挑戰題", "走訪步數與途經總和統計", 6, (),
          lambda g: (
              (True, "走訪步數與加總統計正確！")
-             if ("steps" in history_str or "path_sum" in history_str or "total" in history_str) and "visited" in history_str
+             if ("stps097" in history_str or "path_sum" in history_str or "tot097" in history_str) and "vstd2" in history_str
              else (False, "請記錄貪婪尋路的步數與經過數值總和！")
          )),
 
@@ -273,7 +273,7 @@ def auto_grade_unit_9_7(env=None):
         ("9-7-6", "填空題", "尋找全圖最小值作為起點座標", 5, (),
          lambda g: (
              (True, "全圖起點最小值定位填空正確！")
-             if ("min_val" in history_str and "grid[r][c]" in history_clean) or
+             if ("min_val4" in history_str and "grid[r][c]" in history_clean) or
                 ("best_r = r" in history_str or "best_c = c" in history_str)
              else (False, "請在 9-7-6 填空題填入尋找起點最小值的判斷！")
          )),
@@ -281,7 +281,7 @@ def auto_grade_unit_9_7(env=None):
         ("9-7-6", "練習題", "APCS e287 核心尋路單一測資實戰", 6, (),
          lambda g: (
              (True, "APCS e287 尋路模擬正確！")
-             if ("visited" in history_str and "while True:" in history_str) or
+             if ("vstd3" in history_str and "while True:" in history_str) or
                 ("min_neighbor" in history_str or "next_r" in history_str)
              else (False, "請完成從最小值起點出發、每步挑選最小未走鄰格的 APCS e287 尋路！")
          )),
@@ -289,7 +289,7 @@ def auto_grade_unit_9_7(env=None):
         ("9-7-6", "挑戰題", "APCS e287 完整路徑總和輸出通關", 5, (),
          lambda g: (
              (True, "APCS e287 完整加總輸出正確！")
-             if ("total_sum" in history_str or "print(" in history_str) and "visited" in history_str
+             if ("total_sum" in history_str or "print(" in history_str) and "vstd4" in history_str
              else (False, "請累加所有走過格子的數值並印出最終總和！")
          ))    ]
 

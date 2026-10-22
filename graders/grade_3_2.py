@@ -168,11 +168,11 @@ def auto_grade_unit_3_2(env=None):
         # ----------------------------------------------------------------------
         # 3-2-2 chr() 編碼變身術——數字召喚字元 (共 20 分)
         # ----------------------------------------------------------------------
-        ("3-2-2", "填空題", "chr() 召喚字元 (secret_char = 'S')", 6, ("secret_char",),
+        ("3-2-2", "填空題", "chr() 召喚字元 (scrt_chr = 'S')", 6, ("scrt_chr",),
          lambda g: (
              (True, "字元召喚成功：chr(83) = 'S'！")
-             if (g.get("secret_char") == 'S')
-             else (False, "找不到 secret_char 或字元不為 'S'，請在空格填入 chr 並執行！")
+             if (g.get("scrt_chr") == 'S')
+             else (False, "找不到 scrt_chr 或字元不為 'S'，請在空格填入 chr 並執行！")
          )),
 
         ("3-2-2", "練習題", "整數編碼轉回對應字元 (ascii_number)", 8, ("ascii_number",),
@@ -252,11 +252,11 @@ def auto_grade_unit_3_2(env=None):
         # ----------------------------------------------------------------------
         # 3-2-5 凱撒密碼位移——字元循環輪替加密小魔法 (共 20 分)
         # ----------------------------------------------------------------------
-        ("3-2-5", "填空題", "字元位移加密 (encrypted_ch = 'J')", 6, ("encrypted_ch",),
+        ("3-2-5", "填空題", "字元位移加密 (encr_ch = 'J')", 6, ("encr_ch",),
          lambda g: (
              (True, "字元加密成功：chr(ord('F') + 4) = 'J'！")
-             if (g.get("encrypted_ch") == 'J')
-             else (False, "找不到 encrypted_ch 或不為 'J'，請在空格依序填入 chr 與 ord！")
+             if (g.get("encr_ch") == 'J')
+             else (False, "找不到 encr_ch 或不為 'J'，請在空格依序填入 chr 與 ord！")
          )),
 
         ("3-2-5", "練習題", "字母位移加密運算 (plain_text, shift_val)", 8, ("plain_text", "shift_val"),

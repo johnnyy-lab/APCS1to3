@@ -144,11 +144,11 @@ def auto_grade_unit_8_3(env=None):
         # ----------------------------------------------------------------------
         # 8-3-1 .append() 尾端動態追加元素 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-3-1", "填空題", "呼叫 append 方法依序追加 (collected_items 包含 [100, 200])", 6, ("collected_items",),
+        ("8-3-1", "填空題", "呼叫 append 方法依序追加 (cllc_itms 包含 [100, 200])", 6, ("cllc_itms",),
          lambda g: (
              (True, "使用 .append(100) 與 .append(200) 動態追加成功！")
-             if g.get("collected_items") == [100, 200] or
-                ("collected_items.append(100)" in history_clean and "collected_items.append(200)" in history_clean)
+             if g.get("cllc_itms") == [100, 200] or
+                ("cllc_itms.append(100)" in history_clean and "cllc_itms.append(200)" in history_clean)
              else (False, "請在 8-3-1 填空題空格填入方法名稱 append！")
          )),
 
@@ -157,7 +157,7 @@ def auto_grade_unit_8_3(env=None):
              (True, "及格分數 append 收集與 print(*passed_list) 輸出正確！")
              if (".append(" in history_str and ">= 60" in history_str and "print(*" in history_str) or
                 ("85 90" in history_str or "70 60 100" in history_str)
-             else (False, "請讀入 n 筆成績，若 >= 60 則 append 進 passed_list 並以 print(*passed_list) 印出！")
+             else (False, "請讀入 rows83 筆成績，若 >= 60 則 append 進 passed_list 並以 print(*passed_list) 印出！")
          )),
 
         ("8-3-1", "挑戰題", "3 的倍數收集生成器 (multiples.append(i))", 5, (),
@@ -206,20 +206,20 @@ def auto_grade_unit_8_3(env=None):
              else (False, "請在 8-3-3 填空題空格填入方法名稱 insert！")
          )),
 
-        ("8-3-3", "練習題", "哨兵隊長加頂儀 (a.insert(0, 0))", 9, (),
+        ("8-3-3", "練習題", "哨兵隊長加頂儀 (sentry3.insert(0, 0))", 9, (),
          lambda g: (
-             (True, "最前端哨兵 a.insert(0, 0) 插入輸出正確！")
+             (True, "最前端哨兵 sentry3.insert(0, 0) 插入輸出正確！")
              if ("insert(0, 0)" in history_str or "insert(0,0)" in history_clean) or
                 ("[0, 5, 10, 15]" in history_str or "[0, 99, 88, 77]" in history_str)
-             else (False, "請讀入 3 個整數存入 a，並使用 a.insert(0, 0) 在首位插入哨兵 0！")
+             else (False, "請讀入 3 個整數存入 sentry3，並使用 sentry3.insert(0, 0) 在首位插入哨兵 0！")
          )),
 
-        ("8-3-3", "挑戰題", "保持遞增之排序插入模擬 (sorted_list.insert(i, x))", 5, (),
+        ("8-3-3", "挑戰題", "保持遞增之排序插入模擬 (sorted_list.insert(i, ins_num))", 5, (),
          lambda g: (
              (True, "遞增排序位置尋找與 insert(i, x) 插入正確！")
              if (".insert(" in history_str and ("append(" in history_str or "break" in history_str)) or
                 ("10 20 25 30 40" in history_str)
-             else (False, "請找出首個大於 x 的位置進行 insert(i, x) 保持數列遞增！")
+             else (False, "請找出首個大於 ins_num 的位置進行 insert(i, ins_num) 保持數列遞增！")
          )),
 
         # ----------------------------------------------------------------------
@@ -241,12 +241,12 @@ def auto_grade_unit_8_3(env=None):
              else (False, "請檢查 defect_batch 是否在 batches 中，存在則 remove 否則印出 NOT FOUND！")
          )),
 
-        ("8-3-4", "挑戰題", "重複值全數連根拔起 (while 2 in a: a.remove(2))", 5, (),
+        ("8-3-4", "挑戰題", "重複值全數連根拔起 (while 2 in twos_bag: twos_bag.remove(2))", 5, (),
          lambda g: (
              (True, "while in 迴圈全數移除重複元素完全正確！")
-             if ("while 2 in a:" in history_str or "while 2 in a" in history_str or "while2ina:" in history_clean) or
+             if ("while 2 in twos_bag:" in history_str or "while 2 in twos_bag" in history_str or "while2intwos_bag:" in history_clean) or
                 ("[1, 3, 4, 5]" in history_str)
-             else (False, "請使用 while 2 in a: 反覆呼叫 a.remove(2) 清理所有 2！")
+             else (False, "請使用 while 2 in twos_bag: 反覆呼叫 twos_bag.remove(2) 清理所有 2！")
          )),
 
         # ----------------------------------------------------------------------

@@ -182,18 +182,18 @@ def auto_grade_unit_7_4(env=None):
         ("7-4-2", "練習題", "頭尾字元對照器 (MATCH: c vs DIFFERENT: p vs n)", 9, (),
          lambda g: (
              (True, "頭尾字元正向索引取出與比對正確！")
-             if (("s[0]" in history_clean or "s[len(s)-1]" in history_clean) and
+             if (("edge74[0]" in history_clean or "edge74[len(edge74)-1]" in history_clean) and
                  ("MATCH" in history_str or "DIFFERENT" in history_str)) or
                 ("MATCH: l" in history_str or "DIFFERENT: p vs n" in history_str)
              else (False, "請取出第一個字元與最後一個字元，比對相同輸出 MATCH，不同輸出 DIFFERENT！")
          )),
 
-        ("7-4-2", "挑戰題", "奇數長度字串正中央字元抽取 (Center: d)", 5, (),
+        ("7-4-2", "挑戰題", "奇數長度字串正中央字元抽取 (odd74, Center: d)", 5, (),
          lambda g: (
              (True, "整數除法 // 2 中心索引計算與字元提取正確！")
              if ("// 2" in history_str or "//2" in history_clean) and
-                ("Center:" in history_str or "s[" in history_str)
-             else (False, "請以 len(s) // 2 計算中間索引，並印出 Center: [中央字元]！")
+                ("Center:" in history_str or "odd74[" in history_str)
+             else (False, "請以 len(odd74) // 2 計算中間索引，並印出 Center: [中央字元]！")
          )),
 
         # ----------------------------------------------------------------------
@@ -220,24 +220,24 @@ def auto_grade_unit_7_4(env=None):
              (True, "前二 (0, 1) 與後二 (-2, -1) 組合代碼印出正確！")
              if (("[-2]" in history_str and "[-1]" in history_str) or ("[0]" in history_str and "[1]" in history_str)) and
                 ("Code:" in history_str or "AP26" in history_str)
-             else (False, "請取出 s[0], s[1], s[-2], s[-1] 拼成 4 碼代碼並印出！")
+             else (False, "請取出 quad74[0], quad74[1], quad74[-2], quad74[-1] 拼成 4 碼代碼並印出！")
          )),
 
         # ----------------------------------------------------------------------
         # 7-4-4 字串不可變性（Immutable）與拼接重建 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-4-4", "填空題", "新字串拼接重建 (new_word = 'P' + word[1] + ...)", 6, ("new_word",),
+        ("7-4-4", "填空題", "新字串拼接重建 (new_word = 'P' + wrd[1] + ...)", 6, ("new_word",),
          lambda g: (
              (True, "利用索引提取與加法拼接成功重構單字 Pain！")
              if g.get("new_word") == "Pain" or
-                ('word[1]' in history_clean and 'word[2]' in history_clean and 'word[3]' in history_clean)
+                ('wrd[1]' in history_clean and 'wrd[2]' in history_clean and 'wrd[3]' in history_clean)
              else (False, "請在 7-4-4 填空題空格分別填入 1, 2, 3 完成 Pain 拼接！")
          )),
 
-        ("7-4-4", "練習題", "首尾字元替換魔術 (s[2] + s[1] + s[0])", 9, (),
+        ("7-4-4", "練習題", "首尾字元替換魔術 (flip74[2] + flip74[1] + flip74[0])", 9, (),
          lambda g: (
              (True, "3 字母單字首尾字元交換拼接輸出正確！")
-             if (("s[2]" in history_str or "s[-1]" in history_str) and "s[1]" in history_str and "s[0]" in history_str) or
+             if (("flip74[2]" in history_str or "flip74[-1]" in history_str) and "flip74[1]" in history_str and "flip74[0]" in history_str) or
                 ("god" in history_str or "pot" in history_str or "tac" in history_str)
              else (False, "請讀入 3 字母單字，交換首尾字元位置後印出！")
          )),
@@ -247,7 +247,7 @@ def auto_grade_unit_7_4(env=None):
              (True, "去頭去尾迴圈走訪與核心文字組裝正確！")
              if ("range(1" in history_clean or "range( 1" in history_str) and
                 ("Core:" in history_str or "+=" in history_str)
-             else (False, "請以迴圈走訪 1 到 len(s)-2，組裝中間字串並印出 Core: [核心]！")
+             else (False, "請以迴圈走訪 1 到 len(core74)-2，組裝中間字串並印出 Core: [核心]！")
          )),
 
         # ----------------------------------------------------------------------
@@ -270,12 +270,12 @@ def auto_grade_unit_7_4(env=None):
              else (False, "請走訪所有奇數索引位置，將字元轉為整數累加求和並輸出！")
          )),
 
-        ("7-4-5", "挑戰題", "相鄰重複字元探測器 (s[i] == s[i+1])", 5, (),
+        ("7-4-5", "挑戰題", "相鄰重複字元探測器 (dup74[i] == dup74[i+1])", 5, (),
          lambda g: (
-             (True, "相鄰字元比對 s[i] == s[i+1] 與狀態判定正確！")
-             if ("s[i] == s[i+1]" in history_clean or "s[i]==s[i+1]" in history_clean) and
+             (True, "相鄰字元比對 dup74[i] == dup74[i+1] 與狀態判定正確！")
+             if ("dup74[i] == dup74[i+1]" in history_clean or "dup74[i]==dup74[i+1]" in history_clean) and
                 ("FOUND DOUBLE" in history_str or "ALL UNIQUE CONSECUTIVE" in history_str)
-             else (False, "請走訪比較相鄰字元 s[i] == s[i+1]，輸出判定結果！")
+             else (False, "請走訪比較相鄰字元 dup74[i] == dup74[i+1]，輸出判定結果！")
          ))
     ]
 

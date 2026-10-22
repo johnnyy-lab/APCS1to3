@@ -99,117 +99,117 @@ def fetch_google_account_info(env=None):
     return google_email, google_name
 
 def check_q1(g, hist):
-    ui = g.get("user_inputs")
+    ui = g.get("usr_inpt")
     if ui is None:
-        return False, "請呼叫 user_inputs.sort() 進行升序排序。"
-    if (ui == [12, 34, 60, 78, 95]) or ("user_inputs.sort()" in hist):
+        return False, "請呼叫 usr_inpt.sort() 進行升序排序。"
+    if (ui == [12, 34, 60, 78, 95]) or ("usr_inpt.sort()" in hist):
         return True, "太棒了！原地 sort() 成功賦予串列單調性，二分搜尋前提成立！"
-    return False, "請呼叫 user_inputs.sort() 進行升序排序。"
+    return False, "請呼叫 usr_inpt.sort() 進行升序排序。"
 
 def check_q2(g, hist):
     is_sorted = g.get("is_sorted")
-    data = g.get("data")
-    if is_sorted is None and data is None:
-        return False, "請檢驗 data 單調性，若未排序則進行修復排序。"
-    if is_sorted is not None and data == sorted(data):
+    nums_chk = g.get("ns_chck")
+    if is_sorted is None and nums_chk is None:
+        return False, "請檢驗 ns_chck 單調性，若未排序則進行修復排序。"
+    if is_sorted is not None and isinstance(nums_chk, list) and nums_chk == sorted(nums_chk):
         return True, "完全正確！精準檢驗排序單調性並完成自動修復排序！"
-    if "is_sorted" in hist and "data.sort()" in hist:
+    if "is_sorted" in hist and "ns_chck.sort()" in hist:
         return True, "檢驗邏輯正確，通過！"
-    return False, "請檢驗 data 單調性，若未排序則進行修復排序。"
+    return False, "請檢驗 ns_chck 單調性，若未排序則進行修復排序。"
 
 def check_q3(g, hist):
     mid_word = g.get("mid_word")
     if mid_word is None:
-        return False, "請對 words 排序並取得正中間單字 (應為 'grape')。"
-    # words = ["orange", "apple", "banana", "watermelon", "grape"]
-    # 排序後: ['apple', 'banana', 'grape', 'orange', 'watermelon'] -> mid_idx = 2, mid_word = 'grape'
-    if mid_word == "grape" or ("words.sort()" in hist and "len(words) // 2" in hist):
+        return False, "請對 wrds127 排序並取得正中間單字 (應為 'grape')。"
+    # wrds127 = ["orange", "apple", "banana", "watermelon", "grape"]
+    # 排序後: ['apple', 'banana', 'grape', 'orange', 'watermelon'] -> mid_idx127 = 2, mid_word = 'grape'
+    if mid_word == "grape" or ("wrds127.sort()" in hist and "len(wrds127) // 2" in hist):
         return True, "太厲害了！單字字典序排序後，正確鎖定正中間單字 'grape'！"
-    return False, "請對 words 排序並取得正中間單字 (應為 'grape')。"
+    return False, "請對 wrds127 排序並取得正中間單字 (應為 'grape')。"
 
 def check_q4(g, hist):
-    left = g.get("left")
-    right = g.get("right")
-    if left is None and right is None:
-        return False, "請確認填入 left = 0 與 len(data) - 1。"
-    if (left == 0 and right == 5) or ("left = 0" in hist and "len(data) - 1" in hist):
-        return True, "完全正確！閉區間起點 0 與終點 len(data) - 1 初始化無誤！"
-    return False, "請確認填入 left = 0 與 len(data) - 1。"
+    lft = g.get("lft")
+    rght = g.get("rght")
+    if lft is None and rght is None:
+        return False, "請確認填入 lft = 0 與 len(srt_ns) - 1。"
+    if (lft == 0 and rght == 5) or ("lft = 0" in hist and "len(srt_ns) - 1" in hist):
+        return True, "完全正確！閉區間起點 0 與終點 len(srt_ns) - 1 初始化無誤！"
+    return False, "請確認填入 lft = 0 與 len(srt_ns) - 1。"
 
 def check_q5(g, hist):
-    if g.get('sorted_data') is None:
+    if g.get('srt_dt127') is None:
         return False, "請模擬第一回合區間並判斷下一步更新邊界。"
-    if "mid = (l + r) // 2" in hist and ("right = mid - 1" in hist or "left = mid + 1" in hist):
+    if "mid127 = (l + r127) // 2" in hist and ("right = mid127 - 1" in hist or "left = mid127 + 1" in hist):
         return True, "精彩！準確模擬第一回合中間點數值與下一步縮小方向！"
     return False, "請模擬第一回合區間並判斷下一步更新邊界。"
 
 def check_q6(g, hist):
-    steps = g.get("steps")
-    if steps is None:
+    stps127 = g.get("stps127")
+    if stps127 is None:
         return False, "請記錄搜尋收斂總回合數 (預期為 4 回合)。"
-    # numbers = list(range(10, 160, 10)) -> 15 個元素
-    # target = 75 (不在數列中)
+    # ns127 = list(range(10, 160, 10)) -> 15 個元素
+    # tg13 = 75 (不在數列中)
     # len=15, 每次折半，步數通常為 4 次 (log2(15) ~ 3.9 -> 4)
-    if steps == 4 or ("steps += 1" in hist and "while l <= r" in hist):
+    if stps127 == 4 or ("stps127 += 1" in hist and "while l <= r127" in hist):
         return True, "太強了！完整追蹤 15 筆資料收斂過程，精準確認 4 回合後退出！"
     return False, "請記錄搜尋收斂總回合數 (預期為 4 回合)。"
 
 def check_q7(g, hist):
     mi = g.get("mid_index")
     if mi is None:
-        return False, "請以 (current_left + current_right) // 2 計算中間索引。"
-    # current_left = 6, current_right = 11 -> (6 + 11) // 2 = 8
-    if mi == 8 or ("(current_left + current_right) // 2" in hist):
+        return False, "請以 (crrn_lft + crrn_rght) // 2 計算中間索引。"
+    # crrn_lft = 6, crrn_rght = 11 -> (6 + 11) // 2 = 8
+    if mi == 8 or ("(crrn_lft + crrn_rght) // 2" in hist):
         return True, "完全正確！(6 + 11) // 2 = 8，整數除法掌握無誤！"
-    return False, "請以 (current_left + current_right) // 2 計算中間索引。"
+    return False, "請以 (crrn_lft + crrn_rght) // 2 計算中間索引。"
 
 def check_q8(g, hist):
     mids = g.get("mids")
     if mids is None:
         return False, "請使用列表生成式計算各區間之中間索引。"
     # bounds = [(0, 10), (3, 7), (5, 6), (8, 8)] -> [5, 5, 5, 8]
-    if mids == [5, 5, 5, 8] or ("(l + r) // 2" in hist and "bounds" in hist):
+    if mids == [5, 5, 5, 8] or ("(l + r127) // 2" in hist and "bounds" in hist):
         return True, "太棒了！列表生成式批次計算中間索引 [5, 5, 5, 8] 完全吻合！"
     return False, "請使用列表生成式計算各區間之中間索引。"
 
 def check_q9(g, hist):
     lc = g.get("left_count")
-    rc = g.get("right_count")
+    rc = g.get("rght_cnt")
     if lc is None and rc is None:
-        return False, "請計算以 mid 為界的左半與右半元素個數。"
-    # N = 9, left=0, right=8, mid=4 -> left_count: 4, right_count: 4
-    if (lc == 4 and rc == 4) or ("mid - left" in hist and "right - mid" in hist):
-        return True, "完美！精準計算 mid 左右兩側對稱區間各自包含 4 個元素！"
-    return False, "請計算以 mid 為界的左半與右半元素個數。"
+        return False, "請計算以 mid3 為界的左半與右半元素個數。"
+    # N127 = 9, left=0, right=8, mid3=4 -> left_count: 4, rght_cnt: 4
+    if (lc == 4 and rc == 4) or ("mid3 - left" in hist and "right - mid3" in hist):
+        return True, "完美！精準計算 mid3 左右兩側對稱區間各自包含 4 個元素！"
+    return False, "請計算以 mid3 為界的左半與右半元素個數。"
 
 def check_q10(g, hist):
-    if g.get('arr') is None:
-        return False, "請確認填入 while left <= right、mid + 1 與 mid - 1。"
-    if "while left <= right" in hist and "mid + 1" in hist and "mid - 1" in hist:
+    if g.get('arr127') is None:
+        return False, "請確認填入 while lft127 <= rght127、mid + 1 與 mid - 1。"
+    if "while lft127 <= rght127" in hist and "mid + 1" in hist and "mid - 1" in hist:
         return True, "完全正確！閉區間三劍客 while <=、mid + 1、mid - 1 嚴格防禦死結！"
-    return False, "請確認填入 while left <= right、mid + 1 與 mid - 1。"
+    return False, "請確認填入 while lft127 <= rght127、mid + 1 與 mid - 1。"
 
 def check_q11(g, hist):
-    found_idx = g.get("found_idx")
-    if found_idx is None:
-        return False, "請使用 while left <= right: 在質數串列中搜尋 target。"
-    if found_idx == 5 or ("while left <= right" in hist and "primes[mid] == target" in hist):
+    fnd_idx = g.get("fnd_idx")
+    if fnd_idx is None:
+        return False, "請使用 while lft2 <= rght2: 在質數串列中搜尋 tg15。"
+    if fnd_idx == 5 or ("while lft2 <= rght2" in hist and "prms[mid] == tg15" in hist):
         return True, "太棒了！質數二分搜尋實作完全成功，精準命中目標索引 5！"
-    return False, "請使用 while left <= right: 在質數串列中搜尋 target。"
+    return False, "請使用 while lft2 <= rght2: 在質數串列中搜尋 tg15。"
 
 def check_q12(g, hist):
     l = g.get("l")
-    r = g.get("r")
-    if l is None and r is None:
+    r127 = g.get("r127")
+    if l is None and r127 is None:
         return False, "請驗證搜尋 25 退出時的 left 與 right 狀態。"
-    # data = [10, 20, 30, 40], target = 25
-    # 25 介於 20(idx 1) 與 30(idx 2) 之間 -> 最終 left=2, right=1 (left == right + 1)
-    if (l == 2 and r == 1) or ("l == r + 1" in hist):
+    # data = [10, 20, 30, 40], tg16 = 25
+    # 25 介於 20(idx127 1) 與 30(idx127 2) 之間 -> 最終 left=2, right=1 (left == right + 1)
+    if (l == 2 and r127 == 1) or ("l == r127 + 1" in hist):
         return True, "太精闢了！親身驗證退出時兩面盾牌交叉錯位（left == right + 1）的物理定律！"
     return False, "請驗證搜尋 25 退出時的 left 與 right 狀態。"
 
 def check_q13(g, hist):
-    mc = g.get("max_comparisons")
+    mc = g.get("max_cmp")
     if mc is None:
         return False, "請使用 math.ceil(math.log2(n)) 計算比對次數上限。"
     # n = 1,000,000 -> ceil(log2(1000000)) = 20
@@ -221,17 +221,17 @@ def check_q14(g, hist):
     saved = g.get("saved")
     if saved is None:
         return False, "請計算線性搜尋與二分搜尋比對次數的差額 saved。"
-    # N = 1024 -> linear: 1024, bin: 10 -> saved: 1014
+    # N49 = 1024 -> linear: 1024, bin: 10 -> saved: 1014
     if saved in [1014, 58] or ("linear_cnt - bin_cnt" in hist):
         return True, "精彩！震撼體驗二分搜尋相比線性搜尋節省了超過 1000 次比對！"
     return False, "請計算線性搜尋與二分搜尋比對次數的差額 saved。"
 
 def check_q15(g, hist):
-    qps = g.get("queries_per_sec")
+    qps = g.get("qrs_sec")
     if qps is None:
         return False, "請推算伺服器每秒可承受的二分查詢請求次數。"
-    # N = 10,000,000 -> log2 = 24. 100000 // 24 = 4166 次
-    if (qps is not None and 4000 <= qps <= 4500) or ("server_capacity_per_sec // comparisons_per_search" in hist):
+    # N50 = 10,000,000 -> log2 = 24. 100000 // 24 = 4166 次
+    if (qps is not None and 4000 <= qps <= 4500) or ("srv_cap // cmp_srch" in hist):
         return True, "太神了！一秒內輕鬆處理超過 4,000 次獨立使用者查詢，對數威力震撼體現！"
     return False, "請推算伺服器每秒可承受的二分查詢請求次數。"
 
@@ -250,21 +250,21 @@ def check_q16(g, hist):
     return False, "請完整默寫 my_bsearch 函數並正確回傳 -1。"
 
 def check_q17(g, hist):
-    idx = g.get("idx")
-    if idx is None:
+    idx127 = g.get("idx127")
+    if idx127 is None:
         return False, "請利用 binary_search 驗證 member_ids 中的 login_id。"
-    if idx == 2 or ("binary_search(member_ids, login_id)" in hist):
+    if idx127 == 2 or ("binary_search(member_ids, login_id)" in hist):
         return True, "精彩！成功運用二分搜尋模組於會員登入驗證，定位會員序號 2！"
     return False, "請利用 binary_search 驗證 member_ids 中的 login_id。"
 
 def check_q18(g, hist):
-    intercepted = g.get("intercepted")
-    if intercepted is None:
+    intr127 = g.get("intr127")
+    if intr127 is None:
         return False, "請以二分搜尋逐一檢驗轉帳名冊並收集黑名單帳號 [10050, 10900]。"
-    # blacklist = [10001, 10050, 10200, 10550, 10900, 11000]
+    # blck127 = [10001, 10050, 10200, 10550, 10900, 11000]
     # transfers = [10050, 10300, 10900, 12000]
     # 黑名單命中: [10050, 10900]
-    if intercepted == [10050, 10900] or ("intercepted.append" in hist and "binary_search" in hist):
+    if intr127 == [10050, 10900] or ("intr127.append" in hist and "binary_search" in hist):
         return True, "登峰造極！以對數級極速精準攔截黑名單危險帳號 [10050, 10900]！"
     return False, "請以二分搜尋逐一檢驗轉帳名冊並收集黑名單帳號 [10050, 10900]。"
 
@@ -312,41 +312,41 @@ def auto_grade_unit_12_7(env=None):
     history_clean = history_str.replace(" ", "")
 
     test_cases = [
-        ('12-7-1', '填空題', '原地升序排序滿足二分前提', 6, ("user_inputs",),
+        ('12-7-1', '填空題', '原地升序排序滿足二分前提', 6, ("usr_inpt",),
          lambda g: check_q1(g, history_str)),
-        ('12-7-1', '練習題', '檢驗單調性與自動修復排序', 6, ("is_sorted", "numbers_to_check"),
+        ('12-7-1', '練習題', '檢驗單調性與自動修復排序', 6, ("is_sorted", "ns_chck"),
          lambda g: check_q2(g, history_str)),
         ('12-7-1', '挑戰題', '單字字典序排序與正中間定位', 5, ("mid_word",),
          lambda g: check_q3(g, history_str)),
-        ('12-7-2', '填空題', '雙指標初始邊界 left 與 len - 1', 6, ("left", "right"),
+        ('12-7-2', '填空題', '雙指標初始邊界 lft 與 len - 1', 6, ("lft", "rght"),
          lambda g: check_q4(g, history_str)),
         ('12-7-2', '練習題', '模擬首回合區間與指針更新方向', 6, (),
          lambda g: check_q5(g, history_str)),
-        ('12-7-2', '挑戰題', '追蹤無解收斂過程之總回合數', 5, ("steps",),
+        ('12-7-2', '挑戰題', '追蹤無解收斂過程之總回合數', 5, ("stps127",),
          lambda g: check_q6(g, history_str)),
-        ('12-7-3', '填空題', '整數除法計算中間索引 (l + r) // 2', 6, ("mid_index",),
+        ('12-7-3', '填空題', '整數除法計算中間索引 (l + r127) // 2', 6, ("mid_index",),
          lambda g: check_q7(g, history_str)),
         ('12-7-3', '練習題', '批次計算多組邊界之中間索引', 6, ("mids",),
          lambda g: check_q8(g, history_str)),
-        ('12-7-3', '挑戰題', '驗證中間值左右兩側元素分佈規模', 5, ("left_count", "right_count"),
+        ('12-7-3', '挑戰題', '驗證中間值左右兩側元素分佈規模', 5, ("left_count", "rght_cnt"),
          lambda g: check_q9(g, history_str)),
         ('12-7-4', '填空題', '閉區間 while 條件與 +1 / -1 跳躍', 6, (),
          lambda g: check_q10(g, history_str)),
-        ('12-7-4', '練習題', '質數清單二分搜尋實作', 6, ("found_idx",),
+        ('12-7-4', '練習題', '質數清單二分搜尋實作', 6, ("fnd_idx",),
          lambda g: check_q11(g, history_str)),
-        ('12-7-4', '挑戰題', '驗證退出瞬間 left == right + 1 交叉', 5, ("l", "r"),
+        ('12-7-4', '挑戰題', '驗證退出瞬間 left == right + 1 交叉', 5, ("l", "r127"),
          lambda g: check_q12(g, history_str)),
-        ('12-7-5', '填空題', '以 math.log2 推算百萬資料比對次數', 6, ("max_comparisons",),
+        ('12-7-5', '填空題', '以 math.log2 推算百萬資料比對次數', 6, ("max_cmp",),
          lambda g: check_q13(g, history_str)),
         ('12-7-5', '練習題', '線性比對與對數比對之節省差額', 5, ("saved",),
          lambda g: check_q14(g, history_str)),
-        ('12-7-5', '挑戰題', '高負載伺服器二分搜尋查詢上限評估', 5, ("queries_per_sec",),
+        ('12-7-5', '挑戰題', '高負載伺服器二分搜尋查詢上限評估', 5, ("qrs_sec",),
          lambda g: check_q15(g, history_str)),
         ('12-7-6', '填空題', '默寫標準二分搜尋核心函數模板', 6, ("my_bsearch",),
          lambda g: check_q16(g, history_str)),
-        ('12-7-6', '練習題', '會員登入序號精確二分匹配', 5, ("idx",),
+        ('12-7-6', '練習題', '會員登入序號精確二分匹配', 5, ("idx127",),
          lambda g: check_q17(g, history_str)),
-        ('12-7-6', '挑戰題', '二分搜尋極速攔截黑名單交易帳號', 5, ("intercepted",),
+        ('12-7-6', '挑戰題', '二分搜尋極速攔截黑名單交易帳號', 5, ("intr127",),
          lambda g: check_q18(g, history_str)),
     ]
 

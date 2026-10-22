@@ -152,20 +152,20 @@ def auto_grade_unit_6_6(env=None):
              else (False, "請在 6-6-1 填空題填入 range(stars_count)！")
          )),
 
-        ("6-6-1", "練習題", "三倍速階梯星號總數統計 (total_stars = 9/18)", 4, ("total_stars",),
+        ("6-6-1", "練習題", "三倍速階梯星號總數統計 (tot_star = 9/18)", 4, ("tot_star",),
          lambda g: (
              (True, "三倍速階梯星號排版與顆數累加正確！")
-             if (g.get("total_stars") in [9, 18] or
-                 (("total_stars" in g or "total_stars" in history_str) and
+             if (g.get("tot_star") in [9, 18] or
+                 (("tot_star" in g or "tot_star" in history_str) and
                   ("3 * r" in history_str or "3*r" in history_clean)))
-             else (False, "請每列印出 3 * r 顆星號並累加總星號數至 total_stars！")
+             else (False, "請每列印出 3 * r 顆星號並累加總星號數至 tot_star！")
          )),
 
-        ("6-6-1", "挑戰題", "平方倍增星號排版 (total_stars = 30)", 5, ("total_stars",),
+        ("6-6-1", "挑戰題", "平方倍增星號排版 (totstar066 = 30)", 5, ("totstar066",),
          lambda g: (
              (True, "平方倍增星號排版與總顆數 (30 顆) 驗證成功！")
-             if (g.get("total_stars") == 30 or
-                 (("total_stars" in g or "total_stars" in history_str) and
+             if (g.get("totstar066") == 30 or
+                 (("totstar066" in g or "totstar066" in history_str) and
                   ("r ** 2" in history_str or "r**2" in history_clean or "30" in history_str)))
              else (False, "請每列印出 r ** 2 顆星號，4 列總星號應為 30 顆！")
          )),
@@ -173,12 +173,12 @@ def auto_grade_unit_6_6(env=None):
         # ----------------------------------------------------------------------
         # 6-6-2 矩形與空心方框排版：邊框條件判定式 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-6-2", "填空題", "空心方框邊界條件 (r == H-1, c == W-1)", 4, (),
+        ("6-6-2", "填空題", "空心方框邊界條件 (r == H3-1, c == W066-1)", 4, (),
          lambda g: (
              (True, "空心方框末列與末欄邊界條件填寫正確！")
-             if ("H-1" in history_clean or "H - 1" in history_str) and
-                ("W-1" in history_clean or "W - 1" in history_str)
-             else (False, "請在 6-6-2 填空題填入 H - 1 與 W - 1 邊界！")
+             if ("H3-1" in history_clean or "H3 - 1" in history_str) and
+                ("W066-1" in history_clean or "W066 - 1" in history_str)
+             else (False, "請在 6-6-2 填空題填入 H3 - 1 與 W066 - 1 邊界！")
          )),
 
         ("6-6-2", "練習題", "主對角線空心方陣 (star_count = 14/19)", 4, ("star_count",),
@@ -219,12 +219,12 @@ def auto_grade_unit_6_6(env=None):
              else (False, "請每列印出 r 個數字 r，並累加總和至 number_sum！")
          )),
 
-        ("6-6-3", "挑戰題", "弗洛伊德流水號三角形 (last_num = 10)", 5, ("last_num", "cur_num"),
+        ("6-6-3", "挑戰題", "弗洛伊德流水號三角形 (lst_num = 10)", 5, ("lst_num", "cur_num066"),
          lambda g: (
-             (True, "弗洛伊德連續流水號直角三角形 (last_num = 10) 成功！")
-             if (g.get("last_num") == 10 or
-                 (("cur_num" in g or "cur_num" in history_str) and
-                  ("10" in history_str or "cur_num += 1" in history_str)))
+             (True, "弗洛伊德連續流水號直角三角形 (lst_num = 10) 成功！")
+             if (g.get("lst_num") == 10 or
+                 (("cur_num066" in g or "cur_num066" in history_str) and
+                  ("10" in history_str or "cur_num066 += 1" in history_str)))
              else (False, "請排版 4 層弗洛伊德三角形，最後一個數字應為 10！")
          )),
 
@@ -243,7 +243,7 @@ def auto_grade_unit_6_6(env=None):
              (True, "倒直角數字排版與數字 1 計數輸出正確！")
              if (g.get("one_count") == 1 or
                  (("one_count" in g or "one_count" in history_str) and
-                  ("num_val == 1" in history_str or "num_val==1" in history_clean or "val == 1" in history_str or "val==1" in history_clean)))
+                  ("num_val == 1" in history_str or "num_val==1" in history_clean)))
              else (False, "請排版倒數字圖形並統計數字 1 出現次數為 1！")
          )),
 
@@ -253,7 +253,7 @@ def auto_grade_unit_6_6(env=None):
              if (g.get("total_val") == 20 or
                  (("total_val" in g or "total_val" in history_str) and
                   ("20" in history_str or "total_val +=" in history_str)))
-             else (False, "請排版每列由 1 起跑的倒階梯，N=4 時總和應為 20！")
+             else (False, "請排版每列由 1 起跑的倒階梯，N12=4 時總和應為 20！")
          )),
 
         # ----------------------------------------------------------------------
@@ -267,22 +267,22 @@ def auto_grade_unit_6_6(env=None):
              else (False, "請在 6-6-5 填空題填入空格 N - r 與星號 r！")
          )),
 
-        ("6-6-5", "練習題", "靠右倒直角三角形總空格數 (total_spaces = 3/6)", 4, ("total_spaces",),
+        ("6-6-5", "練習題", "靠右倒直角三角形總空格數 (tot_spcs = 3/6)", 4, ("tot_spcs",),
          lambda g: (
              (True, "靠右倒直角三角形排版與總空格累加正確！")
-             if (g.get("total_spaces") in [3, 6] or
-                 (("total_spaces" in g or "total_spaces" in history_str) and
-                  ("total_spaces +=" in history_str or "total_spaces+=" in history_clean)))
-             else (False, "請排版靠右倒三角形並累加空格數至 total_spaces！")
+             if (g.get("tot_spcs") in [3, 6] or
+                 (("tot_spcs" in g or "tot_spcs" in history_str) and
+                  ("tot_spcs +=" in history_str or "tot_spcs+=" in history_clean)))
+             else (False, "請排版靠右倒三角形並累加空格數至 tot_spcs！")
          )),
 
-        ("6-6-5", "挑戰題", "靠右數字直角三角形數字總和 (sum_all_digits = 20)", 4, ("sum_all_digits",),
+        ("6-6-5", "挑戰題", "靠右數字直角三角形數字總和 (sumalldgts = 20)", 4, ("sumalldgts",),
          lambda g: (
              (True, "靠右對齊數字階梯排版與數字總和 (20) 成功！")
-             if (g.get("sum_all_digits") == 20 or
-                 (("sum_all_digits" in g or "sum_all_digits" in history_str) and
-                  ("20" in history_str or "sum_all_digits +=" in history_str)))
-             else (False, "請排版靠右數字階梯，N=4 時所有數字總和應為 20！")
+             if (g.get("sumalldgts") == 20 or
+                 (("sumalldgts" in g or "sumalldgts" in history_str) and
+                  ("20" in history_str or "sumalldgts +=" in history_str)))
+             else (False, "請排版靠右數字階梯，N15=4 時所有數字總和應為 20！")
          )),
 
         # ----------------------------------------------------------------------
@@ -296,10 +296,10 @@ def auto_grade_unit_6_6(env=None):
              else (False, "請在 6-6-6 填空題填入空格 N - i 與奇數星號 2 * i - 1！")
          )),
 
-        ("6-6-6", "練習題", "倒金字塔星號總數統計 (total_pyramid_stars)", 4, ("total_pyramid_stars",),
+        ("6-6-6", "練習題", "倒金字塔星號總數統計 (tpstar)", 4, ("tpstar",),
          lambda g: (
              (True, "倒金字塔排版與星號總數統計輸出正確！")
-             if (("total_stars_pyramid" in g or "total_stars_pyramid" in history_str or "total_stars" in g) and
+             if (("tpstar" in g or "tpstar" in history_str) and
                  ("2 * i - 1" in history_str or "2*i-1" in history_clean))
              else (False, "請排版倒金字塔並統計星號總數！")
          )),
@@ -323,21 +323,21 @@ def auto_grade_unit_6_6(env=None):
              else (False, "請在 6-6-7 填空題填入 N - 1、0 以及步進 -1！")
          )),
 
-        ("6-6-7", "練習題", "計時沙漏形星號總數 (total_hourglass_stars = 17/31)", 4, ("total_hourglass_stars",),
+        ("6-6-7", "練習題", "計時沙漏形星號總數 (hglass_n = 17/31)", 4, ("hglass_n",),
          lambda g: (
              (True, "沙漏形上下拼接排版與星號總數輸出正確！")
-             if (g.get("total_hourglass_stars") in [17, 31] or
-                 (("total_hourglass_stars" in g or "total_hourglass_stars" in history_str) and
+             if (g.get("hglass_n") in [17, 31] or
+                 (("hglass_n" in g or "hglass_n" in history_str) and
                   ("17" in history_str or "31" in history_str)))
              else (False, "請排版倒正金字塔拼接之沙漏，統計星號總數！")
          )),
 
-        ("6-6-7", "挑戰題", "空心鑽石菱形邊框星號總數 (border_stars = 12)", 4, ("border_stars",),
+        ("6-6-7", "挑戰題", "空心鑽石菱形邊框星號總數 (brdr_star = 12)", 4, ("brdr_star",),
          lambda g: (
              (True, "鏤空中間空心鑽石排版 (12 顆邊框星號) 成功！")
-             if (g.get("border_stars") == 12 or
-                 (("border_stars" in g or "border_stars" in history_str) and
-                  ("12" in history_str or "border_stars +=" in history_str)))
+             if (g.get("brdr_star") == 12 or
+                 (("brdr_star" in g or "brdr_star" in history_str) and
+                  ("12" in history_str or "brdr_star +=" in history_str)))
              else (False, "請排版空心鑽石圖形，N=4 時邊框總星號應為 12 顆！")
          )),
 
@@ -356,15 +356,15 @@ def auto_grade_unit_6_6(env=None):
              (True, "非邊框內部元素擂台極值查找輸出正確！")
              if (g.get("inner_max") in [9, 16] or
                  (("inner_max" in g or "inner_max" in history_str) and
-                  ("1 < r < N" in history_str or "inner_max = cell_prod" in history_str or "inner_max = val" in history_str)))
+                  ("1 < r < N" in history_str or "inner_max = cell_prod" in history_str)))
              else (False, "請排版乘法方陣並找出非邊框內部元素最大值！")
          )),
 
-        ("6-6-8", "挑戰題", "中心曼哈頓距離總和 (total_dist_sum = 60)", 4, ("total_dist_sum",),
+        ("6-6-8", "挑戰題", "中心曼哈頓距離總和 (totdstsum = 60)", 4, ("totdstsum",),
          lambda g: (
              (True, "中心曼哈頓距離漸變方陣總和 (60) 成功！")
-             if (g.get("total_dist_sum") == 60 or
-                 (("total_dist_sum" in g or "total_dist_sum" in history_str) and
+             if (g.get("totdstsum") == 60 or
+                 (("totdstsum" in g or "totdstsum" in history_str) and
                   ("abs(r - center)" in history_str or "60" in history_str)))
              else (False, "請計算 5x5 中心曼哈頓距離方陣之距離總和（60）！")
          )),

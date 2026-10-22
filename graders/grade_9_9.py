@@ -144,27 +144,27 @@ def auto_grade_unit_9_9(env=None):
         # ----------------------------------------------------------------------
         # 9-9-1 哨兵加框法概念 (Grid Padding) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("9-9-1", "填空題", "哨兵加框尺寸 [[-1] * (C + 2) for _ in range(R + 2)]", 5, (),
+        ("9-9-1", "填空題", "哨兵加框尺寸 [[-1] * (C099 + 2) for _ in range(R099 + 2)]", 5, (),
          lambda g: (
              (True, "哨兵加框尺寸生成式填空正確！")
-             if ("C + 2" in history_str and "R + 2" in history_str) or
-                ("C+2" in history_clean and "R+2" in history_clean)
-             else (False, "請在 9-9-1 填空題填入加框尺寸 C + 2 與 R + 2！")
+             if ("C099 + 2" in history_str and "R099 + 2" in history_str) or
+                ("C099+2" in history_clean and "R099+2" in history_clean)
+             else (False, "請在 9-9-1 填空題填入加框尺寸 C099 + 2 與 R099 + 2！")
          )),
 
-        ("9-9-1", "練習題", "將原網格拷貝進加框矩陣中心 [1..R][1..C]", 6, (),
+        ("9-9-1", "練習題", "將原網格拷貝進加框矩陣中心 [1..R099][1..C099]", 6, (),
          lambda g: (
              (True, "原網格置入加框中心正確！")
-             if ("padded[r + 1][c + 1] = grid[r][c]" in history_str or "padded[r+1][c+1]=grid[r][c]" in history_clean or
-                 "padded[r+1][c+1]" in history_clean)
-             else (False, "請將 grid[r][c] 填入 padded[r + 1][c + 1] 中心區域！")
+             if ("pddd[r + 1][c + 1] = gd099[r][c]" in history_str or "pddd[r+1][c+1]=gd099[r][c]" in history_clean or
+                 "pddd[r+1][c+1]" in history_clean)
+             else (False, "請將 gd099[r][c] 填入 pddd[r + 1][c + 1] 中心區域！")
          )),
 
         ("9-9-1", "挑戰題", "加框矩陣邊界驗證 (四周全為 -1)", 5, (),
          lambda g: (
              (True, "加框矩陣外圍守衛驗證正確！")
-             if ("-1" in history_str and "padded" in history_str)
-             else (False, "請驗證 padded 最外層一圈全為 -1 哨兵值！")
+             if ("-1" in history_str and "pddd099" in history_str)
+             else (False, "請驗證 pddd099 最外層一圈全為 -1 哨兵值！")
          )),
 
         # ----------------------------------------------------------------------
@@ -180,21 +180,21 @@ def auto_grade_unit_9_9(env=None):
         ("9-9-2", "練習題", "在加框網格中免邊界判斷直接存取四相鄰點", 6, (),
          lambda g: (
              (True, "加框免邊界四相鄰存取正確！")
-             if ("padded[r][c+1]" in history_clean or "padded[r+2][c+1]" in history_clean or "padded" in history_str)
-             else (False, "請直接存取 padded 上下左右四格，省略邊界 if 判斷！")
+             if ("pddd2[r][c+1]" in history_clean or "pddd2[r+2][c+1]" in history_clean or "pddd2" in history_str)
+             else (False, "請直接存取 pddd2 上下左右四格，省略邊界 if 判斷！")
          )),
 
         ("9-9-2", "挑戰題", "加框網格還原回原始矩陣尺寸", 6, (),
          lambda g: (
              (True, "加框網格還原提取正確！")
-             if ("padded[r][1:-1]" in history_clean or "range(1, R + 1)" in history_str)
-             else (False, "請將中心 [1..R][1..C] 資料取出還原回原網格！")
+             if ("padded[r][1:-1]" in history_clean or "range(1, R099 + 1)" in history_str)
+             else (False, "請將中心 [1..R099][1..C099] 資料取出還原回原網格！")
          )),
 
         # ----------------------------------------------------------------------
         # 9-9-3 原地修改「資料污染」致命陷阱與快照防禦 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-9-3", "填空題", "快照建立 snapshot = [row.copy() for row in grid]", 5, (),
+        ("9-9-3", "填空題", "快照建立 snapshot = [row.copy() for row in gd62]", 5, (),
          lambda g: (
              (True, "快照副本語法填空正確！")
              if ("row.copy()" in history_clean or "row[:]" in history_clean)
@@ -204,7 +204,7 @@ def auto_grade_unit_9_9(env=None):
         ("9-9-3", "練習題", "對比實驗：原地修改資料污染 vs 快照同步結算", 6, (),
          lambda g: (
              (True, "快照對比實驗實作正確！")
-             if ("snapshot" in history_str or "copy" in history_str) and "grid" in history_str
+             if ("snps" in history_str or "copy" in history_str) and "grid" in history_str
              else (False, "請使用快照讀取舊狀態，避免原地修改互相污染！")
          )),
 
@@ -218,11 +218,11 @@ def auto_grade_unit_9_9(env=None):
         # ----------------------------------------------------------------------
         # 9-9-4 增減量矩陣架構 (Delta Grid) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-9-4", "填空題", "增減量矩陣初始化 delta = [[0] * C for _ in range(R)]", 5, (),
+        ("9-9-4", "填空題", "增減量矩陣初始化 delta = [[0] * C099 for _ in range(R099)]", 5, (),
          lambda g: (
              (True, "delta 矩陣初始化填空正確！")
-             if ("delta = [[0] * C for _ in range(R)]" in history_str or "delta=[[0]*Cfor_inrange(R)]" in history_clean or
-                 "[[0] * C for _ in range(R)]" in history_str)
+             if ("delta = [[0] * C099 for _ in range(R099)]" in history_str or "delta=[[0]*Cfor_inrange(R099)]" in history_clean or
+                 "[[0] * C099 for _ in range(R099)]" in history_str)
              else (False, "請在 9-9-4 填空題填入 delta 增減量矩陣初始化語法！")
          )),
 
@@ -246,23 +246,22 @@ def auto_grade_unit_9_9(env=None):
         ("9-9-5", "填空題", "擴散份量整數除法 give = pop_val // k", 5, (),
          lambda g: (
              (True, "擴散除法 give = pop_val // k 填空正確！")
-             if ("pop_val // k" in history_str or "pop_val//k" in history_clean or
-                 "val // k" in history_str or "val//k" in history_clean)
+             if ("pop_val // k" in history_str or "pop_val//k" in history_clean)
              else (False, "請在 9-9-5 填空題填入 pop_val // k！")
          )),
 
-        ("9-9-5", "練習題", "單回合相鄰擴散與 grid[r][c] += delta[r][c] 結算", 6, (),
+        ("9-9-5", "練習題", "單回合相鄰擴散與 gd65[r][c] += dlt2[r][c] 結算", 6, (),
          lambda g: (
              (True, "單回合擴散結算正確！")
-             if ("grid[r][c] += delta[r][c]" in history_str or "grid[r][c]+=delta[r][c]" in history_clean or
-                 "delta" in history_str)
-             else (False, "請在回合末將 delta 矩陣累加回 grid 結算！")
+             if ("gd65[r][c] += dlt2[r][c]" in history_str or "gd65[r][c]+=dlt2[r][c]" in history_clean or
+                 "dlt2" in history_str)
+             else (False, "請在回合末將 dlt2 矩陣累加回 gd65 結算！")
          )),
 
         ("9-9-5", "挑戰題", "擴散前後全圖總人口不變驗證", 6, (),
          lambda g: (
              (True, "總人口守恆驗證正確！")
-             if ("sum" in history_str and "==" in history_str and "grid" in history_str)
+             if ("sum" in history_str and "==" in history_str and "gd66" in history_str)
              else (False, "請驗證擴散前後全圖人口總數保持一致！")
          )),
 
@@ -273,8 +272,8 @@ def auto_grade_unit_9_9(env=None):
          lambda g: (
              (True, "排除 -1 城市極值統計填空正確！")
              if ("grid[r][c] != -1" in history_str or "grid[r][c]!=-1" in history_clean or
-                 "val != -1" in history_str)
-             else (False, "請在 9-9-6 填空題填入排除 -1 障礙城市的判斷！")
+                 "cell_val != -1" in history_str or "cell_val!=-1" in history_clean)
+             else (False, "請在 9-9-6 填空題填入 cell_val != -1，排除 -1 障礙城市！")
          )),
 
         ("9-9-6", "練習題", "APCS f313 模擬 m 回合後輸出最大與最小人口", 6, (),
@@ -287,7 +286,7 @@ def auto_grade_unit_9_9(env=None):
         ("9-9-6", "挑戰題", "APCS f313 完整實戰通關輸出 min 與 max", 5, (),
          lambda g: (
              (True, "APCS f313 最終通關正確！")
-             if ("min(" in history_str and "max(" in history_str) or ("min_val" in history_str and "max_val" in history_str)
+             if ("min(" in history_str and "max(" in history_str) or ("min_val099" in history_str and "max_val099" in history_str)
              else (False, "請輸出模擬後的最小與最大人口！")
          ))    ]
 

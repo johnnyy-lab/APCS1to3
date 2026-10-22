@@ -144,10 +144,10 @@ def auto_grade_unit_7_1(env=None):
         # ----------------------------------------------------------------------
         # 7-1-1 單引號與雙引號宣告 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-1-1", "填空題", "成對引號字串宣告 (potion_name, spell_incantation)", 6, ("potion_name", "spell_incantation"),
+        ("7-1-1", "填空題", "成對引號字串宣告 (ptn_nm, spll_incn)", 6, ("ptn_nm", "spll_incn"),
          lambda g: (
-             (True, "成對引號宣告完全正確：potion_name 與 spell_incantation 正確賦值！")
-             if (g.get("potion_name") == "Healing Potion" and g.get("spell_incantation") == "Abracadabra") or
+             (True, "成對引號宣告完全正確：ptn_nm 與 spll_incn 正確賦值！")
+             if (g.get("ptn_nm") == "Healing Potion" and g.get("spll_incn") == "Abracadabra") or
                 ('"Healing Potion"' in history_str and "'Abracadabra'" in history_str)
              else (False, "請在 7-1-1 填空題空格填入成對的單引號或雙引號並點擊播放鍵 ▶ 執行！")
          )),
@@ -220,7 +220,7 @@ def auto_grade_unit_7_1(env=None):
              (True, "倒數數字 \\t 間隔與 GO! 結尾設計正確！")
              if ("GO!" in history_str and (r"\t" in history_str or "\t" in history_str or "end=" in history_str)) or
                 ("range(" in history_str and "GO!" in history_str)
-             else (False, "請由 n 倒數至 1，以 \\t 分隔輸出，最後換行輸出 GO!！")
+             else (False, "請由 tick71 倒數至 1，以 \\t 分隔輸出，最後換行輸出 GO!！")
          )),
 
         # ----------------------------------------------------------------------
@@ -254,11 +254,11 @@ def auto_grade_unit_7_1(env=None):
         # ----------------------------------------------------------------------
         # 7-1-5 三引號多行字串：保留完整排版 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-1-5", "填空題", "三引號多行公告文字 (announcement)", 6, ("announcement",),
+        ("7-1-5", "填空題", "三引號多行公告文字 (annn)", 6, ("annn",),
          lambda g: (
              (True, "三引號多行公告宣告成功！")
-             if (isinstance(g.get("announcement"), str) and
-                 "【公會公告】" in g.get("announcement") and "維護時間" in g.get("announcement")) or
+             if (isinstance(g.get("annn"), str) and
+                 "【公會公告】" in g.get("annn") and "維護時間" in g.get("annn")) or
                 ('"""' in history_str and "【公會公告】" in history_str)
              else (False, "請在 7-1-5 填空題前後空格填入連續 3 個引號（\"\"\" 或 \'''）！")
          )),

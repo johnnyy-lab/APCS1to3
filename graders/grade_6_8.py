@@ -144,31 +144,31 @@ def auto_grade_unit_6_8(env=None):
         # ----------------------------------------------------------------------
         # 6-8-1 預知次數的輸入走訪 (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-8-1", "填空題", "讀取首行 T 並走訪 T 次 (T, total_processed)", 4, ("total_processed",),
+        ("6-8-1", "填空題", "讀取首行 T 並走訪 T 次 (T, tot_prcs)", 4, ("tot_prcs",),
          lambda g: (
              (True, "預知筆數 T 與 for 迴圈結構填寫正確！")
-             if (g.get("total_processed") == 3 or
-                 (("range(T)" in history_clean or "range(int(simulated_first_line))" in history_clean) and
-                  ("total_processed" in g or "total_processed" in history_str)))
+             if (g.get("tot_prcs") == 3 or
+                 (("range(T)" in history_clean or "range(int(sim_line))" in history_clean) and
+                  ("tot_prcs" in g or "tot_prcs" in history_str)))
              else (False, "請在 6-8-1 填空題空格填入 T 與正確的 range 走訪次數！")
          )),
 
-        ("6-8-1", "練習題", "固定 N 筆加總與筆數統計 (total_sum = 100, count = 4)", 4, ("total_sum", "count"),
+        ("6-8-1", "練習題", "固定 N 筆加總與筆數統計 (tot_sum = 100, count = 4)", 4, ("tot_sum", "count"),
          lambda g: (
              (True, "固定 N 筆輸入與累加統計輸出正確！")
-             if (g.get("total_sum") == 100 and g.get("count") in (2, 3, 4)) or
-                (("total_sum" in g or "total_sum" in history_str) and
-                 ("assert count == 4 and total_sum == 100" in history_str or
+             if (g.get("tot_sum") == 100 and g.get("count") in (2, 3, 4)) or
+                (("tot_sum" in g or "tot_sum" in history_str) and
+                 ("assert count == 4 and tot_sum == 100" in history_str or
                   "assertcount==4andtotal_sum==100" in history_clean))
-             else (False, "請撰寫 for 迴圈讀取 N 筆數值，計算 total_sum 與筆數 count！")
+             else (False, "請撰寫 for 迴圈讀取 N 筆數值，計算 tot_sum 與筆數 count！")
          )),
 
-        ("6-8-1", "挑戰題", "櫃檯提款哨兵值 0 終止 (customer_count = 3, total_withdraw = 400)", 5, ("customer_count", "total_withdraw"),
+        ("6-8-1", "挑戰題", "櫃檯提款哨兵值 0 終止 (cstm_cnt = 3, tot_wthd = 400)", 5, ("cstm_cnt", "tot_wthd"),
          lambda g: (
              (True, "提款哨兵終止邏輯與金額結算完全正確！")
-             if (g.get("customer_count") == 3 and g.get("total_withdraw") == 400) or
-                (("customer_count" in g or "customer_count" in history_str) and
-                 ("assert customer_count == 3 and total_withdraw == 400" in history_str or
+             if (g.get("cstm_cnt") == 3 and g.get("tot_wthd") == 400) or
+                (("cstm_cnt" in g or "cstm_cnt" in history_str) and
+                 ("assert cstm_cnt == 3 and tot_wthd == 400" in history_str or
                   "assertcustomer_count==3andtotal_withdraw==400" in history_clean))
              else (False, "請使用 while True 搭配哨兵值 0 判定退出，統計人數與總提款額！")
          )),
@@ -183,23 +183,23 @@ def auto_grade_unit_6_8(env=None):
              else (False, "請在 6-8-2 填空題使用底線 _ 與 range(N) 走訪 N 輪！")
          )),
 
-        ("6-8-2", "練習題", "N 筆成績統計及格人數與最高分 (pass_count = 2, max_score = 80)", 4, ("pass_count", "max_score"),
+        ("6-8-2", "練習題", "N 筆成績統計及格人數與最高分 (pss_cnt = 2, max_sc = 80)", 4, ("pss_cnt", "max_sc"),
          lambda g: (
              (True, "N 筆成績及格計數與極值更新邏輯正確！")
-             if (g.get("pass_count") == 2 and g.get("max_score") == 80) or
-                (("pass_count" in g or "pass_count" in history_str) and
-                 ("assert pass_count == 2 and max_score == 80" in history_str or
+             if (g.get("pss_cnt") == 2 and g.get("max_sc") == 80) or
+                (("pss_cnt" in g or "pss_cnt" in history_str) and
+                 ("assert pss_cnt == 2 and max_sc == 80" in history_str or
                   "assertpass_count==2andmax_score==80" in history_clean))
-             else (False, "請撰寫 for 迴圈走訪 N 筆成績，統計 pass_count 與 max_score！")
+             else (False, "請撰寫 for 迴圈走訪 N 筆成績，統計 pss_cnt 與 max_sc！")
          )),
 
-        ("6-8-2", "挑戰題", "雙層巢狀多測資框架加總 (grand_total = 66)", 5, ("grand_total",),
+        ("6-8-2", "挑戰題", "雙層巢狀多測資框架加總 (grndtot068 = 66)", 5, ("grndtot068",),
          lambda g: (
              (True, "多組測資雙層 for 迴圈累加總和正確！")
-             if g.get("grand_total") == 66 or
-                (("grand_total" in g or "grand_total" in history_str) and
-                 ("assert grand_total == 66" in history_str or "assertgrand_total==66" in history_clean))
-             else (False, "請撰寫雙層 for 迴圈（外層 T、內層 N），計算全組別總和 grand_total！")
+             if g.get("grndtot068") == 66 or
+                (("grndtot068" in g or "grndtot068" in history_str) and
+                 ("assert grndtot068 == 66" in history_str or "assertgrand_total==66" in history_clean))
+             else (False, "請撰寫雙層 for 迴圈（外層 T068、內層 N），計算全組別總和 grndtot068！")
          )),
 
         # ----------------------------------------------------------------------
@@ -209,15 +209,15 @@ def auto_grade_unit_6_8(env=None):
          lambda g: (
              (True, "while True 永動迴圈與哨兵 -1 煞車語法填寫正確！")
              if ("while True" in history_str or "whileTrue" in history_clean) and
-                ("chk_num == -1" in history_str or "chk_num==-1" in history_clean or "val == -1" in history_str or "val==-1" in history_clean) and
+                ("chk_num == -1" in history_str or "chk_num==-1" in history_clean) and
                 "break" in history_str
              else (False, "請在 6-8-3 填空題補齊 while True 與 chk_num == -1: break！")
          )),
 
-        ("6-8-3", "練習題", "哨兵 0 終止體重累加與平均 (count = 3, avg_weight = 70)", 4, ("avg_weight", "total_weight", "count"),
+        ("6-8-3", "練習題", "哨兵 0 終止體重累加與平均 (count = 3, avg_weight = 70)", 4, ("avg_weight", "tot_wt068", "count"),
          lambda g: (
              (True, "哨兵終止體重統計與平均值計算正確！")
-             if (g.get("avg_weight") == 70 or g.get("total_weight") == 210 or
+             if (g.get("avg_weight") == 70 or g.get("tot_wt068") == 210 or
                  (g.get("count") == 3 and "weight" in history_clean) or
                  (("avg_weight" in g or "avg_weight" in history_str) and
                   ("assert count == 3 and avg_weight == 70" in history_str or
@@ -225,47 +225,47 @@ def auto_grade_unit_6_8(env=None):
              else (False, "請使用 while 迴圈在遇到 0 時中斷，計算人數 count 與平均體重 avg_weight！")
          )),
 
-        ("6-8-3", "挑戰題", "雙哨兵 (0, 0) 曼哈頓距離加總 (valid_points = 3, total_manhattan = 21)", 5, ("total_manhattan", "valid_points"),
+        ("6-8-3", "挑戰題", "雙哨兵 (0, 0) 曼哈頓距離加總 (vld_pt = 3, tot_manh = 21)", 5, ("tot_manh", "vld_pt"),
          lambda g: (
              (True, "雙哨兵 (0, 0) 複合條件中斷與曼哈頓距離累加正確！")
-             if (g.get("total_manhattan") == 21 or
-                 (g.get("valid_points") == 3 and "manhattan" in history_clean) or
-                 (("total_manhattan" in g or "total_manhattan" in history_str) and
-                  ("assert valid_points == 3 and total_manhattan == 21" in history_str or
+             if (g.get("tot_manh") == 21 or
+                 (g.get("vld_pt") == 3 and "manhattan" in history_clean) or
+                 (("tot_manh" in g or "tot_manh" in history_str) and
+                  ("assert vld_pt == 3 and tot_manh == 21" in history_str or
                    "assertvalid_points==3andtotal_manhattan==21" in history_clean)))
-             else (False, "請檢查 x == 0 and y == 0 結束標記，並計算有效點曼哈頓距離總和！")
+             else (False, "請檢查 manh_x == 0 and manh_y == 0 結束標記，並計算有效點曼哈頓距離總和！")
          )),
 
         # ----------------------------------------------------------------------
         # 6-8-4 什麼是 EOF (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-8-4", "填空題", "Windows 與 Linux/Mac EOF 快捷鍵認知", 4, ("win_eof_key", "unix_eof_key"),
+        ("6-8-4", "填空題", "Windows 與 Linux/Mac EOF 快捷鍵認知", 4, ("wineofkey", "unxeofkey"),
          lambda g: (
              (True, "EOF 系統快捷鍵觀念理解正確（Ctrl+Z / Ctrl+D）！")
-             if ("z" in str(g.get("win_eof_key", "")).lower() and
-                 "d" in str(g.get("unix_eof_key", "")).lower()) or
-                ("win_eof_key" in history_clean and "unix_eof_key" in history_clean and
+             if ("z" in str(g.get("wineofkey", "")).lower() and
+                 "d" in str(g.get("unxeofkey", "")).lower()) or
+                ("wineofkey" in history_clean and "unxeofkey" in history_clean and
                  ("ctrl+z" in history_clean.lower() or "ctrl-z" in history_clean.lower()))
              else (False, "請填入 Windows (Ctrl+Z) 與 Unix (Ctrl+D) 的 EOF 模擬快捷鍵！")
          )),
 
-        ("6-8-4", "練習題", "模擬 None 串流末端字串長度加總 (total_chars = 14)", 4, ("total_chars",),
+        ("6-8-4", "練習題", "模擬 None 串流末端字串長度加總 (tot_chrs = 14)", 4, ("tot_chrs",),
          lambda g: (
              (True, "None 結尾偵測與字串長度累加正確！")
-             if g.get("total_chars") == 14 or
-                (("total_chars" in g or "total_chars" in history_str) and
-                 ("assert total_chars == 14" in history_str or "asserttotal_chars==14" in history_clean))
-             else (False, "請使用 while True 讀取字串，偵測到 None 時 break 並統計 total_chars！")
+             if g.get("tot_chrs") == 14 or
+                (("tot_chrs" in g or "tot_chrs" in history_str) and
+                 ("assert tot_chrs == 14" in history_str or "asserttotal_chars==14" in history_clean))
+             else (False, "請使用 while True 讀取字串，偵測到 None 時 break 並統計 tot_chrs！")
          )),
 
-        ("6-8-4", "挑戰題", "逐行整數讀取至 EOF 總和與行數 (total_lines = 4, grand_sum = 120)", 5, ("grand_sum", "total_lines"),
+        ("6-8-4", "挑戰題", "逐行整數讀取至 EOF 總和與行數 (tot_lns = 4, grand_sum = 120)", 5, ("grand_sum", "tot_lns"),
          lambda g: (
              (True, "EOF 逐行整數統計行數與總和輸出完全正確！")
-             if (g.get("grand_sum") == 120 or g.get("total_lines") == 4) or
+             if (g.get("grand_sum") == 120 or g.get("tot_lns") == 4) or
                 (("grand_sum" in g or "grand_sum" in history_str) and
-                 ("assert total_lines == 4 and grand_sum == 120" in history_str or
+                 ("assert tot_lns == 4 and grand_sum == 120" in history_str or
                   "asserttotal_lines==4andgrand_sum==120" in history_clean))
-             else (False, "請在讀取到 None 前累加整數至 grand_sum，並計算 total_lines！")
+             else (False, "請在讀取到 None 前累加整數至 grand_sum，並計算 tot_lns！")
          )),
 
         # ----------------------------------------------------------------------
@@ -278,15 +278,15 @@ def auto_grade_unit_6_8(env=None):
              else (False, "請在 6-8-5 填空題填入走訪 sys.stdin 的 for 迴圈關鍵字！")
          )),
 
-        ("6-8-5", "練習題", "自然迭代偶數平方和 (count = 2, even_sq_sum = 52)", 4, ("even_sq_sum", "count"),
+        ("6-8-5", "練習題", "自然迭代偶數平方和 (count = 2, evn_sq_sum = 52)", 4, ("evn_sq_sum", "count"),
          lambda g: (
              (True, "串流迭代偶數篩選與平方和統計輸出正確！")
-             if g.get("even_sq_sum") == 52 or
-                (g.get("count") == 2 and "even_sq_sum" in history_clean) or
-                (("even_sq_sum" in g or "even_sq_sum" in history_str) and
-                 ("assert count == 2 and even_sq_sum == 52" in history_str or
+             if g.get("evn_sq_sum") == 52 or
+                (g.get("count") == 2 and "evn_sq_sum" in history_clean) or
+                (("evn_sq_sum" in g or "evn_sq_sum" in history_str) and
+                 ("assert count == 2 and evn_sq_sum == 52" in history_str or
                   "assertcount==2andeven_sq_sum==52" in history_clean))
-             else (False, "請走訪數列，篩選偶數累加平方和 even_sq_sum 與個數 count！")
+             else (False, "請走訪數列，篩選偶數累加平方和 evn_sq_sum 與個數 count！")
          )),
 
         ("6-8-5", "挑戰題", "單行多值解包求矩形最大面積 (max_area = 16)", 4, ("max_area",),
@@ -309,34 +309,34 @@ def auto_grade_unit_6_8(env=None):
              else (False, "請在 6-8-6 填空題補齊 try 與 except EOFError 關鍵字！")
          )),
 
-        ("6-8-6", "練習題", "try-except 平方和連續累加 (sum_squares = 93)", 4, ("sum_squares",),
+        ("6-8-6", "練習題", "try-except 平方和連續累加 (sum_sq = 93)", 4, ("sum_sq",),
          lambda g: (
              (True, "例外攔截串流平方和計算正確！")
-             if g.get("sum_squares") == 93 or
-                (("sum_squares" in g or "sum_squares" in history_str) and
-                 ("assert sum_squares == 93" in history_str or "assertsum_squares==93" in history_clean))
-             else (False, "請使用 try-except 攔截 EOFError 並計算平方和 sum_squares！")
+             if g.get("sum_sq") == 93 or
+                (("sum_sq" in g or "sum_sq" in history_str) and
+                 ("assert sum_sq == 93" in history_str or "assertsum_squares==93" in history_clean))
+             else (False, "請使用 try-except 攔截 EOFError 並計算平方和 sum_sq！")
          )),
 
-        ("6-8-6", "挑戰題", "EOF 氣溫極值更新與全距 (max_t = 31, min_t = 18, range_t = 13)", 4, ("max_t", "min_t", "range_t"),
+        ("6-8-6", "挑戰題", "EOF 氣溫極值更新與全距 (max_t068 = 31, min_t068 = 18, range_t = 13)", 4, ("max_t068", "min_t068", "range_t"),
          lambda g: (
              (True, "串流氣溫極值即時更新與全距計算正確！")
-             if (g.get("max_t") == 31 and g.get("min_t") == 18 and g.get("range_t") == 13) or
+             if (g.get("max_t068") == 31 and g.get("min_t068") == 18 and g.get("range_t") == 13) or
                 (("range_t" in g or "range_t" in history_str) and
-                 ("assert max_t == 31 and min_t == 18 and range_t == 13" in history_str or
+                 ("assert max_t068 == 31 and min_t068 == 18 and range_t == 13" in history_str or
                   "assertmax_t==31andmin_t==18andrange_t==13" in history_clean))
-             else (False, "請使用 try-except 在退出時計算 range_t = max_t - min_t！")
+             else (False, "請使用 try-except 在退出時計算 range_t = max_t068 - min_t068！")
          )),
 
         # ----------------------------------------------------------------------
         # 6-8-7 空間複雜度 O(1) 串流即時縮減心法 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-8-7", "填空題", "串流即時維護最小值 (min_val = 7)", 4, ("min_val",),
+        ("6-8-7", "填空題", "串流即時維護最小值 (min_val068 = 7)", 4, ("min_val068",),
          lambda g: (
              (True, "最小值初值與即時比對更新填寫正確！")
-             if g.get("min_val") == 7 or
-                ("min_val" in history_clean and ("item_val < min_val" in history_str or "item_val<min_val" in history_clean or "data < min_val" in history_str or "data<min_val" in history_clean))
-             else (False, "請在 6-8-7 填空題完成 min_val 初值與條件更新！")
+             if g.get("min_val068") == 7 or
+                ("min_val068" in history_clean and ("item_val < min_val068" in history_str or "item_val<min_val068" in history_clean or "data < min_val068" in history_str or "data<min_val068" in history_clean))
+             else (False, "請在 6-8-7 填空題完成 min_val068 初值與條件更新！")
          )),
 
         ("6-8-7", "練習題", "氣溫串流統計與全距 (count_t = 5, sum_t = 110, temp_range = 15)", 4, ("count_t", "sum_t", "temp_range"),
@@ -349,23 +349,23 @@ def auto_grade_unit_6_8(env=None):
              else (False, "請以純純量維護總和、筆數、極值，並計算 temp_range！")
          )),
 
-        ("6-8-7", "挑戰題", "串流及格率統計 (total_players = 6, pass_players = 4, pass_rate = 66)", 4, ("total_players", "pass_players", "pass_rate"),
+        ("6-8-7", "挑戰題", "串流及格率統計 (tot_plr = 6, pss_plr = 4, pass_rate = 66)", 4, ("tot_plr", "pss_plr", "pass_rate"),
          lambda g: (
              (True, "串流及格率整數百分比運算正確！")
-             if (g.get("total_players") == 6 and g.get("pass_players") == 4 and g.get("pass_rate") == 66) or
+             if (g.get("tot_plr") == 6 and g.get("pss_plr") == 4 and g.get("pass_rate") == 66) or
                 (("pass_rate" in g or "pass_rate" in history_str) and
-                 ("assert total_players == 6 and pass_players == 4 and pass_rate == 66" in history_str or
+                 ("assert tot_plr == 6 and pss_plr == 4 and pass_rate == 66" in history_str or
                   "asserttotal_players==6andpass_players==4andpass_rate==66" in history_clean))
-             else (False, "請統計 total_players 與 pass_players，計算 pass_rate = pass_players * 100 // total_players！")
+             else (False, "請統計 tot_plr 與 pss_plr，計算 pass_rate = pss_plr * 100 // tot_plr！")
          )),
 
         # ----------------------------------------------------------------------
         # 6-8-8 單行多值拆解與 APCS 實戰總結 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-8-8", "填空題", "單行多值整數映射語法 (map(int, line_str.split()))", 4, ("total",),
+        ("6-8-8", "填空題", "單行多值整數映射語法 (map(int, line_str.split()))", 4, ("tot068",),
          lambda g: (
              (True, "map 與 split 單行解包語法填寫正確！")
-             if g.get("total") == 60 or
+             if g.get("tot068") == 60 or
                 ("map(int,line_str.split())" in history_clean or "map(int, line_str.split())" in history_str or "split()" in history_clean)
              else (False, "請在 6-8-8 填空題填入 map(int, line_str.split())！")
          )),
@@ -379,14 +379,14 @@ def auto_grade_unit_6_8(env=None):
              else (False, "請分別解包兩行座標，計算向量內積 dot = x1*x2 + y1*y2！")
          )),
 
-        ("6-8-8", "挑戰題", "APCS 多組門檻過濾累加 (total_qualified = 4, all_groups_sum = 305)", 4, ("total_qualified", "all_groups_sum"),
+        ("6-8-8", "挑戰題", "APCS 多組門檻過濾累加 (tot_qlfd = 4, allgrpssum = 305)", 4, ("tot_qlfd", "allgrpssum"),
          lambda g: (
              (True, "雙組測資合格門檻加總與計數完全正確！")
-             if (g.get("total_qualified") == 4 and g.get("all_groups_sum") == 305) or
-                (("all_groups_sum" in g or "all_groups_sum" in history_str) and
-                 ("assert total_qualified == 4 and all_groups_sum == 305" in history_str or
+             if (g.get("tot_qlfd") == 4 and g.get("allgrpssum") == 305) or
+                (("allgrpssum" in g or "allgrpssum" in history_str) and
+                 ("assert tot_qlfd == 4 and allgrpssum == 305" in history_str or
                   "asserttotal_qualified==4andall_groups_sum==305" in history_clean))
-             else (False, "請走訪雙組測資，統計高於門檻數字個數 total_qualified 與數值總和 all_groups_sum！")
+             else (False, "請走訪雙組測資，統計高於門檻數字個數 tot_qlfd 與數值總和 allgrpssum！")
          ))
     ]
 

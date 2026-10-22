@@ -169,26 +169,26 @@ def auto_grade_unit_12_2(env=None):
         # ----------------------------------------------------------------------
         # 12-2-1 參數 reverse=True：從大到小反向降序排列 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-2-1", "填空題", "sorted(..., reverse=True) 降序排序與最高出價取值", 5, ("ranked_bids",),
+        ("12-2-1", "填空題", "sorted(..., reverse=True) 降序排序與最高出價取值", 5, ("rnkd_bds",),
          lambda g: (
-             (True, "ranked_bids 降序排序正確，且最高出價取值無誤！")
-             if (g.get("ranked_bids") == [950, 620, 480, 230, 150]) or
+             (True, "rnkd_bds 降序排序正確，且最高出價取值無誤！")
+             if (g.get("rnkd_bds") == [950, 620, 480, 230, 150]) or
                 ("sorted(bids,reverse=True)" in history_clean or "sorted(bids, reverse=True)" in history_str)
-             else (False, "尚未找到符合預期的 ranked_bids，請在 sorted() 中指定 reverse=True 降序排列！")
+             else (False, "尚未找到符合預期的 rnkd_bds，請在 sorted() 中指定 reverse=True 降序排列！")
          )),
 
-        ("12-2-1", "練習題", "scores.sort(reverse=True) 原地降序與前三名得分總和", 6, ("scores",),
+        ("12-2-1", "練習題", "sc122.sort(reverse=True) 原地降序與前三名得分總和", 6, ("sc122",),
          lambda g: (
-             (True, "練習題 12.2.1 scores 原地降序排序與前三名總和計算正確！")
-             if (g.get("scores") == [35, 28, 24, 18, 12]) or
-                ("scores.sort(reverse=True)" in history_str and ("87" in history_str or "scores[:3]" in history_str))
-             else (False, "請使用 scores.sort(reverse=True) 進行原地由大到小排序，並計算前三名總和！")
+             (True, "練習題 12.2.1 sc122 原地降序排序與前三名總和計算正確！")
+             if (g.get("sc122") == [35, 28, 24, 18, 12]) or
+                ("sc122.sort(reverse=True)" in history_str and ("87" in history_str or "sc122[:3]" in history_str))
+             else (False, "請使用 sc122.sort(reverse=True) 進行原地由大到小排序，並計算前三名總和！")
          )),
 
-        ("12-2-1", "挑戰題", "貪婪硬幣面額由大到小排序與前兩大金額合計", 6, ("sorted_coins", "first_two_sum"),
+        ("12-2-1", "挑戰題", "貪婪硬幣面額由大到小排序與前兩大金額合計", 6, ("srt_cns", "fsttwosum"),
          lambda g: (
              (True, "挑戰題 12.2.1 硬幣面額降序排序與前二大面額合計正確！")
-             if (g.get("sorted_coins") == [50, 20, 10, 5, 1] or g.get("first_two_sum") == 70) or
+             if (g.get("srt_cns") == [50, 20, 10, 5, 1] or g.get("fsttwosum") == 70) or
                 ("reverse=True" in history_str and ("coins" in history_str or "70" in history_str))
              else (False, "請將硬幣面額 coins 由大到小排序，並取出前兩大面額合計（50 + 20 = 70）！")
          )),
@@ -196,18 +196,18 @@ def auto_grade_unit_12_2(env=None):
         # ----------------------------------------------------------------------
         # 12-2-2 數值排序 vs 字串字典序（Lexicographical Order） (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-2-2", "填空題", "單字清單字典序排序 alpha_order 與首位語言", 5, ("alpha_order",),
+        ("12-2-2", "填空題", "單字清單字典序排序 alph_ordr 與首位語言", 5, ("alph_ordr",),
          lambda g: (
-             (True, "alpha_order 字母字典序排序正確！首位語言為 'basic'！")
-             if (g.get("alpha_order") == ['basic', 'c', 'java', 'pascal', 'python']) or
-                ("sorted(languages)" in history_str and "alpha_order" in history_str)
-             else (False, "請使用 alpha_order = sorted(languages) 依字母字典序排列程式語言名稱！")
+             (True, "alph_ordr 字母字典序排序正確！首位語言為 'basic'！")
+             if (g.get("alph_ordr") == ['basic', 'c', 'java', 'pascal', 'python']) or
+                ("sorted(languages)" in history_str and "alph_ordr" in history_str)
+             else (False, "請使用 alph_ordr = sorted(languages) 依字母字典序排列程式語言名稱！")
          )),
 
-        ("12-2-2", "練習題", "raw_words 字典序排序與末位單字首字元及長度", 6, ("sorted_animals",),
+        ("12-2-2", "練習題", "raw_words 字典序排序與末位單字首字元及長度", 6, ("srt_anml",),
          lambda g: (
              (True, "練習題 12.2.2 單字字典序排序與末位單字特徵擷取正確！")
-             if (g.get("sorted_animals") == ['ant', 'bear', 'dog', 'monkey', 'zebra']) or
+             if (g.get("srt_anml") == ['ant', 'bear', 'dog', 'monkey', 'zebra']) or
                 ("sorted(raw_words)" in history_str and ("len(" in history_str or "zebra" in history_str))
              else (False, "請將 raw_words 進行字典序升序排序，並輸出排序結果與最後一個單字的首字與長度！")
          )),
@@ -223,26 +223,26 @@ def auto_grade_unit_12_2(env=None):
         # ----------------------------------------------------------------------
         # 12-2-3 考場世紀大陷阱：字串 '100' 小於 '2' 的成因與數值轉型 int 必要性 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-2-3", "填空題", "文字數字轉型 clean_numbers = [int(x) for x in ...] 防禦", 5, ("clean_numbers",),
+        ("12-2-3", "填空題", "文字數字轉型 cln_ns = [int(x) for x in ...] 防禦", 5, ("cln_ns",),
          lambda g: (
-             (False, "⚠️ 偵測到 clean_numbers 仍包含文字型態！踩到了文字數字字典序陷阱（'120' < '3'）！請使用 int(x) 進行轉型！")
-             if (isinstance(g.get("clean_numbers"), list) and any(isinstance(x, str) for x in g.get("clean_numbers", [])))
+             (False, "⚠️ 偵測到 cln_ns 仍包含文字型態！踩到了文字數字字典序陷阱（'120' < '3'）！請使用 int(x) 進行轉型！")
+             if (isinstance(g.get("cln_ns"), list) and any(isinstance(x, str) for x in g.get("cln_ns", [])))
              else (
-                 (True, "clean_numbers 數值轉型防禦正確！數值由小到大排列無誤！")
-                 if (g.get("clean_numbers") == [3, 9, 45, 88, 120]) or
-                    ("int(x)" in history_str and "clean_numbers" in history_str)
-                 else (False, "請使用列表生成式 [int(x) for x in raw_input_data] 將文字數字轉為整數後排序！")
+                 (True, "cln_ns 數值轉型防禦正確！數值由小到大排列無誤！")
+                 if (g.get("cln_ns") == [3, 9, 45, 88, 120]) or
+                    ("int(x)" in history_str and "cln_ns" in history_str)
+                 else (False, "請使用列表生成式 [int(x) for x in rawinptdt] 將文字數字轉為整數後排序！")
              )
          )),
 
-        ("12-2-3", "練習題", "token_list 字串轉型整數後進行由大到小降序排列", 6, ("nums",),
+        ("12-2-3", "練習題", "token_list 字串轉型整數後進行由大到小降序排列", 6, ("ns122",),
          lambda g: (
              (False, "⚠️ 偵測到排序結果仍為字串！請務必先透過 int() 轉為整數再排序！")
-             if (isinstance(g.get("nums"), list) and any(isinstance(x, str) for x in g.get("nums", [])))
+             if (isinstance(g.get("ns122"), list) and any(isinstance(x, str) for x in g.get("ns122", [])))
              else (
                  (True, "練習題 12.2.3 成功將字串數字轉為整數並完成降序排序！")
-                 if (g.get("nums") == [100, 25, 12, 7, 3]) or
-                    ("int(" in history_str and "reverse=True" in history_str and ("100" in history_str or "nums" in history_str))
+                 if (g.get("ns122") == [100, 25, 12, 7, 3]) or
+                    ("int(" in history_str and "reverse=True" in history_str and ("100" in history_str or "ns122" in history_str))
                  else (False, "請將 token_list 內項目轉型為整數，並進行由大到小（reverse=True）降序排序！")
              )
          )),
@@ -250,26 +250,26 @@ def auto_grade_unit_12_2(env=None):
         ("12-2-3", "挑戰題", "對比未轉型字串排序與整數排序之首位數值差距", 6, (),
          lambda g: (
              (True, "挑戰題 12.2.3 成功對比字串排序與數值排序之首位差距！")
-             if ("wrong_sorted" in history_str and "right_sorted" in history_str) or
-                ("105" in history_str and ("diff" in history_str or "100" in history_str or "abs(" in history_str))
+             if ("wrng_srt" in history_str and "rght_srt" in history_str) or
+                ("105" in history_str and ("dff122" in history_str or "100" in history_str or "abs(" in history_str))
              else (False, "請分別印出 records 未轉型排序與轉型整數排序結果，並計算第 0 個位置元素差距！")
          )),
 
         # ----------------------------------------------------------------------
         # 12-2-4 大小寫混合字串排序規則：大寫字母永遠排在小寫前面 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("12-2-4", "填空題", "標準 ASCII 排序大寫字母優先 sorted_tags = sorted(tags)", 5, ("sorted_tags",),
+        ("12-2-4", "填空題", "標準 ASCII 排序大寫字母優先 srt_tgs = sorted(tags)", 5, ("srt_tgs",),
          lambda g: (
-             (True, "sorted_tags 標準 ASCII 排序正確！大寫字母開頭者成功排在最前方！")
-             if (g.get("sorted_tags") == ['AI', 'Data', 'algorithm', 'python']) or
-                ("sorted(tags)" in history_str and "sorted_tags" in history_str)
+             (True, "srt_tgs 標準 ASCII 排序正確！大寫字母開頭者成功排在最前方！")
+             if (g.get("srt_tgs") == ['AI', 'Data', 'algorithm', 'python']) or
+                ("sorted(tags)" in history_str and "srt_tgs" in history_str)
              else (False, "請以 sorted(tags) 進行標準 ASCII 排序，觀察大寫字母優先排序的特性！")
          )),
 
-        ("12-2-4", "練習題", "code_names 排序並統計大寫開頭國家名稱個數", 6, ("upper_count", "sorted_names"),
+        ("12-2-4", "練習題", "code_names 排序並統計大寫開頭國家名稱個數", 6, ("uppr_cnt", "srt_nms"),
          lambda g: (
              (True, "練習題 12.2.4 國家名稱排序與大寫開頭個數統計正確！")
-             if (g.get("upper_count") == 3 or g.get("sorted_names") == ['Canada', 'UK', 'USA', 'japan', 'taiwan']) or
+             if (g.get("uppr_cnt") == 3 or g.get("srt_nms") == ['Canada', 'UK', 'USA', 'japan', 'taiwan']) or
                 ("sorted(code_names)" in history_str and ("isupper()" in history_str or "<= 'Z'" in history_str))
              else (False, "請對 code_names 進行排序，並計算大寫字母開頭的國家名稱數量（'Canada', 'UK', 'USA' 共 3 個）！")
          )),
@@ -285,26 +285,26 @@ def auto_grade_unit_12_2(env=None):
         # ----------------------------------------------------------------------
         # 12-2-5 負號取反技巧：利用 -x 進行降序快速切換 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("12-2-5", "填空題", "定義 invert_sign(t) 回傳 -t 實現氣溫降序 hot_to_cold", 5, ("hot_to_cold",),
+        ("12-2-5", "填空題", "定義 invert_sign(t) 回傳 -t 實現氣溫降序 hot_cld", 5, ("hot_cld",),
          lambda g: (
-             (True, "invert_sign 負號取反函數與 hot_to_cold 降序排列正確！")
-             if (g.get("hot_to_cold") == [31.0, 29.8, 24.5, 22.0, 18.2]) or
+             (True, "invert_sign 負號取反函數與 hot_cld 降序排列正確！")
+             if (g.get("hot_cld") == [31.0, 29.8, 24.5, 22.0, 18.2]) or
                 ("return -t" in history_str and "key=invert_sign" in history_str)
              else (False, "請定義 invert_sign(t) 回傳 -t，並傳入 key=invert_sign 將氣溫由高到低排序！")
          )),
 
-        ("12-2-5", "練習題", "negative_key 高度降序排序與最高次高差距", 6, ("sorted_altitudes",),
+        ("12-2-5", "練習題", "negative_key 高度降序排序與最高次高差距", 6, ("srt_altt",),
          lambda g: (
              (True, "練習題 12.2.5 negative_key 高度降序排序與最高次高差距計算正確！")
-             if (g.get("sorted_altitudes") == [4200, 3500, 2100, 1200, 800]) or
+             if (g.get("srt_altt") == [4200, 3500, 2100, 1200, 800]) or
                 ("negative_key" in history_str and "altitudes" in history_str)
              else (False, "請定義負號函式 negative_key 並配合 sorted() 將 altitudes 降序排序，計算前兩名差距！")
          )),
 
-        ("12-2-5", "挑戰題", "利用負號取反函數排序利潤並找出最大虧損金額", 5, ("desc_profits",),
+        ("12-2-5", "挑戰題", "利用負號取反函數排序利潤並找出最大虧損金額", 5, ("dsc_prft",),
          lambda g: (
              (True, "挑戰題 12.2.5 利潤降序排序與最大虧損金額確認正確！")
-             if (g.get("desc_profits") == [4500, 2800, 1200, 0, -100, -300]) or
+             if (g.get("dsc_prft") == [4500, 2800, 1200, 0, -100, -300]) or
                 ("return -x" in history_str and "profits" in history_str and "-300" in history_str)
              else (False, "請定義負號取反函數將 profits 降序排列，並印出虧損最多（數值最小者 -300）！")
          )),
@@ -312,22 +312,22 @@ def auto_grade_unit_12_2(env=None):
         # ----------------------------------------------------------------------
         # 12-2-6 字母大小寫不敏感排序初探：初探 key=str.lower (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("12-2-6", "填空題", "key=str.lower 不加括號實現姓名大小寫不敏感排序", 5, ("sorted_names",),
+        ("12-2-6", "填空題", "key=str.lower 不加括號實現姓名大小寫不敏感排序", 5, ("srt_nms122",),
          lambda g: (
              (False, "⚠️ 偵測到 key=str.lower() 帶有括號！傳入 key 的必須是函數名牌，請去掉小括號改寫為 key=str.lower！")
              if ("key=str.lower()" in history_clean or "key = str.lower()" in history_str)
              else (
-                 (True, "sorted_names 成功使用 key=str.lower 實現大小寫不敏感排序！")
-                 if (isinstance(g.get("sorted_names"), list) and [x.lower() for x in g.get("sorted_names", [])] == ['alice', 'alice', 'bob', 'charlie', 'dave']) or
+                 (True, "srt_nms122 成功使用 key=str.lower 實現大小寫不敏感排序！")
+                 if (isinstance(g.get("srt_nms122"), list) and [x.lower() for x in g.get("srt_nms122", [])] == ['alice', 'alice', 'bob', 'charlie', 'dave']) or
                     ("key=str.lower" in history_clean)
-                 else (False, "請使用 sorted(names, key=str.lower) 進行大小寫不敏感排序（請勿加括號）！")
+                 else (False, "請使用 sorted(nms, key=str.lower) 進行大小寫不敏感排序（請勿加括號）！")
              )
          )),
 
-        ("12-2-6", "練習題", "城市名單大小寫不敏感升序排序與首個城市輸出", 6, ("sorted_cities",),
+        ("12-2-6", "練習題", "城市名單大小寫不敏感升序排序與首個城市輸出", 6, ("srt_cts",),
          lambda g: (
              (True, "練習題 12.2.6 城市名單大小寫不敏感排序正確！首個城市為 amsterdam！")
-             if (g.get("sorted_cities") == ['amsterdam', 'Berlin', 'London', 'paris', 'tokyo']) or
+             if (g.get("srt_cts") == ['amsterdam', 'Berlin', 'London', 'paris', 'tokyo']) or
                 ("cities" in history_str and "str.lower" in history_str)
              else (False, "請使用 key=str.lower 對 cities 進行大小寫不敏感排序，並輸出首個城市！")
          )),

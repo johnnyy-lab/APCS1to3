@@ -143,10 +143,10 @@ def auto_grade_unit_5_7(env=None):
         # ----------------------------------------------------------------------
         # 5-7-1 什麼是旗標變數——程式記憶狀態的儀表板 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-7-1", "填空題", "違規記錄旗標初始化與觸發 (has_violation=True)", 6, ("has_violation",),
+        ("5-7-1", "填空題", "違規記錄旗標初始化與觸發 (has_vltn=True)", 6, ("has_vltn",),
          lambda g: (
-             (True, "旗標初始化與條件觸發填寫正確：has_violation=True！")
-             if (g.get("has_violation") is True) and
+             (True, "旗標初始化與條件觸發填寫正確：has_vltn=True！")
+             if (g.get("has_vltn") is True) and
                 ("False" in history_str and "True" in history_str)
              else (False, "請在 5-7-1 填空題空格填入 False 與 True！")
          )),
@@ -200,12 +200,12 @@ def auto_grade_unit_5_7(env=None):
         # ----------------------------------------------------------------------
         # 5-7-3 單一出口原則——以旗標統籌多分支最終輸出 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-7-3", "填空題", "單一出口門票定價 (price)", 6, ("price",),
+        ("5-7-3", "填空題", "單一出口門票定價 (prc057)", 6, ("prc057",),
          lambda g: (
-             (True, "單一出口印出最終 price 填寫正確！")
-             if ("print(" in history_str and "price" in history_str) or
-                ("price" in g and g.get("price") == 150)
-             else (False, "請在 5-7-3 填空題空格填入 price 完成單一出口印出！")
+             (True, "單一出口印出最終 prc057 填寫正確！")
+             if ("print(" in history_str and "prc057" in history_str) or
+                ("prc057" in g and g.get("prc057") == 150)
+             else (False, "請在 5-7-3 填空題空格填入 prc057 完成單一出口印出！")
          )),
 
         ("5-7-3", "練習題", "數值特性標籤單一輸出 (label ➔ POSITIVE EVEN / ODD / NEGATIVE / ZERO)", 8, ("label",),

@@ -305,9 +305,9 @@ def check_q12(g, hist):
         return False, "尚未正確實作 safe_sort_numbers 或污染了原始串列。"
     if callable(fn):
         try:
-            orig = [9, 3, 7]
-            res = fn(orig)
-            if res == [3, 7, 9] and orig == [9, 3, 7] and res is not orig:
+            org133 = [9, 3, 7]
+            got = fn(org133)
+            if got == [3, 7, 9] and org133 == [9, 3, 7] and got is not org133:
                 return True, "太棒了！回傳新排序串列且原始串列內容完整保留未受污染！"
         except Exception as e:
             return False, f"執行 safe_sort_numbers 時發生例外: {e}"
@@ -401,11 +401,11 @@ def check_q17(g, hist):
                 "   ",
                 "F,17,100"
             ]
-            res = fn(dirty_data)
-            if (isinstance(res, dict) and 
-                res.get("valid_count") == 3 and 
-                res.get("average_score") == 90.0 and 
-                res.get("max_score") == 100):
+            got = fn(dirty_data)
+            if (isinstance(got, dict) and 
+                got.get("valid_count") == 3 and 
+                got.get("average_score") == 90.0 and 
+                got.get("max_score") == 100):
                 return True, "太棒了！髒資料清洗完整防禦 IndexError 與 ValueError，各項指標完全精準！"
         except Exception as e:
             return False, f"執行 bulletproof_data_pipeline 時發生例外: {e}"
@@ -474,7 +474,7 @@ def auto_grade_unit_13_3(env=None):
     history_clean = history_str.replace(" ", "")
 
     test_cases = [
-        ('13-3-1', '實作題', "安全執行成功回傳 ('SUCCESS', res)", 6, ("safe_execute_and_diagnose",),
+        ('13-3-1', '實作題', "安全執行成功回傳 ('SUCCESS', 回傳值)", 6, ("safe_execute_and_diagnose",),
          lambda g: check_q1(g, history_str)),
         ('13-3-1', '實作題', "精準捕獲中途例外回傳 ('RE', 例外型別)", 6, ("safe_execute_and_diagnose",),
          lambda g: check_q2(g, history_str)),

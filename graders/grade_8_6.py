@@ -144,19 +144,19 @@ def auto_grade_unit_8_6(env=None):
         # ----------------------------------------------------------------------
         # 8-6-1 變數賦值的大陷阱：b = a 只是共用同一張標籤 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-6-1", "填空題", "串列參照賦值共用 (shared_cart = cart)", 6, (),
+        ("8-6-1", "填空題", "串列參照賦值共用 (shrd_crt = crt)", 6, (),
          lambda g: (
-             (True, "shared_cart = cart 參照賦值正確！")
-             if ("shared_cart=cart" in history_clean or "shared_cart = cart" in history_str) and
+             (True, "shrd_crt = crt 參照賦值正確！")
+             if ("shrd_crt=crt" in history_clean or "shrd_crt = crt" in history_str) and
                 ("滑鼠" in history_str)
-             else (False, "請在 8-6-1 填空題空格將 cart 賦值給 shared_cart！")
+             else (False, "請在 8-6-1 填空題空格將 crt 賦值給 shrd_crt！")
          )),
 
         ("8-6-1", "練習題", "別名共用污染首尾修改印出 orig_list (alias_list = orig_list 修改輸出)", 9, (),
          lambda g: (
              (True, "alias_list = orig_list 別名共用污染驗證輸出正確！")
-             if (("alias_list = orig_list" in history_str or "alias_list=orig_list" in history_clean or "b = a" in history_str or "b=a" in history_clean) and
-                 ("[100, 2, 99]" in history_str or "[100, 6, 7, 99]" in history_str or ("b[0] = 100" in history_str and "b[-1] = 99" in history_str) or ("alias_list[0]" in history_clean and "alias_list[-1]" in history_clean)))
+             if (("alias_list = orig_list" in history_str or "alias_list=orig_list" in history_clean) and
+                 ("[100, 2, 99]" in history_str or "[100, 6, 7, 99]" in history_str or ("alias_list[0]" in history_clean and "alias_list[-1]" in history_clean)))
              else (False, "請設定 alias_list = orig_list，修改 alias_list 的首尾元素並印出受到連動影響的 orig_list！")
          )),
 
@@ -179,12 +179,12 @@ def auto_grade_unit_8_6(env=None):
              else (False, "請在 8-6-2 填空題依序填入 == 與 is 運算子！")
          )),
 
-        ("8-6-2", "練習題", "同一物件性判定印出 (p is q 為 True, p is r 為 False)", 9, (),
+        ("8-6-2", "練習題", "同一物件性判定印出 (p is q 為 True, p is r086 為 False)", 9, (),
          lambda g: (
-             (True, "p is q (True) 與 p is r (False) 印出正確！")
-             if ("p is q" in history_str and "p is r" in history_str) or
+             (True, "p is q (True) 與 p is r086 (False) 印出正確！")
+             if ("p is q" in history_str and "p is r086" in history_str) or
                 ("True\nFalse" in history_str)
-             else (False, "請分別印出 p is q 與 p is r 的布林值結果！")
+             else (False, "請分別印出 p is q 與 p is r086 的布林值結果！")
          )),
 
         ("8-6-2", "挑戰題", "別名與獨立拷貝三變數檢驗 (alias is True, clone is False)", 5, (),
@@ -197,18 +197,18 @@ def auto_grade_unit_8_6(env=None):
         # ----------------------------------------------------------------------
         # 8-6-3 製作真正的獨立副本：copy() 方法 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-6-3", "填空題", "呼叫 copy() 方法建立獨立副本 (safe_cart)", 6, ("safe_cart", "original_cart"),
+        ("8-6-3", "填空題", "呼叫 copy() 方法建立獨立副本 (safe_cart)", 6, ("safe_cart", "orgn_crt"),
          lambda g: (
              (True, "使用 .copy() 建立獨立副本成功！")
-             if ("original_cart.copy()" in history_clean) or
-                (g.get("safe_cart") == ["牛奶", "麵包", "蘋果"] and "糖果" in g.get("original_cart", []))
+             if ("orgn_crt.copy()" in history_clean) or
+                (g.get("safe_cart") == ["牛奶", "麵包", "蘋果"] and "糖果" in g.get("orgn_crt", []))
              else (False, "請在 8-6-3 填空題空格填入方法名稱 copy！")
          )),
 
-        ("8-6-3", "練習題", "獨立副本調分輸出 (scores.copy() 加分獨立不連動)", 9, (),
+        ("8-6-3", "練習題", "獨立副本調分輸出 (sc086.copy() 加分獨立不連動)", 9, (),
          lambda g: (
              (True, "copy() 調分副本與原成績單雙軌輸出正確！")
-             if ("scores.copy()" in history_clean and ("+= 10" in history_str or "+10" in history_clean)) or
+             if ("sc086.copy()" in history_clean and ("+= 10" in history_str or "+10" in history_clean)) or
                 ("[70, 80, 90]\n[80, 90, 100]" in history_str or "[50, 60]\n[60, 70]" in history_str)
              else (False, "請使用 copy() 建立副本並為副本加 10 分，依序印出兩份成績！")
          )),
@@ -234,28 +234,28 @@ def auto_grade_unit_8_6(env=None):
 
         ("8-6-4", "練習題", "切片複製獨立性與 pop 移除印出長度", 9, (),
          lambda g: (
-             (True, "nums[:] 切片副本與 pop() 長度驗證正確！")
-             if ("nums[:]" in history_clean and "filtered_nums.pop()" in history_clean) or
+             (True, "ns086[:] 切片副本與 pop() 長度驗證正確！")
+             if ("ns086[:]" in history_clean and "fltr_ns.pop()" in history_clean) or
                 ("長度: 4" in history_str and "長度: 3" in history_str)
-             else (False, "請使用 nums[:] 複製副本，從副本 pop 末位並印出兩者內容與長度！")
+             else (False, "請使用 ns086[:] 複製副本，從副本 pop 末位並印出兩者內容與長度！")
          )),
 
         ("8-6-4", "挑戰題", "參照、copy() 與 [:] 三重同一性驗證", 5, (),
          lambda g: (
-             (True, "b=a、copy() 與 [:] 三重身分驗證完整！")
-             if ("a is b" in history_str and "a is c" in history_str and "a is d" in history_str) or
+             (True, "ref_alias、copy() 與 [:] 三重身分驗證完整！")
+             if ("ref_src is ref_alias" in history_str and "ref_src is ref_copy" in history_str and "ref_src is ref_slice" in history_str) or
                 ("True\nFalse\nFalse" in history_str)
-             else (False, "請分別輸出 a is b, a is c, a is d 的布林值結果！")
+             else (False, "請分別輸出 ref_src is ref_alias, ref_src is ref_copy, ref_src is ref_slice 的布林值結果！")
          )),
 
         # ----------------------------------------------------------------------
         # 8-6-5 淺拷貝（Shallow Copy）的核心本質與防禦實踐 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-6-5", "填空題", "list() 型態建構函式淺拷貝 (independent_tags)", 6, ("independent_tags", "original_tags"),
+        ("8-6-5", "填空題", "list() 型態建構函式淺拷貝 (indp_tgs)", 6, ("indp_tgs", "orgn_tgs"),
          lambda g: (
-             (True, "使用 list(original_tags) 建構式拷貝成功！")
-             if ("list(original_tags)" in history_clean) or
-                ("apcs" in g.get("independent_tags", []) and "apcs" not in g.get("original_tags", []))
+             (True, "使用 list(orgn_tgs) 建構式拷貝成功！")
+             if ("list(orgn_tgs)" in history_clean) or
+                ("apcs" in g.get("indp_tgs", []) and "apcs" not in g.get("orgn_tgs", []))
              else (False, "請在 8-6-5 填空題空格填入型態名稱 list！")
          )),
 

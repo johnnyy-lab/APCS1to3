@@ -154,14 +154,14 @@ def auto_grade_unit_9_6(env=None):
         ("9-6-1", "練習題", "讀入網格並輸出水平翻轉後成果", 6, (),
          lambda g: (
              (True, "水平翻轉與解包輸出正確！")
-             if ("[row[::-1] for row in grid]" in history_str or "row[::-1]" in history_clean) and "print" in history_str
+             if ("[row[::-1] for row in gd27]" in history_str or "row[::-1]" in history_clean) and "print" in history_str
              else (False, "請將讀入的網格水平翻轉並印出！")
          )),
 
         ("9-6-1", "挑戰題", "兩次水平翻轉等同還原驗證", 5, (),
          lambda g: (
              (True, "兩次翻轉還原驗證正確！")
-             if ("== grid" in history_str or "==" in history_str) and "row[::-1]" in history_clean
+             if ("== gd28" in history_str or "==" in history_str) and "row[::-1]" in history_clean
              else (False, "請驗證兩次水平翻轉後是否與原始網格完全相同！")
          )),
 
@@ -171,7 +171,7 @@ def auto_grade_unit_9_6(env=None):
         ("9-6-2", "填空題", "垂直翻轉切片 matrix[::-1]", 5, (),
          lambda g: (
              (True, "垂直翻轉 matrix[::-1] 填空正確！")
-             if ("matrix[::-1]" in history_clean or "board[::-1]" in history_clean)
+             if ("matrix[::-1]" in history_clean or "brd096[::-1]" in history_clean)
              else (False, "請在 9-6-2 填空題填入 matrix[::-1]！")
          )),
 
@@ -179,7 +179,7 @@ def auto_grade_unit_9_6(env=None):
          lambda g: (
              (True, "垂直翻轉操作與輸出正確！")
              if ("::-1" in history_str and "print" in history_str)
-             else (False, "請使用 grid[::-1] 進行垂直翻轉並解包印出每一列！")
+             else (False, "請使用 gd29[::-1] 進行垂直翻轉並解包印出每一列！")
          )),
 
         ("9-6-2", "挑戰題", "垂直翻轉後再水平翻轉 (旋轉 180 度)", 6, (),
@@ -195,14 +195,14 @@ def auto_grade_unit_9_6(env=None):
         ("9-6-3", "填空題", "二維轉置列表生成式 origin[r][c]", 5, (),
          lambda g: (
              (True, "轉置生成式填空正確！")
-             if ("origin[r][c]" in history_clean or "matrix[r][c]" in history_clean) and ("for r in range(R)" in history_str)
+             if ("origin[r][c]" in history_clean or "matrix[r][c]" in history_clean) and ("for r in range(R18)" in history_str)
              else (False, "請在 9-6-3 填空題填入 origin[r][c] 完成轉置！")
          )),
 
         ("9-6-3", "練習題", "非方陣轉置與尺寸互換 (R, C 變為 C, R)", 6, (),
          lambda g: (
              (True, "非方陣轉置與尺寸轉換正確！")
-             if ("for c in range(C)" in history_str and "for r in range(R)" in history_str) or "zip(*grid)" in history_str
+             if ("for c in range(C)" in history_str and "for r in range(R)" in history_str) or "zip(*gd31)" in history_str
              else (False, "請將 R x C 矩陣轉置為 C x R 矩陣並輸出！")
          )),
 
@@ -219,7 +219,7 @@ def auto_grade_unit_9_6(env=None):
         ("9-6-4", "填空題", "順時針 90 度旋轉 (轉置後每列水平翻轉)", 5, (),
          lambda g: (
              (True, "順時針 90 度旋轉填空正確！")
-             if ("row[::-1]" in history_clean or "matrix[R - 1 - r][c]" in history_clean)
+             if ("row[::-1]" in history_clean or "matrix[R19 - 1 - r][c]" in history_clean)
              else (False, "請在 9-6-4 填空題完成順時針 90 度旋轉！")
          )),
 
@@ -264,17 +264,17 @@ def auto_grade_unit_9_6(env=None):
         # ----------------------------------------------------------------------
         # 9-6-6 APCS b266 矩陣轉換：逆操作還原心法 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("9-6-6", "填空題", "逆操作順序 ops[::-1]", 5, (),
+        ("9-6-6", "填空題", "逆操作順序 ops096[::-1]", 5, (),
          lambda g: (
-             (True, "逆操作反轉 ops[::-1] 填空正確！")
-             if ("ops[::-1]" in history_clean or "reversed(ops)" in history_str)
-             else (False, "請在 9-6-6 填空題填入 ops[::-1] 將操作序列倒轉！")
+             (True, "逆操作反轉 ops096[::-1] 填空正確！")
+             if ("ops096[::-1]" in history_clean or "reversed(ops096)" in history_str)
+             else (False, "請在 9-6-6 填空題填入 ops096[::-1] 將操作序列倒轉！")
          )),
 
         ("9-6-6", "練習題", "APCS b266 單組測資逆推還原原型", 6, (),
          lambda g: (
              (True, "APCS b266 逆推還原正確！")
-             if ("ops[::-1]" in history_clean or "reversed(" in history_str) and ("print(*row)" in history_str)
+             if ("ops1[::-1]" in history_clean or "reversed(" in history_str) and ("print(*row)" in history_str)
              else (False, "請依照 APCS b266 規格逆序執行操作還原原始矩陣！")
          )),
 

@@ -101,10 +101,10 @@ def fetch_google_account_info(env=None):
 def check_q1(g, hist):
     mi = g.get("match_idx")
     if mi is None:
-        return False, "請確認填入 fruits[i] == target_fruit 並以 break 中斷。"
-    if mi == 2 or ("fruits[i] == target_fruit" in hist and "break" in hist):
+        return False, "請確認填入 fruits[i] == tg_frt 並以 break 中斷。"
+    if mi == 2 or ("fruits[i] == tg_frt" in hist and "break" in hist):
         return True, "太棒了！精確循序比對並在命中時及時 break 中斷迴圈！"
-    return False, "請確認填入 fruits[i] == target_fruit 並以 break 中斷。"
+    return False, "請確認填入 fruits[i] == tg_frt 並以 break 中斷。"
 
 def check_q2(g, hist):
     comp_count = g.get("comp_count")
@@ -116,52 +116,52 @@ def check_q2(g, hist):
     return False, "請撰寫迴圈累加比對次數並於找到時記錄索引位置。"
 
 def check_q3(g, hist):
-    fhi = g.get("first_hot_idx")
+    fhi = g.get("fsthotidx")
     if fhi is None:
-        return False, "請走訪 temps 找出第一個大於 30 度的索引 (應為 4)。"
-    # temps = [24, 25, 24, 28, 31, 29, 32, 30] -> index 4 (31 度)
-    if fhi == 4 or ("temps[i] > 30" in hist and "break" in hist):
+        return False, "請走訪 tmps 找出第一個大於 30 度的索引 (應為 4)。"
+    # tmps = [24, 25, 24, 28, 31, 29, 32, 30] -> index 4 (31 度)
+    if fhi == 4 or ("tmps[i] > 30" in hist and "break" in hist):
         return True, "太強了！成功以線性走訪精準找出索引 4 的首次超標水溫 (31度)！"
-    return False, "請走訪 temps 找出第一個大於 30 度的索引 (應為 4)。"
+    return False, "請走訪 tmps 找出第一個大於 30 度的索引 (應為 4)。"
 
 def check_q4(g, hist):
-    wcs = g.get("worst_case_steps")
+    wcs = g.get("wrstcsstps")
     if wcs is None:
         return False, "最差情況比對次數等於資料總長度 (120 或 data_size)。"
-    if wcs == 120 or "worst_case_steps = data_size" in hist:
+    if wcs == 120 or "wrstcsstps = data_size" in hist:
         return True, "完全正確！掌握線性搜尋最差情況：必須完整比對 N 次 (120 次)！"
     return False, "最差情況比對次數等於資料總長度 (120 或 data_size)。"
 
 def check_q5(g, hist):
-    res = g.get("results")
-    if res is None:
+    got = g.get("outs")
+    if got is None:
         return False, "請計算 test_arr 對各目標的比對次數 (預期為 [1, 4, 5])。"
-    if res == [1, 4, 5] or ("get_steps" in hist and "results" in hist):
+    if got == [1, 4, 5] or ("get_steps" in hist and "outs" in hist):
         return True, "精彩！準確計算出 3 個目標分別花費 [1, 4, 5] 次比對！"
     return False, "請計算 test_arr 對各目標的比對次數 (預期為 [1, 4, 5])。"
 
 def check_q6(g, hist):
-    avg = g.get("avg")
-    if avg is None:
+    avg126 = g.get("avg126")
+    if avg126 is None:
         return False, "請模擬查詢所有 ID 並計算平均比對次數 (3.5 次)。"
     # ids = 6 個元素 -> (1+2+3+4+5+6)/6 = 21/6 = 3.5
-    if (avg is not None and abs(avg - 3.5) < 1e-4) or ("total_steps / len(ids)" in hist):
+    if (avg126 is not None and abs(avg126 - 3.5) < 1e-4) or ("totstps126 / len(ids)" in hist):
         return True, "太棒了！精準推導出平均比對步數為 3.5 次！"
     return False, "請模擬查詢所有 ID 並計算平均比對次數 (3.5 次)。"
 
 def check_q7(g, hist):
     if g.get('gadgets') is None:
-        return False, "請在填空處填入 gadgets.index(query) 與 except ValueError。"
+        return False, "請在填空處填入 gadgets.index(qry) 與 except ValueError。"
     if "gadgets.index" in hist and "except ValueError" in hist:
         return True, "完全正確！以 try-except ValueError 完美拆解 .index() 的崩潰地雷！"
-    return False, "請在填空處填入 gadgets.index(query) 與 except ValueError。"
+    return False, "請在填空處填入 gadgets.index(qry) 與 except ValueError。"
 
 def check_q8(g, hist):
     if g.get('codes') is None:
-        return False, "請使用 try: codes.index(query) except ValueError: 進行安全查詢。"
+        return False, "請使用 try: codes.index(qry126) except ValueError: 進行安全查詢。"
     if "codes.index" in hist and "except ValueError" in hist:
         return True, "精湛實作！成功利用例外處理攔截未定義代碼，保護系統穩健執行！"
-    return False, "請使用 try: codes.index(query) except ValueError: 進行安全查詢。"
+    return False, "請使用 try: codes.index(qry126) except ValueError: 進行安全查詢。"
 
 def check_q9(g, hist):
     func = g.get("check_ip_index")
@@ -180,17 +180,17 @@ def check_q9(g, hist):
 def check_q10(g, hist):
     res_idx = g.get("result_idx")
     if res_idx is None:
-        return False, "請填入 query_name in students 與 students.index(query_name)。"
-    if res_idx == 2 or ("query_name in students" in hist and "students.index" in hist):
+        return False, "請填入 query_name in stu126 與 stu126.index(query_name)。"
+    if res_idx == 2 or ("query_name in stu126" in hist and "stu126.index" in hist):
         return True, "完全正確！落實『先 in 檢查、後 index 取值』的最高防護準則！"
-    return False, "請填入 query_name in students 與 students.index(query_name)。"
+    return False, "請填入 query_name in stu126 與 stu126.index(query_name)。"
 
 def check_q11(g, hist):
-    if g.get('vip_members') is None:
-        return False, "請使用 if check_id in vip_members 搭配 vip_members.index(check_id)。"
-    if "check_id in vip_members" in hist and "vip_members.index" in hist:
+    if g.get('vip_mmbr') is None:
+        return False, "請使用 if check_id in vip_mmbr 搭配 vip_mmbr.index(check_id)。"
+    if "check_id in vip_mmbr" in hist and "vip_mmbr.index" in hist:
         return True, "太棒了！VIP 會員排位查詢安全防禦邏輯完全無誤！"
-    return False, "請使用 if check_id in vip_members 搭配 vip_members.index(check_id)。"
+    return False, "請使用 if check_id in vip_mmbr 搭配 vip_mmbr.index(check_id)。"
 
 def check_q12(g, hist):
     if g.get('symbols') is None:
@@ -204,8 +204,8 @@ def check_q13(g, hist):
     user_idx = g.get("ans_idx")
     if func is None and user_idx is None:
         return False, "請實作 find_first_negative，若小於 0 回傳索引，否則回傳 -1。"
-    test_list = [10, 25, -3, 8, -12, 40]
-    if (user_idx == 2) or (callable(func) and func(test_list) == 2 and func([1, 2]) == -1):
+    tst_lst = [10, 25, -3, 8, -12, 40]
+    if (user_idx == 2) or (callable(func) and func(tst_lst) == 2 and func([1, 2]) == -1):
         return True, "完全正確！手刻條件搜尋成功命中第一個負數索引 2，找不到時回傳 -1！"
     if "num < 0" in hist and "return -1" in hist:
         return True, "邏輯比對通過！"
@@ -241,29 +241,29 @@ def check_q15(g, hist):
     return False, "請撰寫 find_first_urgent(msg_list) 搜尋包含 'URGENT' 的首則訊息索引。"
 
 def check_q16(g, hist):
-    fi = g.get("failed_indices")
+    fi = g.get("fld_indc")
     if fi is None:
-        return False, "請使用 [i for i, s in enumerate(class_scores) if s < 60] 收集索引。"
-    # class_scores = [78, 55, 92, 48, 85, 59] -> 不及格: 55(1), 48(3), 59(5)
-    if fi == [1, 3, 5] or ("[i for i, s in enumerate(class_scores) if s < 60]" in hist):
+        return False, "請使用 [i for i, s in enumerate(clss_sc) if s < 60] 收集索引。"
+    # clss_sc = [78, 55, 92, 48, 85, 59] -> 不及格: 55(1), 48(3), 59(5)
+    if fi == [1, 3, 5] or ("[i for i, s in enumerate(clss_sc) if s < 60]" in hist):
         return True, "太漂亮了！以列表生成式搭配 enumerate 極速提取不及格學生索引清單 [1, 3, 5]！"
-    return False, "請使用 [i for i, s in enumerate(class_scores) if s < 60] 收集索引。"
+    return False, "請使用 [i for i, s in enumerate(clss_sc) if s < 60] 收集索引。"
 
 def check_q17(g, hist):
     matches = g.get("matches")
     if matches is None:
-        return False, "請收集 nums 中所有等於 target 的索引清單至 matches。"
-    # nums = [12, 5, 8, 5, 20, 5], target = 5 -> [1, 3, 5]
-    if matches == [1, 3, 5] or ("[i for i, x in enumerate(nums) if x == target]" in hist):
+        return False, "請收集 ns126 中所有等於 tg11 的索引清單至 matches。"
+    # ns126 = [12, 5, 8, 5, 20, 5], tg11 = 5 -> [1, 3, 5]
+    if matches == [1, 3, 5] or ("[i for i, x in enumerate(ns126) if x == tg11]" in hist):
         return True, "精彩！全數收集所有匹配目標索引 [1, 3, 5]，完成多重搜尋！"
-    return False, "請收集 nums 中所有等於 target 的索引清單至 matches。"
+    return False, "請收集 ns126 中所有等於 tg11 的索引清單至 matches。"
 
 def check_q18(g, hist):
-    zrd = g.get("zero_rain_days")
-    hrd = g.get("heavy_rain_days")
+    zrd = g.get("zr_rn_dys")
+    hrd = g.get("hvy_rn_dys")
     if zrd is None and hrd is None:
         return False, "請分別收集降雨量為 0 與 >= 30 的天數索引清單。"
-    # rainfall = [0, 15, 0, 42, 0, 0, 8]
+    # rnfl = [0, 15, 0, 42, 0, 0, 8]
     # zero: [0, 2, 4, 5]
     # heavy (>=30): [3] (42mm)
     if (zrd == [0, 2, 4, 5] and hrd == [3]) or ("r == 0" in hist and "r >= 30" in hist):
@@ -318,13 +318,13 @@ def auto_grade_unit_12_6(env=None):
          lambda g: check_q1(g, history_str)),
         ('12-6-1', '練習題', '統計比對次數與定位目標索引', 6, ("comp_count", "found_pos"),
          lambda g: check_q2(g, history_str)),
-        ('12-6-1', '挑戰題', '線性搜尋首次水溫超標時間點', 5, ("first_hot_idx",),
+        ('12-6-1', '挑戰題', '線性搜尋首次水溫超標時間點', 5, ("fsthotidx",),
          lambda g: check_q3(g, history_str)),
-        ('12-6-2', '填空題', '線性搜尋最差情況比對次數推導', 6, ("worst_case_steps",),
+        ('12-6-2', '填空題', '線性搜尋最差情況比對次數推導', 6, ("wrstcsstps",),
          lambda g: check_q4(g, history_str)),
-        ('12-6-2', '練習題', '多重目標各自搜尋比對步數統計', 6, ("results",),
+        ('12-6-2', '練習題', '多重目標各自搜尋比對步數統計', 6, ("outs",),
          lambda g: check_q5(g, history_str)),
-        ('12-6-2', '挑戰題', '均等機率下全體 ID 之平均搜尋步數', 5, ("avg",),
+        ('12-6-2', '挑戰題', '均等機率下全體 ID 之平均搜尋步數', 5, ("avg126",),
          lambda g: check_q6(g, history_str)),
         ('12-6-3', '填空題', 'try-except 攔截 index() 之 ValueError', 6, (),
          lambda g: check_q7(g, history_str)),
@@ -344,11 +344,11 @@ def auto_grade_unit_12_6(env=None):
          lambda g: check_q14(g, history_str)),
         ('12-6-5', '挑戰題', '手刻函數搜尋第一則緊急警報關鍵字', 5, ("find_first_urgent",),
          lambda g: check_q15(g, history_str)),
-        ('12-6-6', '填空題', '列表生成式收集不及格座號索引清單', 6, ("failed_indices",),
+        ('12-6-6', '填空題', '列表生成式收集不及格座號索引清單', 6, ("fld_indc",),
          lambda g: check_q16(g, history_str)),
         ('12-6-6', '練習題', '收集全部匹配目標索引與次數統計', 5, ("matches",),
          lambda g: check_q17(g, history_str)),
-        ('12-6-6', '挑戰題', '收集完全無雨日與強降雨日之索引清單', 5, ("zero_rain_days", "heavy_rain_days"),
+        ('12-6-6', '挑戰題', '收集完全無雨日與強降雨日之索引清單', 5, ("zr_rn_dys", "hvy_rn_dys"),
          lambda g: check_q18(g, history_str)),
     ]
 

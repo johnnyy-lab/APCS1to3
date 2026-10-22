@@ -196,12 +196,12 @@ def auto_grade_unit_11_1(env=None):
         # ----------------------------------------------------------------------
         # 11-1-2 函數的定義（def）、命名規範與呼叫 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-1-2", "填空題", "修正 def 與括號呼叫 show_system_alert()", 5, ("show_system_alert",),
+        ("11-1-2", "填空題", "修正 def 與括號呼叫 ssalrt()", 5, ("ssalrt",),
          lambda g: (
-             (True, "show_system_alert 定義與括號呼叫正確！")
-             if (callable(g.get("show_system_alert"))) or
-                ("show_system_alert()" in history_str and "def show_system_alert():" in history_str)
-             else (False, "請補上 def 關鍵字與 show_system_alert() 括號進行呼叫！")
+             (True, "ssalrt 定義與括號呼叫正確！")
+             if (callable(g.get("ssalrt"))) or
+                ("ssalrt()" in history_str and "def ssalrt():" in history_str)
+             else (False, "請補上 def 關鍵字與 ssalrt() 括號進行呼叫！")
          )),
 
         ("11-1-2", "練習題", "APCS 考前提醒函數 show_exam_tips()", 6, ("show_exam_tips",),
@@ -239,12 +239,12 @@ def auto_grade_unit_11_1(env=None):
              else (False, "請定義 step_one() 與 step_two() 依序呼叫並印出時序！")
          )),
 
-        ("11-1-3", "挑戰題", "巢狀時序追蹤與主流程 execution_log 記錄", 6, ("execution_log",),
+        ("11-1-3", "挑戰題", "巢狀時序追蹤與主流程 exct_log 記錄", 6, ("exct_log",),
          lambda g: (
-             (True, "巢狀時序 execution_log 記錄驗證正確！")
-             if (g.get("execution_log") == ["main_task start", "sub_task executed", "main_task end"]) or
-                ("execution_log" in history_str and "sub_task executed" in history_str)
-             else (False, "請透過 execution_log 依序記錄 main_task start -> sub_task executed -> main_task end！")
+             (True, "巢狀時序 exct_log 記錄驗證正確！")
+             if (g.get("exct_log") == ["main_task start", "sub_task executed", "main_task end"]) or
+                ("exct_log" in history_str and "sub_task executed" in history_str)
+             else (False, "請透過 exct_log 依序記錄 main_task start -> sub_task executed -> main_task end！")
          )),
 
         # ----------------------------------------------------------------------
@@ -304,12 +304,12 @@ def auto_grade_unit_11_1(env=None):
         # ----------------------------------------------------------------------
         # 11-1-6 無回傳值函數與 None 預設回傳 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("11-1-6", "填空題", "動作型函數無 return 預設為 None 驗證 status is None", 5, ("status",),
+        ("11-1-6", "填空題", "動作型函數無 return 預設為 None 驗證 stts111 is None", 5, ("stts111",),
          lambda g: (
-             (True, "status is None 填空驗證正確！")
-             if (g.get("status") is None and "mark_completed" in history_str) or
-                ("status is None" in history_str)
-             else (False, "請呼叫 mark_completed() 並驗證回傳的 status 是否為 None！")
+             (True, "stts111 is None 填空驗證正確！")
+             if (g.get("stts111") is None and "mark_completed" in history_str) or
+                ("stts111 is None" in history_str)
+             else (False, "請呼叫 mark_completed() 並驗證回傳的 stts111 是否為 None！")
          )),
 
         ("11-1-6", "練習題", "事件日誌動作函數 log_event 與 log_res is None 檢查", 6, ("log_event", "log_res"),

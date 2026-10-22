@@ -263,9 +263,9 @@ def check_q10(g, hist):
         return False, "尚未正確實作 safe_append_copy 或原始串列被修改。"
     if callable(fn):
         try:
-            src = ["a", "b"]
-            res = fn(src, "c")
-            if res == ["a", "b", "c"] and src == ["a", "b"] and res is not src:
+            src135 = ["a", "b"]
+            got = fn(src135, "c")
+            if got == ["a", "b", "c"] and src135 == ["a", "b"] and got is not src135:
                 return True, "太棒了！無副作用追加新元素，原始串列 100% 未受污染！"
         except Exception as e:
             return False, f"執行 safe_append_copy 時發生例外: {e}"
@@ -309,8 +309,8 @@ def check_q13(g, hist):
         return False, "尚未正確實作 process_testcases_cleanly 或存在狀態殘留。"
     if callable(fn):
         try:
-            data = [[60, 40, 70], [50, 51], [10, 20]]
-            if fn(data) == [130, 51, 0]:
+            case_rows = [[60, 40, 70], [50, 51], [10, 20]]
+            if fn(case_rows) == [130, 51, 0]:
                 return True, "太棒了！每筆測資獨立重設狀態，徹底根絕跨測資污染！"
         except Exception as e:
             return False, f"執行 process_testcases_cleanly 時發生例外: {e}"
@@ -368,8 +368,8 @@ def check_q17(g, hist):
         try:
             f_s = lambda lst: max(lst) if lst else None
             f_f_good = lambda lst: sorted(lst)[-1] if lst else None
-            res = fn(f_s, f_f_good, [[1, 5, 2], [-5, -1], [10]])
-            if res == ("AC", 3):
+            got = fn(f_s, f_f_good, [[1, 5, 2], [-5, -1], [10]])
+            if got == ("AC", 3):
                 return True, "太棒了！對拍測資全數吻合時精準報告 ('AC', 測資數)！"
         except Exception as e:
             return False, f"執行 stress_test_validator 時發生例外: {e}"
@@ -385,12 +385,12 @@ def check_q18(g, hist):
         try:
             f_s = lambda lst: max(lst) if lst else None
             f_f_bad = lambda lst: lst[0] if lst else None
-            res = fn(f_s, f_f_bad, [[10, 20]])
-            if (isinstance(res, tuple) and 
-                res[0] == "WA" and 
-                res[1] == [10, 20] and 
-                res[2] == 20 and 
-                res[3] == 10):
+            got = fn(f_s, f_f_bad, [[10, 20]])
+            if (isinstance(got, tuple) and 
+                got[0] == "WA" and 
+                got[1] == [10, 20] and 
+                got[2] == 20 and 
+                got[3] == 10):
                 return True, "太棒了！對拍中途出現相異時立刻終止並回傳反例與兩者答案！"
         except Exception as e:
             return False, f"執行 stress_test_validator 時發生例外: {e}"

@@ -168,14 +168,14 @@ def auto_grade_unit_10_7(env=None):
         # ----------------------------------------------------------------------
         # 10-7-2 交集運算子 & (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-7-2", "填空題", "求兩數列之公共質數 sample_numbers & primes", 5, (),
+        ("10-7-2", "填空題", "求兩數列之公共質數 sample_ns & primes", 5, (),
          lambda g: (
              (True, "質數交集填空正確！")
              if ("& primes" in history_str or "&primes" in history_clean)
              else (False, "請在 10-7-2 填空題填入 & primes！")
          )),
 
-        ("10-7-2", "練習題", "跨社團共同核心幹部篩選器 (student_council & guitar_club)", 6, (),
+        ("10-7-2", "練習題", "跨社團共同核心幹部篩選器 (stdn_cncl & gtr_clb)", 6, (),
          lambda g: (
              (True, "跨社團雙棲幹部交集篩選正確！")
              if ("&" in history_str or "intersection" in history_str) and ("council" in history_str)
@@ -185,14 +185,14 @@ def auto_grade_unit_10_7(env=None):
         ("10-7-2", "挑戰題", "全勤模範生連續交集篩選 (三天出席名單交集)", 6, (),
          lambda g: (
              (True, "連續三天全勤交集正確！")
-             if ("&" in history_str) and ("day1" in history_str and "day2" in history_str and "day3" in history_str)
+             if ("&" in history_str) and ("dy1" in history_str and "dy2" in history_str and "day3" in history_str)
              else (False, "請計算三天出席名單的交集找出全勤生！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-7-3 聯集運算子 | (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-7-3", "填空題", "合併通訊錄聯絡人 sim1_contacts | sim2_contacts", 5, (),
+        ("10-7-3", "填空題", "合併通訊錄聯絡人 sm1_cntc | sm2_cntc", 5, (),
          lambda g: (
              (True, "通訊錄聯集填空正確！")
              if ("|" in history_str or "union" in history_str)
@@ -206,7 +206,7 @@ def auto_grade_unit_10_7(env=None):
              else (False, "請使用聯集 | 合併三個抽獎箱號碼！")
          )),
 
-        ("10-7-3", "挑戰題", "累計七日訪客動態擴充模擬 (total_visitors |= set(day))", 6, (),
+        ("10-7-3", "挑戰題", "累計七日訪客動態擴充模擬 (tot_vstr |= set(day))", 6, (),
          lambda g: (
              (True, "七日訪客聯集累加正確！")
              if ("|=" in history_str or "|" in history_str or "update" in history_str) and ("visitors" in history_str)
@@ -216,7 +216,7 @@ def auto_grade_unit_10_7(env=None):
         # ----------------------------------------------------------------------
         # 10-7-4 差集運算子 - (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-7-4", "填空題", "現貨商品差集篩選 all_catalog - out_of_stock", 5, (),
+        ("10-7-4", "填空題", "現貨商品差集篩選 all_ctlg - out_stck", 5, (),
          lambda g: (
              (True, "商品差集篩選填空正確！")
              if ("-" in history_str or "difference" in history_str)
@@ -247,7 +247,7 @@ def auto_grade_unit_10_7(env=None):
              else (False, "請在 10-7-5 填空題填入 ^ 運算子！")
          )),
 
-        ("10-7-5", "練習題", "兩份名冊不一致檢測機 (sys_records ^ paper_records)", 6, (),
+        ("10-7-5", "練習題", "兩份名冊不一致檢測機 (sys_rcrd ^ ppr_rcrd)", 6, (),
          lambda g: (
              (True, "名冊不一致對稱差檢測正確！")
              if ("^" in history_str or "symmetric_difference" in history_str) and ("records" in history_str)
@@ -257,25 +257,25 @@ def auto_grade_unit_10_7(env=None):
         ("10-7-5", "挑戰題", "驗證對稱差等價公式 (A | B) - (A & B)", 6, (),
          lambda g: (
              (True, "對稱差等價公式驗證正確！")
-             if ("(set_a | set_b) - (set_a & set_b)" in history_str or "^" in history_str and "-" in history_str)
+             if ("(set | set_b107) - (set & set_b107)" in history_str or "^" in history_str and "-" in history_str)
              else (False, "請驗證 A ^ B 等於 (A | B) - (A & B)！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-7-6 子集與超集判斷 (<=, >=) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-7-6", "填空題", "藥水材料完整度檢查 recipe <= my_backpack", 5, (),
+        ("10-7-6", "填空題", "藥水材料完整度檢查 recipe <= my_bckp", 5, (),
          lambda g: (
              (True, "子集運算子 <= 填空正確！")
              if ("<=" in history_str or "issubset" in history_str)
              else (False, "請在 10-7-6 填空題填入 <= 或 issubset()！")
          )),
 
-        ("10-7-6", "練習題", "任務必備鑰匙齊全檢驗 (required_keys <= backpack)", 6, (),
+        ("10-7-6", "練習題", "任務必備鑰匙齊全檢驗 (rqrd_kys <= backpack)", 6, (),
          lambda g: (
              (True, "必備道具齊全子集檢驗正確！")
              if ("<=" in history_str or "issubset" in history_str) and ("keys" in history_str or "bag" in history_str)
-             else (False, "請以 required_keys <= backpack 判定是否集齊鑰匙！")
+             else (False, "請以 rqrd_kys <= backpack 判定是否集齊鑰匙！")
          )),
 
         ("10-7-6", "挑戰題", "求職者資格符合統計 (standard <= cand_skills)", 5, (),

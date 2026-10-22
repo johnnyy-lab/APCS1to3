@@ -174,7 +174,7 @@ def auto_grade_unit_5_4(env=None):
         # ----------------------------------------------------------------------
         ("5-4-2", "填空題", "笛摩根第一定律代數改寫 (right_side=True)", 6, ("right_side",),
          lambda g: (
-             (True, "笛摩根第一定律填寫正確：(not has_key) or (not has_password)=True！")
+             (True, "笛摩根第一定律填寫正確：(not has_key) or (not has_pssw)=True！")
              if (g.get("right_side") is True) and
                 ("not" in history_str and "or" in history_str)
              else (False, "請在 5-4-2 填空題填入 not、or、not 完成等價改寫！")
@@ -230,10 +230,10 @@ def auto_grade_unit_5_4(env=None):
         # ----------------------------------------------------------------------
         # 5-4-4 比較運算子的對偶反轉——徹底消除比較式外層的 not (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-4-4", "填空題", "消除 not 的正向及格改寫 (passing_positive=True)", 6, ("passing_positive",),
+        ("5-4-4", "填空題", "消除 not 的正向及格改寫 (pssn_pstv=True)", 6, ("pssn_pstv",),
          lambda g: (
-             (True, "對偶反轉消去 not 正確：score >= 60 為 True！")
-             if (g.get("passing_positive") is True) and
+             (True, "對偶反轉消去 not 正確：sc054 >= 60 為 True！")
+             if (g.get("pssn_pstv") is True) and
                 (">=" in history_str)
              else (False, "請在 5-4-4 填空題空格填入 >= 運算子完成及格判定！")
          )),
@@ -257,10 +257,10 @@ def auto_grade_unit_5_4(env=None):
         # ----------------------------------------------------------------------
         # 5-4-5 複合條件化簡實戰 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-4-5", "填空題", "開區間外部化簡以 or 串接 (simplified_expr=True)", 6, ("simplified_expr",),
+        ("5-4-5", "填空題", "開區間外部化簡以 or 串接 (smpl_expr=True)", 6, ("smpl_expr",),
          lambda g: (
              (True, "開區間外部化簡正確：(x <= 10) or (x >= 50) 為 True！")
-             if (g.get("simplified_expr") is True) and
+             if (g.get("smpl_expr") is True) and
                 ("<=" in history_str and ">=" in history_str and "or" in history_str)
              else (False, "請在 5-4-5 填空題空格依序填入 <=、or、>= 完成化簡！")
          )),

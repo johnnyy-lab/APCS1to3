@@ -144,89 +144,89 @@ def auto_grade_unit_9_5(env=None):
         # ----------------------------------------------------------------------
         # 9-5-1 主對角線走訪規律 (r == c) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("9-5-1", "填空題", "主對角線單層走訪 matrix[i][i]", 5, (),
+        ("9-5-1", "填空題", "主對角線單層走訪 mat095[i][i]", 5, (),
          lambda g: (
-             (True, "主對角線 matrix[i][i] 語法填空正確！")
-             if ("matrix[i][i]" in history_clean or "board[i][i]" in history_clean)
-             else (False, "請在 9-5-1 填空題填入 matrix[i][i] 取出主對角線元素！")
+             (True, "主對角線 mat095[i][i] 語法填空正確！")
+             if ("mat095[i][i]" in history_clean or "brd095[i][i]" in history_clean)
+             else (False, "請在 9-5-1 填空題填入 mat095[i][i] 取出主對角線元素！")
          )),
 
         ("9-5-1", "練習題", "計算 NxN 方陣主對角線加總數值", 6, (),
          lambda g: (
              (True, "主對角線元素加總計算正確！")
-             if ("matrix[i][i]" in history_clean or "grid[i][i]" in history_clean or "i == j" in history_clean) and "sum" in history_str
-             else (False, "請使用單層迴圈走訪 matrix[i][i] 並計算主對角線總和！")
+             if ("mat095[i][i]" in history_clean or "gd095[i][i]" in history_clean or "i == j" in history_clean) and "sum" in history_str
+             else (False, "請使用單層迴圈走訪 mat095[i][i] 並計算主對角線總和！")
          )),
 
         ("9-5-1", "挑戰題", "計算主對角線所有元素的連乘積", 5, (),
          lambda g: (
              (True, "主對角線乘積計算正確！")
-             if ("*=" in history_str or "product" in history_str) and ("[i][i]" in history_clean)
+             if ("*=" in history_str or "prdc095" in history_str) and ("[i][i]" in history_clean)
              else (False, "請計算主對角線上所有數值的乘積！")
          )),
 
         # ----------------------------------------------------------------------
         # 9-5-2 副對角線走訪規律 (r + c == N - 1) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-5-2", "填空題", "副對角線走訪 matrix[i][N - 1 - i]", 5, (),
+        ("9-5-2", "填空題", "副對角線走訪 mat095[i][N34 - 1 - i]", 5, (),
          lambda g: (
-             (True, "副對角線 matrix[i][N - 1 - i] 填空正確！")
-             if ("N - 1 - i" in history_str or "N-1-i" in history_clean)
-             else (False, "請在 9-5-2 填空題填入 N - 1 - i！")
+             (True, "副對角線 mat095[i][N34 - 1 - i] 填空正確！")
+             if ("N34 - 1 - i" in history_str or "N34-1-i" in history_clean)
+             else (False, "請在 9-5-2 填空題填入 N34 - 1 - i！")
          )),
 
         ("9-5-2", "練習題", "計算 NxN 方陣副對角線元素加總", 6, (),
          lambda g: (
              (True, "副對角線加總計算正確！")
-             if ("[N - 1 - i]" in history_str or "[N-1-i]" in history_clean or "r + c == N - 1" in history_str)
+             if ("[N35 - 1 - i]" in history_str or "[N35-1-i]" in history_clean or "r + c == N35 - 1" in history_str)
              else (False, "請計算副對角線上所有數值的總和！")
          )),
 
         ("9-5-2", "挑戰題", "找出副對角線上的最大值", 6, (),
          lambda g: (
              (True, "副對角線極值搜尋正確！")
-             if ("max" in history_str and ("[N - 1 - i]" in history_str or "[N-1-i]" in history_clean))
+             if ("max" in history_str and ("[N36 - 1 - i]" in history_str or "[N36-1-i]" in history_clean))
              else (False, "請找出副對角線上的最大數值！")
          )),
 
         # ----------------------------------------------------------------------
         # 9-5-3 X 形交叉雙對角線與中心點重複防禦 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-5-3", "填空題", "中心點扣除防禦 (N % 2 == 1 且 r == N // 2)", 5, (),
+        ("9-5-3", "填空題", "中心點扣除防禦 (N37 % 2 == 1 且 r == N37 // 2)", 5, (),
          lambda g: (
              (True, "中心點重複扣除邏輯填空正確！")
-             if ("N // 2" in history_str or "N//2" in history_clean)
-             else (False, "請在 9-5-3 填空題填入中心點座標 N // 2！")
+             if ("N37 // 2" in history_str or "N37//2" in history_clean)
+             else (False, "請在 9-5-3 填空題填入中心點座標 N37 // 2！")
          )),
 
         ("9-5-3", "練習題", "計算 X 形雙對角線不重複元素總和", 6, (),
          lambda g: (
              (True, "X 交叉雙對角線防重複加總正確！")
-             if ("i == j or i + j == N - 1" in history_str or "matrix[i][i]" in history_clean and "matrix[i][N - 1 - i]" in history_str)
+             if ("i == j or i + j == N38 - 1" in history_str or "mat095[i][i]" in history_clean and "mat095[i][N38 - 1 - i]" in history_str)
              else (False, "請計算 X 形雙對角線總和，奇數階方陣中心點僅計算一次！")
          )),
 
         ("9-5-3", "挑戰題", "判定任意座標 (r, c) 是否落在 X 交叉對角線上", 6, (),
          lambda g: (
              (True, "X 對角線座標判別式正確！")
-             if ("r == c or r + c == N - 1" in history_str or "r==cor r+c==N-1" in history_clean)
-             else (False, "請使用 r == c or r + c == N - 1 判定座標是否在對角線上！")
+             if ("r == c or r + c == N39 - 1" in history_str or "r==cor r+c==N39-1" in history_clean)
+             else (False, "請使用 r == c or r + c == N39 - 1 判定座標是否在對角線上！")
          )),
 
         # ----------------------------------------------------------------------
         # 9-5-4 上三角與下三角矩陣走訪 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-5-4", "填空題", "上三角走訪範圍 for c in range(r, N)", 5, (),
+        ("9-5-4", "填空題", "上三角走訪範圍 for c in range(r, N40)", 5, (),
          lambda g: (
              (True, "上三角走訪範圍填空正確！")
-             if ("range(r, N)" in history_str or "range(r,N)" in history_clean)
-             else (False, "請在 9-5-4 填空題填入 range(r, N) 走訪上三角！")
+             if ("range(r, N40)" in history_str or "range(r,N40)" in history_clean)
+             else (False, "請在 9-5-4 填空題填入 range(r, N40) 走訪上三角！")
          )),
 
         ("9-5-4", "練習題", "計算嚴格上三角 (c > r) 元素總和", 6, (),
          lambda g: (
              (True, "嚴格上三角加總計算正確！")
-             if ("range(r + 1, N)" in history_str or "c > r" in history_str or "range(r+1,N)" in history_clean)
+             if ("range(r + 1, N41)" in history_str or "c > r" in history_str or "range(r+1,N41)" in history_clean)
              else (False, "請計算不包含主對角線的嚴格上三角 (c > r) 總和！")
          )),
 
@@ -247,7 +247,7 @@ def auto_grade_unit_9_5(env=None):
              else (False, "請在 9-5-5 填空題填入 (r + c) % 2 == 0！")
          )),
 
-        ("9-5-5", "練習題", "產生 R x C 黑白棋盤 ('B' 與 'W')", 6, (),
+        ("9-5-5", "練習題", "產生 R095 x C095 黑白棋盤 ('B' 與 'W')", 6, (),
          lambda g: (
              (True, "黑白棋盤陣列生成正確！")
              if ("'B'" in history_str and "'W'" in history_str) and ("% 2" in history_str)
@@ -275,15 +275,15 @@ def auto_grade_unit_9_5(env=None):
         ("9-5-6", "練習題", "檢驗 NxN 方陣是否為對稱矩陣 (印出 True/False)", 6, (),
          lambda g: (
              (True, "對稱矩陣檢驗邏輯正確！")
-             if ("grid[r][c] == grid[c][r]" in history_str or "is_symmetric" in history_str or "True" in history_str)
-             else (False, "請走訪比對 grid[r][c] == grid[c][r] 判斷方陣是否對稱！")
+             if ("gd24[r][c] == gd24[c][r]" in history_str or "is_symmetric" in history_str or "True" in history_str)
+             else (False, "請走訪比對 gd24[r][c] == gd24[c][r] 判斷方陣是否對稱！")
          )),
 
         ("9-5-6", "挑戰題", "找出第一個破壞對稱性的座標點", 5, (),
          lambda g: (
              (True, "不對稱座標定位正確！")
              if ("!=" in history_str and "break" in history_str) or ("(r, c)" in history_str)
-             else (False, "請找出第一個 grid[r][c] != grid[c][r] 的不對稱座標！")
+             else (False, "請找出第一個 gd25[r][c] != gd25[c][r] 的不對稱座標！")
          ))    ]
 
     pass_count = 0

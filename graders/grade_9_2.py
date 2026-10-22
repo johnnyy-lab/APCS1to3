@@ -251,11 +251,11 @@ def auto_grade_unit_9_2(env=None):
              else (False, "請在 9-2-5 填空題填入 :3d 格式化設定！")
          )),
 
-        ("9-2-5", "練習題", "雙重迴圈與 f'{val:5d}' 工整印出", 6, (),
+        ("9-2-5", "練習題", "雙重迴圈與 f'{fmt_num:5d}' 工整印出", 6, (),
          lambda g: (
              (True, "雙重迴圈搭配 :5d 工整排版正確！")
              if (":5d" in history_str and "end=" in history_str) or ("2   10  800" in history_str)
-             else (False, "請使用雙重迴圈搭配 f'{val:5d}' 與 end='' 排版輸出！")
+             else (False, "請使用雙重迴圈搭配 f'{fmt_num:5d}' 與 end='' 排版輸出！")
          )),
 
         ("9-2-5", "挑戰題", "3x3 乘法表排版輸出", 6, (),

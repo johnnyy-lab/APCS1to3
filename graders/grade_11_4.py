@@ -169,11 +169,11 @@ def auto_grade_unit_11_4(env=None):
         # ----------------------------------------------------------------------
         # 11-4-1 區域作用域 (Local Scope) 獨立王國 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-4-1", "填空題", "三角形面積區域變數封裝 get_triangle_area(b, h)", 5, ("result_area", "get_triangle_area"),
+        ("11-4-1", "填空題", "三角形面積區域變數封裝 get_triangle_area(b, h)", 5, ("out_ar", "get_triangle_area"),
          lambda g: (
              (True, "get_triangle_area 區域變數填空正確！")
              if (callable(g.get("get_triangle_area")) and g.get("get_triangle_area")(10, 6) == 30.0) or
-                (g.get("result_area") == 30.0) or
+                (g.get("out_ar") == 30.0) or
                 ("b * h / 2" in history_str)
              else (False, "請在 get_triangle_area 內定義區域變數計算面積並 return！")
          )),
@@ -204,7 +204,7 @@ def auto_grade_unit_11_4(env=None):
          lambda g: (
              (True, "greet_guest 生命週期填空正確！")
              if (callable(g.get("greet_guest"))) or
-                ("greet_guest" in history_str and "msg1" in history_str)
+                ("greet_guest" in history_str and "msg1114" in history_str)
              else (False, "請呼叫 greet_guest 驗證其內部區域變數在函數結束後不殘留！")
          )),
 
@@ -247,20 +247,20 @@ def auto_grade_unit_11_4(env=None):
         ("11-4-3", "挑戰題", "全域、區域與參數同名遮蔽就近原則驗證", 6, (),
          lambda g: (
              (True, "就近原則遮蔽驗證正確！")
-             if (("scope_tag" in history_str or "val" in history_str) and "shadow" in history_str) or
-                ("shadow" in history_str or "scope_tag = " in history_str or "val = 10" in history_str)
-             else (False, "請設計範例驗證同名變數依據就近原則優先採用區域變數！")
+             if ("scope_tag" in history_str and "shadow" in history_str) or
+                ("shadow" in history_str or "scope_tag = " in history_str)
+             else (False, "請用 scope_tag 驗證同名變數依就近原則優先採用區域變數！")
          )),
 
         # ----------------------------------------------------------------------
         # 11-4-4 函數內部「唯讀」存取全域變數 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-4-4", "填空題", "及格門檻唯讀全域變數 check_pass 與 PASS_STANDARD", 5, ("check_pass",),
+        ("11-4-4", "填空題", "及格門檻唯讀全域變數 check_pass 與 PSS_STND", 5, ("check_pass",),
          lambda g: (
              (True, "check_pass 唯讀全域填空正確！")
              if (callable(g.get("check_pass"))) or
-                ("PASS_STANDARD" in history_str)
-             else (False, "請在 check_pass 內直接讀取全域常數 PASS_STANDARD 進行比較！")
+                ("PSS_STND" in history_str)
+             else (False, "請在 check_pass 內直接讀取全域常數 PSS_STND 進行比較！")
          )),
 
         ("11-4-4", "練習題", "匯率轉換唯讀全域常數 exchange_to_twd(usd_amount)", 6, ("exchange_to_twd",),

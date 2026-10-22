@@ -151,11 +151,11 @@ def auto_grade_unit_9_3(env=None):
              else (False, "請在 9-3-1 填空題執行並觀察 trap_grid 的參照連動！")
          )),
 
-        ("9-3-1", "練習題", "刻意使用乘號建立 2x3 trap_matrix 並修改驗證", 6, ("trap_matrix",),
+        ("9-3-1", "練習題", "刻意使用乘號建立 2x3 trp_mat 並修改驗證", 6, ("trp_mat",),
          lambda g: (
-             (True, "trap_matrix 乘法陷阱驗證正確！")
-             if ("trap_matrix" in history_str and "* 2" in history_str) or ("trap_matrix" in g)
-             else (False, "請故意使用 [[0]*3]*2 建立 trap_matrix 並修改第 0 列元素觀察連動！")
+             (True, "trp_mat 乘法陷阱驗證正確！")
+             if ("trp_mat" in history_str and "* 2" in history_str) or ("trp_mat" in g)
+             else (False, "請故意使用 [[0]*3]*2 建立 trp_mat 並修改第 0 列元素觀察連動！")
          )),
 
         ("9-3-1", "挑戰題", "預測 trap[3][0] 數值", 5, (),
@@ -259,7 +259,7 @@ def auto_grade_unit_9_3(env=None):
          lambda g: (
              (True, "NxN 座標和矩陣建立正確！")
              if ("r + c" in history_str or "r+c" in history_clean) and "print(*row)" in history_str
-             else (False, "請建立 N x N 矩陣，每格值為 r + c 並解包印出！")
+             else (False, "請建立 N093 x N093 矩陣，每格值為 r + c 並解包印出！")
          )),
 
         # ----------------------------------------------------------------------

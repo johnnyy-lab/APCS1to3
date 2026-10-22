@@ -152,12 +152,12 @@ def auto_grade_unit_8_7(env=None):
              else (False, "請在 8-7-1 填空題填入次方數 3 與 range 終點 6！")
          )),
 
-        ("8-7-1", "練習題", "整數兩倍串列生成 (doubled = [x * 2 for x in nums])", 9, (),
+        ("8-7-1", "練習題", "整數兩倍串列生成 (doubled = [x * 2 for x in ns6])", 9, (),
          lambda g: (
              (True, "兩倍數值列表生成式運算正確！")
-             if ("[x * 2 for x in nums]" in history_str or "[x*2forxinnums]" in history_clean) or
+             if ("[x * 2 for x in ns6]" in history_str or "[x*2forxinnums]" in history_clean) or
                 ("[4, 10, 16, 20]" in history_str or "[0, -6, 14]" in history_str)
-             else (False, "請使用列表生成式產出 doubled = [x * 2 for x in nums] 並印出！")
+             else (False, "請使用列表生成式產出 doubled = [x * 2 for x in ns6] 並印出！")
          )),
 
         ("8-7-1", "挑戰題", "前 8 個正偶數一行生成 ([2, 4, ... 16])", 5, (),
@@ -172,11 +172,11 @@ def auto_grade_unit_8_7(env=None):
         # ----------------------------------------------------------------------
         # 8-7-2 列表生成式搭配條件篩選：[... if 條件] (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-7-2", "填空題", "末端 if 篩選不及格分數 ([s for s in scores if s < 60])", 6, ("failed",),
+        ("8-7-2", "填空題", "末端 if 篩選不及格分數 ([s for s in sc087 if s < 60])", 6, ("failed",),
          lambda g: (
              (True, "末端 if 條件過濾不及格分數正確！")
              if g.get("failed") == [48, 59, 30] or
-                ("[s for s in scores if s < 60]" in history_str or "[sforsinscoresifs<60]" in history_clean)
+                ("[s for s in sc087 if s < 60]" in history_str or "[sforsinscoresifs<60]" in history_clean)
              else (False, "請在 8-7-2 填空題空格填入 if 與不及格門檻 60！")
          )),
 
@@ -208,13 +208,13 @@ def auto_grade_unit_8_7(env=None):
              else (False, "請在 8-7-3 填空題填入轉型函數 float！")
          )),
 
-        ("8-7-3", "練習題", "同行整數輸入轉換與總和平均 ([int(x) for x in line.split()])", 9, (),
+        ("8-7-3", "練習題", "同行整數輸入轉換與總和平均 ([int(x) for x in ln.split()])", 9, (),
          lambda g: (
              (True, "同行字串轉整數串列與 sum/avg 計算正確！")
-             if ("[int(x) for x in line.split()]" in history_str or "[int(x)forxinline.split()]" in history_clean) and
+             if ("[int(x) for x in ln.split()]" in history_str or "[int(x)forxinline.split()]" in history_clean) and
                 ("總和:" in history_str and "平均:" in history_str) or
                 ("總和: 414 平均: 82" in history_str or "總和: 60 平均: 20" in history_str)
-             else (False, "請使用 [int(x) for x in line.split()] 轉換並輸出總和與平均！")
+             else (False, "請使用 [int(x) for x in ln.split()] 轉換並輸出總和與平均！")
          )),
 
         ("8-7-3", "挑戰題", "同行輸入正整數過濾與極值總和統計", 5, (),
@@ -236,10 +236,10 @@ def auto_grade_unit_8_7(env=None):
              else (False, "請在 8-7-4 填空題空格依序填入 if 與 else！")
          )),
 
-        ("8-7-4", "練習題", "滿百折 20 前置三元折扣計算 (discounted_prices)", 9, (),
+        ("8-7-4", "練習題", "滿百折 20 前置三元折扣計算 (dscn_prcs)", 9, (),
          lambda g: (
              (True, "滿百折 20 前置 if-else 折扣計算輸出正確！")
-             if ("[p - 20 if p >= 100 else p for p in prices]" in history_str or
+             if ("[p - 20 if p >= 100 else p for p in prcs]" in history_str or
                  "[p-20ifp>=100elsepforpinprices]" in history_clean) or
                 ("[100, 45, 280, 80, 480]" in history_str or "[80, 99]" in history_str)
              else (False, "請使用前置 if-else 生成式：滿百折 20，未滿百維持原價！")

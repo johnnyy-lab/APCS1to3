@@ -146,7 +146,7 @@ def auto_grade_unit_5_6(env=None):
         ("5-6-1", "填空題", "遊樂設施雙重條件巢狀檢驗 (TOO SHORT)", 6, (),
          lambda g: (
              (True, "巢狀 if-else 填寫正確：成功印出 TOO SHORT！")
-             if (("if height >= 140" in history_str or "if height>=140" in history_str) and
+             if (("if h056 >= 140" in history_str or "if h056>=140" in history_str) and
                  ("else:" in history_str.replace(" ", "")))
              else (False, "請在 5-6-1 填空題空格填入 if 與 else:！")
          )),
@@ -202,10 +202,10 @@ def auto_grade_unit_5_6(env=None):
         # ----------------------------------------------------------------------
         # 5-6-3 and 短路求值機制——除數防零檢查 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-6-3", "填空題", "整除防零檢查器 (is_divisible=False)", 6, ("is_divisible",),
+        ("5-6-3", "填空題", "整除防零檢查器 (dvsb=False)", 6, ("dvsb",),
          lambda g: (
-             (True, "除數防零 and 短路保護填寫正確：is_divisible=False！")
-             if (g.get("is_divisible") is False) and
+             (True, "除數防零 and 短路保護填寫正確：dvsb=False！")
+             if (g.get("dvsb") is False) and
                 (("divisor!=0" in history_str.replace(" ", "") or "divisor != 0" in history_str) and "and" in history_str)
              else (False, "請在 5-6-3 填空題填入 divisor != 0 與 and！")
          )),
@@ -263,9 +263,9 @@ def auto_grade_unit_5_6(env=None):
         ("5-6-5", "填空題", "開根號前之非負防禦 (root_num >= 0)", 6, (),
          lambda g: (
              (True, "實數開根號非負防線填寫正確！")
-             if (("if root_num >= 0" in history_str or "if root_num>=0" in history_str or "if val >= 0" in history_str or "if val>=0" in history_str) and
+             if (("if root_num >= 0" in history_str or "if root_num>=0" in history_str) and
                  ("else:" in history_str.replace(" ", "")))
-             else (False, "請在 5-6-5 填空題空格填入 if 與 else:！")
+             else (False, "請在 5-6-5 填空題空格填入 if root_num >= 0 與 else:！")
          )),
 
         ("5-6-5", "練習題", "兩數整除性除數防零雙重防線 (DIVISION BY ZERO)", 8, ("num_a", "num_b"),
@@ -277,13 +277,13 @@ def auto_grade_unit_5_6(env=None):
              else (False, "請讀入 num_a 與 num_b，先防線 num_b == 0，再判定 num_a % num_b == 0！")
          )),
 
-        ("5-6-5", "挑戰題", "梯形面積計算防呆安全審查 (INVALID SHAPE)", 6, ("upper", "lower", "height"),
+        ("5-6-5", "挑戰題", "梯形面積計算防呆安全審查 (INVALID SHAPE)", 6, ("upper", "lower", "h056"),
          lambda g: (
              (True, "梯形邊長非負防呆與面積計算成功！")
              if (("INVALID SHAPE" in history_str and "// 2" in history_str) or
-                 ("upper > 0 and lower > 0 and height > 0" in history_str.replace(" ", ""))) or
-                (all(k in g for k in ["upper", "lower", "height"]))
-             else (False, "請讀入 upper, lower, height，三者均大於 0 才計算面積！")
+                 ("upper > 0 and lower > 0 and h056 > 0" in history_str.replace(" ", ""))) or
+                (all(k in g for k in ["upper", "lower", "h056"]))
+             else (False, "請讀入 upper, lower, h056，三者均大於 0 才計算面積！")
          )),
     ]
 

@@ -220,7 +220,7 @@ def auto_grade_unit_2_5(env=None):
          lambda g: (
              (True, "斜邊容差安全比對成功（判定為 True）！")
              if (g.get("calc_c") is not None and abs(g.get("calc_c") - 0.5) < 1e-6) or
-                any(v is True for k, v in g.items() if "check" in k or "safe" in k or "ans" in k or "is_" in k)
+                any(v is True for k, v in g.items() if "check" in k or "safe" in k or "is_" in k)
              else (False, "請計算 calc_c = (a**2 + b**2)**0.5，並以 abs(calc_c - target_c) < 1e-9 比對！")
          )),
 

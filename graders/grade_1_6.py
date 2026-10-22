@@ -187,10 +187,10 @@ def auto_grade_unit_1_6(env=None):
          lambda g: (True, "運算子呼吸留白正確：sum_result = 120") if g.get("sum_result") == 120
          else (False, "找不到變數 sum_result 或數值不為 120，請填入帶空格的 = 與 +")),
 
-        ("1-6-4", "練習題", "擁擠算式美化重排 calc_result", 10, ("calc_result",),
-         lambda g: (True, f"算式美化重排計算成功：calc_result = {g.get('calc_result')}")
-         if g.get("calc_result") in [17, 46]
-         else (False, "變數 calc_result 數值不符合測資（預期 17 或 46）")),
+        ("1-6-4", "練習題", "擁擠算式美化重排 clc_out", 10, ("clc_out",),
+         lambda g: (True, f"算式美化重排計算成功：clc_out = {g.get('clc_out')}")
+         if g.get("clc_out") in [17, 46]
+         else (False, "變數 clc_out 數值不符合測資（預期 17 或 46）")),
 
         ("1-6-4", "挑戰題", "文具店結帳清單頂尖工程師排版", 8, ("pen", "notebook", "ruler"),
          lambda g: (True, "文具店結帳變數設定與總價計算正確！")

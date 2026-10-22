@@ -151,12 +151,12 @@ def auto_grade_unit_4_4(env=None):
              else (False, "請在 4-4-1 填空題空格依序填入 star_name 與 magnitude 並執行！")
          )),
 
-        ("4-4-1", "練習題", "校慶田徑賽選手成績看板 (athlete, event, score)", 8, ("athlete", "event", "score"),
+        ("4-4-1", "練習題", "校慶田徑賽選手成績看板 (athlete, event, sc044)", 8, ("athlete", "event", "sc044"),
          lambda g: (
-             (True, f"選手成績單行混合輸出成功：{g.get('athlete')} {g.get('event')} {g.get('score')}！")
-             if (("athlete" in g and "event" in g and "score" in g) and
+             (True, f"選手成績單行混合輸出成功：{g.get('athlete')} {g.get('event')} {g.get('sc044')}！")
+             if (("athlete" in g and "event" in g and "sc044" in g) and
                  ("選手：" in history_str or "公尺" in history_str))
-             else (False, "請宣告 athlete, event, score 並使用單一行 print() 混合輸出文字標籤與變數！")
+             else (False, "請宣告 athlete, event, sc044 並使用單一行 print() 混合輸出文字標籤與變數！")
          )),
 
         ("4-4-1", "挑戰題", "深空探測船監控儀表板 (probe_name, distance_au, battery_pct)", 6, ("probe_name", "distance_au", "battery_pct"),
@@ -170,11 +170,11 @@ def auto_grade_unit_4_4(env=None):
         # ----------------------------------------------------------------------
         # 4-4-2 在 print() 中即時運算——算式先求值後輸出的精簡美學 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-4-2", "填空題", "披薩平分整除與取餘數即時運算 (// 與 %)", 6, ("total_slices",),
+        ("4-4-2", "填空題", "披薩平分整除與取餘數即時運算 (// 與 %)", 6, ("tot_slcs",),
          lambda g: (
              (True, "即時運算填寫正確：成功使用 // 整除與 % 取餘數！")
              if (("//" in history_str and "%" in history_str) and
-                 ("total_slices" in history_str or g.get("total_slices") == 26))
+                 ("tot_slcs" in history_str or g.get("tot_slcs") == 26))
              else (False, "請在 4-4-2 填空題空格填入 // 與 % 運算子並執行儲存格！")
          )),
 
@@ -225,11 +225,11 @@ def auto_grade_unit_4_4(env=None):
         # ----------------------------------------------------------------------
         # 4-4-4 連續跨行與接續排版——結合 end 參數建構連貫算式與計算歷程 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-4-4", "填空題", "連乘算式不換行留空格 (end=' ')", 6, ("num1",),
+        ("4-4-4", "填空題", "連乘算式不換行留空格 (end=' ')", 6, ("nm1",),
          lambda g: (
              (True, "算式接續設定正確：end=' '！")
              if (("end=' '" in history_str or 'end=" "' in history_str) and
-                 ("算式" in history_str or g.get("num1") == 3))
+                 ("算式" in history_str or g.get("nm1") == 3))
              else (False, "請在 4-4-4 填空題空格填入 end=' ' 並執行儲存格！")
          )),
 
@@ -252,11 +252,11 @@ def auto_grade_unit_4_4(env=None):
         # ----------------------------------------------------------------------
         # 4-4-5 實戰全能儀表板——變數、即時運算、sep 與 end 的終極融合 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-4-5", "填空題", "成績單內建函數 round 與 max (round, max)", 6, ("chinese",),
+        ("4-4-5", "填空題", "成績單內建函數 round 與 max (round, max)", 6, ("chns",),
          lambda g: (
              (True, "內建函數填寫正確：round 與 max！")
              if (("round" in history_str and "max" in history_str) and
-                 ("學生段考成績單" in history_str or g.get("chinese") == 92))
+                 ("學生段考成績單" in history_str or g.get("chns") == 92))
              else (False, "請在 4-4-5 填空題空格填入 round 與 max 函數名稱並執行！")
          )),
 

@@ -152,7 +152,7 @@ def auto_grade_unit_9_4(env=None):
              else (False, "請在 9-4-1 填空題填入 range(R) 與 range(C)！")
          )),
 
-        ("9-4-1", "練習題", "雙重迴圈逐一走訪並印出座標與值 (r, c): val", 6, (),
+        ("9-4-1", "練習題", "雙重迴圈逐一走訪並印出每個元素 matrix[r][c]", 6, (),
          lambda g: (
              (True, "雙重迴圈走訪印出元素正確！")
              if ("matrix[r][c]" in history_clean or "grid[r][c]" in history_clean) and "print" in history_str
@@ -246,10 +246,10 @@ def auto_grade_unit_9_4(env=None):
         # ----------------------------------------------------------------------
         # 9-4-5 全網格全域極值搜尋與座標定位 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-4-5", "填空題", "搜尋最小值與座標定位 (min_val, min_r, min_c)", 5, (),
+        ("9-4-5", "填空題", "搜尋最小值與座標定位 (min_val094, min_r, min_c)", 5, (),
          lambda g: (
              (True, "全域最小值與座標搜尋填空正確！")
-             if ("min_val" in history_str and "depth[r][c]" in history_clean) or
+             if ("min_val094" in history_str and "depth[r][c]" in history_clean) or
                 ("min_r = r" in history_str or "min_c = c" in history_str)
              else (False, "請在 9-4-5 填空題填入比對條件與座標更新！")
          )),
@@ -278,7 +278,7 @@ def auto_grade_unit_9_4(env=None):
              else (False, "請在 9-4-6 填空題填入 score < 60 與計數累加！")
          )),
 
-        ("9-4-6", "練習題", "統計網格中所有偶數 (val % 2 == 0) 總個數", 6, (),
+        ("9-4-6", "練習題", "統計網格中所有偶數 (grid[r][c] % 2 == 0) 總個數", 6, (),
          lambda g: (
              (True, "網格偶數計數正確！")
              if ("% 2 == 0" in history_clean or "%2==0" in history_clean) and ("count" in history_str or "+= 1" in history_str)

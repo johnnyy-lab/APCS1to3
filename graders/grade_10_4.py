@@ -148,61 +148,61 @@ def auto_grade_unit_10_4(env=None):
          lambda g: (
              (True, "get() 安全取值填空正確！")
              if ("menu.get" in history_str and "-1" in history_str) or ("get(" in history_str and "-1" in history_str)
-             else (False, "請在 10-4-1 填空題填入 menu.get(item_name, -1)！")
+             else (False, "請在 10-4-1 填空題填入 menu.get(itm_nm104, -1)！")
          )),
 
-        ("10-4-1", "練習題", "單字積分查詢器 (word_points.get(w, 0))", 6, (),
+        ("10-4-1", "練習題", "單字積分查詢器 (wrd_pt.get(w, 0))", 6, (),
          lambda g: (
              (True, "單字積分安全累加正確！")
-             if (".get(" in history_str and "0" in history_str) or ("word_points" in history_str)
+             if (".get(" in history_str and "0" in history_str) or ("wrd_pt" in history_str)
              else (False, "請使用 .get(w, 0) 累加查詢單字的分數！")
          )),
 
-        ("10-4-1", "挑戰題", "不使用 if-else 之計數器累加 counts[w] = counts.get(w, 0) + 1", 5, (),
+        ("10-4-1", "挑戰題", "不使用 if-else 之計數器累加 cnts[w] = cnts.get(w, 0) + 1", 5, (),
          lambda g: (
              (True, "一行 get() 計數器實作正確！")
              if ("get(" in history_str and "+ 1" in history_str) or ("get(" in history_str and "+1" in history_clean)
-             else (False, "請使用 counts[w] = counts.get(w, 0) + 1 實現無分支計數！")
+             else (False, "請使用 cnts[w] = cnts.get(w, 0) + 1 實現無分支計數！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-4-2 成員檢查：key in d 與 key not in d (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-4-2", "填空題", "使用 not in 檢查庫存 item not in inventory", 5, (),
+        ("10-4-2", "填空題", "使用 not in 檢查庫存 item not in invn104", 5, (),
          lambda g: (
              (True, "not in 成員檢查填空正確！")
-             if ("not in inventory" in history_str or "notin inventory" in history_clean or "not in" in history_str)
-             else (False, "請在 10-4-2 填空題填入 not in inventory！")
+             if ("not in invn104" in history_str or "notin invn104" in history_clean or "not in" in history_str)
+             else (False, "請在 10-4-2 填空題填入 not in invn104！")
          )),
 
-        ("10-4-2", "練習題", "黑名單訪客即時過濾系統 (ip in blacklist)", 6, (),
+        ("10-4-2", "練習題", "黑名單訪客即時過濾系統 (ip in blck)", 6, (),
          lambda g: (
              (True, "黑名單即時判定正確！")
-             if ("in blacklist" in history_str or "not in blacklist" in history_str)
+             if ("in blck" in history_str or "not in blck" in history_str)
              else (False, "請以 O(1) in 運算子檢查訪客 IP 是否在黑名單中！")
          )),
 
         ("10-4-2", "挑戰題", "兩數之和（Two Sum）O(N) 雜湊字典解法", 6, (),
          lambda g: (
              (True, "Two Sum 字典雜湊解法正確！")
-             if ("target - num" in history_str or "target - x" in history_str or "target-num" in history_clean) and ("in seen" in history_str)
+             if ("tg104 - num" in history_str or "tg104 - x" in history_str or "tg104-num" in history_clean) and ("in seen" in history_str)
              else (False, "請使用 seen 字典記錄數值與索引，以 O(N) 找出兩數之和目標！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-4-3 鍵走訪：for k in d 或 d.keys() (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-4-3", "填空題", "走訪庫存不足商品 for item in stock", 5, (),
+        ("10-4-3", "填空題", "走訪庫存不足商品 for item in stck", 5, (),
          lambda g: (
              (True, "鍵走訪與條件篩選填空正確！")
-             if ("in stock" in history_str and "shortage_items" in history_str)
-             else (False, "請在 10-4-3 填空題走訪 stock 並篩選庫存 < 5 的商品！")
+             if ("in stck" in history_str and "shrt_itms" in history_str)
+             else (False, "請在 10-4-3 填空題走訪 stck 並篩選庫存 < 5 的商品！")
          )),
 
-        ("10-4-3", "練習題", "及格名單公告系統 (走訪 exam_results 鍵)", 6, (),
+        ("10-4-3", "練習題", "及格名單公告系統 (走訪 exm_outs 鍵)", 6, (),
          lambda g: (
              (True, "學生成績及格名單走訪正確！")
-             if ("for name in exam_results" in history_str or "for student in" in history_str or "in exam_results" in history_str) and (">= 60" in history_str)
+             if ("for name in exm_outs" in history_str or "for student in" in history_str or "in exm_outs" in history_str) and (">= 60" in history_str)
              else (False, "請走訪學生姓名並篩選成績 >= 60 的學生！")
          )),
 
@@ -216,11 +216,11 @@ def auto_grade_unit_10_4(env=None):
         # ----------------------------------------------------------------------
         # 10-4-4 值走訪：d.values() 與極值統計 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-4-4", "填空題", "sum(exam_scores.values()) 計算總分與平均", 5, (),
+        ("10-4-4", "填空題", "sum(exm_sc.values()) 計算總分與平均", 5, (),
          lambda g: (
              (True, "values() 總和統計填空正確！")
              if ("values()" in history_clean)
-             else (False, "請在 10-4-4 填空題填入 exam_scores.values()！")
+             else (False, "請在 10-4-4 填空題填入 exm_sc.values()！")
          )),
 
         ("10-4-4", "練習題", "數據離群值計數 (sum/len 計算平均溫度)", 6, (),
@@ -240,7 +240,7 @@ def auto_grade_unit_10_4(env=None):
         # ----------------------------------------------------------------------
         # 10-4-5 鍵值對走訪：for k, v in d.items() (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-4-5", "填空題", "雙變數解包走訪 for drink, price in drink_menu.items()", 5, (),
+        ("10-4-5", "填空題", "雙變數解包走訪 for drink, prc104 in drink_menu.items()", 5, (),
          lambda g: (
              (True, "items() 雙變數解包走訪填空正確！")
              if ("drink_menu.items()" in history_clean or "items()" in history_str)
@@ -250,7 +250,7 @@ def auto_grade_unit_10_4(env=None):
         ("10-4-5", "練習題", "最高分得主尋找 (items 走訪維護 max_player)", 6, (),
          lambda g: (
              (True, "最高分得主走訪搜尋正確！")
-             if ("items()" in history_str and "leaderboard" in history_str) and ("> max_score" in history_str or "> max" in history_str)
+             if ("items()" in history_str and "board104" in history_str) and ("> max_score" in history_str or "> max" in history_str)
              else (False, "請透過 items() 走訪找出獲得最高分的玩家！")
          )),
 
@@ -271,10 +271,10 @@ def auto_grade_unit_10_4(env=None):
              else (False, "請在 10-4-6 填空題填入 raw_scores.items() 與 60！")
          )),
 
-        ("10-4-6", "練習題", "字串長度索引字典 {w: len(w) for w in words if len(w) >= 4}", 6, (),
+        ("10-4-6", "練習題", "字串長度索引字典 {w: len(w) for w in wrds104 if len(w) >= 4}", 6, (),
          lambda g: (
              (True, "字串長度生成式字典正確！")
-             if ("len(" in history_str and "for" in history_str and "words" in history_str)
+             if ("len(" in history_str and "for" in history_str and "wrds104" in history_str)
              else (False, "請以字典生成式挑選長度 >= 4 的單字建立字典！")
          )),
 

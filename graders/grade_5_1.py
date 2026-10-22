@@ -143,17 +143,17 @@ def auto_grade_unit_5_1(env=None):
         # ----------------------------------------------------------------------
         # 5-1-1 數值大小比較——大於（>）、小於（<）、大於等於（>=）、小於等於（<=） (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-1-1", "填空題", "圖書館借閱與逾期檢驗 (is_books_valid, has_overdue)", 6, ("is_books_valid", "has_overdue"),
+        ("5-1-1", "填空題", "圖書館借閱與逾期檢驗 (bks_vld, has_ovrd)", 6, ("bks_vld", "has_ovrd"),
          lambda g: (
-             (True, "比較運算子填寫正確：is_books_valid=True 且 has_overdue=True！")
-             if (g.get("is_books_valid") is True and g.get("has_overdue") is True) or
-                ("books <= 10" in history_str.replace(" ", "") and "overdue_days > 0" in history_str.replace(" ", ""))
+             (True, "比較運算子填寫正確：bks_vld=True 且 has_ovrd=True！")
+             if (g.get("bks_vld") is True and g.get("has_ovrd") is True) or
+                ("books <= 10" in history_str.replace(" ", "") and "ovrd_dys > 0" in history_str.replace(" ", ""))
              else (
-                 (False, "is_books_valid 判斷未通過：8 本不超過 10 本應為 True，請確認是否填入 <= 10！")
-                 if (g.get("is_books_valid") is False)
+                 (False, "bks_vld 判斷未通過：8 本不超過 10 本應為 True，請確認是否填入 <= 10！")
+                 if (g.get("bks_vld") is False)
                  else (
-                     (False, "has_overdue 判斷未通過：逾期 3 天大於 0 天應為 True，請確認是否填入 > 0！")
-                     if (g.get("has_overdue") is False)
+                     (False, "has_ovrd 判斷未通過：逾期 3 天大於 0 天應為 True，請確認是否填入 > 0！")
+                     if (g.get("has_ovrd") is False)
                      else (False, "請在 5-1-1 填空題填入 <= 與 > 並點擊播放鍵 ▶ 執行！")
                  )
              )
@@ -182,11 +182,11 @@ def auto_grade_unit_5_1(env=None):
         # ----------------------------------------------------------------------
         # 5-1-2 嚴格相等與不相等——雙等號（==）與驚嘆號等號（!=） (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-1-2", "填空題", "門禁通行驗證與實名登記 (is_auth_success, needs_registration)", 6, ("is_auth_success", "needs_registration"),
+        ("5-1-2", "填空題", "門禁通行驗證與實名登記 (ath_sccs, nds_rgst)", 6, ("ath_sccs", "nds_rgst"),
          lambda g: (
-             (True, "金鑰與訪客代碼驗證正確：is_auth_success=True 且 needs_registration=True！")
-             if (g.get("is_auth_success") is True and g.get("needs_registration") is True) or
-                ("user_key == system_key" in history_str.replace(" ", "") and "visitor_code != 0" in history_str.replace(" ", ""))
+             (True, "金鑰與訪客代碼驗證正確：ath_sccs=True 且 nds_rgst=True！")
+             if (g.get("ath_sccs") is True and g.get("nds_rgst") is True) or
+                ("user_key == system_key" in history_str.replace(" ", "") and "vis_cd != 0" in history_str.replace(" ", ""))
              else (False, "請在 5-1-2 填空題填入雙等號 == 與不等於 != 並點擊播放鍵 ▶ 執行！")
          )),
 
@@ -211,13 +211,13 @@ def auto_grade_unit_5_1(env=None):
         # ----------------------------------------------------------------------
         # 5-1-3 運算式與運算優先級——先算術運算，再進行大小比較 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-1-3", "填空題", "矩形與正方形面積大比拼 (square_area, is_rect_larger)", 6, ("rect_area", "square_area", "is_rect_larger"),
+        ("5-1-3", "填空題", "矩形與正方形面積大比拼 (sqr_ar, rct_lrgr)", 6, ("rect_area", "sqr_ar", "rct_lrgr"),
          lambda g: (
-             (True, "幾何面積與運算優先級正確：square_area=49 且 is_rect_larger=True！")
-             if (g.get("rect_area") == 60 and g.get("square_area") == 49 and g.get("is_rect_larger") is True) or
-                (("side ** 2" in history_str or "side**2" in history_str or "side * side" in history_str) and
-                 ("rect_area > square_area" in history_str.replace(" ", "")))
-             else (False, "正方形面積應填入 side ** 2（49），且判斷長方形面積是否大於正方形面積（>）！")
+             (True, "幾何面積與運算優先級正確：sqr_ar=49 且 rct_lrgr=True！")
+             if (g.get("rect_area") == 60 and g.get("sqr_ar") == 49 and g.get("rct_lrgr") is True) or
+                (("sd ** 2" in history_str or "sd**2" in history_str or "sd * sd" in history_str) and
+                 ("rect_area > sqr_ar" in history_str.replace(" ", "")))
+             else (False, "正方形面積應填入 sd ** 2（49），且判斷長方形面積是否大於正方形面積（>）！")
          )),
 
         ("5-1-3", "練習題", "促銷優惠方案試算 (方案 A 9折 vs 方案 B 買三送一)", 8, ("price", "quantity"),
@@ -273,12 +273,12 @@ def auto_grade_unit_5_1(env=None):
         # ----------------------------------------------------------------------
         # 5-1-5 Python 獨家黑科技——連續比較式（Chained Comparisons） (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-1-5", "填空題", "智慧恆溫溫室系統 (is_ideal_temp)", 6, ("is_ideal_temp",),
+        ("5-1-5", "填空題", "智慧恆溫溫室系統 (idl_tmp)", 6, ("idl_tmp",),
          lambda g: (
-             (True, "連續比較式閉區間填寫正確：is_ideal_temp=True (20 <= 25 <= 28)！")
-             if (g.get("is_ideal_temp") is True) and
-                ("20 <= current_temp <= 28" in history_str.replace(" ", "") or "20<=current_temp<=28" in history_str.replace(" ", "") or "<=" in history_str)
-             else (False, "請在空格填入 <= 完成 20 <= current_temp <= 28 雙向閉區間檢驗！")
+             (True, "連續比較式閉區間填寫正確：idl_tmp=True (20 <= 25 <= 28)！")
+             if (g.get("idl_tmp") is True) and
+                ("20 <= crrn_tmp <= 28" in history_str.replace(" ", "") or "20<=crrn_tmp<=28" in history_str.replace(" ", "") or "<=" in history_str)
+             else (False, "請在空格填入 <= 完成 20 <= crrn_tmp <= 28 雙向閉區間檢驗！")
          )),
 
         ("5-1-5", "練習題", "數值落在開區間內檢驗 (10 < num < 50)", 8, ("num",),

@@ -290,8 +290,8 @@ def check_q13(g, hist):
     if callable(fn):
         try:
             c = [False]
-            res = fn(c, lambda: "APCS_PASS")
-            if res == "APCS_PASS":
+            got = fn(c, lambda: "APCS_PASS")
+            if got == "APCS_PASS":
                 return True, "太棒了！成功調用 func() 並獲得正確回傳值！"
         except Exception as e:
             return False, f"執行 calculate_with_flag 時發生例外: {e}"
@@ -306,8 +306,8 @@ def check_q14(g, hist):
     if callable(fn):
         try:
             c = [False]
-            res = fn(c, lambda: 1 / 0)
-            if res is None:
+            got = fn(c, lambda: 1 / 0)
+            if got is None:
                 return True, "太棒了！內部發生除以零例外時被妥善捕捉，安全回傳 None！"
         except Exception as e:
             return False, f"執行 calculate_with_flag 時發生例外: {e}"

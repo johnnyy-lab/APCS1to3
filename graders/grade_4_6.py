@@ -175,7 +175,7 @@ def auto_grade_unit_4_6(env=None):
          lambda g: (
              (True, "map 與 int 整數映射填寫正確！")
              if (("map(int" in history_str.replace(" ", "") or "price" in g) and
-                 ("total_price" in history_str or "結帳明細" in history_str))
+                 ("tot_prc046" in history_str or "結帳明細" in history_str))
              else (False, "請在 4-6-2 填空題空格填入 map 與 int 進行整數轉換！")
          )),
 
@@ -198,10 +198,10 @@ def auto_grade_unit_4_6(env=None):
         # ----------------------------------------------------------------------
         # 4-6-3 三個及以上整數的單行讀取 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-6-3", "填空題", "段考三科成績解包與總分平均計算 (math, total_score)", 6, ("chinese", "total_score"),
+        ("4-6-3", "填空題", "段考三科成績解包與總分平均計算 (math, tot_sc046)", 6, ("chinese", "tot_sc046"),
          lambda g: (
              (True, "三科成績映射與計算設定正確！")
-             if (("chinese" in g or "total_score" in g or "math" in history_str) and
+             if (("chinese" in g or "tot_sc046" in g or "math" in history_str) and
                  ("map(int" in history_str.replace(" ", "") or "map" in history_str))
              else (False, "請在 4-6-3 填空題補齊變數 math 與總分算式！")
          )),
@@ -256,8 +256,8 @@ def auto_grade_unit_4_6(env=None):
          lambda g: (
              (True, "map(int, ...) 除錯修復完成！")
              if (("map(int" in history_str.replace(" ", "") or "n1" in g) and
-                 ("乘積結果" in history_str or "total_product" in history_str or "result" in history_str))
-             else (False, "請在 4-6-5 填空題空格填入 map 與 int 修復型態錯誤！")
+                 ("乘積結果" in history_str or "tot_prdc" in history_str))
+             else (False, "請在 4-6-5 填空題空格填入 map 與 int，並將乘積存入 tot_prdc！")
          )),
 
         ("4-6-5", "練習題", "APCS 基礎模擬實作：均分糖果問題 (candies, students)", 8, ("candies", "students"),

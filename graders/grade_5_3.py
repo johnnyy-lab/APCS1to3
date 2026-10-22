@@ -143,11 +143,11 @@ def auto_grade_unit_5_3(env=None):
         # ----------------------------------------------------------------------
         # 5-3-1 布林型態本質——True 與 False 的整數繼承特性 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-3-1", "填空題", "系統認證開關與數值代碼 (auth_success, auth_code)", 6, ("auth_success", "auth_code"),
+        ("5-3-1", "填空題", "系統認證開關與數值代碼 (athsccs053, auth_code)", 6, ("athsccs053", "auth_code"),
          lambda g: (
-             (True, "布林真值與整數代碼轉換正確：auth_success=True 且 auth_code=1！")
-             if (g.get("auth_success") is True and g.get("auth_code") == 1) or
-                ("auth_success = True" in history_str and "int(" in history_str)
+             (True, "布林真值與整數代碼轉換正確：athsccs053=True 且 auth_code=1！")
+             if (g.get("athsccs053") is True and g.get("auth_code") == 1) or
+                ("athsccs053 = True" in history_str and "int(" in history_str)
              else (False, "請在 5-3-1 填空題填入 True 與 int() 函數！")
          )),
 
@@ -171,11 +171,11 @@ def auto_grade_unit_5_3(env=None):
         # ----------------------------------------------------------------------
         # 5-3-2 數值的真假值規則——非零為真、零為假 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-3-2", "填空題", "庫存商品數值真偽檢驗 (has_stock_a, has_stock_b)", 6, ("has_stock_a", "has_stock_b"),
+        ("5-3-2", "填空題", "庫存商品數值真偽檢驗 (has_stck, has_stck_b)", 6, ("has_stck", "has_stck_b"),
          lambda g: (
-             (True, "非零為真與零為假判定正確：has_stock_a=True 且 has_stock_b=False！")
-             if (g.get("has_stock_a") is True and g.get("has_stock_b") is False) or
-                ("bool(stock_item_a)" in history_str.replace(" ", "") and "bool(stock_item_b)" in history_str.replace(" ", ""))
+             (True, "非零為真與零為假判定正確：has_stck=True 且 has_stck_b=False！")
+             if (g.get("has_stck") is True and g.get("has_stck_b") is False) or
+                ("bool(stck_itm)" in history_str.replace(" ", "") and "bool(stck_itm_b)" in history_str.replace(" ", ""))
              else (False, "請在 5-3-2 填空題空格填入 bool 函數檢驗庫存數值！")
          )),
 
@@ -199,11 +199,11 @@ def auto_grade_unit_5_3(env=None):
         # ----------------------------------------------------------------------
         # 5-3-3 文字字串的真假值規則——真空為假、有字為真 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-3-3", "填空題", "留言板發言非空檢查 (is_post_ready, is_empty_ready)", 6, ("is_post_ready", "is_empty_ready"),
+        ("5-3-3", "填空題", "留言板發言非空檢查 (pst_rdy, empt_rdy)", 6, ("pst_rdy", "empt_rdy"),
          lambda g: (
-             (True, "字串非空檢查正確：is_post_ready=True 且 is_empty_ready=False！")
-             if (g.get("is_post_ready") is True and g.get("is_empty_ready") is False) or
-                ("bool(content_valid)" in history_str.replace(" ", "") and "bool(content_empty)" in history_str.replace(" ", ""))
+             (True, "字串非空檢查正確：pst_rdy=True 且 empt_rdy=False！")
+             if (g.get("pst_rdy") is True and g.get("empt_rdy") is False) or
+                ("bool(cntn_vld)" in history_str.replace(" ", "") and "bool(cntn_empt)" in history_str.replace(" ", ""))
              else (False, "請在 5-3-3 填空題填入 bool 函數檢驗字串是否非空！")
          )),
 
@@ -227,10 +227,10 @@ def auto_grade_unit_5_3(env=None):
         # ----------------------------------------------------------------------
         # 5-3-4 bool() 函數強制轉型 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-3-4", "填空題", "字串代碼數值真偽轉換 (signal_status=False)", 6, ("signal_status",),
+        ("5-3-4", "填空題", "字串代碼數值真偽轉換 (sgnl_stts=False)", 6, ("sgnl_stts",),
          lambda g: (
-             (True, "字串轉整數再轉布林正確：signal_status=False！")
-             if (g.get("signal_status") is False) and
+             (True, "字串轉整數再轉布林正確：sgnl_stts=False！")
+             if (g.get("sgnl_stts") is False) and
                 ("bool(int(raw_str))" in history_str.replace(" ", "") or "bool(int(s))" in history_str.replace(" ", "") or "bool" in history_str)
              else (False, "請在 5-3-4 填空題空格填入 bool 函數完成 bool(int(raw_str)) 轉換！")
          )),
@@ -254,10 +254,10 @@ def auto_grade_unit_5_3(env=None):
         # ----------------------------------------------------------------------
         # 5-3-5 布林值數值化運算黑科技 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-3-5", "填空題", "水質超標指標相加統計 (total_abnormal=2)", 6, ("total_abnormal",),
+        ("5-3-5", "填空題", "水質超標指標相加統計 (tot_abnr=2)", 6, ("tot_abnr",),
          lambda g: (
-             (True, "三個布林條件直接相加統計正確：total_abnormal=2！")
-             if (g.get("total_abnormal") == 2) and
+             (True, "三個布林條件直接相加統計正確：tot_abnr=2！")
+             if (g.get("tot_abnr") == 2) and
                 ("+" in history_str)
              else (False, "請在 5-3-5 填空題空格填入加號 + 直接相加布林比較式！")
          )),

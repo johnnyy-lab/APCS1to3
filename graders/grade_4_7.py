@@ -143,11 +143,11 @@ def auto_grade_unit_4_7(env=None):
         # ----------------------------------------------------------------------
         # 4-7-1 連續三行純整數讀入模式 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-7-1", "填空題", "紙箱長寬高三行讀入與表面積計算 (width, surface_area)", 6, ("length", "width", "height"),
+        ("4-7-1", "填空題", "紙箱長寬高三行讀入與表面積計算 (width, srfc_ar)", 6, ("len", "width", "height"),
          lambda g: (
              (True, "紙箱三行尺寸讀取與容積表面積計算正確！")
-             if (("length" in g or "width" in g or "height" in g) and
-                 ("volume" in history_str or "surface_area" in history_str or "紙箱容積" in history_str))
+             if (("len" in g or "width" in g or "height" in g) and
+                 ("volume" in history_str or "srfc_ar" in history_str or "紙箱容積" in history_str))
              else (False, "請在 4-7-1 填空題空格填入 int(input()) 讀取寬度並補齊表面積算式！")
          )),
 
@@ -170,11 +170,11 @@ def auto_grade_unit_4_7(env=None):
         # ----------------------------------------------------------------------
         # 4-7-2 混合型態（文字、整數、小數）的多行讀入 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-7-2", "填空題", "定存帳戶文字、整數與年利率多型態讀取 (acc_name, annual_rate)", 6, ("acc_name", "annual_rate", "interest"),
+        ("4-7-2", "填空題", "定存帳戶文字、整數與年利率多型態讀取 (acc_name, annl_rt)", 6, ("acc_name", "annl_rt", "interest"),
          lambda g: (
              (True, "混合型態讀取填寫正確：成功計算年利息與本利和！")
-             if (("acc_name" in g or "annual_rate" in g or "interest" in g) and
-                 ("total_balance" in history_str or "持有人" in history_str))
+             if (("acc_name" in g or "annl_rt" in g or "interest" in g) and
+                 ("tot_blnc" in history_str or "持有人" in history_str))
              else (False, "請在 4-7-2 填空題分別使用 input() 與 float(input()) 完成讀取！")
          )),
 
@@ -202,7 +202,7 @@ def auto_grade_unit_4_7(env=None):
          lambda g: (
              (True, "單值行與同行多值混合讀取設定正確！")
              if (("coupon" in g or "item1" in g) and
-                 ("subtotal" in history_str or "total_pay" in history_str or "商品原總價" in history_str))
+                 ("subtotal" in history_str or "tot_pay" in history_str or "商品原總價" in history_str))
              else (False, "請在 4-7-3 填空題第一行讀入 coupon，第二行使用 map 讀入兩商品單價！")
          )),
 
@@ -226,12 +226,12 @@ def auto_grade_unit_4_7(env=None):
         # ----------------------------------------------------------------------
         # 4-7-4 連續兩行座標讀入與幾何距離計算 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-7-4", "填空題", "對角兩點外接矩形尺寸與周長面積 (width, height, area)", 6, ("x1", "x2", "width"),
+        ("4-7-4", "填空題", "對角兩點外接矩形尺寸與周長面積 (width, height, ar047)", 6, ("x1", "x2", "width"),
          lambda g: (
              (True, "兩行座標讀取與外接矩形幾何數值計算正確！")
              if (("x1" in g or "x2" in g or "width" in g) and
-                 ("perimeter" in history_str or "area" in history_str or "矩形寬與高" in history_str))
-             else (False, "請在 4-7-4 填空題空格補齊第 2 行座標讀取與 height、area 計算式！")
+                 ("perimeter" in history_str or "ar047" in history_str or "矩形寬與高" in history_str))
+             else (False, "請在 4-7-4 填空題空格補齊第 2 行座標讀取與 height、ar047 計算式！")
          )),
 
         ("4-7-4", "練習題", "無人機兩行座標曼哈頓與歐式距離 (manhattan_dist, euclidean_dist)", 8, ("ax", "bx", "manhattan_dist", "euclidean_dist"),

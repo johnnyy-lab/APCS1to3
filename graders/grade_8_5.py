@@ -144,11 +144,11 @@ def auto_grade_unit_8_5(env=None):
         # ----------------------------------------------------------------------
         # 8-5-1 直接元素走訪：for item in my_list: (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-5-1", "填空題", "直接元素走訪統計及格人數 (for num in numbers)", 6, (),
+        ("8-5-1", "填空題", "直接元素走訪統計及格人數 (for num in ns)", 6, (),
          lambda g: (
-             (True, "直接元素走訪 for num in numbers 正確！")
-             if ("for num in numbers:" in history_str or "fornuminnumbers:" in history_clean) and
-                ("pass_count += 1" in history_str or "pass_count+=1" in history_clean)
+             (True, "直接元素走訪 for num in ns 正確！")
+             if ("for num in ns:" in history_str or "fornuminnumbers:" in history_clean) and
+                ("pss_cnt085 += 1" in history_str or "pss_cnt085+=1" in history_clean)
              else (False, "請在 8-5-1 填空題填入 in 與累加數值 1！")
          )),
 
@@ -200,7 +200,7 @@ def auto_grade_unit_8_5(env=None):
          lambda g: (
              (True, "偶數判定與雙軌位置顯示完全正確！")
              if ("% 2 == 0" in history_str or "%2==0" in history_clean) and
-                ("{i}" in history_str or "{num_list[i]}" in history_str or "{data[i]}" in history_str or "索引位置" in history_str)
+                ("{i}" in history_str or "{num_lst[i]}" in history_str or "{data[i]}" in history_str or "索引位置" in history_str)
              else (False, "請在 8-5-3 填空題空格填入 0 與索引變數 i！")
          )),
 
@@ -232,12 +232,12 @@ def auto_grade_unit_8_5(env=None):
              else (False, "請在 8-5-4 填空題填入成員運算子 in！")
          )),
 
-        ("8-5-4", "練習題", "帳號註冊重複查詢 (if new_user in registered_users)", 9, (),
+        ("8-5-4", "練習題", "帳號註冊重複查詢 (if new_user in rgst_usrs)", 9, (),
          lambda g: (
              (True, "帳號重複存在性查詢分支輸出正確！")
-             if ("in registered_users" in history_str and ("帳號已被使用" in history_str or "帳號可用" in history_str)) or
+             if ("in rgst_usrs" in history_str and ("帳號已被使用" in history_str or "帳號可用" in history_str)) or
                 ("帳號已被使用" in history_str and "帳號可用" in history_str)
-             else (False, "請判斷 new_user 是否在 registered_users 中，輸出已被使用或可用！")
+             else (False, "請判斷 new_user 是否在 rgst_usrs 中，輸出已被使用或可用！")
          )),
 
         ("8-5-4", "挑戰題", "購物車防重複加入商品 (in 檢查與 append)", 5, (),
@@ -250,11 +250,11 @@ def auto_grade_unit_8_5(env=None):
         # ----------------------------------------------------------------------
         # 8-5-5 定位元素索引：index() 方法與安全查詢模式 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-5-5", "填空題", "安全查詢樣式 in 檢查搭配 index() (target in queue)", 6, (),
+        ("8-5-5", "填空題", "安全查詢樣式 in 檢查搭配 index() (target in q085)", 6, (),
          lambda g: (
              (True, "先 in 把關後呼叫 .index() 安全查詢成功！")
-             if ("target in queue" in history_str or "targetinqueue" in history_clean) and
-                ("queue.index(target)" in history_clean)
+             if ("target in q085" in history_str or "targetinqueue" in history_clean) and
+                ("q085.index(target)" in history_clean)
              else (False, "請在 8-5-5 填空題空格填入 in 與方法名稱 index！")
          )),
 

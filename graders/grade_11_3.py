@@ -169,12 +169,12 @@ def auto_grade_unit_11_3(env=None):
         # ----------------------------------------------------------------------
         # 11-3-1 不可變物件傳遞與外部接收 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-3-1", "填空題", "調薪函數不可變數值傳遞 give_raise 與 return", 5, ("current_salary", "give_raise"),
+        ("11-3-1", "填空題", "調薪函數不可變數值傳遞 give_raise 與 return", 5, ("crrn_slry", "give_raise"),
          lambda g: (
              (True, "give_raise 填空正確！")
              if (callable(g.get("give_raise")) and g.get("give_raise")(40000, 5000) == 45000) or
-                (g.get("current_salary") == 45000) or
-                ("return new_salary" in history_str or "give_raise(current_salary" in history_str)
+                (g.get("crrn_slry") == 45000) or
+                ("return new_salary" in history_str or "give_raise(crrn_slry" in history_str)
              else (False, "請在 give_raise 內 return new_salary 並在主程式接收回傳值！")
          )),
 

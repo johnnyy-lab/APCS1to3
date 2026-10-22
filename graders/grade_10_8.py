@@ -144,24 +144,24 @@ def auto_grade_unit_10_8(env=None):
         # ----------------------------------------------------------------------
         # 10-8-1 座標集合標記已拜訪點 (Visited Set) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-8-1", "填空題", "將起點座標元組加入已拜訪集合 visited_points.add((r, c))", 5, (),
+        ("10-8-1", "填空題", "將起點座標元組加入已拜訪集合 vstd_pt.add((r, c))", 5, (),
          lambda g: (
              (True, "座標元組加入集合填空正確！")
-             if ("visited_points.add" in history_str and "(" in history_str)
-             else (False, "請在 10-8-1 填空題填入 visited_points.add((start_r, start_c))！")
+             if ("vstd_pt.add" in history_str and "(" in history_str)
+             else (False, "請在 10-8-1 填空題填入 vstd_pt.add((start_r, start_c))！")
          )),
 
         ("10-8-1", "練習題", "探險家足跡覆蓋統計 (相異點個數與走訪清單)", 6, (),
          lambda g: (
              (True, "探險家相異足跡統計正確！")
-             if ("visited" in history_str and "path" in history_str) and (".add(" in history_str)
+             if ("vstd108" in history_str and "pth108" in history_str) and (".add(" in history_str)
              else (False, "請使用集合追蹤走過的所有相異座標點！")
          )),
 
         ("10-8-1", "挑戰題", "首度自交點偵測 (First Self-Intersection)", 5, (),
          lambda g: (
              (True, "首度自交偵測正確！")
-             if ("in visited" in history_str and "break" in history_str) or ("自交" in history_str or "moves" in history_str)
+             if ("in vstd7" in history_str and "break" in history_str) or ("自交" in history_str or "moves" in history_str)
              else (False, "請在碰觸曾拜訪過的座標時輸出自交座標與步數！")
          )),
 
@@ -178,14 +178,14 @@ def auto_grade_unit_10_8(env=None):
         ("10-8-2", "練習題", "稀疏棋盤子力總價值計算器 (重疊點價值累加)", 6, (),
          lambda g: (
              (True, "稀疏棋盤價值累加正確！")
-             if ("pieces_data" in history_str and "+=" in history_str) or ("sum(" in history_str)
+             if ("pcs_dt" in history_str and "+=" in history_str) or ("sum(" in history_str)
              else (False, "請以字典紀錄稀疏棋子並累加同一座標上的價值！")
          )),
 
-        ("10-8-2", "挑戰題", "稀疏踩地雷相鄰地雷計數 (向量走訪 mine_locations)", 6, (),
+        ("10-8-2", "挑戰題", "稀疏踩地雷相鄰地雷計數 (向量走訪 mn_lctn)", 6, (),
          lambda g: (
              (True, "稀疏地雷相鄰計數正確！")
-             if ("in mine_locations" in history_str or "mine_locations" in history_str) and ("dr" in history_str or "range(4)" in history_str)
+             if ("in mn_lctn" in history_str or "mn_lctn" in history_str) and ("dr" in history_str or "range(4)" in history_str)
              else (False, "請走訪相鄰座標，透過集合判定地雷是否存在！")
          )),
 
@@ -202,7 +202,7 @@ def auto_grade_unit_10_8(env=None):
         ("10-8-3", "練習題", "雙向連通公車路線鄰接表分析", 6, (),
          lambda g: (
              (True, "雙向公車網絡鄰接表建置正確！")
-             if ("bus_network" in history_str and "append(" in history_str) and ("connections" in history_str)
+             if ("bus_ntwr" in history_str and "append(" in history_str) and ("cnnc" in history_str)
              else (False, "請為雙向站點建立對應的相鄰站點清單！")
          )),
 
@@ -230,53 +230,53 @@ def auto_grade_unit_10_8(env=None):
              else (False, "請統計單字頻率並依出現次數降序、字母升序排列！")
          )),
 
-        ("10-8-4", "挑戰題", "學生成績三準則複合排序 (分數降序、年級升序、姓名升序)", 6, ("top_student",),
+        ("10-8-4", "挑戰題", "學生成績三準則複合排序 (分數降序、年級升序、姓名升序)", 6, ("top_stdn",),
          lambda g: (
              (True, "三準則複合排序正確！")
-             if (g.get("top_student") == "Charlie") or
-                ("top_student" in history_str and "sorted" in history_str)
+             if (g.get("top_stdn") == "Charlie") or
+                ("top_stdn" in history_str and "sorted" in history_str)
              else (False, "請對學生成績依照分數降序、年級升序、姓名升序進行複合排序，求出第一名！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-8-5 重複元素偵測與首個重複值定位 (One-pass Hash) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-8-5", "填空題", "字串中首個重複字母偵測 if ch in seen: break", 5, (),
+        ("10-8-5", "填空題", "字串中首個重複字母偵測 if ch in sn: break", 5, (),
          lambda g: (
              (True, "首個重複字母偵測填空正確！")
-             if ("in seen" in history_str and "break" in history_str)
-             else (False, "請在 10-8-5 填空題填入 if ch in seen: break！")
+             if ("in sn" in history_str and "break" in history_str)
+             else (False, "請在 10-8-5 填空題填入 if ch in sn: break！")
          )),
 
         ("10-8-5", "練習題", "首個重複整數與索引定位器 (二度出現位置)", 6, (),
          lambda g: (
              (True, "首個重複數字與索引定位正確！")
-             if ("in seen" in history_str and "break" in history_str) and ("numbers" in history_str)
+             if ("in sn" in history_str and "break" in history_str) and ("ns108" in history_str)
              else (False, "請在單趟走訪中輸出首個重複數字與其當下索引！")
          )),
 
         ("10-8-5", "挑戰題", "首個出現滿 K 次的元素判定", 6, (),
          lambda g: (
              (True, "首個達門檻 K 次元素判定正確！")
-             if ("== k" in history_str or "==k" in history_clean) and ("counts" in history_str or "get(" in history_str)
-             else (False, "請統計元素出現次數，第一個達到 k 次時立即輸出並終止！")
+             if ("== k108" in history_str or "==k108" in history_clean) and ("counts" in history_str or "get(" in history_str)
+             else (False, "請統計元素出現次數，第一個達到 k108 次時立即輸出並終止！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-8-6 APCS 歷屆真題中的雜湊思維總覽 (c291 小群體原型) (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-8-6", "填空題", "APCS c291 朋友圈走訪標記 while curr not in visited", 5, (),
+        ("10-8-6", "填空題", "APCS c291 朋友圈走訪標記 while curr not in vstd8", 5, (),
          lambda g: (
              (True, "APCS c291 環形走訪標記填空正確！")
-             if ("not in visited" in history_str or "visited.add" in history_str)
-             else (False, "請在 10-8-6 填空題填入 while curr not in visited 走訪閉環！")
+             if ("not in vstd8" in history_str or "vstd8.add" in history_str)
+             else (False, "請在 10-8-6 填空題填入 while curr not in vstd8 走訪閉環！")
          )),
 
         ("10-8-6", "練習題", "APCS c291 小群體演算法完整實作 (計算封閉環個數)", 6, (),
          lambda g: (
              (True, "APCS c291 小群體環形計數正確！")
-             if ("visited" in history_str and "relations" in history_str) and ("group_count" in history_str or "groups" in history_str or "count" in history_str)
-             else (False, "請使用 visited 集合走訪 relations 並統計獨立朋友圈個數！")
+             if ("vstd9" in history_str and "relations" in history_str) and ("grp_cnt" in history_str or "groups" in history_str or "count" in history_str)
+             else (False, "請使用 vstd9 集合走訪 relations 並統計獨立朋友圈個數！")
          )),
 
         ("10-8-6", "挑戰題", "網格多粒子移動碰撞消除模擬", 5, (),

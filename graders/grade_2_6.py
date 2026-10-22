@@ -215,11 +215,11 @@ def auto_grade_unit_2_6(env=None):
         # ----------------------------------------------------------------------
         # 2-6-4 APCS 實戰視野：進位制在狀態開關與位元遮罩的解題先導 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-6-4", "填空題", "成就解鎖狀態位元常數 (achievement_status = 13)", 7, ("achievement_status",),
+        ("2-6-4", "填空題", "成就解鎖狀態位元常數 (achv_stts = 13)", 7, ("achv_stts",),
          lambda g: (
-             (True, "成就狀態二進位宣告成功：achievement_status = 0b1101 = 13！")
-             if (g.get("achievement_status") == 13 and type(g.get("achievement_status")) is int)
-             else (False, "找不到 achievement_status 或數值不為 13，請填入 0b1101 並執行！")
+             (True, "成就狀態二進位宣告成功：achv_stts = 0b1101 = 13！")
+             if (g.get("achv_stts") == 13 and type(g.get("achv_stts")) is int)
+             else (False, "找不到 achv_stts 或數值不為 13，請填入 0b1101 並執行！")
          )),
 
         ("2-6-4", "練習題", "工廠機組監控狀態碼宣告 (system_code in [5, 14])", 10, ("system_code",),

@@ -315,8 +315,8 @@ def check_q15(g, hist):
     if callable(fn):
         try:
             # 測試大長度效能（10000 個字元）
-            res = fn(10000)
-            if len(res) == 10000 and res.startswith("ABAB"):
+            got = fn(10000)
+            if len(got) == 10000 and got.startswith("ABAB"):
                 return True, "太棒了！使用 list+join 完成高效字串組裝，免疫 O(N^2) 耗時！"
         except Exception as e:
             return False, f"執行 build_alternating_string 時發生例外: {e}"
@@ -360,8 +360,8 @@ def check_q18(g, hist):
     if callable(fn):
         try:
             old_in = sys.stdin
-            res = fn("42\n")
-            if res == 42 and sys.stdin is old_in:
+            got = fn("42\n")
+            if got == 42 and sys.stdin is old_in:
                 return True, "太棒了！遇到 EOF 順暢中斷且標準輸入環境 100% 妥善復原！"
         except Exception as e:
             return False, f"執行 parse_stream_sum 時發生例外: {e}"

@@ -169,11 +169,11 @@ def auto_grade_unit_11_2(env=None):
         # ----------------------------------------------------------------------
         # 11-2-1 return 關鍵字：交接計算結果 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("11-2-1", "填空題", "梯形面積函數 calc_trapezoid_area 與 return area", 5, ("trapezoid_area", "calc_trapezoid_area"),
+        ("11-2-1", "填空題", "梯形面積函數 calc_trapezoid_area 與 return area", 5, ("trpz_ar", "calc_trapezoid_area"),
          lambda g: (
              (True, "梯形面積 return 填空正確！")
              if (callable(g.get("calc_trapezoid_area")) and g.get("calc_trapezoid_area")(4, 6, 5) == 25.0) or
-                (g.get("trapezoid_area") == 25.0) or
+                (g.get("trpz_ar") == 25.0) or
                 ("return area" in history_str)
              else (False, "請在 calc_trapezoid_area 內使用 return area 回傳計算結果！")
          )),
@@ -188,11 +188,11 @@ def auto_grade_unit_11_2(env=None):
              else (False, "請實作 calc_manhattan_dist 並回傳兩點間曼哈頓距離！")
          )),
 
-        ("11-2-1", "挑戰題", "連續鏈式呼叫計算立方表面積 calc_cube_surface_area", 6, ("cube_surface_area", "calc_cube_surface_area"),
+        ("11-2-1", "挑戰題", "連續鏈式呼叫計算立方表面積 calc_cube_surface_area", 6, ("cb_srfc_ar", "calc_cube_surface_area"),
          lambda g: (
              (True, "立方體表面積鏈式計算正確！")
              if (callable(g.get("calc_cube_surface_area")) and g.get("calc_cube_surface_area")(3) == 54) or
-                (g.get("cube_surface_area") == 54) or
+                (g.get("cb_srfc_ar") == 54) or
                 ("calc_square_area" in history_str and "calc_cube_surface_area" in history_str)
              else (False, "請串接 calc_square_area 與 calc_cube_surface_area 計算邊長 3 的立方體表面積 54！")
          )),
@@ -219,12 +219,12 @@ def auto_grade_unit_11_2(env=None):
              else (False, "請定義 get_cleaned_length 使用 strip() 並回傳 len() 長度！")
          )),
 
-        ("11-2-2", "挑戰題", "多步驟成績轉換管道 apply_curve 與 check_pass_status", 6, ("final_status", "apply_curve", "check_pass_status"),
+        ("11-2-2", "挑戰題", "多步驟成績轉換管道 apply_curve 與 check_pass_status", 6, ("fnl_stts", "apply_curve", "check_pass_status"),
          lambda g: (
              (True, "多步驟成績轉換管道實作正確！")
              if (callable(g.get("apply_curve")) and callable(g.get("check_pass_status")) and
                  g.get("check_pass_status")(g.get("apply_curve")(55)) == "PASS") or
-                (g.get("final_status") == "PASS")
+                (g.get("fnl_stts") == "PASS")
              else (False, "請定義 apply_curve 與 check_pass_status 串接調分與及格判定！")
          )),
 

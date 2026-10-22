@@ -140,14 +140,14 @@ def auto_grade_unit_2_4(env=None):
         # ----------------------------------------------------------------------
         # 2-4-1 次方運算雙星號（**）與脫字符號（^）的巨大陷阱 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-1", "填空題", "正方形草皮平方運算 (area = 49)", 7, ("area",),
+        ("2-4-1", "填空題", "正方形草皮平方運算 (ar = 49)", 7, ("ar",),
          lambda g: (
-             (True, "雙星號次方運算成功：area = 7 ** 2 = 49！")
-             if (g.get("area") == 49 and type(g.get("area")) is int)
+             (True, "雙星號次方運算成功：ar = 7 ** 2 = 49！")
+             if (g.get("ar") == 49 and type(g.get("ar")) is int)
              else (
                  (False, "注意：在 Python 中次方為雙星號 **，不可使用脫字符號 ^ 喔！")
-                 if (g.get("area") == (7 ^ 2))
-                 else (False, "找不到變數 area 或數值不為 49，請在空格填入 ** 並執行！")
+                 if (g.get("ar") == (7 ^ 2))
+                 else (False, "找不到變數 ar 或數值不為 49，請在空格填入 ** 並執行！")
              )
          )),
 
@@ -170,14 +170,14 @@ def auto_grade_unit_2_4(env=None):
         # ----------------------------------------------------------------------
         # 2-4-2 次方的超高優先級與負數括號陷阱 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-2", "填空題", "負數底數小括號保護 (ans_positive = 9)", 7, ("ans_positive",),
+        ("2-4-2", "填空題", "負數底數小括號保護 (ans_pstv = 9)", 7, ("ans_pstv",),
          lambda g: (
-             (True, "負數小括號保護成功：ans_positive = (-3) ** 2 = 9！")
-             if (g.get("ans_positive") == 9 and type(g.get("ans_positive")) is int)
+             (True, "負數小括號保護成功：ans_pstv = (-3) ** 2 = 9！")
+             if (g.get("ans_pstv") == 9 and type(g.get("ans_pstv")) is int)
              else (
                  (False, "未加小括號會被算成 -(3**2) = -9！請在 -3 前後補上小括號 (-3) 喔！")
-                 if (g.get("ans_positive") == -9)
-                 else (False, "找不到 ans_positive 或數值不為 9，請填入括號 ( 與 ) 並執行！")
+                 if (g.get("ans_pstv") == -9)
+                 else (False, "找不到 ans_pstv 或數值不為 9，請填入括號 ( 與 ) 並執行！")
              )
          )),
 
@@ -229,11 +229,11 @@ def auto_grade_unit_2_4(env=None):
         # ----------------------------------------------------------------------
         # 2-4-4 APCS 實戰質數判定加速——開根號取整 int(n ** 0.5) 技巧 (共 25 分)
         # ----------------------------------------------------------------------
-        ("2-4-4", "填空題", "開根號取整質數檢查上限 (check_limit = 8)", 7, ("check_limit",),
+        ("2-4-4", "填空題", "開根號取整質數檢查上限 (chck_lmt = 8)", 7, ("chck_lmt",),
          lambda g: (
-             (True, "開根號取整成功：check_limit = int(80 ** 0.5) = 8！")
-             if (g.get("check_limit") == 8 and type(g.get("check_limit")) is int)
-             else (False, "找不到 check_limit 或數值不為 8，請填入 int 與 ** 0.5 並執行！")
+             (True, "開根號取整成功：chck_lmt = int(80 ** 0.5) = 8！")
+             if (g.get("chck_lmt") == 8 and type(g.get("chck_lmt")) is int)
+             else (False, "找不到 chck_lmt 或數值不為 8，請填入 int 與 ** 0.5 並執行！")
          )),
 
         ("2-4-4", "練習題", "任意正整數開根號取整 (int(target_n ** 0.5))", 10, ("target_n", "limit"),

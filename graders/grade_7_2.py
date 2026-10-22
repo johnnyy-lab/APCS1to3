@@ -149,7 +149,7 @@ def auto_grade_unit_7_2(env=None):
              (True, "字串加法拼接與 str(item_price) 轉型成功！")
              if g.get("price_tag") == "Apple: $30" or
                 ('price_tag' in g and "Apple: $30" in str(g.get("price_tag"))) or
-                ("item_name" in history_str and "str(item_price)" in history_clean)
+                ("itm_nm" in history_str and "str(item_price)" in history_clean)
              else (False, "請在 7-2-1 填空題空格填入 + 號與 str(item_price)！")
          )),
 
@@ -185,7 +185,7 @@ def auto_grade_unit_7_2(env=None):
              (True, "多單字底線分隔累加黏合輸出正確！")
              if ("+=" in history_str and "_" in history_str and ("word" in history_str or "text" in history_str)) or
                 ("Iron_Man_Suit_" in history_str or "Super_Hero_" in history_str)
-             else (False, "請讀入 n 筆單字，使用字串變數 text 累加所有單字並以底線分隔！")
+             else (False, "請讀入 glue72 筆單字，使用字串變數 text 累加所有單字並以底線分隔！")
          )),
 
         ("7-2-2", "挑戰題", "偶數與奇數標記拼接器 ([E:數字] 與 [O:數字])", 5, (),

@@ -174,10 +174,10 @@ def auto_grade_unit_9_1(env=None):
         # ----------------------------------------------------------------------
         # 9-1-2 網格尺寸掌握：R 與 C (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-1-2", "填空題", "長度函式計算 R, C 與 total_cells", 5, ("R", "C", "total_cells"),
+        ("9-1-2", "填空題", "長度函式計算 R, C 與 tot_clls", 5, ("R", "C", "tot_clls"),
          lambda g: (
              (True, "尺寸測量與總格子數計算正確！")
-             if (g.get("R") == 3 and g.get("C") == 4 and g.get("total_cells") == 12) or
+             if (g.get("R") == 3 and g.get("C") == 4 and g.get("tot_clls") == 12) or
                 ("len(map_data)" in history_clean and "len(map_data[0])" in history_clean)
              else (False, "請在 9-1-2 填空題填入 len(map_data) 與 len(map_data[0])！")
          )),
@@ -255,12 +255,12 @@ def auto_grade_unit_9_1(env=None):
         # ----------------------------------------------------------------------
         # 9-1-5 網格元素原地修改：grid[r][c] = val (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("9-1-5", "填空題", "庫存網格修改 inventory[0][1] = 50", 5, ("inventory",),
+        ("9-1-5", "填空題", "庫存網格修改 invn[0][1] = 50", 5, ("invn",),
          lambda g: (
              (True, "庫存單格原地修改正確！")
-             if (g.get("inventory") and g.get("inventory")[0][1] == 50) or
-                ("inventory[0][1]=50" in history_clean or "inventory[0][1] = 50" in history_str)
-             else (False, "請在 9-1-5 填空題完成 inventory[0][1] = 50！")
+             if (g.get("invn") and g.get("invn")[0][1] == 50) or
+                ("invn[0][1]=50" in history_clean or "invn[0][1] = 50" in history_str)
+             else (False, "請在 9-1-5 填空題完成 invn[0][1] = 50！")
          )),
 
         ("9-1-5", "練習題", "3x3 全 0 矩陣三點原地修改 (0,0), (1,1), (2,2)", 6, ("grid",),
@@ -283,10 +283,10 @@ def auto_grade_unit_9_1(env=None):
         # ----------------------------------------------------------------------
         # 9-1-6 負向索引定位與維度混淆防禦 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("9-1-6", "填空題", "負向索引存取 last_item 與 second_last_first", 5, ("last_item", "second_last_first"),
+        ("9-1-6", "填空題", "負向索引存取 lst_itm 與 scndlstfst", 5, ("lst_itm", "scndlstfst"),
          lambda g: (
              (True, "負向索引定位取值正確！")
-             if (g.get("last_item") == 20 and g.get("second_last_first") == 11) or
+             if (g.get("lst_itm") == 20 and g.get("scndlstfst") == 11) or
                 ("grid_data[-1][-1]" in history_clean and "grid_data[-2][0]" in history_clean) or
                 ("data[-1][-1]" in history_clean and "data[-2][0]" in history_clean)
              else (False, "請在 9-1-6 填空題填入 grid_data[-1][-1] 與 grid_data[-2][0]！")

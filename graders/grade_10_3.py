@@ -169,10 +169,10 @@ def auto_grade_unit_10_3(env=None):
         # ----------------------------------------------------------------------
         # 10-3-2 大括號鍵值對語法與空字典 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-3-2", "填空題", "商品價格字典宣告 {'book': 250, 'pen': 30}", 5, ("item_prices",),
+        ("10-3-2", "填空題", "商品價格字典宣告 {'book': 250, 'pen': 30}", 5, ("itm_prcs",),
          lambda g: (
              (True, "商品價格字典宣告填空正確！")
-             if (g.get("item_prices") and g.get("item_prices").get("book") == 250) or
+             if (g.get("itm_prcs") and g.get("itm_prcs").get("book") == 250) or
                 ("250" in history_str and "30" in history_str and ":" in history_str)
              else (False, "請在 10-3-2 填空題填入價格 250 與 30！")
          )),
@@ -194,21 +194,21 @@ def auto_grade_unit_10_3(env=None):
         # ----------------------------------------------------------------------
         # 10-3-3 鍵的合法型態：Hashable 限制 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-3-3", "填空題", "使用座標元組作為鍵 board[(1, 3)] = 'QUEEN'", 5, (),
+        ("10-3-3", "填空題", "使用座標元組作為鍵 brd103[(1, 3)] = 'QUEEN'", 5, (),
          lambda g: (
              (True, "座標元組做為字典鍵填空正確！")
              if ("(1, 3)" in history_str or "(1,3)" in history_clean) and ("QUEEN" in history_str or "KNIGHT" in history_str)
              else (False, "請在 10-3-3 填空題填入座標元組 (1, 3) 與 (2, 2)！")
          )),
 
-        ("10-3-3", "練習題", "網格寶物定位查詢機 treasure_map[(r, c)]", 6, (),
+        ("10-3-3", "練習題", "網格寶物定位查詢機 trsr_map[(r, c)]", 6, (),
          lambda g: (
              (True, "網格寶物座標元組字典正確！")
              if ("(r, c)" in history_str or "(r,c)" in history_clean or "treasure" in history_str)
              else (False, "請以 (r, c) 元組為 Key 記錄各座標點的寶物！")
          )),
 
-        ("10-3-3", "挑戰題", "座標點重疊價值累加器 (+= val)", 6, (),
+        ("10-3-3", "挑戰題", "座標點重疊價值累加器 (+= pt_num)", 6, (),
          lambda g: (
              (True, "重複座標價值累加正確！")
              if ("+=" in history_str or "get(" in history_str) and ("(r, c)" in history_str or "(r,c)" in history_clean)
@@ -218,11 +218,11 @@ def auto_grade_unit_10_3(env=None):
         # ----------------------------------------------------------------------
         # 10-3-4 鍵值存取與 KeyError 防範 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-3-4", "填空題", "使用 in 運算子安全防禦 target_country in capitals", 5, (),
+        ("10-3-4", "填空題", "使用 in 運算子安全防禦 tg_cntr in capitals", 5, (),
          lambda g: (
              (True, "in 運算子安全檢查填空正確！")
              if ("in capitals" in history_str)
-             else (False, "請在 10-3-4 填空題填入 target_country in capitals！")
+             else (False, "請在 10-3-4 填空題填入 tg_cntr in capitals！")
          )),
 
         ("10-3-4", "練習題", "圖書館借閱安全查詢機", 6, (),

@@ -195,9 +195,9 @@ def auto_grade_unit_7_5(env=None):
          lambda g: (
              (True, "前 k 個字元與後 k 個字元截取與 --- 拼接正確！")
              if ("[:k]" in history_str or "[: k]" in history_str) and
-                ("[-k:]" in history_str or "[len(s)-k:]" in history_clean) and
+                ("[-k:]" in history_str or "[len(word752)-k:]" in history_clean) and
                 ("---" in history_str)
-             else (False, "請截取 s 前 k 個字元與後 k 個字元，以 --- 連接輸出！")
+             else (False, "請截取 word752 前 k 個字元與後 k 個字元，以 --- 連接輸出！")
          )),
 
         # ----------------------------------------------------------------------
@@ -231,23 +231,23 @@ def auto_grade_unit_7_5(env=None):
         # ----------------------------------------------------------------------
         # 7-5-4 步進為負之字串全反轉 s[::-1] (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-5-4", "填空題", "全字串反轉切片 word[::-1] (dessert)", 6, ("dessert",),
+        ("7-5-4", "填空題", "全字串反轉切片 wrd075[::-1] (dessert)", 6, ("dessert",),
          lambda g: (
-             (True, "字串全反轉 word[::-1] 成功將 stressed 翻轉為 desserts！")
+             (True, "字串全反轉 wrd075[::-1] 成功將 stressed 翻轉為 desserts！")
              if g.get("dessert") == "desserts" or
-                ("word[::-1]" in history_clean)
+                ("wrd075[::-1]" in history_clean)
              else (False, "請在 7-5-4 填空題空格填入 ::-1 進行全字串反轉！")
          )),
 
-        ("7-5-4", "練習題", "整數反轉相加器 (n + int(n[::-1]))", 9, (),
+        ("7-5-4", "練習題", "整數反轉相加器 (num754 + int(rev_n))", 9, (),
          lambda g: (
              (True, "數字字串反轉 [::-1] 與整數總和計算正確！")
              if (("[::-1]" in history_str and "int(" in history_str and "+" in history_str)) or
                 ("444" in history_str or "606" in history_str)
-             else (False, "請讀入數字字串 n，以 [::-1] 反轉後轉為整數計算兩者總和！")
+             else (False, "請讀入數字字串 num754，以 [::-1] 反轉後轉為整數計算兩者總和！")
          )),
 
-        ("7-5-4", "挑戰題", "前半段保持後半段反轉拼接 (s[:mid] + s[mid:][::-1])", 5, (),
+        ("7-5-4", "挑戰題", "前半段保持後半段反轉拼接 (word754[:mid] + word754[mid:][::-1])", 5, (),
          lambda g: (
              (True, "中點分割與後半段反轉拼裝輸出正確！")
              if ("// 2" in history_str or "//2" in history_clean) and
@@ -258,11 +258,11 @@ def auto_grade_unit_7_5(env=None):
         # ----------------------------------------------------------------------
         # 7-5-5 迴文判定（Palindrome）與進階應用 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-5-5", "填空題", "切片迴文快速判定 candidate == candidate[::-1] (verdict)", 6, ("verdict",),
+        ("7-5-5", "填空題", "切片迴文快速判定 cndd075 == cndd075[::-1] (verdict)", 6, ("verdict",),
          lambda g: (
-             (True, "candidate[::-1] 迴文比對判定正確！")
+             (True, "cndd075[::-1] 迴文比對判定正確！")
              if g.get("verdict") == "YES" or
-                ("candidate[::-1]" in history_clean)
+                ("cndd075[::-1]" in history_clean)
              else (False, "請在 7-5-5 填空題中括號內填入 ::-1！")
          )),
 
@@ -279,8 +279,8 @@ def auto_grade_unit_7_5(env=None):
          lambda g: (
              (True, "經典最少字元構造迴文邏輯判斷完整！")
              if ("ALREADY PALINDROME" in history_str or "Palindrome:" in history_str) or
-                ("s[1:]" in history_clean and "[::-1]" in history_str)
-             else (False, "請檢驗 s 及 s[1:] 是否為迴文，構造出最短迴文字串！")
+                ("fix75[1:]" in history_clean and "[::-1]" in history_str)
+             else (False, "請檢驗 fix75 及 fix75[1:] 是否為迴文，構造出最短迴文字串！")
          ))
     ]
 

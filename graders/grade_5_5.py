@@ -143,10 +143,10 @@ def auto_grade_unit_5_5(env=None):
         # ----------------------------------------------------------------------
         # 5-5-1 單向選擇 if 指令——冒號與縮排 (共 20 分)
         # ----------------------------------------------------------------------
-        ("5-5-1", "填空題", "體育破紀錄獎勵發放 (bonus_medal=1)", 6, ("bonus_medal",),
+        ("5-5-1", "填空題", "體育破紀錄獎勵發放 (bns_mdl=1)", 6, ("bns_mdl",),
          lambda g: (
-             (True, "單向 if 判斷與縮排正確：bonus_medal=1！")
-             if (g.get("bonus_medal") == 1) and
+             (True, "單向 if 判斷與縮排正確：bns_mdl=1！")
+             if (g.get("bns_mdl") == 1) and
                 ("if" in history_str and ":" in history_str)
              else (False, "請在 5-5-1 填空題空格填入 if 與結尾冒號 :！")
          )),

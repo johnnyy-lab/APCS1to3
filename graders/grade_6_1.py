@@ -179,12 +179,12 @@ def auto_grade_unit_6_1(env=None):
              else (False, "請在 6-1-2 填空題空格填入變數 i、關鍵字 in 與冒號 :！")
          )),
 
-        ("6-1-2", "練習題", "機器人巡邏站 (patrol_turns 與完成宣告)", 4, ("patrol_turns",),
+        ("6-1-2", "練習題", "機器人巡邏站 (ptrl_trns 與完成宣告)", 4, ("ptrl_trns",),
          lambda g: (
              (True, "巡邏輪數走訪與結束輸出完全吻合！")
-             if (("patrol_turns" in g or "patrol_turns" in history_str) and
-                 ("巡邏進度" in history_str or "巡邏任務完成" in history_str or "range(patrol_turns)" in history_clean))
-             else (False, "請走訪 range(patrol_turns) 印出巡邏步數，結束後印出『巡邏任務完成！』！")
+             if (("ptrl_trns" in g or "ptrl_trns" in history_str) and
+                 ("巡邏進度" in history_str or "巡邏任務完成" in history_str or "range(ptrl_trns)" in history_clean))
+             else (False, "請走訪 range(ptrl_trns) 印出巡邏步數，結束後印出『巡邏任務完成！』！")
          )),
 
         ("6-1-2", "挑戰題", "太空發射塔檢測 (check_count = 5 與發射準備完成)", 5, ("check_count",),
@@ -288,13 +288,13 @@ def auto_grade_unit_6_1(env=None):
              else (False, "請在 6-1-6 填空題填入終止邊界 5 與負步進值 -1！")
          )),
 
-        ("6-1-6", "練習題", "倒數計時器 (start_countdown 倒數至 1 加 Time is up!)", 4, ("start_countdown",),
+        ("6-1-6", "練習題", "倒數計時器 (strt_cntd 倒數至 1 加 Time is up!)", 4, ("strt_cntd",),
          lambda g: (
              (True, "倒數計時器與結束廣播輸出正確！")
-             if (("start_countdown" in g or "start_countdown" in history_str) and
+             if (("strt_cntd" in g or "strt_cntd" in history_str) and
                  ("Countdown" in history_str or "Time is up" in history_str) and
                  ("-1" in history_str))
-             else (False, "請由 start_countdown 倒數至 1（步進 -1）印出 Countdown，結束印出 Time is up!！")
+             else (False, "請由 strt_cntd 倒數至 1（步進 -1）印出 Countdown，結束印出 Time is up!！")
          )),
 
         ("6-1-6", "挑戰題", "雙倍速倒數遞減 (start_val = 20, 步進 -4 加 Complete!)", 4, ("start_val",),
@@ -308,11 +308,11 @@ def auto_grade_unit_6_1(env=None):
         # ----------------------------------------------------------------------
         # 6-1-7 迴圈追蹤表（Trace Table）：手繪變數逐輪演變的視覺化除錯法 (共 12 分)
         # ----------------------------------------------------------------------
-        ("6-1-7", "填空題", "迴圈追蹤手算結果 (expected_result = 5)", 4, ("expected_result",),
+        ("6-1-7", "填空題", "迴圈追蹤手算結果 (expc_out = 5)", 4, ("expc_out",),
          lambda g: (
-             (True, "手繪追蹤值填寫精準無誤：expected_result = 5！")
-             if (g.get("expected_result") == 5 or "expected_result=5" in history_clean)
-             else (False, "請在 6-1-7 填空題空格填入 i = 2 時 result 的計算結果 5！")
+             (True, "手繪追蹤值填寫精準無誤：expc_out = 5！")
+             if (g.get("expc_out") == 5 or "expc_out=5" in history_clean)
+             else (False, "請在 6-1-7 填空題空格填入 i = 2 時 expc_out 的計算結果 5！")
          )),
 
         ("6-1-7", "練習題", "等差跳步追蹤演算法 (steps = 3, status = i * 3 + 2)", 4, ("steps",),
@@ -328,7 +328,7 @@ def auto_grade_unit_6_1(env=None):
              (True, "二次多項式運算追蹤 (poly_num = k * k - k) 走訪成功！")
              if (("k*k-k" in history_clean or "k**2-k" in history_clean or "k * k - k" in history_str) and
                  ("range(1,5)" in history_clean or "range(1, 5)" in history_str)) or
-                ("k=4, poly_num=12" in history_str or "k=1, poly_num=0" in history_str or "k=4, val=12" in history_str or "k=1, val=0" in history_str)
+                ("k=4, poly_num=12" in history_str or "k=1, poly_num=0" in history_str)
              else (False, "請走訪 range(1, 5) 計算 poly_num = k * k - k 並輸出每一步結果！")
          )),
 

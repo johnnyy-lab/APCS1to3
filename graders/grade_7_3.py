@@ -144,12 +144,12 @@ def auto_grade_unit_7_3(env=None):
         # ----------------------------------------------------------------------
         # 7-3-1 f-string 核心語法與大括號插值 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-3-1", "填空題", "變數插值填空 (f\"{player} 剩下 {hp} 點生命\")", 6, (),
+        ("7-3-1", "填空題", "變數插值填空 (f\"{player} 剩下 {hp073} 點生命\")", 6, (),
          lambda g: (
              (True, "f-string 變數插值填寫正確！")
              if ("f\"" in history_str or "f'" in history_str) and
-                ("{player}" in history_str and "{hp}" in history_str and "剩下" in history_str)
-             else (False, "請在 7-3-1 填空題空格填入 {player} 與 {hp}！")
+                ("{player}" in history_str and "{hp073}" in history_str and "剩下" in history_str)
+             else (False, "請在 7-3-1 填空題空格填入 {player} 與 {hp073}！")
          )),
 
         ("7-3-1", "練習題", "同學成績單句子格式化 (同學 小華 考了 88 分)", 9, (),
@@ -249,11 +249,11 @@ def auto_grade_unit_7_3(env=None):
         # ----------------------------------------------------------------------
         # 7-3-5 f-string 常見陷阱與引號使用 (共 20 分)
         # ----------------------------------------------------------------------
-        ("7-3-5", "填空題", "引號前方補齊 f 標記 (f\"城市：{city}\")", 6, (),
+        ("7-3-5", "填空題", "引號前方補齊 f 標記 (f\"城市：{cty}\")", 6, (),
          lambda g: (
              (True, "成功補齊 f 前綴標記！")
-             if ('f"城市：{city}"' in history_clean or "f'城市：{city}'" in history_clean or
-                 'f"城市:{city}"' in history_clean or 'f"城市：' in history_str)
+             if ('f"城市：{cty}"' in history_clean or "f'城市：{cty}'" in history_clean or
+                 'f"城市:{cty}"' in history_clean or 'f"城市：' in history_str)
              else (False, "請在 7-3-5 填空題字串前綴補上 f！")
          )),
 

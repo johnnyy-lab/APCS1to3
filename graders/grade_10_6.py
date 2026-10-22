@@ -151,10 +151,10 @@ def auto_grade_unit_10_6(env=None):
              else (False, "請在 10-6-1 填空題宣告包含重複水果的集合！")
          )),
 
-        ("10-6-1", "練習題", "單字相異字母統計器 unique_chars = set(word)", 6, (),
+        ("10-6-1", "練習題", "單字相異字母統計器 unique_chars = set(wrd106)", 6, (),
          lambda g: (
              (True, "相異字母集合統計正確！")
-             if ("set(" in history_str or "{" in history_str) and ("unique_chars" in history_str or "word" in history_str)
+             if ("set(" in history_str or "{" in history_str) and ("unique_chars" in history_str or "wrd106" in history_str)
              else (False, "請將單字中所有字母放入集合中並統計相異字母個數！")
          )),
 
@@ -168,7 +168,7 @@ def auto_grade_unit_10_6(env=None):
         # ----------------------------------------------------------------------
         # 10-6-2 集合建立語法與空集合陷阱 set() (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-6-2", "填空題", "宣告真正的空集合 lucky_numbers = set()", 5, (),
+        ("10-6-2", "填空題", "宣告真正的空集合 lcky_ns = set()", 5, (),
          lambda g: (
              (True, "空集合 set() 填空正確！")
              if ("set()" in history_clean)
@@ -178,7 +178,7 @@ def auto_grade_unit_10_6(env=None):
         ("10-6-2", "練習題", "動態收集非負整數集合 (.add())", 6, (),
          lambda g: (
              (True, "動態條件 .add() 收集正確！")
-             if (".add(" in history_str and ">= 0" in history_str) or ("non_negative_set" in history_str)
+             if (".add(" in history_str and ">= 0" in history_str) or ("nonngtvset" in history_str)
              else (False, "請建立空集合並使用 .add() 收集非負整數！")
          )),
 
@@ -192,11 +192,11 @@ def auto_grade_unit_10_6(env=None):
         # ----------------------------------------------------------------------
         # 10-6-3 可迭代物件快速去重 set(my_list) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-6-3", "填空題", "計算打卡名單不重複人數 len(set(checkin_logs))", 5, (),
+        ("10-6-3", "填空題", "計算打卡名單不重複人數 len(set(chck_lgs))", 5, (),
          lambda g: (
              (True, "set() 快速去重人數統計填空正確！")
-             if ("len(set(checkin_logs))" in history_clean or "set(checkin_logs)" in history_str)
-             else (False, "請在 10-6-3 填空題填入 len(set(checkin_logs))！")
+             if ("len(set(chck_lgs))" in history_clean or "set(chck_lgs)" in history_str)
+             else (False, "請在 10-6-3 填空題填入 len(set(chck_lgs))！")
          )),
 
         ("10-6-3", "練習題", "相異整數計數與純度檢測 len(s) == len(lst)", 6, (),
@@ -209,38 +209,38 @@ def auto_grade_unit_10_6(env=None):
         ("10-6-3", "挑戰題", "兩班選課名冊相加後快速求總科目數", 6, (),
          lambda g: (
              (True, "兩名冊串列合併去重正確！")
-             if ("set(" in history_str and ("+" in history_str or "|" in history_str)) and ("list_a" in history_str)
+             if ("set(" in history_str and ("+" in history_str or "|" in history_str)) and ("lst" in history_str)
              else (False, "請利用串列相加並轉為 set 求出兩班總科目數！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-6-4 元素動態增刪：.add(), .remove(), .discard() (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-6-4", "填空題", "使用 discard 安全移除白名單 members.discard(target)", 5, (),
+        ("10-6-4", "填空題", "使用 discard 安全移除白名單 mmbr106.discard(tg106)", 5, (),
          lambda g: (
              (True, "discard() 安全移除填空正確！")
              if ("discard" in history_str)
-             else (False, "請在 10-6-4 填空題填入 discard(target)！")
+             else (False, "請在 10-6-4 填空題填入 discard(tg106)！")
          )),
 
         ("10-6-4", "練習題", "動態聊天室在線名冊維護器 (IN 用 add, OUT 用 discard)", 6, (),
          lambda g: (
              (True, "聊天室人員進出維護正確！")
-             if (".add(" in history_str and ".discard(" in history_str) or ("online_users" in history_str)
+             if (".add(" in history_str and ".discard(" in history_str) or ("onln_usrs" in history_str)
              else (False, "請依 IN/OUT 指令分別調用 add() 與 discard() 維護名冊！")
          )),
 
-        ("10-6-4", "挑戰題", "黑名單批次安全過濾 (遍歷 blacklist 執行 discard)", 6, (),
+        ("10-6-4", "挑戰題", "黑名單批次安全過濾 (遍歷 blck106 執行 discard)", 6, (),
          lambda g: (
              (True, "黑名單批次 discard 過濾正確！")
              if (".discard(" in history_str and "for" in history_str) and ("approved" in history_str)
-             else (False, "請走訪 blacklist 帳號使用 .discard() 安全過濾！")
+             else (False, "請走訪 blck106 帳號使用 .discard() 安全過濾！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-6-5 集合生成式（Set Comprehension） (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-6-5", "填空題", "集合生成式篩選大於 50 分數 {s for s in scores if s > 50}", 5, (),
+        ("10-6-5", "填空題", "集合生成式篩選大於 50 分數 {s for s in sc106 if s > 50}", 5, (),
          lambda g: (
              (True, "集合生成式填空正確！")
              if ("> 50" in history_str or ">50" in history_clean) and ("{" in history_str and "}" in history_str)
@@ -264,17 +264,17 @@ def auto_grade_unit_10_6(env=None):
         # ----------------------------------------------------------------------
         # 10-6-6 集合元素限制：Hashable 限制 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-6-6", "填空題", "以元組 (r, c) 標記已拜訪座標 visited_coords.add((r, c))", 5, (),
+        ("10-6-6", "填空題", "以元組 (r, c) 標記已拜訪座標 vstd_crds.add((r, c))", 5, (),
          lambda g: (
              (True, "座標元組放入集合填空正確！")
-             if (".add((" in history_clean or "visited_coords.add" in history_str)
-             else (False, "請在 10-6-6 填空題將座標元組加到 visited_coords！")
+             if (".add((" in history_clean or "vstd_crds.add" in history_str)
+             else (False, "請在 10-6-6 填空題將座標元組加到 vstd_crds！")
          )),
 
-        ("10-6-6", "練習題", "網格足跡重複踩踏偵測機 (pt in visited)", 6, (),
+        ("10-6-6", "練習題", "網格足跡重複踩踏偵測機 (pt in vstd106)", 6, (),
          lambda g: (
              (True, "網格重複足跡偵測正確！")
-             if ("in visited" in history_str and ".add(" in history_str) or ("path_points" in history_str)
+             if ("in vstd106" in history_str and ".add(" in history_str) or ("pth_pt" in history_str)
              else (False, "請使用集合紀錄走過的座標並回報重複踏足的點！")
          )),
 

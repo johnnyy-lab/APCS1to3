@@ -144,10 +144,10 @@ def auto_grade_unit_8_2(env=None):
         # ----------------------------------------------------------------------
         # 8-2-1 左閉右開基礎切片 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-2-1", "填空題", "基礎左閉右開切片 alphabet[1:4] (sub_letters)", 6, ("sub_letters",),
+        ("8-2-1", "填空題", "基礎左閉右開切片 alphabet[1:4] (sub_ltr)", 6, ("sub_ltr",),
          lambda g: (
              (True, "基礎左閉右開切片 alphabet[1:4] 提取正確！")
-             if g.get("sub_letters") == ["B", "C", "D"] or
+             if g.get("sub_ltr") == ["B", "C", "D"] or
                 ("alphabet[1:4]" in history_clean)
              else (False, "請在 8-2-1 填空題空格填入起點 1 與終點 4！")
          )),
@@ -160,12 +160,12 @@ def auto_grade_unit_8_2(env=None):
              else (False, "請使用切片 members[1:4] 抽出核心幹部並以 print(*幹部) 輸出！")
          )),
 
-        ("8-2-1", "挑戰題", "三等分切分器 (a[0:2], a[2:4], a[4:6])", 5, (),
+        ("8-2-1", "挑戰題", "三等分切分器 (six_pack[0:2], six_pack[2:4], six_pack[4:6])", 5, (),
          lambda g: (
              (True, "六元素三等分區間切片輸出正確！")
              if ("[0:2]" in history_str and "[2:4]" in history_str and "[4:6]" in history_str) or
                 ("[:2]" in history_str and "[2:4]" in history_str and "[4:]" in history_str)
-             else (False, "請以 a[0:2], a[2:4], a[4:6] 將數列等分為三組並依序印出！")
+             else (False, "請以 six_pack[0:2], six_pack[2:4], six_pack[4:6] 將數列等分為三組並依序印出！")
          )),
 
         # ----------------------------------------------------------------------
@@ -175,7 +175,7 @@ def auto_grade_unit_8_2(env=None):
          lambda g: (
              (True, "省略終點之切片 nums_list[2:] 截取成功！")
              if g.get("remaining") == [300, 400, 500] or
-                ("nums_list[2:]" in history_clean or "data[2:]" in history_clean)
+                ("nums_list[2:]" in history_clean)
              else (False, "請在 8-2-2 填空題填入起點 2 截取至尾端！")
          )),
 
@@ -215,12 +215,12 @@ def auto_grade_unit_8_2(env=None):
              else (False, "請分別以 print(*nums) 與 print(*nums[::-1]) 輸出兩行！")
          )),
 
-        ("8-2-3", "挑戰題", "迴文數列判定 (a == a[::-1])", 5, (),
+        ("8-2-3", "挑戰題", "迴文數列判定 (pal_five == pal_five[::-1])", 5, (),
          lambda g: (
              (True, "迴文數列比對與分支輸出正確！")
-             if ("a[::-1]" in history_clean or "nums[::-1]" in history_clean) and
+             if ("pal_five[::-1]" in history_clean or "nums[::-1]" in history_clean) and
                 ("PALINDROME LIST" in history_str or "NOT PALINDROME" in history_str)
-             else (False, "請檢驗數列是否滿足 a == a[::-1]，輸出 PALINDROME LIST 或 NOT PALINDROME！")
+             else (False, "請檢驗 pal_five 是否滿足 pal_five == pal_five[::-1]，輸出 PALINDROME LIST 或 NOT PALINDROME！")
          )),
 
         # ----------------------------------------------------------------------
@@ -242,12 +242,12 @@ def auto_grade_unit_8_2(env=None):
              else (False, "請以 vault[1:4] = [輸入的3數] 批次更新中間代碼並印出！")
          )),
 
-        ("8-2-4", "挑戰題", "區間字串批次大翻轉 (a[1:4] = a[1:4][::-1])", 5, (),
+        ("8-2-4", "挑戰題", "區間字串批次大翻轉 (mid_words[1:4] = mid_words[1:4][::-1])", 5, (),
          lambda g: (
              (True, "子區間切片提取、反轉與回填輸出正確！")
-             if ("a[1:4] = a[1:4][::-1]" in history_clean or "a[1:4]=a[1:4][::-1]" in history_clean) or
+             if ("mid_words[1:4] = mid_words[1:4][::-1]" in history_clean or "mid_words[1:4]=mid_words[1:4][::-1]" in history_clean) or
                 ("A D C B E" in history_str)
-             else (False, "請以 a[1:4] = a[1:4][::-1] 將中間 3 元素就地反轉回填並印出！")
+             else (False, "請以 mid_words[1:4] = mid_words[1:4][::-1] 將中間 3 元素就地反轉回填並印出！")
          )),
 
         # ----------------------------------------------------------------------

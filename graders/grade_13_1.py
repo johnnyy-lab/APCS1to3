@@ -203,7 +203,7 @@ def check_q7(g, hist):
         return False, "請在 fixed_code 中修復 if len(nums) > 0: 漏冒號語法錯誤。"
     if isinstance(fc, str) and "if len(nums) > 0:" in fc:
         return True, "太棒了！成功在 if 條件句末尾補齊關鍵冒號 ':'！"
-    if "len(nums) > 0:" in hist or "correct_code_sample" in g:
+    if "len(nums) > 0:" in hist or "crrccdsmpl" in g:
         return True, "語法修正通過！"
     return False, "請在 fixed_code 中修復 if len(nums) > 0: 漏冒號語法錯誤。"
 
@@ -294,12 +294,12 @@ def check_q13(g, hist):
         return False, "請實作 predict_tle，當運算量小於限制時回傳 'PASS'。"
     if callable(fn):
         try:
-            if fn(100000, "O(N)") == "PASS":
-                return True, "太棒了！N=10^5 在 O(N) 僅 10 萬次運算，遠低於千萬上限，判定 PASS！"
+            if fn(100000, "O(N131)") == "PASS":
+                return True, "太棒了！N131=10^5 在 O(N131) 僅 10 萬次運算，遠低於千萬上限，判定 PASS！"
         except Exception:
             pass
-    if 'predict_tle(100000, "O(N)")' in hist:
-        return True, "O(N) 運算量檢驗通過！"
+    if 'predict_tle(100000, "O(N131)")' in hist:
+        return True, "O(N131) 運算量檢驗通過！"
     return False, "請實作 predict_tle，當運算量小於限制時回傳 'PASS'。"
 
 def check_q14(g, hist):
@@ -308,12 +308,12 @@ def check_q14(g, hist):
         return False, "當預估運算次數超過限制時，請回傳 'TLE'。"
     if callable(fn):
         try:
-            if fn(100000, "O(N^2)") == "TLE":
-                return True, "完全正確！N=10^5 在 O(N^2) 高達 10^10 次運算，精準預警 TLE！"
+            if fn(100000, "O(N131^2)") == "TLE":
+                return True, "完全正確！N131=10^5 在 O(N131^2) 高達 10^10 次運算，精準預警 TLE！"
         except Exception:
             pass
-    if 'predict_tle(100000, "O(N^2)")' in hist:
-        return True, "O(N^2) TLE 預警通過！"
+    if 'predict_tle(100000, "O(N131^2)")' in hist:
+        return True, "O(N131^2) TLE 預警通過！"
     return False, "當預估運算次數超過限制時，請回傳 'TLE'。"
 
 def check_q15(g, hist):
@@ -322,7 +322,7 @@ def check_q15(g, hist):
         return False, "請依運算次數上限正確認定邊界 (2000 PASS, 5000 TLE)。"
     if callable(fn):
         try:
-            if fn(2000, "O(N^2)") == "PASS" and fn(5000, "O(N^2)") == "TLE":
+            if fn(2000, "O(N131^2)") == "PASS" and fn(5000, "O(N131^2)") == "TLE":
                 return True, "精彩！精確掌握 2000^2=4*10^6 (PASS) 與 5000^2=2.5*10^7 (TLE) 臨界邊界！"
         except Exception:
             pass
@@ -428,7 +428,7 @@ def auto_grade_unit_13_1(env=None):
          lambda g: check_q5(g, history_str)),
         ('13-1-2', '實作題', '含零與重複值極端測資強韌性', 5, (),
          lambda g: check_q6(g, history_str)),
-        ('13-1-3', '實作題', 'fixed_code 修正語法漏冒號錯誤', 6, ("fixed_code", "correct_code_sample"),
+        ('13-1-3', '實作題', 'fixed_code 修正語法漏冒號錯誤', 6, ("fixed_code", "crrccdsmpl"),
          lambda g: check_q7(g, history_str)),
         ('13-1-3', '實作題', 'fixed_code 成功通過 compile() 編譯', 6, ("fixed_code", "comp_ok"),
          lambda g: check_q8(g, history_str)),
@@ -440,9 +440,9 @@ def auto_grade_unit_13_1(env=None):
          lambda g: check_q11(g, history_str)),
         ('13-1-4', '實作題', '嚴格空格分隔與尾端無多餘空白格式', 5, (),
          lambda g: check_q12(g, history_str)),
-        ('13-1-5', '實作題', 'O(N) 線性複雜度 10^5 運算量判定 PASS', 6, (),
+        ('13-1-5', '實作題', 'O(N131) 線性複雜度 10^5 運算量判定 PASS', 6, (),
          lambda g: check_q13(g, history_str)),
-        ('13-1-5', '實作題', 'O(N^2) 平方複雜度 10^5 運算量預警 TLE', 5, (),
+        ('13-1-5', '實作題', 'O(N131^2) 平方複雜度 10^5 運算量預警 TLE', 5, (),
          lambda g: check_q14(g, history_str)),
         ('13-1-5', '實作題', '時間限制與運算量臨界邊界判定', 5, (),
          lambda g: check_q15(g, history_str)),

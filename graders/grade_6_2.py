@@ -223,10 +223,10 @@ def auto_grade_unit_6_2(env=None):
         # ----------------------------------------------------------------------
         # 6-2-4 條件篩選加總：過濾閥門（Filter & Accumulate） (共 13 分)
         # ----------------------------------------------------------------------
-        ("6-2-4", "填空題", "倍數聯集篩選加總 (or 運算子與 += x)", 4, ("sum_multiples",),
+        ("6-2-4", "填空題", "倍數聯集篩選加總 (or 運算子與 += x)", 4, ("sum_mltp",),
          lambda g: (
              (True, "邏輯 or 條件聯集與符合項目累加填寫正確！")
-             if (g.get("sum_multiples") == 98 or ("or" in history_str and "+= x" in history_str))
+             if (g.get("sum_mltp") == 98 or ("or" in history_str and "+= x" in history_str))
              else (False, "請在 6-2-4 填空題空格填入 or 與 +=！")
          )),
 
@@ -346,17 +346,17 @@ def auto_grade_unit_6_2(env=None):
         ("6-2-8", "練習題", "數列全距與極值報表 (Max, Min, Range)", 4, (),
          lambda g: (
              (True, "極值與全距流式統計報表輸出正確！")
-             if (("Range" in history_str or "max_val - min_val" in history_str or "max_val-min_val" in history_clean) and
+             if (("Range" in history_str or "max_val - min_val062" in history_str or "max_val-min_val062" in history_clean) and
                  ("Max:" in history_str or "Min:" in history_str))
              else (False, "請讀入 n 筆資料，輸出最大值、最小值與全距 (Range)！")
          )),
 
-        ("6-2-8", "挑戰題", "評審去極值有效總分 (total - max_val - min_val)", 4, (),
+        ("6-2-8", "挑戰題", "評審去極值有效總分 (tot3 - max_val - min_val062)", 4, (),
          lambda g: (
              (True, "去頭去尾去極值裁判評分總和運算成功！")
-             if (("- max_val - min_val" in history_str or "-max_val-min_val" in history_clean or
-                  ("total" in history_str and "max_val" in history_str and "min_val" in history_str)))
-             else (False, "請同時維護 total, max_val, min_val，並輸出去除極值後的有效總分！")
+             if (("- max_val - min_val062" in history_str or "-max_val-min_val062" in history_clean or
+                  ("tot3" in history_str and "max_val" in history_str and "min_val062" in history_str)))
+             else (False, "請同時維護 tot3, max_val, min_val062，並輸出去除極值後的有效總分！")
          )),
     ]
 

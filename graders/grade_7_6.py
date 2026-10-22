@@ -233,7 +233,7 @@ def auto_grade_unit_7_6(env=None):
          lambda g: (
              (True, "使用 .find(':') 定位成功分離數值字串 98！")
              if g.get("score_str") == "98" or
-                ('data_record.find(":")' in history_clean or "data_record.find(':')" in history_clean)
+                ('dt_rcrd.find(":")' in history_clean or "dt_rcrd.find(':')" in history_clean)
              else (False, "請在 7-6-4 填空題空格填入方法名稱 find！")
          )),
 

@@ -151,12 +151,12 @@ def auto_grade_unit_4_3(env=None):
              else (False, "請在 4-3-1 填空題空格填入 end='\\n' 並執行儲存格！")
          )),
 
-        ("4-3-1", "練習題", "運動會賽程上午與下午換行輸出 (morning_event, afternoon_event)", 8, ("morning_event", "afternoon_event"),
+        ("4-3-1", "練習題", "運動會賽程上午與下午換行輸出 (mrnn_evnt, aftr_evnt)", 8, ("mrnn_evnt", "aftr_evnt"),
          lambda g: (
              (True, "校慶賽程換行公告完成！")
-             if (("morning_event" in g and "afternoon_event" in g) and
+             if (("mrnn_evnt" in g and "aftr_evnt" in g) and
                  ("end='\\n'" in history_str or 'end="\\n"' in history_str or "end=\\n" in history_str))
-             else (False, "請宣告 morning_event, afternoon_event 並在第一次 print() 加上 end='\\n' 輸出！")
+             else (False, "請宣告 mrnn_evnt, aftr_evnt 並在第一次 print() 加上 end='\\n' 輸出！")
          )),
 
         ("4-3-1", "挑戰題", "氣象站今明兩天氣溫逐日通報 (temp_today, temp_tomorrow)", 6, ("temp_today", "temp_tomorrow"),
@@ -170,11 +170,11 @@ def auto_grade_unit_4_3(env=None):
         # ----------------------------------------------------------------------
         # 4-3-2 取消換行緊密相連——空字串 end='' 接續輸出 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-3-2", "填空題", "取消換行接續輸出金額 (end='')", 6, ("total_price",),
+        ("4-3-2", "填空題", "取消換行接續輸出金額 (end='')", 6, ("tot_prc043",),
          lambda g: (
              (True, "取消換行設定正確：end=''！")
              if (("end=''" in history_str or 'end=""' in history_str) and
-                 ("應付總額" in history_str or "total_price" in history_str or g.get("total_price") == 360))
+                 ("應付總額" in history_str or "tot_prc043" in history_str or g.get("tot_prc043") == 360))
              else (False, "請在 4-3-2 填空題空格填入 end='' 取消換行並執行儲存格！")
          )),
 

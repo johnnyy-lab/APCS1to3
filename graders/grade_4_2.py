@@ -207,12 +207,12 @@ def auto_grade_unit_4_2(env=None):
              else (False, "請在 4-2-3 填空題空格填入空字串 sep='' 並執行儲存格！")
          )),
 
-        ("4-2-3", "練習題", "郵遞區號與行政區緊密輸出 (zip_code, area, sep='')", 8, ("zip_code", "area"),
+        ("4-2-3", "練習題", "郵遞區號與行政區緊密輸出 (zip_code, ar042, sep='')", 8, ("zip_code", "ar042"),
          lambda g: (
-             (True, f"郵遞地址緊密合併成功：{g.get('zip_code')}{g.get('area')}！")
-             if (("zip_code" in g and "area" in g) and
+             (True, f"郵遞地址緊密合併成功：{g.get('zip_code')}{g.get('ar042')}！")
+             if (("zip_code" in g and "ar042" in g) and
                  ("sep=''" in history_str or 'sep=""' in history_str))
-             else (False, "請宣告 zip_code 與 area 變數，並使用 print(zip_code, area, sep='') 緊密輸出！")
+             else (False, "請宣告 zip_code 與 ar042 變數，並使用 print(zip_code, ar042, sep='') 緊密輸出！")
          )),
 
         ("4-2-3", "挑戰題", "密碼箱通關金鑰無縫組合 (lock_a, lock_b, lock_c)", 6, ("lock_a", "lock_b", "lock_c"),
@@ -235,12 +235,12 @@ def auto_grade_unit_4_2(env=None):
              else (False, "請在 4-2-4 填空題空格填入包含前後空格的對決字串 ' vs ' 並執行儲存格！")
          )),
 
-        ("4-2-4", "練習題", "高雄歷史文化路線箭頭串聯 (s1, s2, s3, sep=' -> ')", 8, ("s1", "s2", "s3"),
+        ("4-2-4", "練習題", "高雄歷史文化路線箭頭串聯 (s1042, s2042, s3042, sep=' -> ')", 8, ("s1042", "s2042", "s3042"),
          lambda g: (
              (True, "旅遊景點箭頭路線圖輸出完成！")
-             if (("s1" in g and "s2" in g and "s3" in g) and
+             if (("s1042" in g and "s2042" in g and "s3042" in g) and
                  ("->" in history_str))
-             else (False, "請宣告 s1, s2, s3 景點變數，並使用 sep=' -> ' 串聯輸出！")
+             else (False, "請宣告 s1042, s2042, s3042 景點變數，並使用 sep=' -> ' 串聯輸出！")
          )),
 
         ("4-2-4", "挑戰題", "專題三階段進度條雙箭頭 (phase1, phase2, phase3, sep=' ==> ')", 6, ("phase1", "phase2", "phase3"),

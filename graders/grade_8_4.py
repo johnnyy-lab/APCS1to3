@@ -171,11 +171,11 @@ def auto_grade_unit_8_4(env=None):
         # ----------------------------------------------------------------------
         # 8-4-2 sum() 總和函數 (共 20 分)
         # ----------------------------------------------------------------------
-        ("8-4-2", "填空題", "呼叫 sum(pocket_money) 計算總金額 (total_money == 300)", 6, ("total_money",),
+        ("8-4-2", "填空題", "呼叫 sum(pcktmny084) 計算總金額 (tot_mny == 300)", 6, ("tot_mny",),
          lambda g: (
-             (True, "sum(pocket_money) 總和計算完全正確！")
-             if g.get("total_money") == 300 or
-                ("sum(pocket_money)" in history_clean)
+             (True, "sum(pcktmny084) 總和計算完全正確！")
+             if g.get("tot_mny") == 300 or
+                ("sum(pcktmny084)" in history_clean)
              else (False, "請在 8-4-2 填空題空格填入函數名稱 sum！")
          )),
 
@@ -216,12 +216,12 @@ def auto_grade_unit_8_4(env=None):
              else (False, "請使用 max() 與 min() 找出最高最低價並依格式輸出！")
          )),
 
-        ("8-4-3", "挑戰題", "最高分與次高分 (max(a) 搭配 remove 與二次 max)", 5, (),
+        ("8-4-3", "挑戰題", "最高分與次高分 (max(top_four) 搭配 remove 與二次 max)", 5, (),
          lambda g: (
              (True, "冠軍與亞軍兩階段極值定位輸出正確！")
              if ("Champion:" in history_str and "Runner-up:" in history_str and "max(" in history_str) or
                 ("Champion: 95, Runner-up: 88" in history_str)
-             else (False, "請找出最高分 champion 後移除，再找出次高分 runner_up 並印出！")
+             else (False, "請把 4 個分數存入 top_four，找出最高分 champion 後移除，再找出次高分 runner_up 並印出！")
          )),
 
         # ----------------------------------------------------------------------

@@ -147,22 +147,22 @@ def auto_grade_unit_9_8(env=None):
         ("9-8-1", "填空題", "射線連續步進 while 邊界條件", 5, (),
          lambda g: (
              (True, "射線步進 while 條件填空正確！")
-             if ("while 0 <= curr_r < R" in history_str or "while 0<=curr_r<R" in history_clean or
-                 "0 <= curr_r < R and 0 <= curr_c < C" in history_str)
+             if ("while 0 <= curr_r < R098" in history_str or "while 0<=curr_r<R098" in history_clean or
+                 "0 <= curr_r < R098 and 0 <= curr_c < C098" in history_str)
              else (False, "請在 9-8-1 填空題填入 while 邊界守護推進條件！")
          )),
 
         ("9-8-1", "練習題", "朝右方射線掃描直至出界並印出軌跡", 6, (),
          lambda g: (
              (True, "單向射線掃描軌跡正確！")
-             if ("curr_c += 1" in history_str or "curr_c+=1" in history_clean) and "while" in history_str
+             if ("crr_c += 1" in history_str or "crr_c+=1" in history_clean) and "while" in history_str
              else (False, "請使用 while 迴圈連續向右推進並印出經由座標！")
          )),
 
         ("9-8-1", "挑戰題", "射線行進步數累加統計", 5, (),
          lambda g: (
              (True, "射線步數累加正確！")
-             if ("steps += 1" in history_str or "steps+=1" in history_clean or "step_count" in history_str)
+             if ("stps098 += 1" in history_str or "stps098+=1" in history_clean or "step_count" in history_str)
              else (False, "請統計射線自起點出發至出界前的總步數！")
          )),
 
@@ -172,22 +172,22 @@ def auto_grade_unit_9_8(env=None):
         ("9-8-2", "填空題", "撞牆判定與終止條件", 5, (),
          lambda g: (
              (True, "撞牆終止條件填空正確！")
-             if ("not (0 <= next_r < R and 0 <= next_c < C)" in history_str or "break" in history_str or
-                 "0 <= next_r < R" in history_str)
+             if ("not (0 <= next_r < R098 and 0 <= next_c < C098)" in history_str or "break" in history_str or
+                 "0 <= next_r < R098" in history_str)
              else (False, "請在 9-8-2 填空題填入撞牆終止防禦！")
          )),
 
         ("9-8-2", "練習題", "朝指定方向射線掃描回傳撞牆前最後合法座標", 6, (),
          lambda g: (
              (True, "撞牆極限座標鎖定正確！")
-             if ("last_r" in history_str or "last_c" in history_str or "curr_r" in history_str) and "while" in history_str
+             if ("last_r" in history_str or "last_c" in history_str or "crr_r2" in history_str) and "while" in history_str
              else (False, "請掃描並回傳撞牆前的最後一個合法內部座標！")
          )),
 
         ("9-8-2", "挑戰題", "四方向撞牆距離計算 (上下左右距邊界長度)", 6, (),
          lambda g: (
              (True, "四向撞牆距離計算正確！")
-             if ("r" in history_str and "R - 1 - r" in history_str or "c" in history_str and "C - 1 - c" in history_str)
+             if ("r" in history_str and "R098 - 1 - r" in history_str or "c" in history_str and "C098 - 1 - c" in history_str)
              else (False, "請計算當前點至上下左右四面牆壁的步數距離！")
          )),
 
@@ -212,7 +212,7 @@ def auto_grade_unit_9_8(env=None):
         ("9-8-3", "挑戰題", "被障礙物阻擋後將沿途格子染為指定符號", 6, (),
          lambda g: (
              (True, "射線沿途染色正確！")
-             if ("grid[r][c] =" in history_str or "board[r][c] =" in history_str or "=" in history_str) and "while" in history_str
+             if ("gd55[r][c] =" in history_str or "board[r][c] =" in history_str or "=" in history_str) and "while" in history_str
              else (False, "請將射線前進路徑上的所有空格染色！")
          )),
 
@@ -269,11 +269,11 @@ def auto_grade_unit_9_8(env=None):
         # ----------------------------------------------------------------------
         # 9-8-6 APCS g596 骨牌遊戲：柱子拔除與連線阻擋動態模擬 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("9-8-6", "填空題", "APCS g596 跨距限制 steps <= K", 5, (),
+        ("9-8-6", "填空題", "APCS g596 跨距限制 stps098 <= K", 5, (),
          lambda g: (
              (True, "APCS g596 跨距限制填空正確！")
-             if ("steps <= K" in history_str or "steps<=K" in history_clean or "step <= K" in history_str)
-             else (False, "請在 9-8-6 填空題填入 steps <= K！")
+             if ("stps098 <= K" in history_str or "stps098<=K" in history_clean or "step <= K" in history_str)
+             else (False, "請在 9-8-6 填空題填入 stps098 <= K！")
          )),
 
         ("9-8-6", "練習題", "APCS g596 單次加柱與四向連線模擬", 6, (),

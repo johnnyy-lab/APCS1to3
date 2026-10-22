@@ -219,7 +219,7 @@ def check_q8(g, hist):
     if callable(fn):
         try:
             _, logs = fn([1, 3, 5, 7, 9], 7)
-            if len(logs) >= 1 and logs[0].startswith("[DEBUG]") and ("num=" in logs[0] or "val=" in logs[0]):
+            if len(logs) >= 1 and logs[0].startswith("[DEBUG]") and "num=" in logs[0]:
                 return True, "太棒了！搜尋歷程正確記錄 [DEBUG] 標籤且包含變數細節！"
         except Exception as e:
             return False, f"執行 binary_search_with_logs 時發生例外: {e}"
@@ -340,8 +340,8 @@ def check_q16(g, hist):
     if callable(fn):
         try:
             test_in = "4\n3 6 9 12\n"
-            expected = "12\n4\n"
-            if fn(test_in) == expected:
+            expc138 = "12\n4\n"
+            if fn(test_in) == expc138:
                 return True, "太棒了！標準兩行輸出最大整數與能被 3 整除之個數完全正確！"
         except Exception as e:
             return False, f"執行 apcs_standard_solution 時發生例外: {e}"
@@ -356,8 +356,8 @@ def check_q17(g, hist):
     if callable(fn):
         try:
             test_neg = "3\n-9 -3 -6\n"
-            expected_neg = "-3\n3\n"
-            if fn(test_neg) == expected_neg:
+            expc_neg = "-3\n3\n"
+            if fn(test_neg) == expc_neg:
                 return True, "太棒了！全負數測資最大值 -3 與整除個數 3 格式對齊完全無瑕！"
         except Exception as e:
             return False, f"執行 apcs_standard_solution 時發生例外: {e}"

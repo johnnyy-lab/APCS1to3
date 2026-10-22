@@ -143,11 +143,11 @@ def auto_grade_unit_4_5(env=None):
         # ----------------------------------------------------------------------
         # 4-5-1 input() 的本質——電腦的靈敏耳朵與「輸入一律為字串」的鐵律 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-5-1", "填空題", "標準輸入 input() 讀入星座名稱 (constellation)", 6, ("constellation",),
+        ("4-5-1", "填空題", "標準輸入 input() 讀入星座名稱 (cnst)", 6, ("cnst",),
          lambda g: (
              (True, "字串輸入設定正確：成功使用 input() 讀取星座！")
-             if (("constellation" in g or "constellation = input()" in history_str.replace(" ", "")) and
-                 ("觀測日誌" in history_str or "constellation" in history_str))
+             if (("cnst" in g or "cnst = input()" in history_str.replace(" ", "")) and
+                 ("觀測日誌" in history_str or "cnst" in history_str))
              else (False, "請在 4-5-1 填空題填入 input() 讀入星座並印出！")
          )),
 
@@ -224,20 +224,20 @@ def auto_grade_unit_4_5(env=None):
         # ----------------------------------------------------------------------
         # 4-5-4 循序多次調用 input() 讀入多行單一資料 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-5-4", "填空題", "超商商品三行讀取與總額計算 (item_name, price, count)", 6, ("item_name", "price", "count"),
+        ("4-5-4", "填空題", "超商商品三行讀取與總額計算 (item_name, prc, cnt045)", 6, ("item_name", "prc", "cnt045"),
          lambda g: (
              (True, "三行資料循序讀取設定正確！")
-             if (("item_name" in g or "price" in g or "count" in g) or
+             if (("item_name" in g or "prc" in g or "cnt045" in g) or
                  ("item_name" in history_str and "input" in history_str))
              else (False, "請在 4-5-4 填空題依序使用 input() 與 int(input()) 讀取三行！")
          )),
 
-        ("4-5-4", "練習題", "雙數四則運算分析儀 (num1, num2)", 8, ("num1", "num2"),
+        ("4-5-4", "練習題", "雙數四則運算分析儀 (nm1045, nm2045)", 8, ("nm1045", "nm2045"),
          lambda g: (
-             (True, f"雙數分析儀運算完成：num1={g.get('num1')}, num2={g.get('num2')}！")
-             if (("num1" in g and "num2" in g) and
+             (True, f"雙數分析儀運算完成：nm1045={g.get('nm1045')}, nm2045={g.get('nm2045')}！")
+             if (("nm1045" in g and "nm2045" in g) and
                  ("兩數為：" in history_str or "商：" in history_str))
-             else (False, "請連續兩行讀入 num1 與 num2 整數，並印出和、差、積、商、餘數！")
+             else (False, "請連續兩行讀入 nm1045 與 nm2045 整數，並印出和、差、積、商、餘數！")
          )),
 
         ("4-5-4", "挑戰題", "競賽選手總分加權計算模組 (theory_score, practical_score)", 6, ("theory_score", "practical_score", "candidate_name"),
@@ -251,11 +251,11 @@ def auto_grade_unit_4_5(env=None):
         # ----------------------------------------------------------------------
         # 4-5-5 競技程式 APCS / OJ 生死線——嚴禁提示文字的「純淨讀入」 (共 20 分)
         # ----------------------------------------------------------------------
-        ("4-5-5", "填空題", "APCS 純淨讀入求較大者 (max(num1, num2))", 6, ("num1",),
+        ("4-5-5", "填空題", "APCS 純淨讀入求較大者 (max(nm1045, nm2045))", 6, ("nm1045",),
          lambda g: (
              (True, "APCS 純淨讀入格式正確：input() 無多餘字串！")
-             if (("int(input())" in history_str.replace(" ", "") or "num1" in g) and
-                 ("max(num1" in history_str.replace(" ", "") or "max" in history_str))
+             if (("int(input())" in history_str.replace(" ", "") or "nm1045" in g) and
+                 ("max(nm1045" in history_str.replace(" ", "") or "max" in history_str))
              else (False, "請在 4-5-5 填空題使用純淨 int(input()) 讀入兩數並輸出較大者！")
          )),
 

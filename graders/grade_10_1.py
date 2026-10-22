@@ -144,11 +144,11 @@ def auto_grade_unit_10_1(env=None):
         # ----------------------------------------------------------------------
         # 10-1-1 為什麼需要不可變容器？ (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-1-1", "填空題", "安全讀取伺服器設定 server_config[0] 與 server_config[-1]", 5, ("port", "status"),
+        ("10-1-1", "填空題", "安全讀取伺服器設定 srv_cnfg[0] 與 srv_cnfg[-1]", 5, ("port", "stts101"),
          lambda g: (
              (True, "元組安全讀取填空完全正確！")
-             if (g.get("port") == 8080 and g.get("status") == "ONLINE") or
-                ("server_config[0]" in history_clean and "server_config[-1]" in history_clean)
+             if (g.get("port") == 8080 and g.get("stts101") == "ONLINE") or
+                ("srv_cnfg[0]" in history_clean and "srv_cnfg[-1]" in history_clean)
              else (False, "請在 10-1-1 填空題填入索引 0 與 -1 安全讀取元組！")
          )),
 
@@ -162,19 +162,19 @@ def auto_grade_unit_10_1(env=None):
         ("10-1-1", "挑戰題", "四科成績極值守門員與全距計算", 5, (),
          lambda g: (
              (True, "元組極值與全距計算正確！")
-             if ("max(" in history_str and "min(" in history_str) and ("scores" in history_str or "tuple" in history_str)
-             else (False, "請輸入四科成績存入元組，並計算 max(scores) - min(scores)！")
+             if ("max(" in history_str and "min(" in history_str) and ("sc101" in history_str or "tuple" in history_str)
+             else (False, "請輸入四科成績存入元組，並計算 max(sc101) - min(sc101)！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-1-2 單元素逗號陷阱 (x,) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-1-2", "填空題", "修復單元素元組宣告 (num_val,)", 5, ("single_t",),
+        ("10-1-2", "填空題", "修復單元素元組宣告 (num_val101,)", 5, ("single_t",),
          lambda g: (
              (True, "單元素元組逗號修復正確！")
              if (isinstance(g.get("single_t"), tuple) and len(g.get("single_t")) == 1) or
-                ("(num_val,)" in history_clean or "(88,)" in history_clean)
-             else (False, "請在 10-1-2 填空題小括號內補上逗號 `(num_val,)`！")
+                ("(num_val101,)" in history_clean or "(88,)" in history_clean)
+             else (False, "請在 10-1-2 填空題小括號內補上逗號 `(num_val101,)`！")
          )),
 
         ("10-1-2", "練習題", "純括號整數 vs 單元素元組型態與長度檢驗", 6, (),
@@ -187,33 +187,33 @@ def auto_grade_unit_10_1(env=None):
         ("10-1-2", "挑戰題", "動態構造空元組 () 與單元素元組", 6, (),
          lambda g: (
              (True, "空元組與單元素動態構造正確！")
-             if ("() " in history_str or "()" in history_clean or "tuple()" in history_str) and ("k ==" in history_str or "k==" in history_clean)
+             if ("() " in history_str or "()" in history_clean or "tuple()" in history_str) and ("k101 ==" in history_str or "k101==" in history_clean)
              else (False, "請依 K == 0 建立空元組 ()，K == 1 建立單元素元組！")
          )),
 
         # ----------------------------------------------------------------------
         # 10-1-3 正負索引存取與切片操作 (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-1-3", "填空題", "週末切片 days[-2:] 與平日反轉 days[:5][::-1]", 5, ("weekend",),
+        ("10-1-3", "填空題", "週末切片 dys[-2:] 與平日反轉 dys[:5][::-1]", 5, ("weekend",),
          lambda g: (
              (True, "元組切片提取與反轉填空正確！")
              if (g.get("weekend") == ("六", "日")) or
-                ("days[-2:]" in history_clean or "days[5:]" in history_clean or "::-1" in history_str)
-             else (False, "請在 10-1-3 填空題填入 days[-2:] 與 days[:5][::-1]！")
+                ("dys[-2:]" in history_clean or "dys[5:]" in history_clean or "::-1" in history_str)
+             else (False, "請在 10-1-3 填空題填入 dys[-2:] 與 dys[:5][::-1]！")
          )),
 
-        ("10-1-3", "練習題", "數列頭尾裁切與中間反轉 (t[1:-1][::-1])", 6, (),
+        ("10-1-3", "練習題", "數列頭尾裁切與中間反轉 (t101[1:-1][::-1])", 6, (),
          lambda g: (
              (True, "頭尾裁切與中間反轉切片正確！")
-             if ("t[1:-1]" in history_clean and "::-1" in history_str) or ("tuple" in history_str and "print" in history_str)
+             if ("t101[1:-1]" in history_clean and "::-1" in history_str) or ("tuple" in history_str and "print" in history_str)
              else (False, "請去除首尾兩數後將中間元素反轉輸出！")
          )),
 
-        ("10-1-3", "挑戰題", "迴文元組檢測器 (t == t[::-1])", 6, (),
+        ("10-1-3", "挑戰題", "迴文元組檢測器 (t1013 == t1013[::-1])", 6, (),
          lambda g: (
              (True, "迴文元組檢測邏輯正確！")
-             if ("t == t[::-1]" in history_clean or "t==t[::-1]" in history_clean) and ("YES" in history_str and "NO" in history_str)
-             else (False, "請以 t == t[::-1] 判斷是否為迴文元組並輸出 YES 或 NO！")
+             if ("t1013 == t1013[::-1]" in history_clean or "t1013==t1013[::-1]" in history_clean) and ("YES" in history_str and "NO" in history_str)
+             else (False, "請以 t1013 == t1013[::-1] 判斷是否為迴文元組並輸出 YES 或 NO！")
          )),
 
         # ----------------------------------------------------------------------
@@ -244,10 +244,10 @@ def auto_grade_unit_10_1(env=None):
         # ----------------------------------------------------------------------
         # 10-1-5 元組解包賦值 (Tuple Unpacking) (共 17 分: 5 + 6 + 6)
         # ----------------------------------------------------------------------
-        ("10-1-5", "填空題", "三維座標解包與曼哈頓距離計算", 5, ("manhattan_dist",),
+        ("10-1-5", "填空題", "三維座標解包與曼哈頓距離計算", 5, ("manh_dst",),
          lambda g: (
              (True, "三維曼哈頓座標解包填空正確！")
-             if (g.get("manhattan_dist") == 22) or
+             if (g.get("manh_dst") == 22) or
                 ("px, py, pz = coord_3d" in history_str or "px,py,pz=coord_3d" in history_clean or
                  "x, y, z = coord_3d" in history_str or "x,y,z=coord_3d" in history_clean)
              else (False, "請在 10-1-5 填空題完成座標解包！")
@@ -271,12 +271,12 @@ def auto_grade_unit_10_1(env=None):
         # ----------------------------------------------------------------------
         # 10-1-6 二維座標封裝：以 (r, c) 表示平面點 (共 16 分: 5 + 6 + 5)
         # ----------------------------------------------------------------------
-        ("10-1-6", "填空題", "座標元組走訪 for r, c in points", 5, (),
+        ("10-1-6", "填空題", "座標元組走訪 for r, c in pt", 5, (),
          lambda g: (
              (True, "座標元組走訪填空正確！")
-             if ("for r, c in points" in history_str or "for r, c in points:" in history_str or
+             if ("for r, c in pt" in history_str or "for r, c in pt:" in history_str or
                  "forr,cinpoints" in history_clean)
-             else (False, "請在 10-1-6 填空題填入 for r, c in points！")
+             else (False, "請在 10-1-6 填空題填入 for r, c in pt！")
          )),
 
         ("10-1-6", "練習題", "曼哈頓兩點距離元組計算機 abs(r1-r2) + abs(c1-c2)", 6, (),

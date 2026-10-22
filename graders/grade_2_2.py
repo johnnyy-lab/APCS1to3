@@ -150,11 +150,11 @@ def auto_grade_unit_2_2(env=None):
         # ----------------------------------------------------------------------
         # 2-2-1 整數加法與減法（+、-）——數值增減與負數運算 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-1", "填空題", "零用錢增減計算 (final_wallet = 275)", 6, ("final_wallet",),
+        ("2-2-1", "填空題", "零用錢增減計算 (fnl_wllt = 275)", 6, ("fnl_wllt",),
          lambda g: (
-             (True, "加減運算成功：final_wallet = 275！")
-             if (g.get("final_wallet") == 275 and type(g.get("final_wallet")) is int)
-             else (False, "找不到變數 final_wallet 或數值不為 275，請確認 wallet - lunch + reward 並執行！")
+             (True, "加減運算成功：fnl_wllt = 275！")
+             if (g.get("fnl_wllt") == 275 and type(g.get("fnl_wllt")) is int)
+             else (False, "找不到變數 fnl_wllt 或數值不為 275，請確認 wallet - lunch + reward 並執行！")
          )),
 
         ("2-2-1", "練習題", "前後氣溫溫差變化量 (temp_yesterday, temp_today)", 8, ("temp_yesterday", "temp_today"),
@@ -202,11 +202,11 @@ def auto_grade_unit_2_2(env=None):
         # ----------------------------------------------------------------------
         # 2-2-3 運算子優先級鐵則——先乘後加減與由左至右結合性 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-3", "填空題", "打工日薪先乘後加 (total_salary = 1100)", 6, ("total_salary",),
+        ("2-2-3", "填空題", "打工日薪先乘後加 (tot_slry = 1100)", 6, ("tot_slry",),
          lambda g: (
-             (True, "日薪計算正確：total_salary = 200 + 180 * 5 = 1100！")
-             if (g.get("total_salary") == 1100 and type(g.get("total_salary")) is int)
-             else (False, "找不到 total_salary 或數值不為 1100，請填入乘號 * 並執行！")
+             (True, "日薪計算正確：tot_slry = 200 + 180 * 5 = 1100！")
+             if (g.get("tot_slry") == 1100 and type(g.get("tot_slry")) is int)
+             else (False, "找不到 tot_slry 或數值不為 1100，請填入乘號 * 並執行！")
          )),
 
         ("2-2-3", "練習題", "計程車跳表總車資 (base_fare, rate_per_km, extra_km)", 8, ("base_fare", "rate_per_km", "extra_km"),
@@ -254,11 +254,11 @@ def auto_grade_unit_2_2(env=None):
         # ----------------------------------------------------------------------
         # 2-2-5 多重巢狀小括號與括號大忌——由內而外層層拆解 (共 20 分)
         # ----------------------------------------------------------------------
-        ("2-2-5", "填空題", "禁絕中括號改用合法小括號 (math_formula = 150)", 6, ("math_formula",),
+        ("2-2-5", "填空題", "禁絕中括號改用合法小括號 (mth_frml = 150)", 6, ("mth_frml",),
          lambda g: (
-             (True, "合法小括號運算成功：math_formula = 5 * ((10 - 2) * 3 + 6) = 150！")
-             if (g.get("math_formula") == 150 and type(g.get("math_formula")) is int)
-             else (False, "找不到 math_formula 或數值不為 150，請在外層填入合法小括號 () 並執行！")
+             (True, "合法小括號運算成功：mth_frml = 5 * ((10 - 2) * 3 + 6) = 150！")
+             if (g.get("mth_frml") == 150 and type(g.get("mth_frml")) is int)
+             else (False, "找不到 mth_frml 或數值不為 150，請在外層填入合法小括號 () 並執行！")
          )),
 
         ("2-2-5", "練習題", "五變數雙層巢狀小括號 ((v1+v2)*v3 - v4)*v5", 8, ("v1", "v2", "v3", "v4", "v5"),

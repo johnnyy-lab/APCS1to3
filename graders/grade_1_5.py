@@ -243,9 +243,9 @@ def auto_grade_unit_1_5(env=None):
          else (False, "請在挑戰題格寫下一行會報錯的無效代碼，用 # 把它封印，並在旁邊留下「# 這行因為某原因暫時封印」的說明註解")),
 
         # 1-5-5 長算式安全換行——小括號隱式折行 (共 20 分)
-        ("1-5-5", "填空題", "四科段考總分括號折行 total_score", 6, ("total_score",),
-         lambda g: (True, "小括號隱式折行計算成功：total_score = 365") if g.get("total_score") == 365
-         else (False, "變數 total_score 不為 365，請在長算式頭尾加上小括號 () 允許跨行")),
+        ("1-5-5", "填空題", "四科段考總分括號折行 tot_sc", 6, ("tot_sc",),
+         lambda g: (True, "小括號隱式折行計算成功：tot_sc = 365") if g.get("tot_sc") == 365
+         else (False, "變數 tot_sc 不為 365，請在長算式頭尾加上小括號 () 允許跨行")),
 
         ("1-5-5", "練習題", "農場四水果小括號隱式折行加總", 8, ("total_fruits",),
          lambda g: (True, f"水果採收加總正確：total_fruits = {g.get('total_fruits')}")

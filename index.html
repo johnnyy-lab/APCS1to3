@@ -4107,8 +4107,13 @@
 
     function normalizeLastVisited(value) {
       if (!value || typeof value !== "object" || !value.id) return null;
-      if (!isKnownUnitId(value.id)) return null;
-      return value;
+      const found = findUnit(value.id);
+      if (!found) return null;
+      return {
+        id: found.sec.id,
+        title: found.sec.title,
+        ts: typeof value.ts === "number" ? value.ts : Date.now()
+      };
     }
 
     let completedUnits = loadCompletedUnits();
@@ -4427,7 +4432,9 @@
     }
 
     function recordLastVisited(unitId, unitTitle) {
-      lastVisitedUnit = { id: unitId, title: unitTitle, ts: Date.now() };
+      const found = findUnit(unitId);
+      if (!found) return;
+      lastVisitedUnit = { id: found.sec.id, title: found.sec.title, ts: Date.now() };
       writeJsonStorage("pyth_apcs_last_visited", lastVisitedUnit);
       updatePersonalLearningBar();
     }
@@ -4438,14 +4445,29 @@
       const total = courseData.reduce((acc, chapter) => acc + chapter.sections.length, 0);
       const done = completedUnits.size;
       const pct = total ? ((done / total) * 100).toFixed(1) : "0.0";
-      let html = `<span class="personal-progress">🎯 我的學習進度：已完成 ${done} / ${total} 節（${pct}%）</span>`;
+
+      summary.innerHTML = "";
+      const progSpan = document.createElement("span");
+      progSpan.className = "personal-progress";
+      progSpan.textContent = `🎯 我的學習進度：已完成 ${done} / ${total} 節（${pct}%）`;
+      summary.appendChild(progSpan);
+
       if (lastVisitedUnit && lastVisitedUnit.id) {
-        html += `<span class="personal-last">🚀 上次學習到：單元 ${lastVisitedUnit.id} ${lastVisitedUnit.title || ""}</span>`;
-        html += `<button type="button" class="btn btn-ghost" id="btnContinueLast">點此跳轉繼續 ➔</button>`;
+        const found = findUnit(lastVisitedUnit.id);
+        const safeTitle = found ? found.sec.title : (lastVisitedUnit.title || "");
+        const lastSpan = document.createElement("span");
+        lastSpan.className = "personal-last";
+        lastSpan.textContent = `🚀 上次學習到：單元 ${lastVisitedUnit.id} ${safeTitle}`;
+        summary.appendChild(lastSpan);
+
+        const continueBtn = document.createElement("button");
+        continueBtn.type = "button";
+        continueBtn.className = "btn btn-ghost";
+        continueBtn.id = "btnContinueLast";
+        continueBtn.textContent = "點此跳轉繼續 ➔";
+        continueBtn.addEventListener("click", () => revealUnit(lastVisitedUnit.id));
+        summary.appendChild(continueBtn);
       }
-      summary.innerHTML = html;
-      const continueBtn = document.getElementById("btnContinueLast");
-      if (continueBtn) continueBtn.addEventListener("click", () => revealUnit(lastVisitedUnit.id));
     }
 
     function progressLastId(value) {
@@ -5135,8 +5157,7 @@
       if (visitLink) {
         const card = visitLink.closest(".section-card");
         if (!card) return;
-        const titleEl = card.querySelector(".sec-title");
-        recordLastVisited(card.getAttribute("data-unit-id"), titleEl ? titleEl.textContent : "");
+        recordLastVisited(card.getAttribute("data-unit-id"));
       }
     });
 

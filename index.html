@@ -1016,6 +1016,82 @@
       color: #e2e8f0;
     }
 
+    .steps-details {
+      margin: 0 0 1rem;
+    }
+
+    .steps-details > summary {
+      cursor: pointer;
+    }
+
+    .steps-details .sec-steps {
+      margin-top: 0.35rem;
+    }
+
+    .search-hl {
+      background: rgba(250, 204, 21, 0.35);
+      color: #fef08a;
+      padding: 0 2px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .btn-copy-link {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.95rem;
+      line-height: 1;
+      padding: 0 0.15rem;
+      flex-shrink: 0;
+    }
+
+    .btn-complete-toggle {
+      flex-shrink: 0;
+      margin-left: auto;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      border-radius: 999px;
+      padding: 0.28rem 0.7rem;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+    }
+
+    .btn-complete-toggle.completed {
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    .section-card.is-completed {
+      border-color: rgba(16, 185, 129, 0.45);
+    }
+
+    .card-highlight {
+      box-shadow: 0 0 0 3px var(--accent-cyan), 0 12px 30px rgba(6, 182, 212, 0.3);
+    }
+
+    .personal-learning-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      margin: 0 0 1rem;
+      padding: 0.85rem 1.1rem;
+      background: rgba(17, 24, 39, 0.72);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-md);
+    }
+
+    .personal-progress,
+    .personal-last {
+      color: var(--text-main);
+      font-size: 0.92rem;
+    }
+
     /* APCS tags inside description */
     .tag-analysis {
       color: #38bdf8;
@@ -1464,6 +1540,8 @@
       </div>
     </div>
 
+    <section class="personal-learning-bar" id="personalLearningBar" aria-label="我的學習進度"></section>
+
     <!-- Controls Bar -->
     <section class="toolbar" aria-label="搜尋與篩選">
       <div class="toolbar-main">
@@ -1473,7 +1551,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <input type="text" id="searchInput" class="search-input" placeholder="搜尋章節、概念、語法或題目（例：二維陣列、對角線、棋盤）..."
+          <input type="text" id="searchInput" class="search-input" placeholder="輸入關鍵字搜尋章節、語法、APCS 題號或大綱（按 / 快速搜尋）..."
             autocomplete="off">
           <button id="searchClear" class="search-clear" type="button" aria-label="清除搜尋">&times;</button>
         </div>
@@ -1486,6 +1564,8 @@
           <button class="filter-pill" type="button" data-filter="stage-algo">⚙️ 函式與演算法 (25)</button>
           <button class="filter-pill" type="button" data-filter="apcs-basic">🔥 APCS 初級真題 (11)</button>
           <button class="filter-pill" type="button" data-filter="apcs-medium">🏆 APCS 中級真題 (13)</button>
+          <button class="filter-pill" type="button" data-filter="todo-unit">⏳ 待完成 (<span id="countTodoUnit">118</span>)</button>
+          <button class="filter-pill" type="button" data-filter="done-unit">✅ 已完成 (<span id="countDoneUnit">0</span>)</button>
         </div>
 
         <!-- Tools & Quick Jump -->
@@ -3372,6 +3452,36 @@
     let isAllExpanded = true;
     const collapsedChapters = new Set();
 
+    function readJsonStorage(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw == null || raw === "") return fallback;
+        return JSON.parse(raw);
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function writeJsonStorage(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {}
+    }
+
+    function loadCompletedUnits() {
+      const data = readJsonStorage("pyth_apcs_completed_units", []);
+      if (!Array.isArray(data)) return new Set();
+      return new Set(data.filter(id => typeof id === "string"));
+    }
+
+    function normalizeLastVisited(value) {
+      if (!value || typeof value !== "object" || !value.id) return null;
+      return value;
+    }
+
+    let completedUnits = loadCompletedUnits();
+    let lastVisitedUnit = normalizeLastVisited(readJsonStorage("pyth_apcs_last_visited", null));
+
     // DOM Elements
     const chapterContainer = document.getElementById("chapterContainer");
     const searchInput = document.getElementById("searchInput");
@@ -3536,6 +3646,11 @@
       setPill("stage-algo", `⚙️ 函式與演算法 (${stageAlgoCount})`);
       setPill("apcs-basic", `🔥 APCS 初級真題 (${apcsBasicCount})`);
       setPill("apcs-medium", `🏆 APCS 中級真題 (${apcsMediumCount})`);
+      const todoCountEl = document.getElementById("countTodoUnit");
+      const doneCountEl = document.getElementById("countDoneUnit");
+      if (todoCountEl) todoCountEl.textContent = String(Math.max(total - completedUnits.size, 0));
+      if (doneCountEl) doneCountEl.textContent = String(completedUnits.size);
+      updatePersonalLearningBar();
     }
 
     /**
@@ -3547,6 +3662,172 @@
         return new RegExp(`(^|[^\\d])${escaped}(?!\\d)`).test(text);
       }
       return text.includes(kw);
+    }
+
+    function escapeRegExp(text) {
+      return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function highlightKeyword(htmlStr, keyword) {
+      if (!keyword) return htmlStr || "";
+      const re = new RegExp(escapeRegExp(keyword), "gi");
+      return String(htmlStr).replace(/(<[^>]+>)|([^<]+)/g, (match, tag, text) => {
+        if (tag) return tag;
+        return text.replace(re, '<mark class="search-hl">$&</mark>');
+      });
+    }
+
+    function sectionMatchesKeyword(sec, chapter) {
+      const kw = currentKeyword.toLowerCase().trim();
+      if (!kw) return { ok: true, stepsMatch: false };
+      const stepsMatch = Array.isArray(sec.steps) && sec.steps.some(st => keywordMatches(String(st).toLowerCase(), kw));
+      const ok = keywordMatches(String(sec.id).toLowerCase(), kw)
+        || keywordMatches(String(sec.title || "").toLowerCase(), kw)
+        || keywordMatches(String(sec.desc || "").toLowerCase(), kw)
+        || (sec.ref && keywordMatches(String(sec.ref).toLowerCase(), kw))
+        || keywordMatches(String(chapter.chapterTitle || "").toLowerCase(), kw)
+        || stepsMatch;
+      return { ok, stepsMatch };
+    }
+
+    function findUnit(unitId) {
+      for (const chapter of courseData) {
+        const sec = chapter.sections.find(item => item.id === unitId);
+        if (sec) return { chapter, sec };
+      }
+      return null;
+    }
+
+    function saveCompletedUnits() {
+      writeJsonStorage("pyth_apcs_completed_units", [...completedUnits]);
+    }
+
+    function toggleUnitCompleted(unitId) {
+      if (completedUnits.has(unitId)) completedUnits.delete(unitId);
+      else completedUnits.add(unitId);
+      saveCompletedUnits();
+      updateDashboardStats();
+      renderCurriculum();
+    }
+
+    function recordLastVisited(unitId, unitTitle) {
+      lastVisitedUnit = { id: unitId, title: unitTitle, ts: Date.now() };
+      writeJsonStorage("pyth_apcs_last_visited", lastVisitedUnit);
+      updatePersonalLearningBar();
+    }
+
+    function updatePersonalLearningBar() {
+      const bar = document.getElementById("personalLearningBar");
+      if (!bar) return;
+      const total = courseData.reduce((acc, chapter) => acc + chapter.sections.length, 0);
+      const done = completedUnits.size;
+      const pct = total ? ((done / total) * 100).toFixed(1) : "0.0";
+      let html = `<span class="personal-progress">🎯 我的學習進度：已完成 ${done} / ${total} 節（${pct}%）</span>`;
+      if (lastVisitedUnit && lastVisitedUnit.id) {
+        html += `<span class="personal-last">🚀 上次學習到：單元 ${lastVisitedUnit.id} ${lastVisitedUnit.title || ""}</span>`;
+        html += `<button type="button" class="btn btn-ghost" id="btnContinueLast">點此跳轉繼續 ➔</button>`;
+      }
+      bar.innerHTML = html;
+      const continueBtn = document.getElementById("btnContinueLast");
+      if (continueBtn) continueBtn.addEventListener("click", () => revealUnit(lastVisitedUnit.id));
+    }
+
+    function fallbackCopy(url) {
+      try {
+        const area = document.createElement("textarea");
+        area.value = url;
+        if (document.body) document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        if (area.parentElement) area.parentElement.removeChild(area);
+      } catch (e) {}
+    }
+
+    function copyUnitLink(btn) {
+      const slug = btn.getAttribute("data-unit-slug");
+      const hash = "#unit-" + slug;
+      try {
+        history.replaceState(null, "", hash);
+      } catch (e) {}
+      const url = window.location.origin + window.location.pathname + hash;
+      const flash = () => {
+        btn.textContent = "✅ 已複製";
+        setTimeout(() => { btn.textContent = "🔗"; }, 1500);
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(flash).catch(() => {
+            fallbackCopy(url);
+            flash();
+          });
+          return;
+        }
+      } catch (e) {}
+      fallbackCopy(url);
+      flash();
+    }
+
+    function resetBrowseFilters() {
+      currentFilter = "all";
+      currentKeyword = "";
+      if (searchInput) {
+        searchInput.value = "";
+      }
+      if (searchClear) searchClear.style.display = "none";
+      document.querySelectorAll(".filter-pill").forEach(pill => {
+        pill.classList.toggle("active", pill.getAttribute("data-filter") === "all");
+      });
+    }
+
+    function revealUnit(unitId) {
+      const found = findUnit(unitId);
+      if (!found) return;
+      let needRender = false;
+      if (currentFilter !== "all" || currentKeyword !== "") {
+        resetBrowseFilters();
+        needRender = true;
+      }
+      if (collapsedChapters.has(found.chapter.chapterNum)) {
+        collapsedChapters.delete(found.chapter.chapterNum);
+        needRender = true;
+      }
+      if (needRender) renderCurriculum();
+      const el = document.getElementById("unit-" + String(unitId).replace(/\./g, "-"));
+      if (!el) return;
+      if (typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      el.classList.add("card-highlight");
+      setTimeout(() => el.classList.remove("card-highlight"), 2200);
+    }
+
+    function parseHashTarget(hash) {
+      const raw = String(hash || "").replace(/^#/, "").trim();
+      if (!raw) return null;
+      const chapterMatch = raw.match(/^chapter-(\d+)$/i);
+      if (chapterMatch) return { type: "chapter", chapterNum: Number(chapterMatch[1]) };
+      let unitId = "";
+      const slugMatch = raw.match(/^unit-(\d+)-(\d+)$/i);
+      if (slugMatch) unitId = slugMatch[1] + "." + slugMatch[2];
+      else if (/^\d+\.\d+$/.test(raw)) unitId = raw;
+      else if (/^\d+-\d+$/.test(raw)) unitId = raw.replace("-", ".");
+      if (!unitId || !findUnit(unitId)) return null;
+      return { type: "unit", id: unitId };
+    }
+
+    function handleHashNavigation() {
+      const target = parseHashTarget(window.location.hash);
+      if (!target) return;
+      if (target.type === "chapter") {
+        const chapterEl = document.getElementById("chapter-" + target.chapterNum);
+        if (!chapterEl) return;
+        setChapterCollapsed(chapterEl, target.chapterNum, false);
+        if (typeof chapterEl.scrollIntoView === "function") {
+          chapterEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        return;
+      }
+      revealUnit(target.id);
     }
 
     /**
@@ -3564,26 +3845,15 @@
           if (currentFilter === "stage-algo" && (chapter.chapterNum < 11 || chapter.chapterNum > 13)) return false;
           if (currentFilter === "apcs-basic" && chapter.chapterNum !== 14) return false;
           if (currentFilter === "apcs-medium" && chapter.chapterNum !== 15) return false;
-          // 相容舊篩選值。todo-unit、done-unit 留給 T0421，這裡不攔截。
+          if (currentFilter === "todo-unit" && completedUnits.has(sec.id)) return false;
+          if (currentFilter === "done-unit" && !completedUnits.has(sec.id)) return false;
+          // 相容舊篩選值，避免其他功能呼叫時失效
           if (currentFilter === "slide-ready" && !sec.hasSlide) return false;
           if (currentFilter === "completed" && !sec.hasColab) return false;
           if (currentFilter === "grader-ready" && !sec.hasGrader) return false;
           if (currentFilter === "syntax" && chapter.chapterNum > 13) return false;
           if (currentFilter === "apcs" && chapter.chapterNum < 14) return false;
-
-          // 關鍵字搜尋
-          if (currentKeyword.trim() !== "") {
-            const kw = currentKeyword.toLowerCase().trim();
-            const textToMatch = [
-              sec.id,
-              sec.title,
-              sec.desc,
-              (sec.steps || []).join(" "),
-              sec.ref,
-              chapter.chapterTitle
-            ].join(" ").toLowerCase();
-            if (!keywordMatches(textToMatch, kw)) return false;
-          }
+          if (!sectionMatchesKeyword(sec, chapter).ok) return false;
 
           return true;
         });
@@ -3623,6 +3893,7 @@
               <div class="chapter-badge-row">
                 <span class="ch-index-tag">第 ${String(chapter.chapterNum).padStart(2, '0')} 章</span>
                 <span class="ch-status-pill ${statusBadgeClass}">${statusBadgeText}</span>
+                <span class="ch-status-pill${chapter.sections.filter(s => completedUnits.has(s.id)).length === chapter.sections.length ? " complete" : ""}">🎯 已完成 ${chapter.sections.filter(s => completedUnits.has(s.id)).length} / ${chapter.sections.length} 節</span>
               </div>
               <h2 class="chapter-title">${chapter.chapterTitle}</h2>
               <p class="chapter-desc">${chapter.chapterDesc}</p>
@@ -3639,14 +3910,20 @@
           const isColabReady = sec.hasColab;
           const colabUrl = isColabReady ? getColabUrl(sec.filename) : "#";
           const githubFileUrl = isColabReady ? getGithubFileUrl(sec.filename) : "#";
+          const unitSlug = String(sec.id).replace(/\./g, "-");
+          const isDone = completedUnits.has(sec.id);
+          const stepsMatch = sectionMatchesKeyword(sec, chapter).stepsMatch;
+          const kw = currentKeyword.trim();
+          const hl = (html) => kw ? highlightKeyword(html, kw) : html;
 
           return `
-                <div class="section-card" data-sec-id="${sec.id}">
+                <div class="section-card${isDone ? " is-completed" : ""}" id="unit-${unitSlug}" data-sec-id="${sec.id}" data-unit-id="${sec.id}">
                   <div>
                     <div class="section-top">
                       <div class="sec-id-title">
                         <span class="sec-id">${sec.id}</span>
-                        <h3 class="sec-title">${sec.title}</h3>
+                        <button type="button" class="btn-copy-link" data-unit-slug="${unitSlug}" title="複製此單元直達連結（#unit-${unitSlug}）" aria-label="複製單元 ${sec.id} 連結">🔗</button>
+                        <h3 class="sec-title">${hl(sec.title)}</h3>
                       </div>
                       ${(sec.hasSlide && sec.hasColab)
               ? '<span class="badge badge-ready">雙教材就緒</span>'
@@ -3657,16 +3934,19 @@
                   : '<span class="badge badge-pending">製作中</span>'))
             }
                       ${sec.hasGrader ? '<span class="badge badge-grader" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); margin-left: 4px;">🧪 支援自動評分</span>' : ''}
+                      <button type="button" class="btn-complete-toggle${isDone ? " completed" : ""}" data-complete-id="${sec.id}" title="${isDone ? "點擊取消完成標記" : "標記此單元為已完成"}">${isDone ? "✅ 已完成" : "☐ 標記完成"}</button>
                     </div>
                     
                     <div class="sec-desc">
-                      ${formatDescription(sec.desc)}
+                      ${hl(formatDescription(sec.desc))}
                     </div>
                     ${(sec.steps && sec.steps.length) ? `
-                    <p class="sec-steps-label">小節階梯</p>
-                    <ul class="sec-steps">
-                      ${sec.steps.map(step => `<li>${formatDescription(step)}</li>`).join("")}
-                    </ul>` : ""}
+                    <details class="steps-details"${stepsMatch ? " open" : ""}>
+                      <summary class="sec-steps-label">小節階梯</summary>
+                      <ul class="sec-steps">
+                        ${sec.steps.map(step => `<li>${hl(formatDescription(step))}</li>`).join("")}
+                      </ul>
+                    </details>` : ""}
                   </div>
                   
                   <div>
@@ -3674,7 +3954,7 @@
                       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                       </svg>
-                      <span>${sec.ref}</span>
+                      <span>${hl(sec.ref || "")}</span>
                     </div>
 
                     ${sec.filename ? `
@@ -3870,10 +4150,54 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
 
+    chapterContainer.addEventListener("click", (e) => {
+      const target = e.target;
+      if (!target || typeof target.closest !== "function") return;
+      const completeBtn = target.closest(".btn-complete-toggle");
+      if (completeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleUnitCompleted(completeBtn.getAttribute("data-complete-id"));
+        return;
+      }
+      const copyBtn = target.closest(".btn-copy-link");
+      if (copyBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        copyUnitLink(copyBtn);
+        return;
+      }
+      const visitLink = target.closest(".btn-slide-active, .btn-colab-active");
+      if (visitLink) {
+        const card = visitLink.closest(".section-card");
+        if (!card) return;
+        const titleEl = card.querySelector(".sec-title");
+        recordLastVisited(card.getAttribute("data-unit-id"), titleEl ? titleEl.textContent : "");
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (e.key === "/" && !e.ctrlKey && !e.altKey && !e.metaKey && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
+        e.preventDefault();
+        searchInput.focus();
+        if (typeof searchInput.select === "function") searchInput.select();
+      }
+      if (e.key === "Escape" && (document.activeElement === searchInput || currentKeyword)) {
+        searchInput.value = "";
+        currentKeyword = "";
+        searchClear.style.display = "none";
+        renderCurriculum();
+        searchInput.blur();
+      }
+    });
+
     // 初始化執行
     initJumpSelect();
     updateDashboardStats();
     renderCurriculum();
+    handleHashNavigation();
+    window.addEventListener("hashchange", handleHashNavigation);
   </script>
 </body>
 

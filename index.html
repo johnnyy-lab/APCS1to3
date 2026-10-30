@@ -4076,6 +4076,9 @@
     let currentFilter = "all";
     let currentKeyword = "";
     let currentTopic = "";
+    let searchRenderTimer = null;
+    let isComposingSearch = false;
+    const SEARCH_DEBOUNCE_MS = 180;
     let isAllExpanded = true;
     const collapsedChapters = new Set();
 
@@ -4423,12 +4426,69 @@
       writeJsonStorage("pyth_apcs_completed_units", [...completedUnits]);
     }
 
+    function updateChapterCompletePill(chapterCard, chapter) {
+      const pill = chapterCard.querySelector(".ch-complete-pill");
+      if (!pill || !chapter) return;
+      const doneCount = chapter.sections.filter(s => completedUnits.has(s.id)).length;
+      const total = chapter.sections.length;
+      pill.classList.toggle("complete", total > 0 && doneCount === total);
+      pill.textContent = `🎯 已完成 ${doneCount} / ${total} 節`;
+    }
+
+    function syncEmptyState() {
+      const visible = chapterContainer.querySelectorAll(".section-card").length;
+      if (visible === 0) {
+        const activeTopicChip = currentTopic ? document.querySelector(`.topic-chip[data-topic="${currentTopic}"]`) : null;
+        const topicName = activeTopicChip ? activeTopicChip.textContent.trim() : "";
+        const emptyDesc = emptyState.querySelector("p");
+        if (emptyDesc) {
+          if (topicName) {
+            emptyDesc.textContent = `目前已啟用考點「${topicName}」，請嘗試更換關鍵字或清除篩選條件。`;
+          } else {
+            emptyDesc.textContent = "請嘗試更換關鍵字或清除篩選條件。";
+          }
+        }
+        emptyState.classList.add("show");
+      } else {
+        emptyState.classList.remove("show");
+      }
+      syncToggleAllButton();
+    }
+
     function toggleUnitCompleted(unitId) {
       if (completedUnits.has(unitId)) completedUnits.delete(unitId);
       else completedUnits.add(unitId);
       saveCompletedUnits();
       updateDashboardStats();
-      renderCurriculum();
+
+      const card = document.querySelector('.section-card[data-unit-id="' + String(unitId).replace(/"/g, "") + '"]');
+      const found = findUnit(unitId);
+      if (!card || !found) {
+        renderCurriculum();
+        return;
+      }
+
+      const chapterCard = card.closest(".chapter-card");
+      if (currentFilter === "todo-unit" || currentFilter === "done-unit") {
+        card.remove();
+        if (chapterCard && chapterCard.querySelector(".section-card")) {
+          updateChapterCompletePill(chapterCard, found.chapter);
+        } else if (chapterCard) {
+          chapterCard.remove();
+        }
+        syncEmptyState();
+        return;
+      }
+
+      const isDone = completedUnits.has(unitId);
+      card.classList.toggle("is-completed", isDone);
+      const btn = card.querySelector(".btn-complete-toggle");
+      if (btn) {
+        btn.classList.toggle("completed", isDone);
+        btn.title = isDone ? "點擊取消完成標記" : "標記此單元為已完成";
+        btn.textContent = isDone ? "✅ 已完成" : "☐ 標記完成";
+      }
+      if (chapterCard) updateChapterCompletePill(chapterCard, found.chapter);
     }
 
     function recordLastVisited(unitId, unitTitle) {
@@ -4690,7 +4750,33 @@
       flash();
     }
 
+    function cancelSearchRender() {
+      if (searchRenderTimer) {
+        clearTimeout(searchRenderTimer);
+        searchRenderTimer = null;
+      }
+    }
+
+    function applySearchKeyword(nextKeyword) {
+      const next = nextKeyword == null ? "" : String(nextKeyword);
+      if (searchClear) searchClear.style.display = next ? "block" : "none";
+      if (next === currentKeyword) return;
+      currentKeyword = next;
+      renderCurriculum();
+    }
+
+    function scheduleSearchRender() {
+      cancelSearchRender();
+      searchRenderTimer = setTimeout(() => {
+        searchRenderTimer = null;
+        if (isComposingSearch) return;
+        applySearchKeyword(searchInput.value);
+      }, SEARCH_DEBOUNCE_MS);
+    }
+
     function resetBrowseFilters() {
+      cancelSearchRender();
+      isComposingSearch = false;
       currentFilter = "all";
       currentKeyword = "";
       currentTopic = "";
@@ -4769,7 +4855,6 @@
      */
     function renderCurriculum() {
       chapterContainer.innerHTML = "";
-      let totalVisibleSections = 0;
       const hasFilterActive = Boolean(currentKeyword.trim()) || Boolean(currentTopic) || (currentFilter !== "all");
 
       courseData.forEach((chapter, chIdx) => {
@@ -4797,8 +4882,6 @@
         if (filteredSections.length === 0) {
           return; // 此章無符合條件的項目
         }
-
-        totalVisibleSections += filteredSections.length;
 
         // 計算該章投影片完成數（以投影片為第一視覺優先）
         const slideCount = chapter.sections.filter(s => s.hasSlide).length;
@@ -4830,7 +4913,7 @@
               <div class="chapter-badge-row">
                 <span class="ch-index-tag">第 ${String(chapter.chapterNum).padStart(2, '0')} 章</span>
                 <span class="ch-status-pill ${statusBadgeClass}">${statusBadgeText}</span>
-                <span class="ch-status-pill${chapter.sections.filter(s => completedUnits.has(s.id)).length === chapter.sections.length ? " complete" : ""}">🎯 已完成 ${chapter.sections.filter(s => completedUnits.has(s.id)).length} / ${chapter.sections.length} 節</span>
+                <span class="ch-status-pill ch-complete-pill${chapter.sections.filter(s => completedUnits.has(s.id)).length === chapter.sections.length ? " complete" : ""}">🎯 已完成 ${chapter.sections.filter(s => completedUnits.has(s.id)).length} / ${chapter.sections.length} 節</span>
               </div>
               <h2 class="chapter-title">${chapter.chapterTitle}</h2>
               <p class="chapter-desc">${chapter.chapterDesc}</p>
@@ -4964,23 +5047,7 @@
         chapterContainer.appendChild(chapterCard);
       });
 
-      // 檢查是否無結果
-      if (totalVisibleSections === 0) {
-        const activeTopicChip = currentTopic ? document.querySelector(`.topic-chip[data-topic="${currentTopic}"]`) : null;
-        const topicName = activeTopicChip ? activeTopicChip.textContent.trim() : "";
-        const emptyDesc = emptyState.querySelector("p");
-        if (emptyDesc) {
-          if (topicName) {
-            emptyDesc.textContent = `目前已啟用考點「${topicName}」，請嘗試更換關鍵字或清除篩選條件。`;
-          } else {
-            emptyDesc.textContent = "請嘗試更換關鍵字或清除篩選條件。";
-          }
-        }
-        emptyState.classList.add("show");
-      } else {
-        emptyState.classList.remove("show");
-      }
-      syncToggleAllButton();
+      syncEmptyState();
     }
 
     function setChapterCollapsed(card, chapterNum, collapsed) {
@@ -5042,18 +5109,30 @@
     /**
      * 搜尋與清除互動綁定
      */
+    searchInput.addEventListener("compositionstart", () => {
+      isComposingSearch = true;
+      cancelSearchRender();
+    });
+
+    searchInput.addEventListener("compositionend", () => {
+      isComposingSearch = false;
+      if (document.activeElement !== searchInput) return;
+      cancelSearchRender();
+      applySearchKeyword(searchInput.value);
+    });
+
     searchInput.addEventListener("input", (e) => {
-      currentKeyword = e.target.value;
-      searchClear.style.display = currentKeyword ? "block" : "none";
-      renderCurriculum();
+      if (searchClear) searchClear.style.display = searchInput.value ? "block" : "none";
+      if (isComposingSearch || e.isComposing) return;
+      scheduleSearchRender();
     });
 
     searchClear.addEventListener("click", () => {
+      cancelSearchRender();
+      isComposingSearch = false;
       searchInput.value = "";
-      currentKeyword = "";
-      searchClear.style.display = "none";
+      applySearchKeyword("");
       searchInput.focus();
-      renderCurriculum();
     });
 
     /**
@@ -5079,6 +5158,8 @@
         if (currentTopic === topicId) {
           currentTopic = "";
         } else {
+          cancelSearchRender();
+          isComposingSearch = false;
           currentTopic = topicId;
           currentFilter = "all";
           currentKeyword = "";
@@ -5169,10 +5250,10 @@
         if (typeof searchInput.select === "function") searchInput.select();
       }
       if (e.key === "Escape" && (document.activeElement === searchInput || currentKeyword)) {
+        cancelSearchRender();
+        isComposingSearch = false;
         searchInput.value = "";
-        currentKeyword = "";
-        searchClear.style.display = "none";
-        renderCurriculum();
+        applySearchKeyword("");
         searchInput.blur();
       }
     });

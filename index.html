@@ -436,6 +436,10 @@
       padding: 0;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     html {
       scroll-behavior: smooth;
       font-size: 16px;
@@ -4493,7 +4497,7 @@
     }
 
     function syncEmptyState() {
-      const visible = chapterContainer.querySelectorAll(".section-card").length;
+      const visible = chapterContainer.querySelectorAll(".section-card:not([hidden])").length;
       if (visible === 0) {
         const activeTopicChip = currentTopic ? document.querySelector(`.topic-chip[data-topic="${currentTopic}"]`) : null;
         const topicName = activeTopicChip ? activeTopicChip.textContent.trim() : "";
@@ -4527,11 +4531,11 @@
 
       const chapterCard = card.closest(".chapter-card");
       if (currentFilter === "todo-unit" || currentFilter === "done-unit") {
-        card.remove();
-        if (chapterCard && chapterCard.querySelector(".section-card")) {
+        card.hidden = true;
+        if (chapterCard) {
+          const hasVisible = chapterCard.querySelector(".section-card:not([hidden])") !== null;
+          chapterCard.hidden = !hasVisible;
           updateChapterCompletePill(chapterCard, found.chapter);
-        } else if (chapterCard) {
-          chapterCard.remove();
         }
         syncEmptyState();
         return;
@@ -4856,7 +4860,8 @@
       const found = findUnit(unitId);
       if (!found) return;
       let needRender = false;
-      if (currentFilter !== "all" || currentKeyword !== "" || currentTopic) {
+      const el = document.getElementById("unit-" + String(unitId).replace(/\./g, "-"));
+      if (currentFilter !== "all" || currentKeyword !== "" || currentTopic || (el && el.hidden)) {
         resetBrowseFilters();
         needRender = true;
       }
@@ -4865,13 +4870,13 @@
         needRender = true;
       }
       if (needRender) renderCurriculum();
-      const el = document.getElementById("unit-" + String(unitId).replace(/\./g, "-"));
-      if (!el) return;
-      if (typeof el.scrollIntoView === "function") {
-        el.scrollIntoView({ behavior: preferredScrollBehavior(), block: "start" });
+      const targetEl = document.getElementById("unit-" + String(unitId).replace(/\./g, "-"));
+      if (!targetEl) return;
+      if (typeof targetEl.scrollIntoView === "function") {
+        targetEl.scrollIntoView({ behavior: preferredScrollBehavior(), block: "start" });
       }
-      el.classList.add("card-highlight");
-      setTimeout(() => el.classList.remove("card-highlight"), 2200);
+      targetEl.classList.add("card-highlight");
+      setTimeout(() => targetEl.classList.remove("card-highlight"), 2200);
     }
 
     function parseHashTarget(hash) {
@@ -4893,7 +4898,7 @@
       if (!target) return;
       if (target.type === "chapter") {
         let chapterEl = document.getElementById("chapter-" + target.chapterNum);
-        if (!chapterEl) {
+        if (!chapterEl || chapterEl.hidden) {
           resetBrowseFilters();
           renderCurriculum();
           chapterEl = document.getElementById("chapter-" + target.chapterNum);
@@ -4910,46 +4915,13 @@
     }
 
     /**
-     * 渲染全部章節與小節卡片
+     * 初始構建全部章節與小節之常駐 DOM 節點（僅在初次掛載執行一次）
      */
-    function renderCurriculum() {
-      const openSteps = new Set(
-        [...chapterContainer.querySelectorAll(".steps-details[open]")]
-          .map(d => d.closest(".section-card")?.getAttribute("data-unit-id"))
-          .filter(Boolean)
-      );
-      const prevScrollY = window.scrollY;
-      const hasFilterActive = Boolean(currentKeyword.trim()) || Boolean(currentTopic) || (currentFilter !== "all");
-
+    function buildCurriculumDOM() {
       chapterContainer.innerHTML = "";
 
-      courseData.forEach((chapter, chIdx) => {
-        // 篩選小節
-        const filteredSections = chapter.sections.filter(sec => {
-          if (currentFilter === "stage-basic" && (chapter.chapterNum < 1 || chapter.chapterNum > 6)) return false;
-          if (currentFilter === "stage-ds" && (chapter.chapterNum < 7 || chapter.chapterNum > 10)) return false;
-          if (currentFilter === "stage-algo" && (chapter.chapterNum < 11 || chapter.chapterNum > 13)) return false;
-          if (currentFilter === "apcs-basic" && chapter.chapterNum !== 14) return false;
-          if (currentFilter === "apcs-medium" && chapter.chapterNum !== 15) return false;
-          if (currentFilter === "todo-unit" && completedUnits.has(sec.id)) return false;
-          if (currentFilter === "done-unit" && !completedUnits.has(sec.id)) return false;
-          // 相容舊篩選值，避免其他功能呼叫時失效
-          if (currentFilter === "slide-ready" && !sec.hasSlide) return false;
-          if (currentFilter === "completed" && !sec.hasColab) return false;
-          if (currentFilter === "grader-ready" && !sec.hasGrader) return false;
-          if (currentFilter === "syntax" && chapter.chapterNum > 13) return false;
-          if (currentFilter === "apcs" && chapter.chapterNum < 14) return false;
-          if (!sectionMatchesKeyword(sec, chapter).ok) return false;
-          if (!sectionMatchesTopic(sec)) return false;
-
-          return true;
-        });
-
-        if (filteredSections.length === 0) {
-          return; // 此章無符合條件的項目
-        }
-
-        // 計算該章投影片完成數（以投影片為第一視覺優先）
+      courseData.forEach((chapter) => {
+        // 計算該章投影片完成數
         const slideCount = chapter.sections.filter(s => s.hasSlide).length;
         const totalCount = chapter.sections.length;
         let statusBadgeClass = "in-progress";
@@ -4970,8 +4942,6 @@
         const chapterCard = document.createElement("article");
         chapterCard.className = "chapter-card chapter-block";
         chapterCard.id = `chapter-${chapter.chapterNum}`;
-        const isUserCollapsed = collapsedChapters.has(chapter.chapterNum);
-        const shouldCollapse = isUserCollapsed && !hasFilterActive;
 
         chapterCard.innerHTML = `
           <div class="chapter-header" data-target="ch-${chapter.chapterNum}">
@@ -4979,12 +4949,12 @@
               <div class="chapter-badge-row">
                 <span class="ch-index-tag">第 ${String(chapter.chapterNum).padStart(2, '0')} 章</span>
                 <span class="ch-status-pill ${statusBadgeClass}">${statusBadgeText}</span>
-                <span class="ch-status-pill ch-complete-pill${chapter.sections.filter(s => completedUnits.has(s.id)).length === chapter.sections.length ? " complete" : ""}">🎯 已完成 ${chapter.sections.filter(s => completedUnits.has(s.id)).length} / ${chapter.sections.length} 節</span>
+                <span class="ch-status-pill ch-complete-pill">🎯 已完成 ${chapter.sections.filter(s => completedUnits.has(s.id)).length} / ${chapter.sections.length} 節</span>
               </div>
               <h2 class="chapter-title">${chapter.chapterTitle}</h2>
               <p class="chapter-desc">${chapter.chapterDesc}</p>
             </div>
-            <button type="button" class="chapter-toggle-btn" aria-expanded="${shouldCollapse ? "false" : "true"}" aria-label="${shouldCollapse ? "展開本章" : "收合本章"}" title="${shouldCollapse ? "展開本章" : "收合本章"}">
+            <button type="button" class="chapter-toggle-btn" aria-expanded="true" aria-label="收合本章" title="收合本章">
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
               </svg>
@@ -4992,48 +4962,45 @@
           </div>
           
           <div class="section-grid" id="grid-ch-${chapter.chapterNum}">
-            ${filteredSections.map(sec => {
-          const isColabReady = sec.hasColab;
-          const colabUrl = isColabReady ? getColabUrl(sec.filename) : "#";
-          const githubFileUrl = isColabReady ? getGithubFileUrl(sec.filename) : "#";
-          const unitSlug = String(sec.id).replace(/\./g, "-");
-          const isDone = completedUnits.has(sec.id);
-          const stepsMatch = sectionMatchesKeyword(sec, chapter).stepsMatch;
-          const kw = currentKeyword.trim();
-          const hl = (html) => kw ? highlightKeyword(html, kw) : html;
-          const forwardHtml = renderForwardJumps(sec, chapter);
-          const reverseHtml = renderReverseJumps(sec, chapter);
+            ${chapter.sections.map(sec => {
+              const isColabReady = sec.hasColab;
+              const colabUrl = isColabReady ? getColabUrl(sec.filename) : "#";
+              const githubFileUrl = isColabReady ? getGithubFileUrl(sec.filename) : "#";
+              const unitSlug = String(sec.id).replace(/\./g, "-");
+              const isDone = completedUnits.has(sec.id);
+              const forwardHtml = renderForwardJumps(sec, chapter);
+              const reverseHtml = renderReverseJumps(sec, chapter);
 
-          return `
+              return `
                 <div class="section-card${isDone ? " is-completed" : ""}" id="unit-${unitSlug}" data-sec-id="${sec.id}" data-unit-id="${sec.id}">
                   <div>
                     <div class="section-top">
                       <div class="sec-id-title">
                         <span class="sec-id">${sec.id}</span>
                         <button type="button" class="btn-copy-link" data-unit-slug="${unitSlug}" title="複製此單元直達連結（#unit-${unitSlug}）" aria-label="複製單元 ${sec.id} 連結">🔗</button>
-                        <h3 class="sec-title">${hl(sec.title)}</h3>
+                        <h3 class="sec-title">${sec.title}</h3>
                       </div>
                       ${(sec.hasSlide && sec.hasColab)
-              ? '<span class="badge badge-ready">雙教材就緒</span>'
-              : (sec.hasSlide
-                ? '<span class="badge badge-slide-ready">投影片已就緒</span>'
-                : (sec.hasColab
-                  ? '<span class="badge badge-colab-ready">已完成教學筆記本</span>'
-                  : '<span class="badge badge-pending">製作中</span>'))
-            }
+                        ? '<span class="badge badge-ready">雙教材就緒</span>'
+                        : (sec.hasSlide
+                          ? '<span class="badge badge-slide-ready">投影片已就緒</span>'
+                          : (sec.hasColab
+                            ? '<span class="badge badge-colab-ready">已完成教學筆記本</span>'
+                            : '<span class="badge badge-pending">製作中</span>'))
+                      }
                       ${sec.hasGrader ? '<span class="badge badge-grader">🧪 支援自動評分</span>' : ''}
                       <button type="button" class="btn-complete-toggle${isDone ? " completed" : ""}" data-complete-id="${sec.id}" title="${isDone ? "點擊取消完成標記" : "標記此單元為已完成"}">${isDone ? "✅ 已完成" : "☐ 標記完成"}</button>
                     </div>
                     
                     <div class="sec-desc">
-                      ${hl(formatDescription(sec.desc))}
+                      ${formatDescription(sec.desc)}
                     </div>
                     ${forwardHtml ? `<div class="jump-row">${forwardHtml}</div>` : ""}
                     ${(sec.steps && sec.steps.length) ? `
-                    <details class="steps-details"${stepsMatch ? " open" : ""}>
+                    <details class="steps-details">
                       <summary class="sec-steps-label">小節階梯</summary>
                       <ul class="sec-steps">
-                        ${sec.steps.map(step => `<li>${hl(formatDescription(step))}</li>`).join("")}
+                        ${sec.steps.map(step => `<li>${formatDescription(step)}</li>`).join("")}
                       </ul>
                     </details>` : ""}
                   </div>
@@ -5043,7 +5010,7 @@
                       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                       </svg>
-                      <span>${hl(sec.ref || "")}</span>
+                      <span>${sec.ref || ""}</span>
                     </div>
                     ${reverseHtml ? `<div class="jump-row">${reverseHtml}</div>` : ""}
 
@@ -5056,9 +5023,8 @@
                     </div>` : ''}
                     
                     <div class="sec-actions">
-                      <!-- 教學投影片按鈕（全小節統一呈現，slide 在前符合學生學習順序） -->
                       ${sec.hasSlide
-              ? `<a href="slides/${sec.slideFilename || 'PythAPCS123_1-1_variable_naming_and_memory.html'}" target="_blank" rel="noopener noreferrer" class="btn-action btn-slide-active" title="在瀏覽器開啟 ${sec.title} 教學投影片">
+                        ? `<a href="slides/${sec.slideFilename || 'PythAPCS123_1-1_variable_naming_and_memory.html'}" target="_blank" rel="noopener noreferrer" class="btn-action btn-slide-active" title="在瀏覽器開啟 ${sec.title} 教學投影片">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                               <line x1="8" y1="21" x2="16" y2="21"></line>
@@ -5066,7 +5032,7 @@
                             </svg>
                             <span>🖥️ 教學投影片</span>
                           </a>`
-              : `<div class="btn-action-wrapper" title="教學投影片製作中，敬請期待">
+                        : `<div class="btn-action-wrapper" title="教學投影片製作中，敬請期待">
                             <button class="btn-action btn-disabled" disabled>
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -5076,33 +5042,48 @@
                               <span>🖥️ 投影片製作中</span>
                             </button>
                           </div>`
-            }
-
-                      <!-- Colab 筆記本按鈕（ipynb 在後，實機動手練） -->
+                      }
                       ${isColabReady
-              ? `<a href="${colabUrl}" target="_blank" rel="noopener noreferrer" class="btn-action btn-colab-active" title="在新分頁開啟 Google Colab 互動式教學筆記本">
+                        ? `<a href="${colabUrl}" target="_blank" rel="noopener noreferrer" class="btn-action btn-colab-active" title="在新分頁開啟 Google Colab 互動式教學筆記本">
                             <svg viewBox="0 0 24 24" fill="currentColor">
                               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
                             </svg>
                             <span>🚀 在 Colab 開啟</span>
                           </a>`
-              : `<div class="btn-action-wrapper" title="Colab 互動式筆記本製作中，敬請期待！">
+                        : `<div class="btn-action-wrapper" title="Colab 互動式筆記本製作中，敬請期待！">
                             <button class="btn-action btn-disabled" disabled>
                               <span>🚀 Colab 製作中</span>
                             </button>
                           </div>`
-            }
+                      }
                     </div>
                   </div>
                 </div>
               `;
-        }).join("")}
+            }).join("")}
           </div>
         `;
 
-        if (shouldCollapse) chapterCard.classList.add("collapsed");
+        // 儲存每個卡片的原始字串供關鍵字高亮替換使用，並監聽手動展開
+        chapter.sections.forEach(sec => {
+          const unitSlug = String(sec.id).replace(/\./g, "-");
+          const card = chapterCard.querySelector(`#unit-${unitSlug}`);
+          if (card) {
+            card._rawTitle = sec.title;
+            card._rawDesc = formatDescription(sec.desc);
+            card._rawRef = sec.ref || "";
+            card._rawSteps = (sec.steps || []).map(s => formatDescription(s));
+            const d = card.querySelector(".steps-details");
+            if (d) {
+              d.addEventListener("toggle", () => {
+                if (d._ignoreToggle) return;
+                delete d.dataset.autoOpened;
+              });
+            }
+          }
+        });
 
-        // 章節展開/收合點擊事件
+        // 章節展開/收合點擊事件（僅綁定一次）
         const headerEl = chapterCard.querySelector(".chapter-header");
         headerEl.addEventListener("click", () => {
           const nextCollapsed = !chapterCard.classList.contains("collapsed");
@@ -5112,15 +5093,130 @@
 
         chapterContainer.appendChild(chapterCard);
       });
+    }
 
-      openSteps.forEach(id => {
-        const d = chapterContainer.querySelector(`.section-card[data-unit-id="${id}"] .steps-details`);
-        if (d) d.setAttribute("open", "");
-      });
-      if (hasFilterActive) {
-        try { window.scrollTo(0, prevScrollY); } catch (e) {}
+    /**
+     * 依當前篩選條件切換常駐 DOM 之卡片與章節可見度及關鍵字高亮
+     */
+    function renderCurriculum() {
+      if (chapterContainer.children.length === 0) {
+        buildCurriculumDOM();
       }
+
+      const kw = currentKeyword.trim();
+      const hasFilterActive = Boolean(kw) || Boolean(currentTopic) || (currentFilter !== "all");
+
+      courseData.forEach((chapter) => {
+        const chapterCard = document.getElementById(`chapter-${chapter.chapterNum}`);
+        if (!chapterCard) return;
+
+        let chapterVisibleCount = 0;
+
+        chapter.sections.forEach((sec) => {
+          const unitSlug = String(sec.id).replace(/\./g, "-");
+          const card = document.getElementById(`unit-${unitSlug}`);
+          if (!card) return;
+
+          // 1. 篩選判定
+          let match = true;
+          if (currentFilter === "stage-basic" && (chapter.chapterNum < 1 || chapter.chapterNum > 6)) match = false;
+          else if (currentFilter === "stage-ds" && (chapter.chapterNum < 7 || chapter.chapterNum > 10)) match = false;
+          else if (currentFilter === "stage-algo" && (chapter.chapterNum < 11 || chapter.chapterNum > 13)) match = false;
+          else if (currentFilter === "apcs-basic" && chapter.chapterNum !== 14) match = false;
+          else if (currentFilter === "apcs-medium" && chapter.chapterNum !== 15) match = false;
+          else if (currentFilter === "todo-unit" && completedUnits.has(sec.id)) match = false;
+          else if (currentFilter === "done-unit" && !completedUnits.has(sec.id)) match = false;
+          // 相容舊篩選值
+          else if (currentFilter === "slide-ready" && !sec.hasSlide) match = false;
+          else if (currentFilter === "completed" && !sec.hasColab) match = false;
+          else if (currentFilter === "grader-ready" && !sec.hasGrader) match = false;
+          else if (currentFilter === "syntax" && chapter.chapterNum > 13) match = false;
+          else if (currentFilter === "apcs" && chapter.chapterNum < 14) match = false;
+
+          const kwMatch = sectionMatchesKeyword(sec, chapter);
+          if (match && !kwMatch.ok) match = false;
+          if (match && !sectionMatchesTopic(sec)) match = false;
+
+          // 2. 切換卡片隱藏/顯示
+          card.hidden = !match;
+
+          // 3. 同步完成狀態
+          const isDone = completedUnits.has(sec.id);
+          card.classList.toggle("is-completed", isDone);
+          const completeBtn = card.querySelector(".btn-complete-toggle");
+          if (completeBtn) {
+            completeBtn.classList.toggle("completed", isDone);
+            completeBtn.title = isDone ? "點擊取消完成標記" : "標記此單元為已完成";
+            completeBtn.textContent = isDone ? "✅ 已完成" : "☐ 標記完成";
+          }
+
+          if (match) {
+            chapterVisibleCount++;
+
+            // 4. 更新高亮與階梯自動展開
+            const titleEl = card.querySelector(".sec-title");
+            const descEl = card.querySelector(".sec-desc");
+            const metaSpan = card.querySelector(".sec-meta span");
+            const details = card.querySelector(".steps-details");
+            const stepItems = details ? details.querySelectorAll(".sec-steps li") : [];
+
+            if (kw) {
+              if (titleEl) titleEl.innerHTML = highlightKeyword(card._rawTitle, kw);
+              if (descEl) descEl.innerHTML = highlightKeyword(card._rawDesc, kw);
+              if (metaSpan) metaSpan.innerHTML = highlightKeyword(card._rawRef, kw);
+              stepItems.forEach((li, idx) => {
+                if (card._rawSteps[idx] !== undefined) {
+                  li.innerHTML = highlightKeyword(card._rawSteps[idx], kw);
+                }
+              });
+              if (kwMatch.stepsMatch && details) {
+                if (!details.hasAttribute("open")) {
+                  details._ignoreToggle = true;
+                  details.setAttribute("open", "");
+                  details.dataset.autoOpened = "1";
+                  setTimeout(() => { delete details._ignoreToggle; }, 0);
+                }
+              }
+            } else {
+              if (titleEl && titleEl.innerHTML !== card._rawTitle) titleEl.innerHTML = card._rawTitle;
+              if (descEl && descEl.innerHTML !== card._rawDesc) descEl.innerHTML = card._rawDesc;
+              if (metaSpan && metaSpan.innerHTML !== card._rawRef) metaSpan.innerHTML = card._rawRef;
+              stepItems.forEach((li, idx) => {
+                if (card._rawSteps[idx] !== undefined && li.innerHTML !== card._rawSteps[idx]) {
+                  li.innerHTML = card._rawSteps[idx];
+                }
+              });
+              if (details && details.dataset.autoOpened === "1") {
+                details._ignoreToggle = true;
+                details.removeAttribute("open");
+                delete details.dataset.autoOpened;
+                setTimeout(() => { delete details._ignoreToggle; }, 0);
+              }
+            }
+          }
+        });
+
+        if (chapterVisibleCount === 0) {
+          chapterCard.hidden = true;
+        } else {
+          chapterCard.hidden = false;
+          updateChapterCompletePill(chapterCard, chapter);
+
+          const isUserCollapsed = collapsedChapters.has(chapter.chapterNum);
+          const shouldCollapse = isUserCollapsed && !hasFilterActive;
+          chapterCard.classList.toggle("collapsed", shouldCollapse);
+          const toggleBtn = chapterCard.querySelector(".chapter-toggle-btn");
+          if (toggleBtn) {
+            toggleBtn.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
+            const label = shouldCollapse ? "展開本章" : "收合本章";
+            toggleBtn.setAttribute("aria-label", label);
+            toggleBtn.title = label;
+          }
+        }
+      });
+
       syncEmptyState();
+      syncToggleAllButton();
     }
 
     function setChapterCollapsed(card, chapterNum, collapsed) {
@@ -5141,7 +5237,7 @@
     }
 
     function syncToggleAllButton() {
-      const cards = [...document.querySelectorAll(".chapter-card")];
+      const cards = [...document.querySelectorAll(".chapter-card:not([hidden])")];
       if (cards.length === 0) {
         isAllExpanded = collapsedChapters.size === 0;
       } else {
@@ -5167,7 +5263,7 @@
         const targetId = e.target.value;
         if (targetId) {
           let el = document.getElementById(targetId);
-          if (!el) {
+          if (!el || el.hidden) {
             resetBrowseFilters();
             renderCurriculum();
             el = document.getElementById(targetId);
@@ -5264,7 +5360,7 @@
      * 全部展開 / 收合功能
      */
     btnToggleAll.addEventListener("click", () => {
-      const cards = [...document.querySelectorAll(".chapter-card")];
+      const cards = [...document.querySelectorAll(".chapter-card:not([hidden])")];
       if (cards.length === 0) return;
       const shouldExpand = cards.some(card => card.classList.contains("collapsed"));
       cards.forEach(card => {

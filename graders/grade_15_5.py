@@ -292,10 +292,10 @@ def _check_q155_5(g):
 
 
 def _check_solve_population(g):
-    """15-5 對拍題：simulate_days 對筆記本內的四組範例。"""
-    fn = g.get("simulate_days")
+    """15-5 對拍題：solve_population_migration 對筆記本內的四組範例。"""
+    fn = g.get("solve_population_migration")
     if not callable(fn):
-        return False, "找不到解題函式 simulate_days，請在 15.5 挑戰題儲存格（cell#28）點擊播放鍵執行！"
+        return False, "找不到解題函式 solve_population_migration，請在 15.5 挑戰題儲存格（cell#48）點擊播放鍵執行！"
     cases = [
         ((2, 3, 4, 1, [[10, 2, -1], [5, -1, 2]]), (2, 7)),
         ((2, 3, 4, 2, [[10, 2, -1], [5, -1, 2]]), (2, 7)),

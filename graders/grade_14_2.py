@@ -556,4 +556,5 @@ def auto_grade_unit_14_2(env=None):
         print("=" * 72)
 
 
-auto_grade_unit_14_2()
+if os.environ.get("APCS_MOCK_CHECK_ONLY") != "1":
+    auto_grade_unit_14_2()

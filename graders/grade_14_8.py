@@ -252,8 +252,10 @@ def _check_solve_g275(g):
     """14-8-5 對拍題：採選項 A，用 marker 從 cell#38 隔離取出裸 solve 再呼叫。
     marker 取自 cell#38 的 '=== 8 大情境覆蓋率壓力測試 ==='。
     """
-    got = _isolated_cell(g, "=== 8 大情境覆蓋率壓力測試 ===", ("solve",)) or {}
-    fn = got.get("solve", "__MISSING__")
+    fn = g.get("solve")
+    if not callable(fn):
+        got = _isolated_cell(g, "=== 8 大情境覆蓋率壓力測試 ===", ("solve",)) or {}
+        fn = got.get("solve", "__MISSING__")
     if not callable(fn):
         return False, "找不到本節的解題函式 solve，請回到 14.8 的壓力測試範例格（cell#38）按下播放鍵執行！"
 
@@ -508,4 +510,5 @@ def auto_grade_unit_14_8(env=None):
         print("=" * 72)
 
 
-auto_grade_unit_14_8()
+if os.environ.get("APCS_MOCK_CHECK_ONLY") != "1":
+    auto_grade_unit_14_8()

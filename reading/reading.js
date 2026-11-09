@@ -40,7 +40,7 @@
       var raw = JSON.parse(localStorage.getItem(DONE_KEY) || "[]");
       if (!Array.isArray(raw)) return [];
       return raw.filter(function (id) {
-        return typeof id === "string" && /^[RFPDL]\d{2}$/.test(id);
+        return typeof id === "string" && (/^[RFPDL]\d{2}$/.test(id) || /^Q-\d{2}-\d{2}-[RFPDL]\d{2}$/.test(id));
       });
     } catch (e) {
       return [];

@@ -181,6 +181,7 @@
       var qid = card.getAttribute("data-qid") || "";
       var choiceBtns = card.querySelectorAll(".choice-btn");
       var feedbackBox = card.querySelector(".feedback-box");
+      var feedbackStatus = card.querySelector(".feedback-status");
       var doneCheckbox = card.querySelector('input[data-qid="' + qid + '"]');
       var toggleBtns = card.querySelectorAll(".btn-deep-toggle");
       var collapseBtns = card.querySelectorAll(".btn-deep-collapse");
@@ -194,6 +195,7 @@
           // 1. 若點擊已選對的按鈕 -> 取消勾選，收合 feedback、速解與詳解，回復未選狀態
           if (btn.classList.contains("is-correct")) {
             btn.classList.remove("is-correct");
+            if (feedbackStatus) feedbackStatus.style.display = "none";
             if (feedbackBox) feedbackBox.style.display = "none";
             if (deepPanel) deepPanel.style.display = "none";
             if (doneCheckbox && doneCheckbox.checked) {
@@ -214,6 +216,7 @@
           choiceBtns.forEach(function (b) {
             if (b.classList.contains("is-correct")) {
               b.classList.remove("is-correct");
+              if (feedbackStatus) feedbackStatus.style.display = "none";
               if (feedbackBox) feedbackBox.style.display = "none";
               if (deepPanel) deepPanel.style.display = "none";
               if (doneCheckbox && doneCheckbox.checked) {
@@ -229,6 +232,9 @@
             btn.classList.remove("is-wrong");
             btn.classList.add("is-correct");
 
+            if (feedbackStatus) {
+              feedbackStatus.style.display = "flex";
+            }
             if (feedbackBox) {
               feedbackBox.style.display = "block";
             }
@@ -241,12 +247,19 @@
             }
           } else {
             btn.classList.add("is-wrong");
+            if (feedbackStatus) {
+              feedbackStatus.style.display = "none";
+            }
           }
         });
       });
 
       toggleBtns.forEach(function (tbtn) {
         tbtn.addEventListener("click", function () {
+          var hasCorrect = card.querySelector(".choice-btn.is-correct") !== null;
+          if (feedbackStatus) {
+            feedbackStatus.style.display = hasCorrect ? "flex" : "none";
+          }
           if (deepPanel) {
             deepPanel.style.display = "block";
           }

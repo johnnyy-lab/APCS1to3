@@ -182,12 +182,49 @@
       var choiceBtns = card.querySelectorAll(".choice-btn");
       var feedbackBox = card.querySelector(".feedback-box");
       var doneCheckbox = card.querySelector('input[data-qid="' + qid + '"]');
+      var toggleBtns = card.querySelectorAll(".btn-deep-toggle");
+      var collapseBtns = card.querySelectorAll(".btn-deep-collapse");
+      var deepPanel = card.querySelector(".deep-panel");
 
       choiceBtns.forEach(function (btn) {
         btn.addEventListener("click", function () {
           var chosen = btn.getAttribute("data-choice");
           if (!chosen) return;
 
+          // 1. 若點擊已選對的按鈕 -> 取消勾選，收合 feedback、速解與詳解，回復未選狀態
+          if (btn.classList.contains("is-correct")) {
+            btn.classList.remove("is-correct");
+            if (feedbackBox) feedbackBox.style.display = "none";
+            if (deepPanel) deepPanel.style.display = "none";
+            if (doneCheckbox && doneCheckbox.checked) {
+              doneCheckbox.checked = false;
+              var next = loadDone().filter(function (item) { return item !== qid; });
+              saveDone(next);
+            }
+            return;
+          }
+
+          // 2. 若點擊已選錯的按鈕 -> 取消打叉，回復未選狀態
+          if (btn.classList.contains("is-wrong")) {
+            btn.classList.remove("is-wrong");
+            return;
+          }
+
+          // 3. 點擊尚未選擇的按鈕時：若先前已有別的按鈕選對，先清除其選對狀態與回饋
+          choiceBtns.forEach(function (b) {
+            if (b.classList.contains("is-correct")) {
+              b.classList.remove("is-correct");
+              if (feedbackBox) feedbackBox.style.display = "none";
+              if (deepPanel) deepPanel.style.display = "none";
+              if (doneCheckbox && doneCheckbox.checked) {
+                doneCheckbox.checked = false;
+                var next = loadDone().filter(function (item) { return item !== qid; });
+                saveDone(next);
+              }
+            }
+          });
+
+          // 4. 判斷新選擇是正確或錯誤
           if (chosen === correctAns) {
             btn.classList.remove("is-wrong");
             btn.classList.add("is-correct");
@@ -207,10 +244,6 @@
           }
         });
       });
-
-      var toggleBtns = card.querySelectorAll(".btn-deep-toggle");
-      var collapseBtns = card.querySelectorAll(".btn-deep-collapse");
-      var deepPanel = card.querySelector(".deep-panel");
 
       toggleBtns.forEach(function (tbtn) {
         tbtn.addEventListener("click", function () {

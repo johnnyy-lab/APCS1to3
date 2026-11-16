@@ -1,4 +1,4 @@
-/* 程式識讀計時卷。
+/* 全真模擬試卷。目前只有一份。
    成績與作答只寫 pyth_apcs_reading_exam_v1。
    不讀、不寫 pyth_apcs_reading_done、pyth_apcs_completed_units、pyth_apcs_last_visited。
    深淺色沿用 pyth_apcs_theme。
@@ -320,7 +320,7 @@
   }
 
   function retake() {
-    var ok = window.confirm("再考一次會清掉這一份的作答與成績。題目仍是同一份 30 題。");
+    var ok = window.confirm("再考一次會清掉這一份的作答與成績。全真模擬試卷目前只有一份，題目仍是這 30 題。");
     if (!ok) return;
     try {
       localStorage.removeItem(STORE_KEY);
